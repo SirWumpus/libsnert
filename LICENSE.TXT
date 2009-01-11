@@ -4,7 +4,7 @@ LibSnert Software Library, version 1
 Copyright 2001, 2006 by Anthony Howe.  All rights reserved.
 
 
-LICENSE AGREEMENT 1.4
+LICENSE AGREEMENT 1.5
 
 SNERTSOFT IS WILLING TO LICENSE THE SOFTWARE IDENTIFIED ABOVE TO YOU
 ONLY UPON THE CONDITION THAT YOU ACCEPT ALL OF THE TERMS CONTAINED
@@ -39,7 +39,8 @@ AGREEMENT.
   5. The Package is an original work written by Anthony C. Howe,
      hereto referred to as the ``Author'', with exception of third
      party code: MD5 routines written by L. Peter Deutsch based on
-     RFC 1321.
+     RFC 1321; SQLite3 package is written by D. Richard Hipp of Hwaci
+     and is in the public domain.
 
       
 2. LICENSE TO USE. 
