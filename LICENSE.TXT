@@ -1,0 +1,164 @@
+
+LibSnert Software Library, version 1
+
+Copyright 2001, 2006 by Anthony Howe.  All rights reserved.
+
+
+LICENSE AGREEMENT 1.4
+
+SNERTSOFT IS WILLING TO LICENSE THE SOFTWARE IDENTIFIED ABOVE TO YOU
+ONLY UPON THE CONDITION THAT YOU ACCEPT ALL OF THE TERMS CONTAINED
+IN THIS LICENSE AGREEMENT.  PLEASE READ THE AGREEMENT CAREFULLY.  BY
+DOWNLOADING OR INSTALLING THIS SOFTWARE, YOU ACCEPT THE TERMS OF THE
+AGREEMENT.
+
+1. DEFINITIONS. 
+
+  1. ``Package'' means the identified above in source and/or binary
+     form, any other machine readable materials provided (including,
+     but not limited to documentation, sample files, data files),
+     any updates or error corrections, and its derivative works.
+
+  2. ``Private Individual'' means an individual using the Package for
+     personal, private, and non-commercial use only.
+
+  3. ``Organisation'' means a legal entity or an individual that does
+     not qualify as a Private Individual defined above.
+     
+  4. ``You'' (or ``Your'') means a Private Individual or Organisation
+     exercising rights under, and complying with all of the terms of,
+     this License or a future version of this License issued under
+     Section 5.1.  For legal entities, ``You'' includes any entity
+     which controls, is controlled by, or is under common control with
+     You.  For purposes of this definition,``control'' means (a) the
+     power, direct or indirect, to cause the direction or management
+     of such entity, whether by contract or otherwise, or (b)
+     ownership of more than fifty percent (50%) of the outstanding
+     shares or beneficial ownership of such entity.
+
+  5. The Package is an original work written by Anthony C. Howe,
+     hereto referred to as the ``Author'', with exception of third
+     party code: MD5 routines written by L. Peter Deutsch based on
+     RFC 1321.
+
+      
+2. LICENSE TO USE. 
+
+  1. If You are a Private Individual and so benefited from a reduced
+     purchase price, then You may only compile, install, and use this
+     Package, with or without private modifications, exclusively on a
+     single machine You legally own or rent from a third party,
+     provided You retain this notice, the Author's copyright notice,
+     any and all license control methods (see below), and any links
+     within the Package back to the most current online versions of
+     this License and Disclaimer.
+
+  2. Otherwise if You have paid the full purchase price, then You may
+     compile, install, and use this Package, with or without private
+     modifications, exclusively on machines You legally own or rent
+     from a third party, provided You retain this notice, the Author's
+     copyright notice, any and all license control methods (see
+     below), and any links within the Package back to the most current
+     online versions of this License and Disclaimer.
+
+  3. You may copy, share, distribute, modify, and create derivative
+     works from the user manuals and any related documentation
+     documentation, training manuals, or reference material.
+     solely for Your internal operations, such as in-house
+
+
+3. RESTRICTIONS. 
+
+  1. Redistribution, including but not limited to books, CDROMS,
+     download mirrors, floppy diskettes, hard disks, hardcopy print
+     outs, online archives, solid state disks, streaming tapes, or
+     other current or future forms of storage or communication media
+     of the Package, with or without modifications, including any
+     and all derivative works such as source patches, binaries,
+     binary patches, or similar is expressly forbidden without prior
+     written permission in hardcopy (letter or fax) signed and dated
+     by the Author.
+     
+  2. It is expressly forbidden for You to use the Package, in whole
+     or in part, in any other software, except those designated by
+     the Author.
+
+  3. It is expressly forbidden for You to use the Package to develop
+     any software or other technology having the same primary
+     function as the Package, including but not limited to using the
+     Package in any development or test procedure that seeks to
+     develop like software or other technology, or determine if such
+     software or other technology performs in a similar manner as
+     the Package.
+     
+  4. You may not sell, rent, lease, or transfer the Package to third
+     parties without prior written permission in hardcopy (letter or
+     fax) signed and dated by the Author.
+
+
+4. TERMINATION.  
+
+  1. This Agreement is effective until terminated.  You may
+     terminate this Agreement at any time by destroying all copies
+     of the Package.  This Agreement will terminate immediately
+     without notice from the Author if You fail to comply with any
+     provision of this Agreement.  Either party may terminate this
+     Agreement immediately should any portion of the Package become,
+     or in either party's opinion be likely to become, the subject
+     of a claim of infringement of any intellectual property right.
+     Upon Termination, You must destroy all copies of the Package.
+
+
+5. VERSIONS OF THE LICENSE.
+
+  1. New Versions.  The Author may publish revised and/or new
+     versions of the License from time to time.  Each version will
+     be given a distinguishing version number.
+
+  2. Effect of New Versions.  Once a version of the Package has been
+     published under a particular version of the License, You may
+     always continue to use it under the terms of that License
+     version.  You may also choose to use such Package under the
+     terms of any subsequent version of the License published by the
+     Author.  No one other than the Author has the right to modify
+     the terms applicable to the Package created under this License.
+
+
+DISCLAIMER
+
+THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESSED OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO WAY SHALL THE AUTHOR OR LICENSEE BE LIABLE FOR ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+
+LICENSE CONTROL
+
+The Package may use one or more license control methods including, but
+not limited to, license key activation, periodic reporting of Package
+details and IP address of installation to SnertSoft, remote license
+verification by SnertSoft, or other future technical means. Any
+information reported to or gathered by SnertSoft shall remain strictly
+confidential and the private property of SnertSoft. Under no
+circumstances will SnertSoft resell or release this information to third
+parties, unless demanded by court order.
+
+
+SUPPORT
+
+Support is only provided for the Author's original Package. Priority
+support can be purchased. Free support is limited, based on the Author's
+availability, though enhancements requests and problem reports are
+welcome. A community mailing list is available; please refer to
+SnertSoft web site Support area for details.
+
+
+
+-END-
