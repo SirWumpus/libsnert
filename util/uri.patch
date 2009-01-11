@@ -1,0 +1,20 @@
+--- uri.c.orig	Sun Mar 23 12:15:43 2008
++++ uri.c	Sun Mar 23 12:11:30 2008
+@@ -619,6 +619,8 @@
+ 			uri->host = value;
+ 		}
+ 
++		uriDecodeSelf(uri->host);
++
+ 		if (0 < (span = spanHost(uri->host, 0))) {
+ 			if ((uri->path = strchr(uri->host + span, '/')) != NULL) {
+ 				/* Shift the scheme & authority left one byte to retain
+@@ -631,8 +633,6 @@
+ 				uri->path[-1] = '\0';
+ 				uri->host--;
+ 			}
+-
+-			uriDecodeSelf(uri->host);
+ 
+ 			if (uri->host[span] == ':') {
+ 				uri->port = uri->host + span;

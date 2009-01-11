@@ -1,0 +1,34 @@
+A localhost
+A localhost.
+A localhost.localhost
+AAAA localhost.
+AAAA localhost.localhost
+SOA snert.com
+NS snert.com
+MX snert.com
+A mx.snert.net
+A www.snert.com			# CNAME > A
+TXT snert.com
+PTR 82.97.10.34
+PTR 69.42.170.158		# CNAME / PTR delegation
+MX aol.com			# multiple MX, multihomed
+MX ibm.com			# multiple MX, multihomed
+MX 163.com			# single MX, multihomed, TCP?
+MX 126.com			# single MX, multihomed, TCP?
+CNAME circular0.snert.net.
+A circular0.snert.net.		# should fail
+CNAME circular1.snert.net.
+A circular1.snert.net.		# should fail
+CNAME chain1.snert.net.
+A chain1.snert.net		# CNAME > CNAME > CNAME > A
+MX root1.snert.net
+MX root2.snert.net
+A gateway01.websitewelcome.com	# multihomed, requires TCP
+MX handstu.com   		# huge MX list, TCP lookup
+MX brandtconsolidated.com	# long server names, TCP lookup
+NS ibm.com			# has AAAA record
+A redaart.cn			# multi.uribl.com only
+A bp15.net			# multi.uribl.com only
+MX veridata.com			# has DNAME record
+NS roedu.net			# has unsupported A6 record
+A .				# TIMEDOUT

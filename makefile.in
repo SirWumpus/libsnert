@@ -1,0 +1,249 @@
+#
+# @package_copyright@
+#
+# @configure_input@
+#
+
+.POSIX :
+
+PACKAGE	= @PACKAGE_TARNAME@
+VERSION	= @PACKAGE_VERSION@
+
+.SUFFIXES :
+A = .@LIBEXT@
+O = .@OBJEXT@
+E = @EXEEXT@
+.SUFFIXES : .c $O $A
+
+#
+# Paths for supporting headers and libraries.
+#
+top_srcdir = @top_srcdir@
+abs_srcdir = @abs_srcdir@
+TOPDIR	 	= @abs_top_srcdir@
+
+SNERT_TARDIR	= @snert_tardir@
+SNERT_INCDIR	= @snert_incdir@
+SNERT_LIBDIR	= @snert_libdir@
+
+LIB	= $(SNERT_LIBDIR)/${PACKAGE}$A
+BAK	= $(SNERT_LIBDIR)/${PACKAGE}.bak
+TARFILE	= ${PACKAGE}-${VERSION}'.'${BUILD}.tar.gz
+TGZ	= $(SNERT_TARDIR)/${TARFILE}
+
+CC		= @CC@
+CC_E	= @CC_E@
+CC_O	= @CC_O@
+#CFLAGS	= @CFLAGS@ -fstrict-aliasing
+CFLAGS	= ${CFLAGS_PREFIX} @CFLAGS@
+LDFLAGS	= ${LDFLAGS_PREFIX} @LDFLAGS@
+LIBS	= ${LIBS_PREFIX} @LIBS@
+TAR_I	= @TAR_I@
+BUILD	= `cat ${TOPDIR}/BUILD_ID.TXT`
+DEFINES = -DLIBSNERT_BUILD=${BUILD} -DLIBSNERT_BUILD_STRING='"'${BUILD}'"'
+
+XARGSI	= @XARGSI@
+RANLIB	= @RANLIB@
+ARCHIVE	= @ARCHIVE@
+COMPILE	= @COMPILE@
+MD5SUM	= @MD5SUM@
+AUTOCONF= @AUTOCONF@
+
+LIBSNERT = @LIBSNERT@
+
+LIBSNERT_SQLITE3_DIR = @LIBSNERT_SQLITE3_DIR@
+LIBSNERT_SQLITE3_VERSION = @LIBSNERT_SQLITE3_VERSION@
+
+#######################################################################
+
+#%$O : %.c
+.c$O :
+	$(COMPILE)
+
+#(%) : %
+#	$(ARCHIVE)$*
+
+#%$E : %.c
+.c$E :
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)$*$E $< $(LIBSNERT) $(LIBS)
+
+#%$E : %$O
+$O$E :
+	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
+
+#######################################################################
+
+OBJS = LibSnert$O
+
+SUBDIRS = crc object type util io net mail sys tools
+
+.MAIN : build
+
+all: build
+
+title :
+	@echo
+	@echo '***************************************************************'
+	@echo '==> '${abs_srcdir}
+	@echo '***************************************************************'
+	@echo
+
+build: title add-lib
+	@for i in $(SUBDIRS); do ( cd $$i; ${MAKE} ${MAKEFLAGS} $@ ); done
+	@echo
+	@echo '***************************************************************'
+	@echo '==> building CLI test / tool variants'
+	@echo '***************************************************************'
+	@echo
+	cd type; ${MAKE} ${MAKEFLAGS} kvmap$E kvmc$E kvmd$E mcc$E
+	cd mail; ${MAKE} ${MAKEFLAGS} mime$E digestbl$E siq$E smtp2$E spf$E
+	cd io;   ${MAKE} ${MAKEFLAGS} Dns$E
+	cd net;  ${MAKE} ${MAKEFLAGS} pdq$E server$E
+	cd util; ${MAKE} ${MAKEFLAGS} uri$E
+	@echo
+	@echo '***************************************************************'
+	@echo Build ${BUILD} DONE
+	@echo '***************************************************************'
+	@echo
+
+debug: title add-lib
+	@for i in $(SUBDIRS); do ( cd $$i; ${MAKE} ${MAKEFLAGS} $@ ); done
+	@echo
+	@echo '***************************************************************'
+	@echo '==> building CLI test / tool variants'
+	@echo '***************************************************************'
+	@echo
+	cd type; ${MAKE} ${MAKEFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' kvmap$E kvmc$E kvmd$E mcc$E
+	cd mail; ${MAKE} ${MAKEFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' siq$E smtp2$E spf$E
+	cd io;   ${MAKE} ${MAKEFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' Dns$E
+	cd net;  ${MAKE} ${MAKEFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' pdq$E
+	cd util; ${MAKE} ${MAKEFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' uri$E
+	@echo
+	@echo '***************************************************************'
+	@echo Build ${BUILD} DONE
+	@echo '***************************************************************'
+	@echo
+
+lint: title
+	-splint -D_REENTRANT -I$(SNERT_INCDIR) *.c
+	@for i in $(SUBDIRS); do cd $$i; ${MAKE} ${MAKEFLAGS} $@ ; done
+	@echo
+	@echo '***************************************************************'
+	@echo Build ${BUILD} DONE
+	@echo '***************************************************************'
+	@echo
+
+strip: build
+
+install: build
+
+
+next-id:
+	expr `cat BUILD_ID.TXT` + 1 >BUILD_ID.TXT
+	sed -e 's/LIBSNERT_BUILD [0-9]*/LIBSNERT_BUILD '`cat BUILD_ID.TXT`'/' $(SNERT_INCDIR)/com/snert/lib/version.h >$(SNERT_INCDIR)/com/snert/lib/version.h.new
+	sed -e 's/\(LIBSNERT_VERSION.*\.\)[0-9]*"/\1'`cat BUILD_ID.TXT`'"/' $(SNERT_INCDIR)/com/snert/lib/version.h.new >$(SNERT_INCDIR)/com/snert/lib/version.h
+	rm -f $(SNERT_INCDIR)/com/snert/lib/version.h.new
+
+add-lib: ${OBJS}
+	@echo
+	rm -f ${LIB}
+	ar rc ${LIB} ${OBJS}
+	$(RANLIB) $(LIB)
+	@echo
+
+# Better method when you have too many files to pass on the command line.
+#add-lib: ${OBJS}
+#	@echo
+#	rm -f ${LIB}
+#	echo ${OBJS} | xargs ar rc ${LIB}
+#	$(RANLIB) $(LIB)
+#	@echo
+
+# Old method used with Borland C++ tools, which has the crappy tlib tool.
+#
+#add-lib:
+#	@echo
+#	for obj in $(OBJS); do $(ARCHIVE); done
+#	$(RANLIB) $(LIB)
+#	@echo
+
+LibSnert$O: BUILD_ID.TXT LibSnert.c
+	$(CC) $(DEFINES) $(CFLAGS) -c LibSnert.c
+
+clean: title
+	-rm -f $(LIB) $(BAK) td32.TR2
+	-rm -rf autom4te.cache configure.lineno version.h.in
+	-rm -f *.o *.obj *.tds *.stackdump core *.core core.*
+	cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}; ${MAKE} ${MAKEFLAGS} $@
+	@for i in $(SUBDIRS); do ( cd $$i; ${MAKE} ${MAKEFLAGS} $@ ); done
+	@echo
+	@echo '***************************************************************'
+	@echo Clean DONE
+	@echo '***************************************************************'
+	@echo
+
+distclean: title
+	-rm -f $(LIB) $(BAK) td32.TR2
+	-rm -rf autom4te.cache configure.lineno version.h.in
+	-rm -f *.log *.o *.obj *.tds *.stackdump core *.core core.*
+	-rm -f config.log config.status install.sh makefile version.sh
+	if test -e ${LIBSNERT_SQLITE3_DIR}/include/sqlite3.h; then \
+	    rm -rf ${LIBSNERT_SQLITE3_DIR}/bin ${LIBSNERT_SQLITE3_DIR}/include ${LIBSNERT_SQLITE3_DIR}/lib ; \
+	fi
+	cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}; ${MAKE} ${MAKEFLAGS} $@
+	@for i in $(SUBDIRS); do ( cd $$i; ${MAKE} ${MAKEFLAGS} $@ ); done
+	@echo
+	@echo '***************************************************************'
+	@echo Distribution Clean DONE
+	@echo '***************************************************************'
+	@echo
+
+install:
+	echo
+
+predefines:
+	gcc ${CFLAGS} -dM -E -xc /dev/null
+
+../tools/flip$E: ../tools/flip.c
+	cd ../tools; $(CC) $(CC_E)flip$E flip.c
+
+flipunix: ../tools/flip
+	-find ../.. -name "*.[ch]" -o -name "*.in" | $(XARGSI) -t ../tools/flip -u {}
+
+flipdos: ../tools/flip.exe
+	-find ../.. -name "*.[ch]" -o -name "*.in" | $(XARGSI) -t ../tools/flip -d {}
+
+configure: BUILD_ID.TXT aclocal.m4 configure.in
+	${AUTOCONF} -f
+
+config.status: configure
+	./configure
+
+#makefile: config.status makefile.in
+#	./config.status
+
+../../include/com/snert/lib/version.h: config.status version.h.in.in
+	./config.status
+
+list:
+	tar -ztf $(TGZ)
+
+tar: configure
+	echo '${VERSION}.'`cat BUILD_ID.TXT` >VERSION.TXT
+	echo '${PACKAGE}-${VERSION}.tar.gz' >FILE.TXT
+	tar -C ${SNERT_TARDIR} ${TAR_I} MANIFEST.TXT -zcf ${TGZ}
+	@echo
+	@echo '***************************************************************'
+	@cd ${SNERT_TARDIR}; ${MD5SUM} ${TARFILE}* | tee com/snert/src/lib/${PACKAGE}.md5
+	@echo '***************************************************************'
+	@cd ${SNERT_TARDIR}; wc -c ${TARFILE}
+	@echo '***************************************************************'
+	@echo
+
+# Create a distribution with ready made makefiles.
+pack: next-id tar
+
+fixperms:
+	cd ${SNERT_TARDIR}; \
+		find com -type f | xargs chmod 644; \
+		find com -type d | xargs chmod 755

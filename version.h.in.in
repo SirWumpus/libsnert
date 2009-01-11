@@ -1,0 +1,753 @@
+/*
+ * version.h
+ *
+ * Copyright 2002, 2007 by Anthony Howe. All rights reserved.
+ */
+
+#ifndef __com_snert_lib_version_h__
+#define __com_snert_lib_version_h__	1
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/***********************************************************************
+ ***
+ ***********************************************************************/
+
+#define __LIBSNERT__		1
+
+#undef LIBSNERT_MAJOR
+#undef LIBSNERT_MINOR
+#undef LIBSNERT_BUILD
+#undef LIBSNERT_NAME
+#undef LIBSNERT_VERSION
+#undef LIBSNERT_STRING
+#undef LIBSNERT_AUTHOR
+#undef LIBSNERT_COPYRIGHT
+#undef LIBSNERT_DEBUG
+#undef LIBSNERT_UNAME
+
+#undef LIBSNERT_CFLAGS
+#undef LIBSNERT_LDFLAGS
+#undef LIBSNERT_LIBS
+#undef LIBSNERT_CONFIGURE
+#undef LIBSNERT_BUILT
+
+#ifndef __@platform@__
+#define __@platform@__		1
+#endif
+
+/* Sun defines __unix, but not __unix__ */
+#if defined(__unix) && !defined(__unix__)
+#define __unix__ 1
+#endif
+
+#undef LIBC_PATH
+#undef LIBPTHREAD_PATH
+
+#if defined(__APPLE__) && defined(__Darwin__)
+#define __unix__		1
+#endif
+
+#undef WITH_WINDOWS_SDK
+
+#undef NDEBUG
+
+typedef struct {
+	int major;
+	int minor;
+	int build;
+	const char *package;
+	const char *author;
+	const char *copyright;
+	const char *platform;
+	const char *configure;
+	const char *cflags;
+	const char *ldflags;
+	const char *libs;
+	const char *built;
+} VersionInfo;
+
+extern VersionInfo LibSnert;
+
+/*
+ * Fine resolution clock:
+ *
+ * POSIX_API    nanoseconds     10^-9
+ * BSD_API      microseconds    10^-6
+ * ANSI_API     seconds         10^1
+ */
+#undef TIME_API
+
+/*
+ * SYSTEMV_API
+ * POSIX_API
+ * WIN32_API
+ * FCNTL_API
+ * FLOCK_API
+ */
+#undef SERIALIZATION_API
+
+/*
+ * SYSTEMV_API
+ * POSIX_API
+ * WIN32_API
+ * MMAP_ANON
+ */
+#undef SHARED_MEMORY_API
+
+#undef ENABLE_PDQ
+#undef ENABLE_PDQ_FD_PER_NS
+#undef ENABLE_ACCESS_TAGLESS
+
+#ifdef WANKERS
+/*
+ * GLIBC does not enable all the POSIX standard prototypes by default.
+ * Turning this on breaks other things.
+ */
+# define _XOPEN_SOURCE		500
+#endif
+
+/*
+ * ANSI int types
+ */
+#undef HAVE_INTTYPES_H
+#undef HAVE_STDINT_H
+
+/*
+ * POSIX Types
+ */
+#undef HAVE_GID_T
+#undef HAVE_MODE_T
+#undef HAVE_OFF_T
+#undef HAVE_PID_T
+#undef HAVE_UID_T
+#undef HAVE_SIZE_T
+#undef HAVE_SSIZE_T
+#undef HAVE_TIME_T
+
+/*
+ * Assumed defaults for types when not defined.
+ */
+/* OLD #if !defined(HAVE_GID_T) && !defined(__CYGWIN__) */
+#ifndef HAVE_GID_T
+typedef int gid_t;
+#endif
+#ifndef HAVE_MODE_T
+typedef int mode_t;
+#endif
+#ifndef HAVE_OFF_T
+typedef long off_t;
+#endif
+#ifndef HAVE_PID_T
+# ifdef __MINGW32__
+typedef HANDLE pid_t;
+# else
+typedef int pid_t;
+# endif
+#endif
+/* OLD #if !defined(HAVE_UID_T) && !defined(__CYGWIN__) */
+#ifndef HAVE_UID_T
+typedef int uid_t;
+#endif
+#ifndef HAVE_SIZE_T
+typedef unsigned size_t;
+#endif
+#ifndef HAVE_SSIZE_T
+typedef int ssize_t;
+#endif
+#ifndef HAVE_TIME_T
+typedef unsigned long time_t;
+#endif
+
+/*
+ * POSIX I/O
+ */
+#undef HAVE_FCNTL_H
+#undef HAVE_SYS_STAT_H
+#undef HAVE_UNISTD_H
+#undef HAVE_UTIME_H
+#undef HAVE_CHDIR
+#undef HAVE_CHMOD
+#undef HAVE_CHOWN
+#undef HAVE_CHROOT
+#undef HAVE_CHSIZE
+#undef HAVE_CLOSE
+#undef HAVE_CREAT
+#undef HAVE_DUP
+#undef HAVE_DUP2
+#undef HAVE_FCHMOD
+#undef HAVE_FSTAT
+#undef HAVE_FTRUNCATE
+#undef HAVE_GETCWD
+#undef HAVE_LINK
+#undef HAVE_LSEEK
+#undef HAVE_MKDIR
+#undef HAVE_OPEN
+#undef HAVE_PIPE
+#undef HAVE_READ
+#undef HAVE_RENAME
+#undef HAVE_RMDIR
+#undef HAVE_STAT
+#undef HAVE_TRUNCATE
+#undef HAVE_UMASK
+#undef HAVE_UNLINK
+#undef HAVE_UTIME
+#undef HAVE_WRITE
+#undef HAVE_DIRENT_H
+#undef HAVE_CLOSEDIR
+#undef HAVE_OPENDIR
+#undef HAVE_READDIR
+
+#ifdef HAVE_CHSIZE
+#define ftruncate chsize
+#endif
+
+/*
+ * POSIX Signals
+ */
+#undef HAVE_SIGNAL_H
+#undef HAVE_SIGSET_T
+#undef HAVE_STRUCT_SIGALTSTACK
+#undef HAVE_SIGALTSTACK
+#undef HAVE_SIGEMPTYSET
+#undef HAVE_SIGFILLSET
+#undef HAVE_SIGADDSET
+#undef HAVE_SIGDELSET
+#undef HAVE_SIGISMEMBER
+#undef HAVE_SIGACTION
+#undef HAVE_SIGPROCMASK
+#undef HAVE_SIGPENDING
+#undef HAVE_SIGSUSPEND
+#undef HAVE_SIGWAITINFO
+#undef HAVE_SIGTIMEDWAIT
+#undef HAVE_SIGQUEUE
+
+/*
+ * POSIX Thread & Mutex Functions
+ */
+#undef HAVE_PTHREAD_H
+#undef HAVE_PTHREAD_T
+#undef HAVE_PTHREAD_ATTR_T
+#undef HAVE_PTHREAD_MUTEX_T
+#undef HAVE_PTHREAD_MUTEXATTR_T
+#undef HAVE_PTHREAD_ONCE_T
+#undef HAVE_PTHREAD_CANCEL
+#undef HAVE_PTHREAD_CREATE
+#undef HAVE_PTHREAD_DETACH
+#undef HAVE_PTHREAD_EQUAL
+#undef HAVE_PTHREAD_EXIT
+#undef HAVE_PTHREAD_JOIN
+#undef HAVE_PTHREAD_KILL
+#undef HAVE_PTHREAD_SELF
+#undef HAVE_PTHREAD_YIELD
+#undef HAVE_PTHREAD_SIGMASK
+#undef HAVE_SIGWAIT
+#undef HAVE_PTHREAD_ATFORK
+#undef HAVE_PTHREAD_ATTR_INIT
+#undef HAVE_PTHREAD_ATTR_DESTROY
+#undef HAVE_PTHREAD_ATTR_GETDETACHSTATE
+#undef HAVE_PTHREAD_ATTR_SETDETACHSTATE
+#undef HAVE_PTHREAD_ATTR_GETSTACKADDR
+#undef HAVE_PTHREAD_ATTR_SETSTACKADDR
+#undef HAVE_PTHREAD_ATTR_GETSTACKSIZE
+#undef HAVE_PTHREAD_ATTR_SETSTACKSIZE
+#undef HAVE_PTHREAD_ATTR_GETSCOPE
+#undef HAVE_PTHREAD_ATTR_SETSCOPE
+#undef HAVE_PTHREAD_MUTEX_INIT
+#undef HAVE_PTHREAD_MUTEX_DESTROY
+#undef HAVE_PTHREAD_MUTEX_LOCK
+#undef HAVE_PTHREAD_MUTEX_TRYLOCK
+#undef HAVE_PTHREAD_MUTEX_UNLOCK
+#undef HAVE_PTHREAD_MUTEXATTR_INIT
+#undef HAVE_PTHREAD_MUTEXATTR_DESTROY
+#undef HAVE_PTHREAD_MUTEXATTR_SETPRIOCEILING
+#undef HAVE_PTHREAD_MUTEXATTR_GETPRIOCEILING
+#undef HAVE_PTHREAD_MUTEXATTR_SETPROTOCOL
+#undef HAVE_PTHREAD_MUTEXATTR_GETPROTOCOL
+#undef HAVE_PTHREAD_MUTEXATTR_SETTYPE
+#undef HAVE_PTHREAD_MUTEXATTR_GETTYPE
+#undef HAVE_PTHREAD_RWLOCK_INIT
+#undef HAVE_PTHREAD_RWLOCK_DESTROY
+#undef HAVE_PTHREAD_RWLOCK_UNLOCK
+#undef HAVE_PTHREAD_RWLOCK_RDLOCK
+#undef HAVE_PTHREAD_RWLOCK_WRLOCK
+#undef HAVE_PTHREAD_RWLOCK_TRYRDLOCK
+#undef HAVE_PTHREAD_RWLOCK_TRYWRLOCK
+#undef HAVE_PTHREAD_LOCK_GLOBAL_NP
+#undef HAVE_PTHREAD_UNLOCK_GLOBAL_NP
+#undef HAVE_PTHREAD_COND_BROADCAST
+#undef HAVE_PTHREAD_COND_DESTROY
+#undef HAVE_PTHREAD_COND_INIT
+#undef HAVE_PTHREAD_COND_SIGNAL
+#undef HAVE_PTHREAD_COND_TIMEDWAIT
+#undef HAVE_PTHREAD_COND_WAIT
+#undef HAVE_PTHREAD_KEY_CREATE
+#undef HAVE_PTHREAD_KEY_DELETE
+#undef HAVE_PTHREAD_GETSPECIFIC
+#undef HAVE_PTHREAD_SETSPECIFIC
+#undef HAVE_PTHREAD_CLEANUP_PUSH
+#undef HAVE_PTHREAD_CLEANUP_POP
+#undef HAVE_PTHREAD_ONCE
+
+/*
+ * fork() vs pthread_create()
+ */
+#undef ENABLE_FORK
+#if defined(__WIN32__)
+
+#elif defined(ENABLE_FORK)
+# undef HAVE_PTHREAD_CREATE
+#endif
+
+/*
+ * POSIX Semaphores
+ */
+#undef HAVE_SEMAPHORE_H
+#undef HAVE_SEM_T
+#undef HAVE_SEM_DESTROY
+#undef HAVE_SEM_INIT
+#undef HAVE_SEM_POST
+#undef HAVE_SEM_WAIT
+
+/*
+ * Process Functions
+ */
+#undef HAVE_LIMITS_H
+#undef HAVE_UNISTD_H
+#undef HAVE_SYS_RESOURCE_H
+#undef HAVE_SYS_WAIT_H
+#undef HAVE_SYSEXITS_H
+#undef HAVE_SYSLOG_H
+#undef HAVE_GETUID
+#undef HAVE_GETGID
+#undef HAVE_SETUID
+#undef HAVE_SETGID
+#undef HAVE_GETEUID
+#undef HAVE_GETEGID
+#undef HAVE_SETEUID
+#undef HAVE_SETEGID
+#undef HAVE_GETPGID
+#undef HAVE_SETPGID
+#undef HAVE_GETRESUID
+#undef HAVE_GETRESGID
+#undef HAVE_SETRESUID
+#undef HAVE_SETRESGID
+#undef HAVE_SETREUID
+#undef HAVE_GETGROUPS
+#undef HAVE_SETGROUPS
+#undef HAVE_INITGROUPS
+#undef HAVE__EXIT
+#undef HAVE_EXIT
+#undef HAVE_FORK
+#undef HAVE_EXCEL
+#undef HAVE_EXCELE
+#undef HAVE_EXCELP
+#undef HAVE_EXECV
+#undef HAVE_EXECVE
+#undef HAVE_EXECVP
+#undef HAVE_SETSID
+#undef HAVE_WAIT
+#undef HAVE_WAIT3
+#undef HAVE_WAIT4
+#undef HAVE_WAITPID
+#undef HAVE_STRUCT_RLIMIT
+#undef HAVE_RLIM_T
+#undef HAVE_GETRLIMIT
+#undef HAVE_SETRLIMIT
+
+#ifndef HAVE_RLIM_T
+/* My old Linux does not define this type */
+#define rlim_t	long
+#endif
+
+/*
+ * ANSI String Functions
+ */
+#undef HAVE_STRING_H
+#undef HAVE_STRINGS_H
+#undef HAVE_MEMCHR
+#undef HAVE_MEMCMP
+#undef HAVE_MEMCPY
+#undef HAVE_MEMMOVE
+#undef HAVE_MEMSET
+#undef HAVE_STRCAT
+#undef HAVE_STRNCAT
+#undef HAVE_STRCPY
+#undef HAVE_STRNCPY
+#undef HAVE_STRCMP
+#undef HAVE_STRCOLL
+#undef HAVE_STRNCMP
+#undef HAVE_STRXFRM
+#undef HAVE_STRCHR
+#undef HAVE_STRCSPN
+#undef HAVE_STRERROR
+#undef HAVE_STRERROR_R
+#undef HAVE_STRLEN
+#undef HAVE_STRPBRK
+#undef HAVE_STRRCHR
+#undef HAVE_STRSPN
+#undef HAVE_STRSTR
+#undef HAVE_STRTOK
+
+/*
+ * Extra String Functions
+ */
+#undef HAVE_STRDUP
+#undef HAVE_STRTOL
+#undef HAVE_STRLCPY
+#undef HAVE_STRLCAT
+#undef HAVE_STRCASECMP
+#undef HAVE_STRNCASECMP
+#undef HAVE_SNPRINTF
+#undef HAVE_VSNPRINTF
+#undef HAVE_VPRINTF
+#undef HAVE_SETPROCTITLE
+
+/*
+ * Regex
+ */
+#undef HAVE_REGEX_H
+#undef HAVE_REGCOMP
+#undef HAVE_REGEXEC
+#undef HAVE_REGERROR
+#undef HAVE_REGFREE
+
+/*
+ * SQLite3
+ */
+#undef HAVE_SQLITE3_H
+#undef HAVE_SQLITE3_OPEN
+
+/*
+ * ANSI & POSIX Time Functions
+ */
+#undef HAVE_CTIME_H
+#undef HAVE_TIME_H
+#undef HAVE_SYS_TIME_H
+#undef HAVE_CLOCK
+#undef HAVE_DIFFTIME
+#undef HAVE_MKTIME
+#undef HAVE_TIME
+#undef HAVE_ASCTIME
+#undef HAVE_ASCTIME_R
+#undef HAVE_CTIME
+#undef HAVE_CTIME_R
+#undef HAVE_GMTIME
+#undef HAVE_LOCALTIME
+#undef HAVE_STRFTIME
+#undef HAVE_GMTIME_R
+#undef HAVE_LOCALTIME_R
+#undef HAVE_CLOCK_GETTIME
+#undef HAVE_GETTIMEOFDAY
+#undef HAVE_ALARM
+#undef HAVE_GETITIMER
+#undef HAVE_SETITIMER
+#undef HAVE_TZSET
+#undef HAVE_SLEEP
+#undef HAVE_USLEEP
+#undef HAVE_NANOSLEEP
+#undef TM_IN_SYS_TIME
+#undef HAVE_STRUCT_TM_TM_ZONE
+#undef HAVE_STRUCT_TIMESPEC
+#undef HAVE_STRUCT_TIMEVAL
+#undef TIME_WITH_SYS_TIME
+#undef HAVE_TZNAME
+
+/*
+ * ANSI I/O Functions
+ */
+#undef HAVE_FLOCKFILE
+#undef HAVE_FUNLOCKFILE
+
+/*
+ * Time Functions
+ */
+#undef HAVE_ALARM
+#undef HAVE_GETITIMER
+#undef HAVE_SETITIMER
+#undef HAVE_GETTIMEOFDAY
+
+/*
+ * Network Services
+ */
+#undef HAVE_NETDB_H
+#undef HAVE_ENDHOSTENT
+#undef HAVE_GETADDRINFO
+#undef HAVE_GETHOSTBYADDR
+#undef HAVE_GETHOSTBYADDR_R
+#undef HAVE_GETHOSTBYNAME
+#undef HAVE_GETHOSTBYNAME2
+#undef HAVE_GETHOSTBYNAME2_R
+#undef HAVE_GETHOSTBYNAME_R
+#undef HAVE_GETHOSTENT
+#undef HAVE_GETHOSTNAME
+#undef HAVE_GETNAMEINFO
+#undef HAVE_HERROR
+#undef HAVE_HSTRERROR
+#undef HAVE_SETHOSTENT
+#undef HAVE_GETSERVENT
+#undef HAVE_GETSERVBYPORT
+#undef HAVE_GETSERVBYNAME
+#undef HAVE_SETSERVENT
+#undef HAVE_ENDSERVENT
+#undef HAVE_GETPROTOENT
+#undef HAVE_GETPROTOBYNUMBER
+#undef HAVE_GETPROTOBYNAME
+#undef HAVE_SETPROTOENT
+#undef HAVE_ENDPROTOENT
+
+/*
+ * Sockets
+ */
+#undef HAVE_ARPA_INET_H
+#undef HAVE_NETINET_IN_H
+#undef HAVE_NETINET_IN6_H
+#undef HAVE_NETINET6_IN6_H
+#undef HAVE_NETINET_TCP_H
+#undef HAVE_STRUCT_SOCKADDR_IN6
+#undef HAVE_STRUCT_SOCKADDR_UN
+#undef HAVE_STRUCT_IN6_ADDR
+#undef HAVE_SOCKLEN_T
+#undef HAVE_POLL_H
+#undef HAVE_SYS_POLL_H
+#undef HAVE_SYS_SELECT_H
+#undef HAVE_SYS_SOCKET_H
+#undef HAVE_SYS_UN_H
+#undef HAVE_WINSOCK2_H
+#undef HAVE_WS2TCPIP_H
+#undef HAVE_ACCEPT
+#undef HAVE_BIND
+#undef HAVE_CONNECT
+#undef HAVE_GETADDRINFO
+#undef HAVE_GETNAMEINFO
+#undef HAVE_GETPEEREID
+#undef HAVE_GETPEERNAME
+#undef HAVE_GETSOCKNAME
+#undef HAVE_GETSOCKOPT
+#undef HAVE_HTONL
+#undef HAVE_HTONS
+#undef HAVE_INET_ADDR
+#undef HAVE_INET_ATON
+#undef HAVE_INET_NTOA
+#undef HAVE_INET_NTOP
+#undef HAVE_INET_PTON
+#undef HAVE_LISTEN
+#undef HAVE_NTOHL
+#undef HAVE_NTOHS
+#undef HAVE_POLL
+#undef HAS_BROKEN_POLL
+#undef HAVE_RECV
+#undef HAVE_RECVFROM
+#undef HAVE_RECVMSG
+#undef HAVE_SELECT
+#undef HAVE_SEND
+#undef HAVE_SENDMSG
+#undef HAVE_SENDTO
+#undef HAVE_SETSOCKOPT
+#undef HAVE_SHUTDOWN
+#undef HAVE_SOCKET
+
+/* Windows does not provide an sa_len field and some
+ * older Linux implementations also skimp on this field.
+ */
+#undef HAVE_STRUCT_SOCKADDR_SA_LEN
+#undef HAVE_STRUCT_SOCKADDR_IN_SIN_LEN
+#undef HAVE_STRUCT_SOCKADDR_IN6_SIN6_LEN
+#undef HAVE_STRUCT_SOCKADDR_UN_SUN_LEN
+
+#ifndef HAVE_SOCKLEN_T
+# ifdef __SUNOS__
+typedef size_t socklen_t;
+# endif
+# ifdef __APPLE__
+typedef int socklen_t;
+# endif
+#endif
+
+/*
+ * System Kernel
+ */
+#undef HAVE_SYS_PRCTL_H
+#undef HAVE_PRCTL
+#undef HAVE_SYS_PARAM_H
+#undef HAVE_SYS_SYSCTL_H
+#undef HAVE_SYSCTL
+#undef HAVE_SYS_SYSINFO_H
+#undef HAVE_GET_NPROCS
+#undef HAVE_GET_NPROCS_CONF
+#undef HAVE_SYSCONF
+#undef HAVE_GETLOADAVG
+
+/*
+ * PAM
+ */
+#undef HAVE_SECURITY_PAM_APPL_H
+#undef HAVE_PAM_START
+#undef HAVE_PAM_AUTHENTICATE
+#undef HAVE_PAM_END
+
+/*
+ * setjmp
+ */
+#undef HAVE_SETJMP_H
+#undef HAVE_JMP_BUF
+#undef HAVE_SIGJMP_BUF
+#undef HAVE_SETJMP
+#undef HAVE_LONGJMP
+#undef HAVE_SIGSETJMP
+#undef HAVE_SIGLONGJMP
+
+/*
+ * Headers
+ */
+#undef HAVE_DLFCN_H
+#undef HAVE_GRP_H
+#undef HAVE_IO_H
+#undef HAVE_MEMORY_H
+#undef HAVE_PWD_H
+#undef HAVE_STDLIB_H
+#undef HAVE_SYS_IPC_H
+#undef HAVE_SYS_SEM_H
+#undef HAVE_SYS_FILE_H
+#undef HAVE_SYS_MMAN_H
+#undef HAVE_SYS_TYPES_H
+#undef HAVE_WINDOWS_H
+#undef STDC_HEADERS
+
+/*
+ * Functions
+ */
+#undef HAVE_BRK
+#undef HAVE_SBRK
+#undef HAVE_GETPAGESIZE
+#undef HAVE_MMAP
+#undef HAVE_MUNMAP
+#undef PROTOTYPES
+
+/*
+ * Random
+ */
+#undef HAVE_RAND_R
+#undef HAVE_SRAND
+#undef HAVE_RAND
+#undef HAVE_RANDOM
+#undef HAVE_SRANDOM
+#undef HAVE_INITSTATE
+#undef HAVE_SETSTATE
+
+/*
+ * Sendmail libmilter
+ */
+#undef HAVE_LIBMILTER_MFAPI_H
+#undef HAVE_SMFI_ADDHEADER
+#undef HAVE_SMFI_ADDRCPT
+#undef HAVE_SMFI_CHGHEADER
+#undef HAVE_SMFI_DELRCPT
+#undef HAVE_SMFI_GETPRIV
+#undef HAVE_SMFI_GETSYMVAL
+#undef HAVE_SMFI_INSHEADER
+#undef HAVE_SMFI_MAIN
+#undef HAVE_SMFI_OPENSOCKET
+#undef HAVE_SMFI_PROGRESS
+#undef HAVE_SMFI_QUARANTINE
+#undef HAVE_SMFI_REGISTER
+#undef HAVE_SMFI_REPLACEBODY
+#undef HAVE_SMFI_SETBACKLOG
+#undef HAVE_SMFI_SETCONN
+#undef HAVE_SMFI_SETDBG
+#undef HAVE_SMFI_SETMAXDATASIZE
+#undef HAVE_SMFI_SETMLREPLY
+#undef HAVE_SMFI_SETPRIV
+#undef HAVE_SMFI_SETREPLY
+#undef HAVE_SMFI_SETSYMLIST
+#undef HAVE_SMFI_SETTIMEOUT
+#undef HAVE_SMFI_STOP
+#undef HAVE_SMFI_VERSION
+#undef HAVE_STRUCT_SMFIDESC_XXFI_UNKNOWN
+#undef HAVE_STRUCT_SMFIDESC_XXFI_DATA
+
+#ifndef HAVE_SMFI_VERSION
+/* sendmail 8.14 redefined SMFI_VERSION to encode major, minor, and patch
+ * level. Prior to that SMFI_VERSION=2 for a stock 8.13.x with values 3
+ * and 4 corresponding to enhancements not enabled by default.
+ */
+# if defined(HAVE_STRUCT_SMFIDESC_XXFI_DATA)
+#  define SET_SMFI_VERSION	4
+# elif defined(HAVE_STRUCT_SMFIDESC_XXFI_UNKNOWN)
+#  define SET_SMFI_VERSION	3
+# else
+#  define SET_SMFI_VERSION	2
+# endif
+#endif
+
+#undef HAVE_POP_BEFORE_SMTP
+
+/*
+ * Berkeley DB
+ */
+#undef IGNORE_CORRUPT_CACHE_ISSUE_WITH_DB_185
+#undef HAVE_DB_CREATE
+#undef HAVE_DBOPEN
+#undef HAVE_DB_H
+
+/*
+ * Define the flock() constants separately, since some systems
+ * have flock(), but fail to define the constants in a header.
+ * These values were taken from FreeBSD.
+ */
+#undef HAVE_LOCK_SH
+
+#undef HAVE_FCNTL
+#undef HAVE_FLOCK
+#undef HAVE_LOCKF
+#undef HAVE_LOCKING
+#undef ENABLE_ALT_FLOCK
+
+#ifndef EXIT_SUCCESS
+# define EXIT_SUCCESS	0	/* TRUE or normal exit - ANSI C */
+#endif
+#ifndef EXIT_FAILURE
+# define EXIT_FAILURE	1	/* FALSE or unspecified error - ANSI C */
+#endif
+
+/* This has been used fairly consistently in Snert code since 1990. */
+#define EXIT_USAGE	2	/* Invalid or missing command-line option. */
+
+/* These are ment to match sysexits.h (values from OpenBSD) which
+ * does not exist in Windows MING support.
+ */
+#ifdef EX_NOHOST
+# define EXIT_HOST	EX_NOHOST
+#else
+# define EXIT_HOST	68	/* Host does not exist or doesn't answer. */
+#endif
+#ifdef EX_NOUSER
+# define EXIT_USER	EX_NOUSER
+#else
+# define EXIT_USER	67	/* Invalid username, password, account. */
+#endif
+#ifdef EX_NOINPUT
+# define EXIT_INPUT	EX_NOINPUT
+#else
+# define EXIT_INPUT	66	/* File input, format, or syntax error. */
+#endif
+#ifdef EX_IOERR
+# define EXIT_IO	EX_IOERR
+#else
+# define EXIT_IO	74	/* Generic read/write error. */
+#endif
+
+#define QUOTE(x)	QUOTE_THIS(x)
+#define QUOTE_THIS(x)	#x
+
+/***********************************************************************
+ ***
+ ***********************************************************************/
+
+#ifdef  __cplusplus
+}
+#endif
+
+#endif /* __com_snert_lib_version_h__ */

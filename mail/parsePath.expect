@@ -1,0 +1,1261 @@
+==== flags STRICT_LENGTH
+'<>'
+	address='' sourceroute='' localleft='' localright='' domain=''
+	is RFC 2606: false
+	<>
+	@
+	+bulk@
+	bulk+@
+	bulk%+@
+	@bulk.
+	:+bulk@
+	@
+'<postmaster>'
+	address='postmaster' sourceroute='' localleft='postmaster' localright='' domain=''
+	is RFC 2606: false
+	<postmaster>
+	postmaster@
+	postmaster+bulk@
+	bulk+postmaster@
+	bulk%+@
+	postmaster@bulk.
+	:postmaster+bulk@
+	postmaster@
+'<"<>"@plab.ku.dk>'
+	address='"<>"@plab.ku.dk' sourceroute='' localleft='"<>"' localright='' domain='plab.ku.dk'
+	is RFC 2606: false
+	<"<>"@plab.ku.dk>
+	"<>"@plab.ku.dk
+	"<>"+bulk@plab.ku.dk
+	bulk+"<>"@plab.ku.dk
+	bulk%+@plab.ku.dk
+	"<>"@bulk.plab.ku.dk
+	:"<>"+bulk@plab.ku.dk
+	"<>"@plab.ku.dk
+'<escape\ space@pan.olsztyn.pl>'
+	address='escape\ space@pan.olsztyn.pl' sourceroute='' localleft='escape\ space' localright='' domain='pan.olsztyn.pl'
+	is RFC 2606: false
+	<escape\ space@pan.olsztyn.pl>
+	escape\ space@pan.olsztyn.pl
+	escape\ space+bulk@pan.olsztyn.pl
+	bulk+escape\ space@pan.olsztyn.pl
+	bulk%+@pan.olsztyn.pl
+	escape\ space@bulk.pan.olsztyn.pl
+	:escape\ space+bulk@pan.olsztyn.pl
+	escape\ space@pan.olsztyn.pl
+'<escape\ spa+ce@pan.olsztyn.pl>'
+	address='escape\ spa+ce@pan.olsztyn.pl' sourceroute='' localleft='escape\ spa' localright='ce' domain='pan.olsztyn.pl'
+	is RFC 2606: false
+	<escape\ spa+ce@pan.olsztyn.pl>
+	escape\ spa+ce@pan.olsztyn.pl
+	escape\ spa+bulk@pan.olsztyn.pl
+	bulk+escape\ spa@pan.olsztyn.pl
+	bulk%+ce@pan.olsztyn.pl
+	escape\ spa+ce@bulk.pan.olsztyn.pl
+	:escape\ spa+bulk@pan.olsztyn.pl
+	escape\ spa+ce@pan.olsztyn.pl
+'<esc+ape\ space@pan.olsztyn.pl>'
+	address='esc+ape\ space@pan.olsztyn.pl' sourceroute='' localleft='esc' localright='ape\ space' domain='pan.olsztyn.pl'
+	is RFC 2606: false
+	<esc+ape\ space@pan.olsztyn.pl>
+	esc+ape\ space@pan.olsztyn.pl
+	esc+bulk@pan.olsztyn.pl
+	bulk+esc@pan.olsztyn.pl
+	bulk%+ape\ space@pan.olsztyn.pl
+	esc+ape\ space@bulk.pan.olsztyn.pl
+	:esc+bulk@pan.olsztyn.pl
+	esc+ape\ space@pan.olsztyn.pl
+'<"quoted\backslash"@pan.olsztyn.pl>'
+	address='"quoted\backslash"@pan.olsztyn.pl' sourceroute='' localleft='"quoted\backslash"' localright='' domain='pan.olsztyn.pl'
+	is RFC 2606: false
+	<"quoted\backslash"@pan.olsztyn.pl>
+	"quoted\backslash"@pan.olsztyn.pl
+	"quoted\backslash"+bulk@pan.olsztyn.pl
+	bulk+"quoted\backslash"@pan.olsztyn.pl
+	bulk%+@pan.olsztyn.pl
+	"quoted\backslash"@bulk.pan.olsztyn.pl
+	:"quoted\backslash"+bulk@pan.olsztyn.pl
+	"quoted\backslash"@pan.olsztyn.pl
+'<"quoted space"@example.com>'
+	address='"quoted space"@example.com' sourceroute='' localleft='"quoted space"' localright='' domain='example.com'
+	is RFC 2606: true
+	<"quoted space"@example.com>
+	"quoted space"@example.com
+	"quoted space"+bulk@example.com
+	bulk+"quoted space"@example.com
+	bulk%+@example.com
+	"quoted space"@bulk.example.com
+	:"quoted space"+bulk@example.com
+	"quoted space"@example.com
+'<"Andreas-TRANSMAR\(Fax del trabajo\)"@dmz-113665s.salvesen.com>'
+	address='"Andreas-TRANSMAR\(Fax del trabajo\)"@dmz-113665s.salvesen.com' sourceroute='' localleft='"andreas-transmar\(fax del trabajo\)"' localright='' domain='dmz-113665s.salvesen.com'
+	is RFC 2606: false
+	<"Andreas-TRANSMAR\(Fax del trabajo\)"@dmz-113665s.salvesen.com>
+	"andreas-transmar\(fax del trabajo\)"@dmz-113665s.salvesen.com
+	"andreas-transmar\(fax del trabajo\)"+bulk@dmz-113665s.salvesen.com
+	bulk+"andreas-transmar\(fax del trabajo\)"@dmz-113665s.salvesen.com
+	bulk%+@dmz-113665s.salvesen.com
+	"andreas-transmar\(fax del trabajo\)"@bulk.dmz-113665s.salvesen.com
+	:"andreas-transmar\(fax del trabajo\)"+bulk@dmz-113665s.salvesen.com
+	"andreas-transmar\(fax del trabajo\)"@dmz-113665s.salvesen.com
+'<achowe@snert.com>'
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'<achowe@pop.snert.com>'
+	address='achowe@pop.snert.com' sourceroute='' localleft='achowe' localright='' domain='pop.snert.com'
+	is RFC 2606: false
+	<achowe@pop.snert.com>
+	achowe@pop.snert.com
+	achowe+bulk@pop.snert.com
+	bulk+achowe@pop.snert.com
+	bulk%+@pop.snert.com
+	achowe@bulk.pop.snert.com
+	:achowe+bulk@pop.snert.com
+	achowe@pop.snert.com
+'<anthony.howe@pop.snert.com>'
+	address='anthony.howe@pop.snert.com' sourceroute='' localleft='anthony.howe' localright='' domain='pop.snert.com'
+	is RFC 2606: false
+	<anthony.howe@pop.snert.com>
+	anthony.howe@pop.snert.com
+	anthony.howe+bulk@pop.snert.com
+	bulk+anthony.howe@pop.snert.com
+	bulk%+@pop.snert.com
+	anthony.howe@bulk.pop.snert.com
+	:anthony.howe+bulk@pop.snert.com
+	anthony.howe@pop.snert.com
+'<anthony.howe+folder@pop.snert.com>'
+	address='anthony.howe+folder@pop.snert.com' sourceroute='' localleft='anthony.howe' localright='folder' domain='pop.snert.com'
+	is RFC 2606: false
+	<anthony.howe+folder@pop.snert.com>
+	anthony.howe+folder@pop.snert.com
+	anthony.howe+bulk@pop.snert.com
+	bulk+anthony.howe@pop.snert.com
+	bulk%+folder@pop.snert.com
+	anthony.howe+folder@bulk.pop.snert.com
+	:anthony.howe+bulk@pop.snert.com
+	anthony.howe+folder@pop.snert.com
+'<@LBDRSCS.LBDCVM.STATE.NY.US:VMMAIL@LBDC.STATE.NY.US>'
+	address='@LBDRSCS.LBDCVM.STATE.NY.US:VMMAIL@LBDC.STATE.NY.US' sourceroute='@lbdrscs.lbdcvm.state.ny.us' localleft='vmmail' localright='' domain='lbdc.state.ny.us'
+	is RFC 2606: false
+	<@LBDRSCS.LBDCVM.STATE.NY.US:VMMAIL@LBDC.STATE.NY.US>
+	vmmail@lbdc.state.ny.us
+	vmmail+bulk@lbdc.state.ny.us
+	bulk+vmmail@lbdc.state.ny.us
+	bulk%+@lbdc.state.ny.us
+	vmmail@bulk.lbdc.state.ny.us
+	@lbdrscs.lbdcvm.state.ny.us:vmmail+bulk@lbdc.state.ny.us
+	@lbdrscs.lbdcvm.state.ny.us:vmmail@lbdc.state.ny.us
+'<@a.com,@b.net,@c.org:VMMAIL@LBDC.STATE.NY.US>'
+	address='@a.com,@b.net,@c.org:VMMAIL@LBDC.STATE.NY.US' sourceroute='@a.com,@b.net,@c.org' localleft='vmmail' localright='' domain='lbdc.state.ny.us'
+	is RFC 2606: false
+	<@a.com,@b.net,@c.org:VMMAIL@LBDC.STATE.NY.US>
+	vmmail@lbdc.state.ny.us
+	vmmail+bulk@lbdc.state.ny.us
+	bulk+vmmail@lbdc.state.ny.us
+	bulk%+@lbdc.state.ny.us
+	vmmail@bulk.lbdc.state.ny.us
+	@a.com,@b.net,@c.org:vmmail+bulk@lbdc.state.ny.us
+	@a.com,@b.net,@c.org:vmmail@lbdc.state.ny.us
+'<Micheal.O'Rouke@someplace.ie>'
+	address='Micheal.O'Rouke@someplace.ie' sourceroute='' localleft='micheal.o'rouke' localright='' domain='someplace.ie'
+	is RFC 2606: false
+	<Micheal.O'Rouke@someplace.ie>
+	micheal.o'rouke@someplace.ie
+	micheal.o'rouke+bulk@someplace.ie
+	bulk+micheal.o'rouke@someplace.ie
+	bulk%+@someplace.ie
+	micheal.o'rouke@bulk.someplace.ie
+	:micheal.o'rouke+bulk@someplace.ie
+	micheal.o'rouke@someplace.ie
+'<achowe@[123.45.67.89]>'
+	address='achowe@[123.45.67.89]' sourceroute='' localleft='achowe' localright='' domain='[123.45.67.89]'
+	is RFC 2606: false
+	<achowe@[123.45.67.89]>
+	achowe@[123.45.67.89]
+	achowe+bulk@[123.45.67.89]
+	bulk+achowe@[123.45.67.89]
+	bulk%+@[123.45.67.89]
+	achowe@bulk.[123.45.67.89]
+	:achowe+bulk@[123.45.67.89]
+	achowe@[123.45.67.89]
+'<achowe@[IPv6:::]>'
+	address='achowe@[IPv6:::]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:::]'
+	is RFC 2606: false
+	<achowe@[IPv6:::]>
+	achowe@[ipv6:::]
+	achowe+bulk@[ipv6:::]
+	bulk+achowe@[ipv6:::]
+	bulk%+@[ipv6:::]
+	achowe@bulk.[ipv6:::]
+	:achowe+bulk@[ipv6:::]
+	achowe@[ipv6:::]
+'<achowe@[IPv6:1:2:3:4:5:6:7:8]>'
+	address='achowe@[IPv6:1:2:3:4:5:6:7:8]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:1:2:3:4:5:6:7:8]'
+	is RFC 2606: false
+	<achowe@[IPv6:1:2:3:4:5:6:7:8]>
+	achowe@[ipv6:1:2:3:4:5:6:7:8]
+	achowe+bulk@[ipv6:1:2:3:4:5:6:7:8]
+	bulk+achowe@[ipv6:1:2:3:4:5:6:7:8]
+	bulk%+@[ipv6:1:2:3:4:5:6:7:8]
+	achowe@bulk.[ipv6:1:2:3:4:5:6:7:8]
+	:achowe+bulk@[ipv6:1:2:3:4:5:6:7:8]
+	achowe@[ipv6:1:2:3:4:5:6:7:8]
+'<achowe@[IPv6:::1]>'
+	address='achowe@[IPv6:::1]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:::1]'
+	is RFC 2606: false
+	<achowe@[IPv6:::1]>
+	achowe@[ipv6:::1]
+	achowe+bulk@[ipv6:::1]
+	bulk+achowe@[ipv6:::1]
+	bulk%+@[ipv6:::1]
+	achowe@bulk.[ipv6:::1]
+	:achowe+bulk@[ipv6:::1]
+	achowe@[ipv6:::1]
+'<achowe@[IPv6:feed::beef]>'
+	address='achowe@[IPv6:feed::beef]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:feed::beef]'
+	is RFC 2606: false
+	<achowe@[IPv6:feed::beef]>
+	achowe@[ipv6:feed::beef]
+	achowe+bulk@[ipv6:feed::beef]
+	bulk+achowe@[ipv6:feed::beef]
+	bulk%+@[ipv6:feed::beef]
+	achowe@bulk.[ipv6:feed::beef]
+	:achowe+bulk@[ipv6:feed::beef]
+	achowe@[ipv6:feed::beef]
+'<achowe@[IPv6:::123.45.67.89]>'
+	address='achowe@[IPv6:::123.45.67.89]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:::123.45.67.89]'
+	is RFC 2606: false
+	<achowe@[IPv6:::123.45.67.89]>
+	achowe@[ipv6:::123.45.67.89]
+	achowe+bulk@[ipv6:::123.45.67.89]
+	bulk+achowe@[ipv6:::123.45.67.89]
+	bulk%+@[ipv6:::123.45.67.89]
+	achowe@bulk.[ipv6:::123.45.67.89]
+	:achowe+bulk@[ipv6:::123.45.67.89]
+	achowe@[ipv6:::123.45.67.89]
+'<achowe@[IPv6:beef::123.45.67.89]>'
+	address='achowe@[IPv6:beef::123.45.67.89]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:beef::123.45.67.89]'
+	is RFC 2606: false
+	<achowe@[IPv6:beef::123.45.67.89]>
+	achowe@[ipv6:beef::123.45.67.89]
+	achowe+bulk@[ipv6:beef::123.45.67.89]
+	bulk+achowe@[ipv6:beef::123.45.67.89]
+	bulk%+@[ipv6:beef::123.45.67.89]
+	achowe@bulk.[ipv6:beef::123.45.67.89]
+	:achowe+bulk@[ipv6:beef::123.45.67.89]
+	achowe@[ipv6:beef::123.45.67.89]
+'<achowe@dummy.test>'
+	address='achowe@dummy.test' sourceroute='' localleft='achowe' localright='' domain='dummy.test'
+	is RFC 2606: true
+	<achowe@dummy.test>
+	achowe@dummy.test
+	achowe+bulk@dummy.test
+	bulk+achowe@dummy.test
+	bulk%+@dummy.test
+	achowe@bulk.dummy.test
+	:achowe+bulk@dummy.test
+	achowe@dummy.test
+'<achowe@dummy.invalid>'
+	address='achowe@dummy.invalid' sourceroute='' localleft='achowe' localright='' domain='dummy.invalid'
+	is RFC 2606: true
+	<achowe@dummy.invalid>
+	achowe@dummy.invalid
+	achowe+bulk@dummy.invalid
+	bulk+achowe@dummy.invalid
+	bulk%+@dummy.invalid
+	achowe@bulk.dummy.invalid
+	:achowe+bulk@dummy.invalid
+	achowe@dummy.invalid
+'<achowe@dummy.localhost>'
+	address='achowe@dummy.localhost' sourceroute='' localleft='achowe' localright='' domain='dummy.localhost'
+	is RFC 2606: true
+	<achowe@dummy.localhost>
+	achowe@dummy.localhost
+	achowe+bulk@dummy.localhost
+	bulk+achowe@dummy.localhost
+	bulk%+@dummy.localhost
+	achowe@bulk.dummy.localhost
+	:achowe+bulk@dummy.localhost
+	achowe@dummy.localhost
+'<achowe@dummy.example>'
+	address='achowe@dummy.example' sourceroute='' localleft='achowe' localright='' domain='dummy.example'
+	is RFC 2606: true
+	<achowe@dummy.example>
+	achowe@dummy.example
+	achowe+bulk@dummy.example
+	bulk+achowe@dummy.example
+	bulk%+@dummy.example
+	achowe@bulk.dummy.example
+	:achowe+bulk@dummy.example
+	achowe@dummy.example
+'<achowe@example.com>'
+	address='achowe@example.com' sourceroute='' localleft='achowe' localright='' domain='example.com'
+	is RFC 2606: true
+	<achowe@example.com>
+	achowe@example.com
+	achowe+bulk@example.com
+	bulk+achowe@example.com
+	bulk%+@example.com
+	achowe@bulk.example.com
+	:achowe+bulk@example.com
+	achowe@example.com
+'<achowe@sub.example.com><+folder@pop.snert.com>'
+	address='+folder@pop.snert.com' sourceroute='' localleft='' localright='folder' domain='pop.snert.com'
+	is RFC 2606: false
+	<+folder@pop.snert.com>
+	+folder@pop.snert.com
+	+bulk@pop.snert.com
+	bulk+@pop.snert.com
+	bulk%+folder@pop.snert.com
+	+folder@bulk.pop.snert.com
+	:+bulk@pop.snert.com
+	+folder@pop.snert.com
+''
+	address='' sourceroute='' localleft='' localright='' domain=''
+	is RFC 2606: false
+	<>
+	@
+	+bulk@
+	bulk+@
+	bulk%+@
+	@bulk.
+	:+bulk@
+	@
+'postmaster'
+	address='postmaster' sourceroute='' localleft='postmaster' localright='' domain=''
+	is RFC 2606: false
+	<postmaster>
+	postmaster@
+	postmaster+bulk@
+	bulk+postmaster@
+	bulk%+@
+	postmaster@bulk.
+	:postmaster+bulk@
+	postmaster@
+'achowe@snert.com'
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'    achowe@snert.com    '
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'<    achowe@snert.com>'
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'<achowe@snert.com    >'
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'<    achowe@snert.com    >'
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'<  __achowe@snert.com>'
+	address='__achowe@snert.com' sourceroute='' localleft='__achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<__achowe@snert.com>
+	__achowe@snert.com
+	__achowe+bulk@snert.com
+	bulk+__achowe@snert.com
+	bulk%+@snert.com
+	__achowe@bulk.snert.com
+	:__achowe+bulk@snert.com
+	__achowe@snert.com
+'<achowe@snert.com__  >'
+	address='achowe@snert.com__' sourceroute='' localleft='achowe' localright='' domain='snert.com__'
+	is RFC 2606: false
+	<achowe@snert.com__>
+	achowe@snert.com__
+	achowe+bulk@snert.com__
+	bulk+achowe@snert.com__
+	bulk%+@snert.com__
+	achowe@bulk.snert.com__
+	:achowe+bulk@snert.com__
+	achowe@snert.com__
+FAIL '<a chowe@snert.com>' 5.1.3 invalid local part
+'<"achowe@snert.com">'
+	address='"achowe@snert.com"' sourceroute='' localleft='"achowe@snert.com"' localright='' domain=''
+	is RFC 2606: false
+	<"achowe@snert.com">
+	"achowe@snert.com"@
+	"achowe@snert.com"+bulk@
+	bulk+"achowe@snert.com"@
+	bulk%+@
+	"achowe@snert.com"@bulk.
+	:"achowe@snert.com"+bulk@
+	"achowe@snert.com"@
+FAIL '<achowe@[IPv6:feed:::beef]>' 5.1.3 invalid domain name
+FAIL '<achowe@[IPv6:1:2:3:4:5:6:7]>' 5.1.3 invalid domain name
+FAIL '<achowe@[IPv6:1:2:3:4:5:6:7:]>' 5.1.3 invalid domain name
+FAIL '<achowe@[IPv6:1:2:3:4:5:6:7:8:9]>' 5.1.3 invalid domain name
+FAIL '<Vanessa-kauskas:@SELSOL.COM>' 5.1.3 invalid local part
+
+==== flags STRICT_LENGTH|STRICT_SYNTAX
+'<>'
+	address='' sourceroute='' localleft='' localright='' domain=''
+	is RFC 2606: false
+	<>
+	@
+	+bulk@
+	bulk+@
+	bulk%+@
+	@bulk.
+	:+bulk@
+	@
+'<postmaster>'
+	address='postmaster' sourceroute='' localleft='postmaster' localright='' domain=''
+	is RFC 2606: false
+	<postmaster>
+	postmaster@
+	postmaster+bulk@
+	bulk+postmaster@
+	bulk%+@
+	postmaster@bulk.
+	:postmaster+bulk@
+	postmaster@
+'<"<>"@plab.ku.dk>'
+	address='"<>"@plab.ku.dk' sourceroute='' localleft='"<>"' localright='' domain='plab.ku.dk'
+	is RFC 2606: false
+	<"<>"@plab.ku.dk>
+	"<>"@plab.ku.dk
+	"<>"+bulk@plab.ku.dk
+	bulk+"<>"@plab.ku.dk
+	bulk%+@plab.ku.dk
+	"<>"@bulk.plab.ku.dk
+	:"<>"+bulk@plab.ku.dk
+	"<>"@plab.ku.dk
+'<escape\ space@pan.olsztyn.pl>'
+	address='escape\ space@pan.olsztyn.pl' sourceroute='' localleft='escape\ space' localright='' domain='pan.olsztyn.pl'
+	is RFC 2606: false
+	<escape\ space@pan.olsztyn.pl>
+	escape\ space@pan.olsztyn.pl
+	escape\ space+bulk@pan.olsztyn.pl
+	bulk+escape\ space@pan.olsztyn.pl
+	bulk%+@pan.olsztyn.pl
+	escape\ space@bulk.pan.olsztyn.pl
+	:escape\ space+bulk@pan.olsztyn.pl
+	escape\ space@pan.olsztyn.pl
+'<escape\ spa+ce@pan.olsztyn.pl>'
+	address='escape\ spa+ce@pan.olsztyn.pl' sourceroute='' localleft='escape\ spa' localright='ce' domain='pan.olsztyn.pl'
+	is RFC 2606: false
+	<escape\ spa+ce@pan.olsztyn.pl>
+	escape\ spa+ce@pan.olsztyn.pl
+	escape\ spa+bulk@pan.olsztyn.pl
+	bulk+escape\ spa@pan.olsztyn.pl
+	bulk%+ce@pan.olsztyn.pl
+	escape\ spa+ce@bulk.pan.olsztyn.pl
+	:escape\ spa+bulk@pan.olsztyn.pl
+	escape\ spa+ce@pan.olsztyn.pl
+'<esc+ape\ space@pan.olsztyn.pl>'
+	address='esc+ape\ space@pan.olsztyn.pl' sourceroute='' localleft='esc' localright='ape\ space' domain='pan.olsztyn.pl'
+	is RFC 2606: false
+	<esc+ape\ space@pan.olsztyn.pl>
+	esc+ape\ space@pan.olsztyn.pl
+	esc+bulk@pan.olsztyn.pl
+	bulk+esc@pan.olsztyn.pl
+	bulk%+ape\ space@pan.olsztyn.pl
+	esc+ape\ space@bulk.pan.olsztyn.pl
+	:esc+bulk@pan.olsztyn.pl
+	esc+ape\ space@pan.olsztyn.pl
+'<"quoted\backslash"@pan.olsztyn.pl>'
+	address='"quoted\backslash"@pan.olsztyn.pl' sourceroute='' localleft='"quoted\backslash"' localright='' domain='pan.olsztyn.pl'
+	is RFC 2606: false
+	<"quoted\backslash"@pan.olsztyn.pl>
+	"quoted\backslash"@pan.olsztyn.pl
+	"quoted\backslash"+bulk@pan.olsztyn.pl
+	bulk+"quoted\backslash"@pan.olsztyn.pl
+	bulk%+@pan.olsztyn.pl
+	"quoted\backslash"@bulk.pan.olsztyn.pl
+	:"quoted\backslash"+bulk@pan.olsztyn.pl
+	"quoted\backslash"@pan.olsztyn.pl
+'<"quoted space"@example.com>'
+	address='"quoted space"@example.com' sourceroute='' localleft='"quoted space"' localright='' domain='example.com'
+	is RFC 2606: true
+	<"quoted space"@example.com>
+	"quoted space"@example.com
+	"quoted space"+bulk@example.com
+	bulk+"quoted space"@example.com
+	bulk%+@example.com
+	"quoted space"@bulk.example.com
+	:"quoted space"+bulk@example.com
+	"quoted space"@example.com
+'<"Andreas-TRANSMAR\(Fax del trabajo\)"@dmz-113665s.salvesen.com>'
+	address='"Andreas-TRANSMAR\(Fax del trabajo\)"@dmz-113665s.salvesen.com' sourceroute='' localleft='"andreas-transmar\(fax del trabajo\)"' localright='' domain='dmz-113665s.salvesen.com'
+	is RFC 2606: false
+	<"Andreas-TRANSMAR\(Fax del trabajo\)"@dmz-113665s.salvesen.com>
+	"andreas-transmar\(fax del trabajo\)"@dmz-113665s.salvesen.com
+	"andreas-transmar\(fax del trabajo\)"+bulk@dmz-113665s.salvesen.com
+	bulk+"andreas-transmar\(fax del trabajo\)"@dmz-113665s.salvesen.com
+	bulk%+@dmz-113665s.salvesen.com
+	"andreas-transmar\(fax del trabajo\)"@bulk.dmz-113665s.salvesen.com
+	:"andreas-transmar\(fax del trabajo\)"+bulk@dmz-113665s.salvesen.com
+	"andreas-transmar\(fax del trabajo\)"@dmz-113665s.salvesen.com
+'<achowe@snert.com>'
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'<achowe@pop.snert.com>'
+	address='achowe@pop.snert.com' sourceroute='' localleft='achowe' localright='' domain='pop.snert.com'
+	is RFC 2606: false
+	<achowe@pop.snert.com>
+	achowe@pop.snert.com
+	achowe+bulk@pop.snert.com
+	bulk+achowe@pop.snert.com
+	bulk%+@pop.snert.com
+	achowe@bulk.pop.snert.com
+	:achowe+bulk@pop.snert.com
+	achowe@pop.snert.com
+'<anthony.howe@pop.snert.com>'
+	address='anthony.howe@pop.snert.com' sourceroute='' localleft='anthony.howe' localright='' domain='pop.snert.com'
+	is RFC 2606: false
+	<anthony.howe@pop.snert.com>
+	anthony.howe@pop.snert.com
+	anthony.howe+bulk@pop.snert.com
+	bulk+anthony.howe@pop.snert.com
+	bulk%+@pop.snert.com
+	anthony.howe@bulk.pop.snert.com
+	:anthony.howe+bulk@pop.snert.com
+	anthony.howe@pop.snert.com
+'<anthony.howe+folder@pop.snert.com>'
+	address='anthony.howe+folder@pop.snert.com' sourceroute='' localleft='anthony.howe' localright='folder' domain='pop.snert.com'
+	is RFC 2606: false
+	<anthony.howe+folder@pop.snert.com>
+	anthony.howe+folder@pop.snert.com
+	anthony.howe+bulk@pop.snert.com
+	bulk+anthony.howe@pop.snert.com
+	bulk%+folder@pop.snert.com
+	anthony.howe+folder@bulk.pop.snert.com
+	:anthony.howe+bulk@pop.snert.com
+	anthony.howe+folder@pop.snert.com
+'<@LBDRSCS.LBDCVM.STATE.NY.US:VMMAIL@LBDC.STATE.NY.US>'
+	address='@LBDRSCS.LBDCVM.STATE.NY.US:VMMAIL@LBDC.STATE.NY.US' sourceroute='@lbdrscs.lbdcvm.state.ny.us' localleft='vmmail' localright='' domain='lbdc.state.ny.us'
+	is RFC 2606: false
+	<@LBDRSCS.LBDCVM.STATE.NY.US:VMMAIL@LBDC.STATE.NY.US>
+	vmmail@lbdc.state.ny.us
+	vmmail+bulk@lbdc.state.ny.us
+	bulk+vmmail@lbdc.state.ny.us
+	bulk%+@lbdc.state.ny.us
+	vmmail@bulk.lbdc.state.ny.us
+	@lbdrscs.lbdcvm.state.ny.us:vmmail+bulk@lbdc.state.ny.us
+	@lbdrscs.lbdcvm.state.ny.us:vmmail@lbdc.state.ny.us
+'<@a.com,@b.net,@c.org:VMMAIL@LBDC.STATE.NY.US>'
+	address='@a.com,@b.net,@c.org:VMMAIL@LBDC.STATE.NY.US' sourceroute='@a.com,@b.net,@c.org' localleft='vmmail' localright='' domain='lbdc.state.ny.us'
+	is RFC 2606: false
+	<@a.com,@b.net,@c.org:VMMAIL@LBDC.STATE.NY.US>
+	vmmail@lbdc.state.ny.us
+	vmmail+bulk@lbdc.state.ny.us
+	bulk+vmmail@lbdc.state.ny.us
+	bulk%+@lbdc.state.ny.us
+	vmmail@bulk.lbdc.state.ny.us
+	@a.com,@b.net,@c.org:vmmail+bulk@lbdc.state.ny.us
+	@a.com,@b.net,@c.org:vmmail@lbdc.state.ny.us
+'<Micheal.O'Rouke@someplace.ie>'
+	address='Micheal.O'Rouke@someplace.ie' sourceroute='' localleft='micheal.o'rouke' localright='' domain='someplace.ie'
+	is RFC 2606: false
+	<Micheal.O'Rouke@someplace.ie>
+	micheal.o'rouke@someplace.ie
+	micheal.o'rouke+bulk@someplace.ie
+	bulk+micheal.o'rouke@someplace.ie
+	bulk%+@someplace.ie
+	micheal.o'rouke@bulk.someplace.ie
+	:micheal.o'rouke+bulk@someplace.ie
+	micheal.o'rouke@someplace.ie
+'<achowe@[123.45.67.89]>'
+	address='achowe@[123.45.67.89]' sourceroute='' localleft='achowe' localright='' domain='[123.45.67.89]'
+	is RFC 2606: false
+	<achowe@[123.45.67.89]>
+	achowe@[123.45.67.89]
+	achowe+bulk@[123.45.67.89]
+	bulk+achowe@[123.45.67.89]
+	bulk%+@[123.45.67.89]
+	achowe@bulk.[123.45.67.89]
+	:achowe+bulk@[123.45.67.89]
+	achowe@[123.45.67.89]
+'<achowe@[IPv6:::]>'
+	address='achowe@[IPv6:::]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:::]'
+	is RFC 2606: false
+	<achowe@[IPv6:::]>
+	achowe@[ipv6:::]
+	achowe+bulk@[ipv6:::]
+	bulk+achowe@[ipv6:::]
+	bulk%+@[ipv6:::]
+	achowe@bulk.[ipv6:::]
+	:achowe+bulk@[ipv6:::]
+	achowe@[ipv6:::]
+'<achowe@[IPv6:1:2:3:4:5:6:7:8]>'
+	address='achowe@[IPv6:1:2:3:4:5:6:7:8]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:1:2:3:4:5:6:7:8]'
+	is RFC 2606: false
+	<achowe@[IPv6:1:2:3:4:5:6:7:8]>
+	achowe@[ipv6:1:2:3:4:5:6:7:8]
+	achowe+bulk@[ipv6:1:2:3:4:5:6:7:8]
+	bulk+achowe@[ipv6:1:2:3:4:5:6:7:8]
+	bulk%+@[ipv6:1:2:3:4:5:6:7:8]
+	achowe@bulk.[ipv6:1:2:3:4:5:6:7:8]
+	:achowe+bulk@[ipv6:1:2:3:4:5:6:7:8]
+	achowe@[ipv6:1:2:3:4:5:6:7:8]
+'<achowe@[IPv6:::1]>'
+	address='achowe@[IPv6:::1]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:::1]'
+	is RFC 2606: false
+	<achowe@[IPv6:::1]>
+	achowe@[ipv6:::1]
+	achowe+bulk@[ipv6:::1]
+	bulk+achowe@[ipv6:::1]
+	bulk%+@[ipv6:::1]
+	achowe@bulk.[ipv6:::1]
+	:achowe+bulk@[ipv6:::1]
+	achowe@[ipv6:::1]
+'<achowe@[IPv6:feed::beef]>'
+	address='achowe@[IPv6:feed::beef]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:feed::beef]'
+	is RFC 2606: false
+	<achowe@[IPv6:feed::beef]>
+	achowe@[ipv6:feed::beef]
+	achowe+bulk@[ipv6:feed::beef]
+	bulk+achowe@[ipv6:feed::beef]
+	bulk%+@[ipv6:feed::beef]
+	achowe@bulk.[ipv6:feed::beef]
+	:achowe+bulk@[ipv6:feed::beef]
+	achowe@[ipv6:feed::beef]
+'<achowe@[IPv6:::123.45.67.89]>'
+	address='achowe@[IPv6:::123.45.67.89]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:::123.45.67.89]'
+	is RFC 2606: false
+	<achowe@[IPv6:::123.45.67.89]>
+	achowe@[ipv6:::123.45.67.89]
+	achowe+bulk@[ipv6:::123.45.67.89]
+	bulk+achowe@[ipv6:::123.45.67.89]
+	bulk%+@[ipv6:::123.45.67.89]
+	achowe@bulk.[ipv6:::123.45.67.89]
+	:achowe+bulk@[ipv6:::123.45.67.89]
+	achowe@[ipv6:::123.45.67.89]
+'<achowe@[IPv6:beef::123.45.67.89]>'
+	address='achowe@[IPv6:beef::123.45.67.89]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:beef::123.45.67.89]'
+	is RFC 2606: false
+	<achowe@[IPv6:beef::123.45.67.89]>
+	achowe@[ipv6:beef::123.45.67.89]
+	achowe+bulk@[ipv6:beef::123.45.67.89]
+	bulk+achowe@[ipv6:beef::123.45.67.89]
+	bulk%+@[ipv6:beef::123.45.67.89]
+	achowe@bulk.[ipv6:beef::123.45.67.89]
+	:achowe+bulk@[ipv6:beef::123.45.67.89]
+	achowe@[ipv6:beef::123.45.67.89]
+'<achowe@dummy.test>'
+	address='achowe@dummy.test' sourceroute='' localleft='achowe' localright='' domain='dummy.test'
+	is RFC 2606: true
+	<achowe@dummy.test>
+	achowe@dummy.test
+	achowe+bulk@dummy.test
+	bulk+achowe@dummy.test
+	bulk%+@dummy.test
+	achowe@bulk.dummy.test
+	:achowe+bulk@dummy.test
+	achowe@dummy.test
+'<achowe@dummy.invalid>'
+	address='achowe@dummy.invalid' sourceroute='' localleft='achowe' localright='' domain='dummy.invalid'
+	is RFC 2606: true
+	<achowe@dummy.invalid>
+	achowe@dummy.invalid
+	achowe+bulk@dummy.invalid
+	bulk+achowe@dummy.invalid
+	bulk%+@dummy.invalid
+	achowe@bulk.dummy.invalid
+	:achowe+bulk@dummy.invalid
+	achowe@dummy.invalid
+'<achowe@dummy.localhost>'
+	address='achowe@dummy.localhost' sourceroute='' localleft='achowe' localright='' domain='dummy.localhost'
+	is RFC 2606: true
+	<achowe@dummy.localhost>
+	achowe@dummy.localhost
+	achowe+bulk@dummy.localhost
+	bulk+achowe@dummy.localhost
+	bulk%+@dummy.localhost
+	achowe@bulk.dummy.localhost
+	:achowe+bulk@dummy.localhost
+	achowe@dummy.localhost
+'<achowe@dummy.example>'
+	address='achowe@dummy.example' sourceroute='' localleft='achowe' localright='' domain='dummy.example'
+	is RFC 2606: true
+	<achowe@dummy.example>
+	achowe@dummy.example
+	achowe+bulk@dummy.example
+	bulk+achowe@dummy.example
+	bulk%+@dummy.example
+	achowe@bulk.dummy.example
+	:achowe+bulk@dummy.example
+	achowe@dummy.example
+'<achowe@example.com>'
+	address='achowe@example.com' sourceroute='' localleft='achowe' localright='' domain='example.com'
+	is RFC 2606: true
+	<achowe@example.com>
+	achowe@example.com
+	achowe+bulk@example.com
+	bulk+achowe@example.com
+	bulk%+@example.com
+	achowe@bulk.example.com
+	:achowe+bulk@example.com
+	achowe@example.com
+'<achowe@sub.example.com><+folder@pop.snert.com>'
+	address='+folder@pop.snert.com' sourceroute='' localleft='' localright='folder' domain='pop.snert.com'
+	is RFC 2606: false
+	<+folder@pop.snert.com>
+	+folder@pop.snert.com
+	+bulk@pop.snert.com
+	bulk+@pop.snert.com
+	bulk%+folder@pop.snert.com
+	+folder@bulk.pop.snert.com
+	:+bulk@pop.snert.com
+	+folder@pop.snert.com
+FAIL '' 5.1.0 address does not conform to RFC 2821 syntax
+FAIL 'postmaster' 5.1.0 address does not conform to RFC 2821 syntax
+FAIL 'achowe@snert.com' 5.1.0 address does not conform to RFC 2821 syntax
+FAIL '    achowe@snert.com    ' 5.1.0 address does not conform to RFC 2821 syntax
+FAIL '<    achowe@snert.com>' 5.1.3 invalid local part
+FAIL '<achowe@snert.com    >' 5.1.3 invalid domain name
+FAIL '<    achowe@snert.com    >' 5.1.3 invalid local part
+FAIL '<  __achowe@snert.com>' 5.1.3 invalid local part
+FAIL '<achowe@snert.com__  >' 5.1.3 invalid domain name
+FAIL '<a chowe@snert.com>' 5.1.3 invalid local part
+'<"achowe@snert.com">'
+	address='"achowe@snert.com"' sourceroute='' localleft='"achowe@snert.com"' localright='' domain=''
+	is RFC 2606: false
+	<"achowe@snert.com">
+	"achowe@snert.com"@
+	"achowe@snert.com"+bulk@
+	bulk+"achowe@snert.com"@
+	bulk%+@
+	"achowe@snert.com"@bulk.
+	:"achowe@snert.com"+bulk@
+	"achowe@snert.com"@
+FAIL '<achowe@[IPv6:feed:::beef]>' 5.1.3 invalid domain name
+FAIL '<achowe@[IPv6:1:2:3:4:5:6:7]>' 5.1.3 invalid domain name
+FAIL '<achowe@[IPv6:1:2:3:4:5:6:7:]>' 5.1.3 invalid domain name
+FAIL '<achowe@[IPv6:1:2:3:4:5:6:7:8:9]>' 5.1.3 invalid domain name
+FAIL '<Vanessa-kauskas:@SELSOL.COM>' 5.1.3 invalid local part
+
+==== flags STRICT_LENGTH|STRICT_LITERAL_PLUS
+'<>'
+	address='' sourceroute='' localleft='' localright='' domain=''
+	is RFC 2606: false
+	<>
+	@
+	+bulk@
+	bulk+@
+	bulk%+@
+	@bulk.
+	:+bulk@
+	@
+'<postmaster>'
+	address='postmaster' sourceroute='' localleft='postmaster' localright='' domain=''
+	is RFC 2606: false
+	<postmaster>
+	postmaster@
+	postmaster+bulk@
+	bulk+postmaster@
+	bulk%+@
+	postmaster@bulk.
+	:postmaster+bulk@
+	postmaster@
+'<"<>"@plab.ku.dk>'
+	address='"<>"@plab.ku.dk' sourceroute='' localleft='"<>"' localright='' domain='plab.ku.dk'
+	is RFC 2606: false
+	<"<>"@plab.ku.dk>
+	"<>"@plab.ku.dk
+	"<>"+bulk@plab.ku.dk
+	bulk+"<>"@plab.ku.dk
+	bulk%+@plab.ku.dk
+	"<>"@bulk.plab.ku.dk
+	:"<>"+bulk@plab.ku.dk
+	"<>"@plab.ku.dk
+'<escape\ space@pan.olsztyn.pl>'
+	address='escape\ space@pan.olsztyn.pl' sourceroute='' localleft='escape\ space' localright='' domain='pan.olsztyn.pl'
+	is RFC 2606: false
+	<escape\ space@pan.olsztyn.pl>
+	escape\ space@pan.olsztyn.pl
+	escape\ space+bulk@pan.olsztyn.pl
+	bulk+escape\ space@pan.olsztyn.pl
+	bulk%+@pan.olsztyn.pl
+	escape\ space@bulk.pan.olsztyn.pl
+	:escape\ space+bulk@pan.olsztyn.pl
+	escape\ space@pan.olsztyn.pl
+'<escape\ spa+ce@pan.olsztyn.pl>'
+	address='escape\ spa+ce@pan.olsztyn.pl' sourceroute='' localleft='escape\ spa+ce' localright='' domain='pan.olsztyn.pl'
+	is RFC 2606: false
+	<escape\ spa+ce@pan.olsztyn.pl>
+	escape\ spa+ce@pan.olsztyn.pl
+	escape\ spa+ce+bulk@pan.olsztyn.pl
+	bulk+escape\ spa+ce@pan.olsztyn.pl
+	bulk%+@pan.olsztyn.pl
+	escape\ spa+ce@bulk.pan.olsztyn.pl
+	:escape\ spa+ce+bulk@pan.olsztyn.pl
+	escape\ spa+ce@pan.olsztyn.pl
+'<esc+ape\ space@pan.olsztyn.pl>'
+	address='esc+ape\ space@pan.olsztyn.pl' sourceroute='' localleft='esc+ape\ space' localright='' domain='pan.olsztyn.pl'
+	is RFC 2606: false
+	<esc+ape\ space@pan.olsztyn.pl>
+	esc+ape\ space@pan.olsztyn.pl
+	esc+ape\ space+bulk@pan.olsztyn.pl
+	bulk+esc+ape\ space@pan.olsztyn.pl
+	bulk%+@pan.olsztyn.pl
+	esc+ape\ space@bulk.pan.olsztyn.pl
+	:esc+ape\ space+bulk@pan.olsztyn.pl
+	esc+ape\ space@pan.olsztyn.pl
+'<"quoted\backslash"@pan.olsztyn.pl>'
+	address='"quoted\backslash"@pan.olsztyn.pl' sourceroute='' localleft='"quoted\backslash"' localright='' domain='pan.olsztyn.pl'
+	is RFC 2606: false
+	<"quoted\backslash"@pan.olsztyn.pl>
+	"quoted\backslash"@pan.olsztyn.pl
+	"quoted\backslash"+bulk@pan.olsztyn.pl
+	bulk+"quoted\backslash"@pan.olsztyn.pl
+	bulk%+@pan.olsztyn.pl
+	"quoted\backslash"@bulk.pan.olsztyn.pl
+	:"quoted\backslash"+bulk@pan.olsztyn.pl
+	"quoted\backslash"@pan.olsztyn.pl
+'<"quoted space"@example.com>'
+	address='"quoted space"@example.com' sourceroute='' localleft='"quoted space"' localright='' domain='example.com'
+	is RFC 2606: true
+	<"quoted space"@example.com>
+	"quoted space"@example.com
+	"quoted space"+bulk@example.com
+	bulk+"quoted space"@example.com
+	bulk%+@example.com
+	"quoted space"@bulk.example.com
+	:"quoted space"+bulk@example.com
+	"quoted space"@example.com
+'<"Andreas-TRANSMAR\(Fax del trabajo\)"@dmz-113665s.salvesen.com>'
+	address='"Andreas-TRANSMAR\(Fax del trabajo\)"@dmz-113665s.salvesen.com' sourceroute='' localleft='"andreas-transmar\(fax del trabajo\)"' localright='' domain='dmz-113665s.salvesen.com'
+	is RFC 2606: false
+	<"Andreas-TRANSMAR\(Fax del trabajo\)"@dmz-113665s.salvesen.com>
+	"andreas-transmar\(fax del trabajo\)"@dmz-113665s.salvesen.com
+	"andreas-transmar\(fax del trabajo\)"+bulk@dmz-113665s.salvesen.com
+	bulk+"andreas-transmar\(fax del trabajo\)"@dmz-113665s.salvesen.com
+	bulk%+@dmz-113665s.salvesen.com
+	"andreas-transmar\(fax del trabajo\)"@bulk.dmz-113665s.salvesen.com
+	:"andreas-transmar\(fax del trabajo\)"+bulk@dmz-113665s.salvesen.com
+	"andreas-transmar\(fax del trabajo\)"@dmz-113665s.salvesen.com
+'<achowe@snert.com>'
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'<achowe@pop.snert.com>'
+	address='achowe@pop.snert.com' sourceroute='' localleft='achowe' localright='' domain='pop.snert.com'
+	is RFC 2606: false
+	<achowe@pop.snert.com>
+	achowe@pop.snert.com
+	achowe+bulk@pop.snert.com
+	bulk+achowe@pop.snert.com
+	bulk%+@pop.snert.com
+	achowe@bulk.pop.snert.com
+	:achowe+bulk@pop.snert.com
+	achowe@pop.snert.com
+'<anthony.howe@pop.snert.com>'
+	address='anthony.howe@pop.snert.com' sourceroute='' localleft='anthony.howe' localright='' domain='pop.snert.com'
+	is RFC 2606: false
+	<anthony.howe@pop.snert.com>
+	anthony.howe@pop.snert.com
+	anthony.howe+bulk@pop.snert.com
+	bulk+anthony.howe@pop.snert.com
+	bulk%+@pop.snert.com
+	anthony.howe@bulk.pop.snert.com
+	:anthony.howe+bulk@pop.snert.com
+	anthony.howe@pop.snert.com
+'<anthony.howe+folder@pop.snert.com>'
+	address='anthony.howe+folder@pop.snert.com' sourceroute='' localleft='anthony.howe+folder' localright='' domain='pop.snert.com'
+	is RFC 2606: false
+	<anthony.howe+folder@pop.snert.com>
+	anthony.howe+folder@pop.snert.com
+	anthony.howe+folder+bulk@pop.snert.com
+	bulk+anthony.howe+folder@pop.snert.com
+	bulk%+@pop.snert.com
+	anthony.howe+folder@bulk.pop.snert.com
+	:anthony.howe+folder+bulk@pop.snert.com
+	anthony.howe+folder@pop.snert.com
+'<@LBDRSCS.LBDCVM.STATE.NY.US:VMMAIL@LBDC.STATE.NY.US>'
+	address='@LBDRSCS.LBDCVM.STATE.NY.US:VMMAIL@LBDC.STATE.NY.US' sourceroute='@lbdrscs.lbdcvm.state.ny.us' localleft='vmmail' localright='' domain='lbdc.state.ny.us'
+	is RFC 2606: false
+	<@LBDRSCS.LBDCVM.STATE.NY.US:VMMAIL@LBDC.STATE.NY.US>
+	vmmail@lbdc.state.ny.us
+	vmmail+bulk@lbdc.state.ny.us
+	bulk+vmmail@lbdc.state.ny.us
+	bulk%+@lbdc.state.ny.us
+	vmmail@bulk.lbdc.state.ny.us
+	@lbdrscs.lbdcvm.state.ny.us:vmmail+bulk@lbdc.state.ny.us
+	@lbdrscs.lbdcvm.state.ny.us:vmmail@lbdc.state.ny.us
+'<@a.com,@b.net,@c.org:VMMAIL@LBDC.STATE.NY.US>'
+	address='@a.com,@b.net,@c.org:VMMAIL@LBDC.STATE.NY.US' sourceroute='@a.com,@b.net,@c.org' localleft='vmmail' localright='' domain='lbdc.state.ny.us'
+	is RFC 2606: false
+	<@a.com,@b.net,@c.org:VMMAIL@LBDC.STATE.NY.US>
+	vmmail@lbdc.state.ny.us
+	vmmail+bulk@lbdc.state.ny.us
+	bulk+vmmail@lbdc.state.ny.us
+	bulk%+@lbdc.state.ny.us
+	vmmail@bulk.lbdc.state.ny.us
+	@a.com,@b.net,@c.org:vmmail+bulk@lbdc.state.ny.us
+	@a.com,@b.net,@c.org:vmmail@lbdc.state.ny.us
+'<Micheal.O'Rouke@someplace.ie>'
+	address='Micheal.O'Rouke@someplace.ie' sourceroute='' localleft='micheal.o'rouke' localright='' domain='someplace.ie'
+	is RFC 2606: false
+	<Micheal.O'Rouke@someplace.ie>
+	micheal.o'rouke@someplace.ie
+	micheal.o'rouke+bulk@someplace.ie
+	bulk+micheal.o'rouke@someplace.ie
+	bulk%+@someplace.ie
+	micheal.o'rouke@bulk.someplace.ie
+	:micheal.o'rouke+bulk@someplace.ie
+	micheal.o'rouke@someplace.ie
+'<achowe@[123.45.67.89]>'
+	address='achowe@[123.45.67.89]' sourceroute='' localleft='achowe' localright='' domain='[123.45.67.89]'
+	is RFC 2606: false
+	<achowe@[123.45.67.89]>
+	achowe@[123.45.67.89]
+	achowe+bulk@[123.45.67.89]
+	bulk+achowe@[123.45.67.89]
+	bulk%+@[123.45.67.89]
+	achowe@bulk.[123.45.67.89]
+	:achowe+bulk@[123.45.67.89]
+	achowe@[123.45.67.89]
+'<achowe@[IPv6:::]>'
+	address='achowe@[IPv6:::]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:::]'
+	is RFC 2606: false
+	<achowe@[IPv6:::]>
+	achowe@[ipv6:::]
+	achowe+bulk@[ipv6:::]
+	bulk+achowe@[ipv6:::]
+	bulk%+@[ipv6:::]
+	achowe@bulk.[ipv6:::]
+	:achowe+bulk@[ipv6:::]
+	achowe@[ipv6:::]
+'<achowe@[IPv6:1:2:3:4:5:6:7:8]>'
+	address='achowe@[IPv6:1:2:3:4:5:6:7:8]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:1:2:3:4:5:6:7:8]'
+	is RFC 2606: false
+	<achowe@[IPv6:1:2:3:4:5:6:7:8]>
+	achowe@[ipv6:1:2:3:4:5:6:7:8]
+	achowe+bulk@[ipv6:1:2:3:4:5:6:7:8]
+	bulk+achowe@[ipv6:1:2:3:4:5:6:7:8]
+	bulk%+@[ipv6:1:2:3:4:5:6:7:8]
+	achowe@bulk.[ipv6:1:2:3:4:5:6:7:8]
+	:achowe+bulk@[ipv6:1:2:3:4:5:6:7:8]
+	achowe@[ipv6:1:2:3:4:5:6:7:8]
+'<achowe@[IPv6:::1]>'
+	address='achowe@[IPv6:::1]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:::1]'
+	is RFC 2606: false
+	<achowe@[IPv6:::1]>
+	achowe@[ipv6:::1]
+	achowe+bulk@[ipv6:::1]
+	bulk+achowe@[ipv6:::1]
+	bulk%+@[ipv6:::1]
+	achowe@bulk.[ipv6:::1]
+	:achowe+bulk@[ipv6:::1]
+	achowe@[ipv6:::1]
+'<achowe@[IPv6:feed::beef]>'
+	address='achowe@[IPv6:feed::beef]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:feed::beef]'
+	is RFC 2606: false
+	<achowe@[IPv6:feed::beef]>
+	achowe@[ipv6:feed::beef]
+	achowe+bulk@[ipv6:feed::beef]
+	bulk+achowe@[ipv6:feed::beef]
+	bulk%+@[ipv6:feed::beef]
+	achowe@bulk.[ipv6:feed::beef]
+	:achowe+bulk@[ipv6:feed::beef]
+	achowe@[ipv6:feed::beef]
+'<achowe@[IPv6:::123.45.67.89]>'
+	address='achowe@[IPv6:::123.45.67.89]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:::123.45.67.89]'
+	is RFC 2606: false
+	<achowe@[IPv6:::123.45.67.89]>
+	achowe@[ipv6:::123.45.67.89]
+	achowe+bulk@[ipv6:::123.45.67.89]
+	bulk+achowe@[ipv6:::123.45.67.89]
+	bulk%+@[ipv6:::123.45.67.89]
+	achowe@bulk.[ipv6:::123.45.67.89]
+	:achowe+bulk@[ipv6:::123.45.67.89]
+	achowe@[ipv6:::123.45.67.89]
+'<achowe@[IPv6:beef::123.45.67.89]>'
+	address='achowe@[IPv6:beef::123.45.67.89]' sourceroute='' localleft='achowe' localright='' domain='[ipv6:beef::123.45.67.89]'
+	is RFC 2606: false
+	<achowe@[IPv6:beef::123.45.67.89]>
+	achowe@[ipv6:beef::123.45.67.89]
+	achowe+bulk@[ipv6:beef::123.45.67.89]
+	bulk+achowe@[ipv6:beef::123.45.67.89]
+	bulk%+@[ipv6:beef::123.45.67.89]
+	achowe@bulk.[ipv6:beef::123.45.67.89]
+	:achowe+bulk@[ipv6:beef::123.45.67.89]
+	achowe@[ipv6:beef::123.45.67.89]
+'<achowe@dummy.test>'
+	address='achowe@dummy.test' sourceroute='' localleft='achowe' localright='' domain='dummy.test'
+	is RFC 2606: true
+	<achowe@dummy.test>
+	achowe@dummy.test
+	achowe+bulk@dummy.test
+	bulk+achowe@dummy.test
+	bulk%+@dummy.test
+	achowe@bulk.dummy.test
+	:achowe+bulk@dummy.test
+	achowe@dummy.test
+'<achowe@dummy.invalid>'
+	address='achowe@dummy.invalid' sourceroute='' localleft='achowe' localright='' domain='dummy.invalid'
+	is RFC 2606: true
+	<achowe@dummy.invalid>
+	achowe@dummy.invalid
+	achowe+bulk@dummy.invalid
+	bulk+achowe@dummy.invalid
+	bulk%+@dummy.invalid
+	achowe@bulk.dummy.invalid
+	:achowe+bulk@dummy.invalid
+	achowe@dummy.invalid
+'<achowe@dummy.localhost>'
+	address='achowe@dummy.localhost' sourceroute='' localleft='achowe' localright='' domain='dummy.localhost'
+	is RFC 2606: true
+	<achowe@dummy.localhost>
+	achowe@dummy.localhost
+	achowe+bulk@dummy.localhost
+	bulk+achowe@dummy.localhost
+	bulk%+@dummy.localhost
+	achowe@bulk.dummy.localhost
+	:achowe+bulk@dummy.localhost
+	achowe@dummy.localhost
+'<achowe@dummy.example>'
+	address='achowe@dummy.example' sourceroute='' localleft='achowe' localright='' domain='dummy.example'
+	is RFC 2606: true
+	<achowe@dummy.example>
+	achowe@dummy.example
+	achowe+bulk@dummy.example
+	bulk+achowe@dummy.example
+	bulk%+@dummy.example
+	achowe@bulk.dummy.example
+	:achowe+bulk@dummy.example
+	achowe@dummy.example
+'<achowe@example.com>'
+	address='achowe@example.com' sourceroute='' localleft='achowe' localright='' domain='example.com'
+	is RFC 2606: true
+	<achowe@example.com>
+	achowe@example.com
+	achowe+bulk@example.com
+	bulk+achowe@example.com
+	bulk%+@example.com
+	achowe@bulk.example.com
+	:achowe+bulk@example.com
+	achowe@example.com
+'<achowe@sub.example.com><+folder@pop.snert.com>'
+	address='+folder@pop.snert.com' sourceroute='' localleft='+folder' localright='' domain='pop.snert.com'
+	is RFC 2606: false
+	<+folder@pop.snert.com>
+	+folder@pop.snert.com
+	+folder+bulk@pop.snert.com
+	bulk++folder@pop.snert.com
+	bulk%+@pop.snert.com
+	+folder@bulk.pop.snert.com
+	:+folder+bulk@pop.snert.com
+	+folder@pop.snert.com
+''
+	address='' sourceroute='' localleft='' localright='' domain=''
+	is RFC 2606: false
+	<>
+	@
+	+bulk@
+	bulk+@
+	bulk%+@
+	@bulk.
+	:+bulk@
+	@
+'postmaster'
+	address='postmaster' sourceroute='' localleft='postmaster' localright='' domain=''
+	is RFC 2606: false
+	<postmaster>
+	postmaster@
+	postmaster+bulk@
+	bulk+postmaster@
+	bulk%+@
+	postmaster@bulk.
+	:postmaster+bulk@
+	postmaster@
+'achowe@snert.com'
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'    achowe@snert.com    '
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'<    achowe@snert.com>'
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'<achowe@snert.com    >'
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'<    achowe@snert.com    >'
+	address='achowe@snert.com' sourceroute='' localleft='achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<achowe@snert.com>
+	achowe@snert.com
+	achowe+bulk@snert.com
+	bulk+achowe@snert.com
+	bulk%+@snert.com
+	achowe@bulk.snert.com
+	:achowe+bulk@snert.com
+	achowe@snert.com
+'<  __achowe@snert.com>'
+	address='__achowe@snert.com' sourceroute='' localleft='__achowe' localright='' domain='snert.com'
+	is RFC 2606: false
+	<__achowe@snert.com>
+	__achowe@snert.com
+	__achowe+bulk@snert.com
+	bulk+__achowe@snert.com
+	bulk%+@snert.com
+	__achowe@bulk.snert.com
+	:__achowe+bulk@snert.com
+	__achowe@snert.com
+'<achowe@snert.com__  >'
+	address='achowe@snert.com__' sourceroute='' localleft='achowe' localright='' domain='snert.com__'
+	is RFC 2606: false
+	<achowe@snert.com__>
+	achowe@snert.com__
+	achowe+bulk@snert.com__
+	bulk+achowe@snert.com__
+	bulk%+@snert.com__
+	achowe@bulk.snert.com__
+	:achowe+bulk@snert.com__
+	achowe@snert.com__
+FAIL '<a chowe@snert.com>' 5.1.3 invalid local part
+'<"achowe@snert.com">'
+	address='"achowe@snert.com"' sourceroute='' localleft='"achowe@snert.com"' localright='' domain=''
+	is RFC 2606: false
+	<"achowe@snert.com">
+	"achowe@snert.com"@
+	"achowe@snert.com"+bulk@
+	bulk+"achowe@snert.com"@
+	bulk%+@
+	"achowe@snert.com"@bulk.
+	:"achowe@snert.com"+bulk@
+	"achowe@snert.com"@
+FAIL '<achowe@[IPv6:feed:::beef]>' 5.1.3 invalid domain name
+FAIL '<achowe@[IPv6:1:2:3:4:5:6:7]>' 5.1.3 invalid domain name
+FAIL '<achowe@[IPv6:1:2:3:4:5:6:7:]>' 5.1.3 invalid domain name
+FAIL '<achowe@[IPv6:1:2:3:4:5:6:7:8:9]>' 5.1.3 invalid domain name
+FAIL '<Vanessa-kauskas:@SELSOL.COM>' 5.1.3 invalid local part
+
+==== IP parsing
+OK "1:2:3:4:5:6:7:8:9:a:b"
+OK "feed.beef.ab"
+OK "1.2.3.4.5.6.7.8"
+OK "::"
+OK "IPV6:::"
+OK "0:0:0:0:0:0:0:0"
+OK "::0.0.0.0"
+OK "0:0:0:0:0:0:0.0.0.0"
+OK "0.1.2.3"
+OK "::1"
+OK "127.0.0.1"
+OK "[123.45.67.89]"
+OK "[IPv6:1:2:3:4:5:6:7:8]"
+OK "[IPv6:feed::beef]"
+OK "[IPv6:::123.45.67.89]"
+OK "[IPv6:beef::123.45.67.89]"
+OK "[IPv6:beef:8765:4321::123.45.67.89]"
+OK "[IPv6:feed:beef::1234:5678:9abc]"
+OK "192.0.2.3"
+OK "127.0.0.2"
+OK "198.18.1.2"
+OK "169.254.1.2"
+OK "10.1.2.3"
+OK "172.16.1.2"
+OK "192.168.1.2"
+OK "224.0.1.2"
+OK "::ffff:192.0.2.3"
+OK "::ffff:127.0.0.2"
+OK "::ffff:198.18.1.2"
+OK "::ffff:169.254.1.2"
+OK "::ffff:10.1.2.3"
+OK "::ffff:172.16.1.2"
+OK "::ffff:192.168.1.2"
+OK "::ffff:224.0.1.2"
+OK "[IPv6:2001:DB8::1234:5678:9abc]"
+OK "[IPv6:fe80::1234:5678:9abc]"
+OK "[IPv6:fec0::1234:5678:9abc]"
+OK "[IPv6:ff01::1234:5678:9abc]"
+OK "[213.36.198.129]"

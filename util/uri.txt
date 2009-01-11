@@ -1,0 +1,200 @@
+Return-Path: <uri@snert.test>
+Content-Type: multipart/mixed; boundary="--=_test_boundary"
+Content-Transfer-Encoding: 7bit
+
+----=_test_boundary
+Content-Type: text/plain
+
+The following test cases
+
+-p -l -u -q	text
+--------------------------------------------------------
+ N  -  -  -	<>
+
+ N  -  -  -	This is not a domain.
+
+ N  U  -  -	This sentence ends with the domain example.com. Is a reserved domain, not blacklisted (yet).
+
+ Y  Y  N  -	"www.123.com."
+
+ N  -  -  -	www.-123.com
+
+ N  -  -  -	www.123-.com
+ 
+ Y  U  N  -	'host.abc.com'
+ 
+ Y  U  N  -	(smtp.abc.com)
+
+ N  -  -  -	There are no numeric top-level-domains like foo.bar.123
+
+ N  -  -  -	foo.bar.-123
+
+ N  -  -  -	foo.bar.123-
+
+ N  -  -  -	foo.bar.1a2
+
+ N  U  -  -	cid:12345.67890@snert.com
+
+ Y  N  N  -	www.fail.test
+
+ Y  N  Y  -	www.pass.test
+
+ Y  N  N  -	www.anything.invalid
+
+ Y  N  N  -	www.anything.localhost
+  
+ Y  ?  N  -	http://127.0.0.1/
+
+ Y  ?  Y  -	http://127.0.0.2/
+
+ Y  N  N  -	https://www.snert.com/
+
+ Y  N  N  -	http://samba.snert.com:901/
+ 
+ Y  N  N  -	http://snert/  Many broswes and mail clients try default TLDs.
+
+ Y  N  N  -	mailto:achowe@snert.com
+
+ Y  U  N  -	remove@goldrush411.biz
+
+ N  U  N  -	fbfhbj5df33sdvbn8tg.com
+
+ Y  Y  Y  Y	<http://translate.google.com/translate?u=www.fsl.com&langpair=en%7Cen&hl=en>
+
+ Y  Y  Y  Y	[http://autotrader.com/redirect/redirector_link.jsp?to_url=http://ic.fm0rt.com]
+
+ Y  Y  Y  Y	{http://ad.doubleclick.net/clk;29825968;12395550;w?http://www.bocajava.com/referral.do?promo=ediets0027text}
+
+ Y  ?  Y  Y	http://rds.yahoo.com/S=8805213/K=computer/v=1/SID=a/l=WS1/R=1/SS=19512237/IPC=us/SHE=0/H=0/SIG=92qylAS97/EXP=020672989/*-http://xplrhto.s00p.net/
+ 
+ N  U  Y  -     Missing scheme //Maildir/tmp/1147912780.P18481.andromede.tetragone.fr
+ 
+ N  -  -  -	https://smallbusiness..dell.com/
+
+ Y  ?  ?  Y     http://www.zdnetasia.com/search/results.htm?query=mari+misato+at+dynamix+%3CIFRAME%20src=//72.232.39.252/a/%3E.html
+
+ Y  -  -  -	192.0.2.99
+
+ Y  -  -  -	2001:0DB8::1234
+
+ Y  -  -  -	2001:0DB8::192.0.2.99
+
+ Y  -  -  Y	http://www.google.com/pagead/iclk?sa=l&ai=EJVqDJ&num=65520&adurl=http://%73%6B%69%6E%61%70%70%6C%65%2E%63%6F%6D
+
+
+----=_test_boundary
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+
+ Y  -  N  -	&lt;wumpus@snert.org&gt;
+
+----=_test_boundary
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+
+ Y  -  N  -	<a href=3D"mailto:user@ya=
+hoo.ca">user</a> test soft newline handling
+
+----=_test_boundary
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+
+ Y  -  N  -	<a href=3D"mailto:user@yahoo.=
+ca">user</a> test soft newline handling
+
+----=_test_boundary
+Content-Type: text/html
+
+ Y  -  N  -	<a href=http://www.snert.com/>Snert</a> no quotes around href value.
+
+----=_test_boundary
+Content-Type: text/plain
+
+ Y  -  N  -	URI at start of line
+blah blah
+http://test.com
+
+----=_test_boundary
+Content-Type: text/plain; charset="ISO-2022-JP"
+
+ Y  -  Y  -	URI prefixed by multibyte charset パソコン・携帯　http://www.c-evian.com
+
+----=_test_boundary
+
+ Y  -  N  -	URI at EOF without a newline http://no-newline.com/
+ 
+----=_test_boundary
+Content-type: text/plain; charset=iso-8859-1
+Content-Transfer-Encoding: quoted-printable
+
+Blair=2Ecom E-mail Specials=20
+Quality, service and value since 1910=20
+=20
+=20
+Meet our election winners!=20
+Customers voted these styles tops - and now=20
+you can get them at huge savings!=20
+=20
+Crested Mock Turtleneck=20
+Item #35462=20
+Was $9=2E99-$11=2E99  Now $3=2E99=20
+http://www=2Eclickandoffer=2Ecom/l=2Easp?c=3Dm1009&r=3D9259y1&s=3D701&l=
+=3D7&i=3D302028052&b=3D32508
+=20
+
+----=_test_boundary
+Content-type: text/plain; charset=iso-8859-1
+Content-Transfer-Encoding: quoted-printable
+
+URI with QP space at end of URI
+http://oxakeysu.com=20
+
+----=_test_boundary
+Content-type: text/plain; charset=iso-8859-1
+
+Should NOT match @token or @other word or @this
+
+----=_test_boundary
+Content-type: text/plain; charset=iso-8859-1
+
+Should NOT parse the namespaceuri nor downloadurl attributes.
+Note how they resemble SOME.DOMAIN-NAME:PORT, but should not
+parse because the PORT is not numeric.
+
+<o:SmartTagType =
+namespaceuri=3D"urn:schemas-microsoft-com:office:smarttags"
+ name=3D"Street" =
+downloadurl=3D"http://www.5iantlavalampft-com:office:smarttags"/>
+
+----=_test_boundary
+Content-type: text/plain; charset=iso-8859-1
+
+Must not match anything.
+
+$B$N%F%-%9%H$H2r@b$rF
+%F%-%9%H$H8l6g$N2;@
+hGO0&9%2H$+$i$NEEOC$,;&E~$7$F$$$k$H8@$C$F$$$k!
+@h7nGO$r0z$-
+$B8l6g$N@bL@
+!D$@$1!
+$B$*6b$@$1$G$9!
+%i$R$H$j$@$1$G$O$J$$!
+@A
+$B5a=q$N;YJ'$$$K;M6lH,6l$7$F$$$k$H8@$C$F$$$k!
+$B$$2H$,I,MW$@$H$$$&$3$H$@!
+$@!
+
+----=_test_boundary
+Content-type: text/plain; charset=iso-8859-1
+
+URL encoded punctuation including email query string.
+
+ Y  ?  ?  Y	http%3A%2F%2Fwww%2Ecyberlink%2Ecom%2Fmulti%2Fedm%2Funsubscribe%2Ejsp%3FEmail%3Dmandtchristie@activ8.net.au
+
+URL encoded punctuation including double redirection and email query string.
+
+ Y  ?  ?  ?	http%3A%2F%2Fwww%2Ecyberlink%2Ecom%2Fenglish%2Fdownload%2Faffiliate%2Ejsp%3Fclid%3D2581%5F603%5F11%5FBronze1login1108%5F0%26RedirectURL%3Dhttps%253A%2F%2Fmembership%2Ecyberlink%2Ecom%2Fenglish%2Fmembership%5Fprogram%2Fmember%5Farea%2Fpersonal%5Fprofile%2Ejsp%3FEmail%3Dmandtchristie@activ8.net.au
+
+
+----=_test_boundary--
+

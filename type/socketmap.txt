@@ -1,0 +1,81 @@
+/*
+ * The original socket map protocol assumes a simple FETCH oepration.
+ * In order to be more generic, we need additional operations such as
+ * GET, PUT, LIST, and REMOVE that can operate on binary data.
+ *
+ * Sendmail socket map FETCH semantics:
+ *
+ *	> $length ":" $table_name " " $key ","
+ *	< $length ":" $status " " $result ","
+ *
+ *	$length is the ASCII numeric representation of the data length.
+ *	$table_name assumed to be ASCII containing no spaces; $key can
+ *	be binary; $status is one of "OK", "NOTFOUND", "PERM", "TEMP",
+ *	"TIMEOUT". If $status is OK, then the $result is the stored
+ *	value, which can be binary. Otherwise $result is an error
+ *	message.
+ *
+ * To distinguish sendmail socket map FETCH operation from other
+ * operations, send only the $table_name without the subsequent space
+ * and $key, then send the command, followed by any arguments. Each is
+ * a net string, which can contain binary data.
+ *
+ * GET
+ *	> $length ":" $table_name ",3:GET,"
+ *	> $length ":" $key ","
+ *	< $length ":" $status " " $result ","
+ *	< $length ":" $value ","
+ *
+ *	$value row returned only if $status == OK.
+ *
+ * PUT
+ *	> $length ":" $table_name ",3:PUT,"
+ *	> $length ":" $key "," $length ":" $value ","
+ *	< $length ":" $status " " $result ","
+ *
+ * REMOVE
+ *	> $length ":" $table_name ",6:REMOVE,"
+ *	> $length ":" $key ","
+ *	< $length ":" $status " " $result ","
+ *
+ * FIRST
+ *	> $length ":" $table_name ",5:FIRST,"
+ *	< $length ":" $status " " $result ","
+ *	< $length ":" $key "," $length ":" $value ","
+ *
+ *	$key and $value row returned only if $status == OK.
+ *
+ * NEXT
+ *	> $length ":" $table_name ",4:NEXT,"
+ *	< $length ":" $status " " $result ","
+ *	< $length ":" $key "," $length ":" $value ","
+ *
+ *	$key and $value row returned only if $status == OK.
+ *
+ * LAST
+ *	> $length ":" $table_name ",4:LAST,"
+ *	< $length ":" $status " " $result ","
+ *	< $length ":" $key "," $length ":" $value ","
+ *
+ *	$key and $value returned only if $status == OK.
+ *
+ * PREVIOUS
+ *	> $length ":" $table_name ",8:PREVIOUS,"
+ *	< $length ":" $status " " $result ","
+ *	< $length ":" $key "," $length ":" $value ","
+ *
+ *	$key and $value row returned only if $status == OK.
+ *
+ * LIST
+ *	> $length ":" $table_name ",4:LIST,"
+ *	< $length ":" $status " " $result ","
+ *	< $length ":" $key "," $length ":" $value ","
+ *	< ...
+ *	< ... upto $result rows
+ *
+ *	A list of $key and $value returned only if $status == OK.
+ *	$result will be the ASCII number string of key-value pairs
+ *	to follow, otherwise an error message.
+ *
+ * $status is one of "OK", "NOTFOUND", "PERM", "TEMP", "TIMEOUT".
+ */

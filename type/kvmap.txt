@@ -1,0 +1,17 @@
+# This is a comment
+baka	howe
+john	smith
+
+sarah	jones
+
+# A key without a value.
+skippy
+
+# A key with an empty value.
+blank	
+
+# A key followed by a run of whitespace.
+logan         		   6
+
+anthony		howe
+jilly		bennett

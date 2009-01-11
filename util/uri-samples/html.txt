@@ -1,0 +1,24 @@
+<html>
+
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=gb2312">
+<title>空股护照</title>
+<BASE href="http://&#x000065;&#x000064;&#x00006d;&#x00002e;&#x00006b;&#x000061;&#x000077;&#x000061;&#x00006b;&#x000061;&#x00006d;&#x000069;&#x00002e;&#x000063;&#x00006f;&#x00006d;&#x00002e;&#x000074;&#x000077;/mm2/">
+<p align="center"><font color="#FF0000"><b><a target="_blank" href="http://&#x000065;&#x000064;&#x00006d;&#x00002e;&#x00006b;&#x000061;&#x000077;&#x000061;&#x00006b;&#x000061;&#x00006d;&#x000069;&#x00002e;&#x000063;&#x00006f;&#x00006d;&#x00002e;&#x000074;&#x000077;/mm2/">
+看不到数据请按此键</a></b></font></p>
+
+<p><map name="FPMap0">
+<area target="_blank" coords="183, 90, 459, 123" shape="rect" href="../mm1/index.htm">
+<area target="_blank" coords="3, 11, 561, 82" shape="rect" href="index.html">
+<area target="_blank" href="index.html" shape="rect" coords="10, 127, 565, 725">
+</map>
+<img border="0" src="images/3.gif" width="566" height="726" usemap="#FPMap0"></p>
+
+</body>
+<p align="left">
+<color="#ff0000"><a target="_blank" href="../nomail">若您不要再收到此类讯息请按此</font></b>
+
+</p>
+
+</html>
+</html>

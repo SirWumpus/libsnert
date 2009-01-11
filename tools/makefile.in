@@ -1,0 +1,225 @@
+#
+# @package_copyright@
+#
+# @configure_input@
+#
+
+.POSIX :
+
+.SUFFIXES :
+A = .@LIBEXT@
+O = .@OBJEXT@
+E = @EXEEXT@
+.SUFFIXES : .c $O $A
+
+#
+# Paths for supporting headers and libraries.
+#
+top_srcdir 	= @top_srcdir@
+abs_srcdir	= @abs_srcdir@
+SNERT_TARDIR	= @snert_tardir@
+SNERT_INCDIR	= @snert_incdir@
+SNERT_LIBDIR	= @snert_libdir@
+
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+
+LIB	= ${SNERT_LIBDIR}/@PACKAGE_TARNAME@$A
+BAK	= ${SNERT_LIBDIR}/@PACKAGE_TARNAME@.bak
+
+CC	= @CC@
+CC_E	= @CC_E@
+CC_O	= @CC_O@
+CFLAGS	= ${CFLAGS_PREFIX} @CFLAGS@
+LDFLAGS	= ${LDFLAGS_PREFIX} -L${SNERT_LIBDIR} @LDFLAGS@
+LIBS	= ${LIBS_PREFIX} @LIBS@
+
+XARGSI	= @XARGSI@
+RANLIB	= @RANLIB@
+ARCHIVE	= @ARCHIVE@
+COMPILE	= @COMPILE@
+
+LIBSNERT 	= @LIBSNERT@
+LIB_PAM		= @HAVE_LIB_PAM@
+LIB_PTHREAD	= @HAVE_LIB_PTHREAD@
+LIB_SQLITE3	= @HAVE_LIB_SQLITE3@
+LIB_WS2_32	= @HAVE_LIB_WS2_32@
+LIB_IPHLPAPI	= @HAVE_LIB_IPHLPAPI@
+LIB_RT 		= @HAVE_LIB_RT@
+
+#######################################################################
+
+#%$O : %.c
+.c$O :
+	$(COMPILE)
+
+#(%) : %
+#	$(ARCHIVE)$*
+
+#%$E : %.c
+.c$E :
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)$*$E $< $(LIBSNERT) $(LIBS)
+
+#%$E : %$O
+$O$E :
+	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
+
+#######################################################################
+
+ORIGINAL	= ansi$E flip$E popin$E uue$E show$E range$E sqlargs$E \
+		  counter$E sendform$E nph-download.cgi here-i-am$E \
+		  where-are-you$E mimepart$E clamstream$E ixhash$E \
+		  ziplist$E rarlist$E taglengths$E
+MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E echod$E
+DAEMONS 	= filed zoned
+UNIX 		= mailgroup
+
+
+PROGRAMS = $(ORIGINAL) $(MYVERSION)
+
+.MAIN : build
+
+all: build
+
+title :
+	@echo
+	@echo '***************************************************************'
+	@echo '==> '${abs_srcdir}
+	@echo '***************************************************************'
+	@echo
+
+build : title $(PROGRAMS)
+
+clean : title
+	-rm -f $(PROGRAMS) $(DAEMONS) *.o *.obj core *.core core.* *.stackdump
+	-rm -f *.i *.map *.tds *.TR2 *.ilc *.ild *.ilf *.ils *.log
+	-rm -f ixhash*.eg ixhash*.out
+
+distclean: clean
+	-rm -rf makefile autom4te.cache config.status config.log
+
+${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
+	cd ${top_srcdir}/util ; make DebugMalloc.o
+
+debug : ${top_srcdir}/util/DebugMalloc.o
+	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o -dl -lpthread' build
+
+# Get a list of the predefined GCC macros.
+predefined:
+	gcc -E -dM nothing.c
+
+install: build
+	cp $(ORIGINAL) $(bindir)
+
+install-all: install
+	cp $(MYVERSION) $(bindir)
+
+uninstall:
+	-rm -f $(PROGRAMS)
+
+lint: title
+#	-splint -D_REENTRANT -I${SNERT_INCDIR} +posixlib +boolint *.c
+
+popin$E : ${top_srcdir}/io/socket2$O popin.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)popin$E popin.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+
+ansi$E : ansi.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)ansi$E ansi.c ${LIBS_PREFIX}
+
+clamstream$E : ${top_srcdir}/io/socket2$O clamstream.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)clamstream$E clamstream.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+
+flip$E : flip.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)flip$E flip.c $(LIBSNERT) ${LIBS_PREFIX}
+
+strings$E : strings.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)strings$E strings.c $(LIBSNERT) ${LIBS_PREFIX}
+
+uue$E : uue.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)uue$E uue.c $(LIBSNERT) ${LIBS_PREFIX}
+
+show$E : show.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)show$E show.c $(LIBSNERT) ${LIBS_PREFIX}
+
+climits$E : climits.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)climits$E climits.c $(LIBSNERT) ${LIBS_PREFIX}
+
+cksum$E : cksum.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)cksum$E cksum.c $(LIBSNERT) ${LIBS_PREFIX}
+
+kat$E : kat.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)kat$E kat.c $(LIBSNERT) ${LIBS_PREFIX}
+
+comm$E : comm.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)comm$E comm.c $(LIBSNERT) ${LIBS_PREFIX}
+
+cmp$E : cmp.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)cmp$E cmp.c $(LIBSNERT) ${LIBS_PREFIX}
+
+echo$E : echo.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)echo$E echo.c $(LIBSNERT) ${LIBS_PREFIX}
+
+ixhash$E : ixhash.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)ixhash$E ixhash.c $(LIBSNERT) ${LIBS_PREFIX}
+
+range$E : range.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)range$E range.c ${LIBS_PREFIX}
+
+nph-download.cgi: nph-download.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)nph-download.cgi nph-download.c ${LIBS_PREFIX}
+
+counter$E : counter.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)counter$E counter.c $(LIBSNERT) ${LIBS_PREFIX}
+
+sendform$E : ${top_srcdir}/io/socket2$O sendform.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)sendform$E sendform.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+
+here-i-am$E : ${top_srcdir}/io/socket2$O here-i-am.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)here-i-am$E here-i-am.c $(LIBS) ${LIB_PTHREAD} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+
+where-are-you$E : ${top_srcdir}/io/socket2$O where-are-you.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)where-are-you$E where-are-you.c $(LIBSNERT) $(LIBS) ${LIB_PTHREAD} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+
+filed$E : filed.c
+	$(CC) $(CC_E)filed$E filed.c ${LIB_PAM} $(LIBS)
+	sed '/^$$/q' filed.c
+
+zoned$E : zoned.c
+	$(CC) $(CC_E)zoned$E zoned.c ${LIB_PAM} $(LIBS)
+	sed '/^$$/q' zoned.c
+
+mailgroup$E : mailgroup.c
+	$(CC) -O2 $(CC_E)mailgroup$E mailgroup.c ${LIBS_PREFIX}
+	sed '/^$$/q' mailgroup.c
+
+mimepart$E : mimepart.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)mimepart$E mimepart.c ${LIBSNERT} ${LIBS} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+
+sqlargs$E: sqlargs.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)sqlargs$E sqlargs.c ${LIBSNERT} ${LIBS} ${LIB_SQLITE3}
+
+ziplist$E : ziplist.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)ziplist$E ziplist.c ${LIBS_PREFIX}
+
+rarlist$E : rarlist.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)rarlist$E rarlist.c ${LIBS_PREFIX}
+
+taglengths$E : taglengths.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)taglengths$E taglengths.c ${LIBS_PREFIX}
+
+#	mv mailgroup /usr/local/sbin
+#	chown root /usr/local/sbin/mailgroup
+#	chmod 4500 /usr/local/sbin/mailgroup
+
+
+# Not finished
+ssi$E : ssi.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)ssi$E ssi.c $(LIBSNERT) ${LIBS_PREFIX}
+
+pack-cgi:
+	tar -zcf cgi.tgz counter$E counter.shtml Digits sendform$E sendform.cfg sendform.html
+
+echod$E: ${top_srcdir}/io/socket2$O echod.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)echod$E echod.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT} ${LIB_PTHREAD}
+

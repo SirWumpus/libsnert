@@ -1,0 +1,65 @@
+Return-Path: <jricardodsjf@hotmail.com>
+Received: from mail.nicmeios.com (mail.nicmeios.com [200.188.217.236])
+	by mx.snert.net (8.14.1/8.14.1) with ESMTP id lA1GoYKc017234
+	for <achowe@snert.com>; Thu, 1 Nov 2007 17:50:38 +0100 (CET)
+Received: from localhost (localhost [127.0.0.1])
+	by mail.nicmeios.com (Postfix) with ESMTP id 7422A32D6A1;
+	Thu,  1 Nov 2007 14:36:36 -0300 (BRT)
+Received: from mail.nicmeios.com ([127.0.0.1])
+ by localhost (ns.biocomm.com.br [127.0.0.1]) (amavisd-new, port 10024)
+ with ESMTP id 12030-09; Thu,  1 Nov 2007 14:36:35 -0300 (BRT)
+Received: from hotmail.com (201-95-149-252.dsl.telesp.net.br [201.95.149.252])
+	by mail.nicmeios.com (Postfix) with ESMTP id 962E632D69D;
+	Thu,  1 Nov 2007 14:36:35 -0300 (BRT)
+Message-ID: <280941-22007114117419140@hotmail.com>
+X-EM-Version: 6, 0, 0, 4
+X-EM-Registration: #00F06206106618006920
+X-Priority: 3
+Reply-To: jricardojf@ubbi.com.br
+To: "undisclosed" <jricardodsjf@hotmail.com>
+From: "Ricardo" <jricardodsjf@hotmail.com>
+Subject: Fw: Tudo de graca
+Date: Thu, 1 Nov 2007 14:41:09 -0300
+MIME-Version: 1.0
+Content-type: text/plain; charset="windows-1252"
+Content-Transfer-Encoding: quoted-printable
+X-Virus-Scanned: by amavisd-new at nicmeios.com
+X-Scanned-By: milter-spamc/1.11.382.382 (mx.snert.net [82.97.10.34]); Thu, 01 Nov 2007 17:51:10 +0100
+X-Spam-Status: NO, hits=3.80 required=5.00
+X-Spam-Report: POINTS TOTAL= 3.8 / 5.0
+  ____
+  Ceci est le rapport SpamAssassin pour ce message. Il contient
+  une ou plusieurs report lignes pour chaque regle. Chaque ligne
+  contient le report nom d'une regle, son score, et report sa
+  breve description.
+  ____
+   2.8 FORGED_HOTMAIL_RCVD    Forged hotmail.com 'Received:' header found
+   1.0 BAYES_60               BODY: Bayesian spam probability is 60 to 80p
+                              [score: 0.7245]
+  ____
+  SpamAssassin/3.1.8
+  ____
+
+Pessoal, recebi este e-mail e estou repassando=2E=2E=2E
+---
+Voc=EAs sabiam que na internet existem sites que oferecem material de qual=
+idade e de gra=E7a?=20
+Encontrei um site na internet que disponibiliza muito material de qualidad=
+e e de GRA=C7A=2E
+O site =E9 www=2Etudodegraca=2Eclic3=2Enet
+Algumas apostilas oferecidas s=E3o:
+"Kit de M=E1gicas"
+"Guia de Sedu=E7=E3o"
+"Curso de Auto-Hipnose"
+"Curso de Desenho"
+"Ringtones para celular"
+e v=E1rias outras=2E=2E=2E=20
+
+Esse =E9 um material GRATUITO de qualidade que est=E1 praticamente esqueci=
+do na internet=2E Vamos repassar essa oportunidade aos nossos amigos e avi=
+sar o maior n=FAmero de pessoas!
+Repetindo, o site =E9: www=2Etudodegraca=2Eclic3=2Enet
+
+Abra=E7os
+
+

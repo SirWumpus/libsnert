@@ -1,0 +1,196 @@
+#
+# @package_copyright@
+#
+# @configure_input@
+#
+
+.POSIX :
+
+.SUFFIXES :
+A = .@LIBEXT@
+O = .@OBJEXT@
+E = @EXEEXT@
+.SUFFIXES : .c $O $A
+
+#
+# Paths for supporting headers and libraries.
+#
+top_srcdir = @top_srcdir@
+abs_srcdir = @abs_srcdir@
+SNERT_TARDIR	= @snert_tardir@
+SNERT_INCDIR	= @snert_incdir@
+SNERT_LIBDIR	= @snert_libdir@
+
+LIB	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
+BAK	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
+TGZ	= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
+
+CC	= @CC@
+CC_E	= @CC_E@
+CC_O	= @CC_O@
+CFLAGS	= ${CFLAGS_PREFIX} @CFLAGS@
+LDFLAGS	= ${LDFLAGS_PREFIX} @LDFLAGS@
+LIBS	= ${LIBS_PREFIX} @LIBS@
+
+XARGSI	= @XARGSI@
+RANLIB	= @RANLIB@
+ARCHIVE	= @ARCHIVE@
+COMPILE	= @COMPILE@
+
+LIBSNERT = @LIBSNERT@
+LIB_WS2_32 = @HAVE_LIB_WS2_32@
+LIB_IPHLPAPI = @HAVE_LIB_IPHLPAPI@
+LIB_RT = @HAVE_LIB_RT@
+
+#######################################################################
+
+#%$O : %.c
+.c$O :
+	$(COMPILE)
+
+#(%) : %
+#	$(ARCHIVE)$*
+
+#%$E : %.c
+.c$E :
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)$*$E $< $(LIBSNERT) $(LIBS)
+
+#%$E : %$O
+$O$E :
+	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
+
+#######################################################################
+
+OBJS = \
+	md4$O md5$O b64$O convertDate$O BigInt$O JavaTime$O getopt$O Memory$O Rotate$O Buf$O \
+	TextBackslash$O TextEscape$O TextInputLine$O TextReadLine$O TextCopy$O \
+	TextCat$O TextDup$O TextDupN$O TokenCount$O TokenNext$O TokenSplitA$O TokenSplit$O \
+	TextJoin$O TextSplit$O TextSensitiveCompare$O TextTransliterate$O \
+	TextInsensitiveCompare$O TextInvert$O TextReverse$O TextLower$O \
+	TextUpper$O TextSensitiveEndsWith$O TextInsensitiveEndsWith$O \
+	TextInsensitiveStartsWith$O TextSensitiveStartsWith$O TextHash$O TextDelim$O TextEmpty$O \
+	TextNull$O TextC$O setBitWord$O strlrcspn$O strlrspn$O strnatcmp$O bs$O Base64$O \
+	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O \
+	uriIsDomainBL$O uri$O option$O time62$O timespec$O timeval$O
+
+TEST = b64$E md4$E md5$E Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
+       DebugMallocTest$E uri$E convertDate$E TextCopy$E TextTransliterate$E \
+       TextSensitiveEndsWith$E TextInsensitiveEndsWith$E TextMatch$E ProcTitle$E
+
+.MAIN : build
+
+all: build
+
+title :
+	@echo
+	@echo '***************************************************************'
+	@echo '==> '${abs_srcdir}
+	@echo '***************************************************************'
+	@echo
+
+build : title $(LIB) add-lib
+
+build-debug : title DebugMalloc$O $(LIB) add-lib
+
+build-tests: ${TEST}
+
+$(LIB):	$(OBJS)
+
+add-lib:
+	@echo
+	ar rc ${LIB} ${OBJS}
+	$(RANLIB) $(LIB)
+	@echo
+
+#add-lib:
+#	@echo
+#	for obj in $(OBJS); do $(ARCHIVE); done
+#	$(RANLIB) $(LIB)
+#	@echo
+
+clean : title
+	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.stackdump core core *.core core.*.*
+	-rm -f BigInt$E ${TEST} cache.* properties.out
+
+distclean: clean
+	-rm -f makefile
+
+${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
+	cd ${top_srcdir}/util ; make DebugMalloc.o
+
+debug : ${top_srcdir}/util/DebugMalloc.o
+	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o' build
+
+lint: title
+	-splint -D_REENTRANT -I${SNERT_INCDIR} +posixlib +boolint *.c
+
+BigInt$E : $(LIB) BigInt$O
+
+Memory$E: Memory.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Memory$E Memory.c
+
+uri$E: uriIsDomainBL$O uri.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)uri$E uri.c $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+
+TextC$E: TextC.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextC$E TextC.c $(LIB)
+
+TokenSplit$E: TokenCount$O TextBackslash$O TokenSplitA$O TokenSplit.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TokenSplit$E TokenSplit.c $(LIB)
+
+Cache$E: DebugMalloc$O ../io/flock.c Cache.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Cache$E Cache.c  ../io/flock.c $(LIBSNERT) ${LIBS}
+
+Properties$E: ../io/flock.c Properties.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Properties$E Properties.c ../io/flock.c $(LIBSNERT) ${LIBS}
+
+Base64$E: Base64.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Base64$E Base64.c $(LIBSNERT) ${LIBS}
+
+b64$E: b64.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)b64$E b64.c $(LIBSNERT) ${LIBS}
+
+TextTransliterate$E: TextTransliterate.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextTransliterate$E TextTransliterate.c $(LIBSNERT) ${LIBS}
+
+TextSensitiveEndsWith$E: TextSensitiveEndsWith.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextSensitiveEndsWith$E TextSensitiveEndsWith.c $(LIBSNERT) ${LIBS}
+
+TextInsensitiveEndsWith$E: TextInsensitiveEndsWith.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextInsensitiveEndsWith$E TextInsensitiveEndsWith.c $(LIBSNERT) ${LIBS}
+
+TextCopy$E: TextCopy.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextCopy$E TextCopy.c
+
+TextCat$E: TextCat.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextCat$E TextCat.c
+
+TextMatch$E: TextMatch.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextMatch$E TextMatch.c $(LIBSNERT) ${LIBS}
+
+TextFind$E: TextFind.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextFind$E TextFind.c $(LIBSNERT) ${LIBS}
+
+option$E: option.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)option$E option.c $(LIBSNERT) ${LIBS}
+
+DebugMalloc$O: DebugMalloc.c
+	$(CC) -DDEBUG_MALLOC_THREAD_REPORT $(CFLAGS) $(LDFLAGS) -c DebugMalloc.c
+
+DebugMallocTest$E: DebugMalloc$O DebugMallocTest.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)DebugMallocTest$E DebugMallocTest.c $(LIBSNERT) ${LIBS} DebugMalloc$O
+
+convertDate$E: convertDate.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)convertDate$E convertDate.c $(LIBSNERT) ${LIBS}
+
+ProcTitle$E: ProcTitle.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)ProcTitle$E ProcTitle.c
+
+md4$E: md4.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)md4$E md4.c
+
+md5$E: md5.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)md5$E md5.c
+
+time62$E : time62.c
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)time62$E time62.c

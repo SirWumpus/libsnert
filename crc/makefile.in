@@ -1,0 +1,141 @@
+#
+# @package_copyright@
+#
+# @configure_input@
+#
+
+.POSIX :
+
+.SUFFIXES :
+A = .@LIBEXT@
+O = .@OBJEXT@
+E = @EXEEXT@
+.SUFFIXES : .c $O $A
+
+#
+# Paths for supporting headers and libraries.
+#
+top_srcdir = @top_srcdir@
+abs_srcdir = @abs_srcdir@
+SNERT_TARDIR	= @snert_tardir@
+SNERT_INCDIR	= @snert_incdir@
+SNERT_LIBDIR	= @snert_libdir@
+
+LIB	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
+BAK	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
+TGZ	= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
+
+CC	= @CC@
+CC_E	= @CC_E@
+CC_O	= @CC_O@
+CFLAGS	= ${CFLAGS_PREFIX} @CFLAGS@
+LDFLAGS	= ${LDFLAGS_PREFIX} @LDFLAGS@
+LIBS	= ${LIBS_PREFIX} @LIBS@
+
+XARGSI	= @XARGSI@
+RANLIB	= @RANLIB@
+ARCHIVE	= @ARCHIVE@
+COMPILE	= @COMPILE@
+
+LIBSNERT = @LIBSNERT@
+
+#######################################################################
+
+#%$O : %.c
+.c$O :
+	$(COMPILE)
+
+#(%) : %
+#	$(ARCHIVE)$*
+
+#%$E : %.c
+.c$E :
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)$*$E $< $(LIBSNERT) $(LIBS)
+
+#%$E : %$O
+$O$E :
+	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
+
+#######################################################################
+
+OBJS = Luhn$O crc12$O crc16$O crc32$O crcccitt$O crcfn$O
+
+.MAIN : build
+
+all: build
+
+title :
+	@echo
+	@echo '***************************************************************'
+	@echo '==> '${abs_srcdir}
+	@echo '***************************************************************'
+	@echo
+
+build : title Luhn$E $(LIB) add-lib
+
+$(LIB):	$(OBJS)
+
+add-lib:
+	@echo
+	ar rc ${LIB} ${OBJS}
+	$(RANLIB) $(LIB)
+	@echo
+
+clean : title
+	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.stackdump core *.core core.* *.tbl
+	-rm crctable$E Luhn$E
+
+distclean: clean
+	-rm makefile
+
+lint: title crc12.tbl crc16.tbl crc32.tbl crcccitt.tbl
+	-splint -D_REENTRANT -I${SNERT_INCDIR} +posixlib +boolint *.c
+
+${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
+	cd ${top_srcdir}/util ; make DebugMalloc.o
+
+debug : ${top_srcdir}/util/DebugMalloc.o
+	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o -dl -lpthread' build
+
+#
+# Build functions.
+#
+crc12$O : crc12.tbl crcfn$O crc12.c
+	$(CC) $(CFLAGS) -c crc12.c
+
+crc16$O : crc16.tbl crcfn$O crc16.c
+	$(CC) $(CFLAGS) -c crc16.c
+
+crc32$O : crc32.tbl crcfn$O crc32.c
+	$(CC) $(CFLAGS) -c crc32.c
+
+crcccitt$O : crcccitt.tbl crcfn$O crcccitt.c
+	$(CC) $(CFLAGS) -c crcccitt.c
+
+#
+# Build tables.
+#
+crc12.tbl : crctable$E
+	./crctable$E -t -o $@
+
+crc16.tbl : crctable$E
+	./crctable$E -s -o $@
+
+crc32.tbl : crctable$E
+	./crctable$E -p -o $@
+
+crcccitt.tbl : crctable$E
+	./crctable$E -c -o $@
+
+#
+# Build table generator.
+#
+../util/getopt$O: ../util/getopt.c
+
+crctable$E : ../util/getopt$O crctable.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)crctable$E crctable.c ../util/getopt$O
+
+Luhn$E: Luhn.c
+	${WRAPPER} $(CC) $(CFLAGS) -DTEST $(CC_E)Luhn$E Luhn.c ${LIBS_PREFIX}
+	-rm -f Luhn$O
+

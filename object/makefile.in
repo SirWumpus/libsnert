@@ -1,0 +1,95 @@
+#
+# @package_copyright@
+#
+# @configure_input@
+#
+
+.POSIX :
+
+.SUFFIXES :
+A = .@LIBEXT@
+O = .@OBJEXT@
+E = @EXEEXT@
+.SUFFIXES : .c $O $A
+
+#
+# Paths for supporting headers and libraries.
+#
+top_srcdir = @top_srcdir@
+abs_srcdir = @abs_srcdir@
+SNERT_TARDIR	= @snert_tardir@
+SNERT_INCDIR	= @snert_incdir@
+SNERT_LIBDIR	= @snert_libdir@
+
+LIB	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
+BAK	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
+TGZ	= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
+
+CC		= @CC@
+CC_E	= @CC_E@
+CC_O	= @CC_O@
+CFLAGS	= ${CFLAGS_PREFIX} @CFLAGS@
+LDFLAGS	= ${LDFLAGS_PREFIX} @LDFLAGS@
+LIBS	= ${LIBS_PREFIX} @LIBS@
+
+XARGSI	= @XARGSI@
+RANLIB	= @RANLIB@
+ARCHIVE	= @ARCHIVE@
+COMPILE	= @COMPILE@
+
+LIBSNERT = @LIBSNERT@
+
+#######################################################################
+
+#%$O : %.c
+.c$O :
+	$(COMPILE)
+
+#(%) : %
+#	$(ARCHIVE)$*
+
+#%$E : %.c
+.c$E :
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)$*$E $< $(LIBSNERT) $(LIBS)
+
+#%$E : %$O
+$O$E :
+	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
+
+#######################################################################
+
+OBJS = Object2$O Integer2$O Real$O Data2$O Hashmap$O
+
+all: build
+
+title :
+	@echo
+	@echo '***************************************************************'
+	@echo '==> '${abs_srcdir}
+	@echo '***************************************************************'
+	@echo
+
+build: title $(LIB) add-lib 
+
+build-test: ${TEST}
+
+$(LIB):	$(OBJS)
+
+add-lib:
+	@echo
+	ar rc ${LIB} ${OBJS}
+	$(RANLIB) $(LIB)
+	@echo
+
+clean : title
+	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.log *.stackdump core *.core core.* ${TEST}
+
+distclean: clean
+	-rm makefile
+	
+${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
+	cd ${top_srcdir}/util ; make DebugMalloc.o
+
+debug : ${top_srcdir}/util/DebugMalloc.o
+	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o' build
+

@@ -1,0 +1,294 @@
+DKIM-Signature: a=rsa-sha1; c=relaxed/relaxed; q=dns; s=clemail04; d=emn.coolsavings.com;
+ h=Message-ID:Date:From:To:Subject:Mime-Version:Content-Type;
+ b=RlMy4iYt1iArvcgkePMyJK1ai75dv0j7lWj/8XBXr+D3CuWUrQ7X+YHIXx8bqLdfd/222pO6VmS8
+   GAoDoHIjPIedJfV9R1HTPk1mRaWQcKvI3ahTg24Cnap2nvWly2NN
+DomainKey-Signature: a=rsa-sha1; c=nofws; q=dns; s=clemail04; d=emn.coolsavings.com;
+ b=W9CVxgDnSI2OTijZaBhNrxkKCYHIdG9UYroI99EtEYlYVd10tXc0t2PYAX+OGCC2O5H/LmR2NMQM
+   jquXeUe7AiX4+V03OLEi2Z4+y9kWEd6EqFBLjHdgsScm+K8kwagj;
+Received: by csi2.emn.coolsavings.com id h6gsj80afvo2 for <jusjf@lanset.com>; Fri, 9 Nov 2007 04:30:39 -0600 (envelope-from <bounce-msnuxqqxxwifuxkx@emn.coolsavings.com>)
+Message-ID: <15897563.1194604237875.JavaMail.root@emn.coolsavings.com>
+Date: Fri, 9 Nov 2007 04:30:37 -0600 (CST)
+From: CoolSavings <info@emn.coolsavings.com>
+Reply-To: CoolSavings <pgknxiixxmzpnxox@emn.coolsavings.com>
+To: "JT " <jusjf@lanset.com>
+Subject: Sick of high gas prices?
+Mime-Version: 1.0
+Content-Type: text/html; charset=ISO-8859-1
+Content-Transfer-Encoding: quoted-printable
+X-CLS: mqvuufvkkfwlxlwfiqvvivnq uxfsusiiwsnuxqqxxwifuxkx lnqxufqvnn
+x-job: 754292
+x-rpid: brge-754292
+x-recipid: 63428822
+List-Unsubscribe: <mailto:unsub-pgknxiixxmzpnxox@emn.coolsavings.com>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.=
+w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns=3D"http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Diso-8859-=
+1" />
+<title>coolsavings.com</title>
+</head>
+<body>
+
+
+
+<table cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"440" align=
+=3D"center">
+
+ <!--begin: bp/legal text, csav branding, and top borders-->
+ <tr>
+  <td>
+    <table cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%">
+    <tr>
+     <td rowspan=3D"2" valign=3D"bottom"><img src=3D"http://img.coolsavings=
+..com/img/e/cnr_tl.gif" width=3D"8" height=3D"12" border=3D"0" alt=3D"" /></=
+td>
+     <td rowspan=3D"4" valign=3D"bottom"><a href=3D"http://www.coolsavings.=
+com/Home.aspx?gmid=3D9820500E-A0B0-4CB0-AF47-01D54622951E&EMNLinkId=3D19208"><img src=3D"http://img.cools=
+avings.com/img/e/logo_stamp_dff3ff.gif" width=3D"64" height=3D"72" border=
+=3D"0" alt=3D"coolsavings.com - savings made simple." /></a></td>
+     <td colspan=3D"3" width=3D"100%" style=3D"padding: 0 0 8px 12px; font:=
+ 10px Verdana, Arial, Helvetica, sans-serif; color: #999; text-align: right=
+;">
+      You received this message by consenting to receive e-mail from CoolSa=
+vings on Sep 29, 2007.=20
+      To be sure you don't miss any money-saving offers, please add <b>info=
+@emn.coolsavings.com</b> to your address book.
+     </td>
+    </tr>
+    <tr>
+     <td valign=3D"bottom"><a href=3D"http://www.coolsavings.com/Home.aspx?=
+gmid=3D9820500E-A0B0-4CB0-AF47-01D54622951E&EMNLinkId=3D19208"><img src=3D"http://img.coolsavings.com/img=
+/e/logo_type.gif" width=3D"156" height=3D"32" border=3D"0" alt=3D"coolsavin=
+gs.com - savings made simple." /></a></td>
+     <td valign=3D"bottom" width=3D"100%">
+      <table cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%=
+">
+       <tr>
+        <td style=3D"background: #fff;"><img src=3D"http://img.coolsavings.=
+com/img/e/spacer.gif" width=3D"1" height=3D"20" border=3D"0" alt=3D"" /></t=
+d>
+       </tr>
+       <tr>
+        <td style=3D"background: #609;"><img src=3D"http://img.coolsavings.=
+com/img/e/spacer.gif" width=3D"1" height=3D"12" border=3D"0" alt=3D"" /></t=
+d>
+       </tr>
+      </table>
+=09=09=09=09=09</td>
+     <td valign=3D"bottom"><img src=3D"http://img.coolsavings.com/img/e/cnr=
+_tr.gif" width=3D"8" height=3D"12" border=3D"0" alt=3D"" /></td>
+    </tr>
+    <tr>
+     <td style=3D"border-left: 2px solid #609; background: #fc6;"><img src=
+=3D"http://img.coolsavings.com/img/e/spacer.gif" width=3D"1" height=3D"1" b=
+order=3D"0" alt=3D"" /></td>
+     <td colspan=3D"3" style=3D"background: #fc6; border-right: 2px solid #=
+609;"><img src=3D"http://img.coolsavings.com/img/e/spacer.gif" width=3D"1" =
+height=3D"4" border=3D"0" alt=3D"" /></td>
+    </tr>
+    <tr>
+     <td style=3D"border-left: 2px solid #609; background: #dff3ff;"><img s=
+rc=3D"http://img.coolsavings.com/img/e/spacer.gif" width=3D"1" height=3D"1"=
+ border=3D"0" alt=3D"" /></td>
+     <td colspan=3D"3" style=3D"background: #dff3ff; border-right: 2px soli=
+d #609;"><img src=3D"http://img.coolsavings.com/img/e/spacer.gif" width=3D"=
+1" height=3D"12" border=3D"0" alt=3D"" /></td>
+    </tr>
+   </table>
+  </td>
+ </tr>
+ <!--end: bp/legal text, csav branding, and top borders-->
+
+
+ <!--begin: center area-->
+ <tr>
+  <td valign=3D"top" background=3D"http://img.coolsavings.com/img/e/bg_dff3=
+ff.gif" style=3D"border-left: 2px solid #609; border-right: 2px solid #609;=
+ background: url('http://img.coolsavings.com/img/e/bg_dff3ff.gif') repeat-x=
+ top left; padding: 12px 24px 8px 24px; font: 13px Arial, Helvetica, sans-s=
+erif; color: #609;">
+   <!--begin: offer content-->
+<div>
+
+
+<!--begin: offer creative-->
+<div style=3D"padding: 0 0 16px 0; font: normal 13px Arial, Helvetica, sans=
+-serif; color: #333;">
+ <table width=3D"650" height=3D"474" border=3D"0" align=3D"center" cellpadd=
+ing=3D"0" cellspacing=3D"0">
+  <tr>
+    <td colspan=3D"3" align=3D"center"><a href=3D"http://emn.coolsavings.co=
+m/qnnaezio_ywmpqbbqq.html" style=3D"font:bold 12px Arial, Helvetica, =
+sans-serif; color:#0099FF; text-decoration:underline; padding:10px;">I Want=
+ My $1000 Gas Card!</a></td>
+  </tr>
+  <tr>
+    <td colspan=3D"3"><a href=3D"http://emn.coolsavings.com/krrkibjx_=
+ywmpqbbqq.html"><img src=3D"http://emnimage.com/adv/A17822/gascard3_email_0=
+1.jpg" width=3D"650" height=3D"328" alt=3D"Do you spend too much on gas? Ge=
+t a FREE $1,000 gas card." border=3D"0" /></a></td>
+  </tr>
+  <tr>
+    <td><a href=3D"http://emn.coolsavings.com/oiixponn_ywmpqbbqq.html=
+"><img src=3D"http://emnimage.com/adv/A17822/gascard3_email_02.jpg" width=
+=3D"311" height=3D"78" alt=3D"" border=3D"0" /></a></td>
+    <td><a href=3D"http://emn.coolsavings.com/krrkibjb_ywmpqbbqq.html=
+"><img src=3D"http://emnimage.com/adv/A17822/gascard3_email_03.gif" width=
+=3D"227" height=3D"78" alt=3D"Click Here." border=3D"0" /></a></td>
+    <td><a href=3D"http://emn.coolsavings.com/hppdbkyp_ywmpqbbqq.html=
+"><img src=3D"http://emnimage.com/adv/A17822/gascard3_email_04.jpg" width=
+=3D"112" height=3D"78" alt=3D"" border=3D"0" /></a></td>
+  </tr>
+  <tr>
+    <td colspan=3D"3"><a href=3D"http://emn.coolsavings.com/pppognkg_=
+ywmpqbbqq.html"><img src=3D"http://emnimage.com/adv/A17822/gascard3_email_0=
+5.jpg" width=3D"650" height=3D"68" alt=3D"How this works: Simply sign up, c=
+omplete our short survey and sponsor offers." border=3D"0" /></a></td>
+  </tr>
+  <tr>
+    <td colspan=3D"3" align=3D"center"><a href=3D"http://emn.coolsavings.co=
+m/ubbgwpmd_ywmpqbbqq.html" style=3D"font:bold 12px Arial, Helvetica, =
+sans-serif; color:#0099FF; text-decoration:underline; padding:10px;">I Want=
+ My 1000 Gas Card!</a></td>
+  </tr>
+</table>
+</div>
+<!--end: offer creative-->
+
+<!--begin: disclaimer-->
+<div style=3D"padding: 0 0 16px 0; font: normal 10px Verdana, Helvetica, sa=
+ns-serif; color: #999; text-align: center;">* In order to receive your gift=
+ you must: (1) Meet the eligibility requirements (2) complete the rewards b=
+onus survey (3) complete the number of sponsor offers in the redemption ins=
+tructions (4) Follow redemption instructions.<br/><br/>
+ Powered by CustomerDirectSavings.com and SweepPoints.com. CustomerDirectSa=
+vings.com is an independent rewards program and not associated with any of =
+the above listed merchants or brands. The above listed merchants or brands =
+in no way endorse or sponsor CustomerDirectSavings.com's offer and are not =
+liable for any alleged or actual claims related to this offer. The above li=
+sted trademarks and service marks are the marks of their respective owners.=
+ CustomerDirectSavings.com is solely responsible for all Gift fulfillment. =
+<br/><br/>
+
+By continuing, you certify that you are a US resident over the age of 18 an=
+d that you agree to the privacy policy, gift rules, participation requireme=
+nts and terms and conditions. See Privacy Policy, Terms &amp; Conditions an=
+d Gift Rules for additional details.<br/><br/>
+You can unsubscribe from all CustomerDirectSavings.com Promotions by <a hre=
+f=3D"http://emn.coolsavings.com/oiixponm_ywmpqbbqq.html" style=3D"fon=
+t: normal 10px Verdana, Helvetica, sans-serif; color: #999; text-decoration=
+:underline;">clicking here.</a><br/>
+<br/>
+ CustomerDirectSavings<br/>
+ Attn:  Customer Care<br/>
+ 1730 Federal Highway, Suite 305<br/>
+ Delray Beach, FL 33483<br/>
+ <br/>
+ Note:  Please print and include this email and your email address in all m=
+ail correspondence. <br/><br/>
+
+Copyright &reg 2004-2007 CustomerDirectSavings.com All rights reserved.
+</div>
+<!--end: disclaimer-->
+
+
+
+<!--MN-->
+
+
+
+</div>
+<img src=3D"http://emn.coolsavings.com/cooleagl_ywmpqbbqq.gif&o=3D1" =
+width=3D"0" height=3D"0">
+   <!--end: offer content-->
+  </td>
+ </tr>
+ <!--end: center area-->
+
+
+ <!--begin: bottom border-->
+ <tr>
+  <td style=3D"background: #fc6; border-left: 2px solid #609; border-right:=
+ 2px solid #609; "><img src=3D"http://img.coolsavings.com/img/e/spacer.gif"=
+ width=3D"100%" height=3D"4" border=3D"0" alt=3D"" /></td>
+ </tr>
+ <tr>
+  <td>
+   <table cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%">
+    <tr>
+     <td valign=3D"bottom" style=3D"background: #609;"><img src=3D"http://i=
+mg.coolsavings.com/img/e/cnr_bl.gif" width=3D"8" height=3D"8" border=3D"0" =
+alt=3D"" /></td>
+     <td width=3D"100%" style=3D"background: #609;"><img src=3D"http://img.=
+coolsavings.com/img/e/spacer.gif" width=3D"100%" height=3D"12" border=3D"0"=
+ alt=3D"" /></td>
+     <td valign=3D"bottom" style=3D"background: #609;"><img src=3D"http://i=
+mg.coolsavings.com/img/e/cnr_br.gif" width=3D"8" height=3D"8" border=3D"0" =
+alt=3D"" /></td>
+    </tr>
+   </table>
+  </td>
+ </tr>
+ <!--end: bottom border-->
+
+ <!--begin: footer links-->
+ <tr>
+  <td style=3D"padding: 12px 8px 12px 8px; font: 13px Arial, Helvetica, san=
+s-serif; color: #609; text-align: center;">
+   <a href=3D"http://www.coolsavings.com/Home.aspx?gmid=3D9820500E-A0B0-4CB0-AF47-01D54622951E&EMNLinkId=
+=3D19208" style=3D"font: 13px Arial, Helvetica, sans-serif; color: #609; te=
+xt-decoration: underline;">visit coolsavings.com</a> &nbsp;&middot;&nbsp;=
+=20
+   <a href=3D"http://www.coolsavings.com/EmailPreferences.aspx?gmid=3D=
+9820500E-A0B0-4CB0-AF47-01D54622951E&EMNLinkId=3D19589" style=3D"font: 13px Arial, Helvetica, sans-serif; colo=
+r: #609; text-decoration: underline;">unsubscribe</a> &nbsp;&middot;&nbsp;=
+=20
+   <a href=3D"http://www.coolsavings.com/PrivacyPolicy.aspx?gmid=3D9820500E-A0B0-4CB0-AF47-01D54622951E&E=
+MNLinkId=3D19233" style=3D"font: 13px Arial, Helvetica, sans-serif; color: =
+#609; text-decoration: underline;">privacy policy</a>
+  </td>
+ </tr>
+ <!--end: footer links-->
+
+ <!--begin: mailing address-->
+ <tr>
+  <td style=3D"padding: 0 8px 12px 8px; font: 10px Verdana, Arial, Helvetic=
+a, sans-serif; color: #999; text-align: center;">
+   Q Interactive &middot; Attn: Unsubscribe<br />One North Dearborn Street =
+&middot; 12th Floor &middot; Chicago, IL 60602
+  </td>
+ </tr>
+ <!--end: mailing address-->
+
+ <!--begin: you subscribed as-->
+ <tr>
+  <td style=3D"padding: 0 8px 12px 8px; font: 10px Verdana, Arial, Helvetic=
+a, sans-serif; color: #999; text-align: center;">
+   You subscribed to this coolsavings.com<br />savings reminder e-mail list=
+ as <b>jusjf@lanset.com</b>.
+  </td>
+ </tr>
+ <!--end: you subscribed as-->
+
+ <!--begin: tag/copyright-->
+ <tr>=09=09=09
+  <td style=3D"padding: 0 8px 12px 8px; font: 10px Verdana, Arial, Helvetic=
+a, sans-serif; color: #999; text-align: center;">
+   <b>CoolSavings values your membership.</b><br />
+   &copy; 1996-2007 coolsavings.com
+  </td>
+ </tr>
+ <!--end: tag/copyright-->
+
+</table>
+<!--sp/csavnn-->
+
+
+
+</body>
+</html>
+
+
+

@@ -1,0 +1,42 @@
+LOGFILE=/dev/tty
+
+:0B
+# The first checksum requires at least 1 line break and 16 spaces/tabs:
+* .$+.
+* -15^0
+* 1^1 [		]
+{
+  :0 bw
+  md5hash=|tr -s '[:space:]' \
+          |tr -d '[:graph:]' \
+          |md5 
+}
+
+:0B
+# Minimum requirements this time: 3 of the
+# following incidences within the mail body.
+* -2^0
+* 1^1 ([<>()|@*'!?,]|:/)
+{ :0 bw
+  # Remove numbers, chars, '=', carriage returns,
+  # and "%&#;" (often in obfuscated HTML code) and
+  # convert underscores into dots:
+  md5hash2=|tr -d '[:cntrl:][:alnum:]%&#;=' \
+           |tr '_' '.' \
+           |tr -s '[:print:]' \
+           |md5
+}
+
+:0B
+# Check only if some content exists:
+* ........
+{
+  :0 bw
+  md5hash3=|tr -d '[:cntrl:][:space:]=' \
+          |tr -s '[:graph:]' \
+          |md5 
+}
+
+:0f
+|/bin/echo "$md5hash -- $md5hash2 -- $md5hash3" 
+

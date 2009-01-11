@@ -1,0 +1,105 @@
+#
+# @package_copyright@
+#
+# @configure_input@
+#
+
+.POSIX :
+
+.SUFFIXES :
+A = .@LIBEXT@
+O = .@OBJEXT@
+E = @EXEEXT@
+.SUFFIXES : .c $O $A
+
+#
+# Paths for supporting headers and libraries.
+#
+top_srcdir = @top_srcdir@
+abs_srcdir = @abs_srcdir@
+SNERT_TARDIR	= @snert_tardir@
+SNERT_INCDIR	= @snert_incdir@
+SNERT_LIBDIR	= @snert_libdir@
+
+LIB	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
+BAK	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
+TGZ	= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
+
+CC		= @CC@
+CC_E	= @CC_E@
+CC_O	= @CC_O@
+CFLAGS	= ${CFLAGS_PREFIX} @CFLAGS@
+LDFLAGS	= ${LDFLAGS_PREFIX} @LDFLAGS@
+LIBS	= ${LIBS_PREFIX} @LIBS@
+
+XARGSI	= @XARGSI@
+RANLIB	= @RANLIB@
+ARCHIVE	= @ARCHIVE@
+COMPILE	= @COMPILE@
+
+LIBSNERT = @LIBSNERT@
+LIB_PTHREAD = @HAVE_LIB_PTHREAD@
+
+#######################################################################
+
+#%$O : %.c
+.c$O :
+	$(COMPILE)
+
+#(%) : %
+#	$(ARCHIVE)$*
+
+#%$E : %.c
+.c$E :
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)$*$E $< $(LIBSNERT) $(LIBS)
+
+#%$E : %$O
+$O$E :
+	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
+
+#######################################################################
+
+OBJS =	Mutex$O Shared$O Thread$O gmtime_r$O Time$O TimeStamp$O \
+	kill$O sleep$O pid$O rlimits$O process$O pthread$O pthreadSleep$O \
+	sys$O winService$O
+
+.MAIN : build
+
+all:
+	@echo 'Try:  make -f ../../mk/<platform>.mk -f ../makefile {build|clean}'
+
+title :
+	@echo
+	@echo '***************************************************************'
+	@echo '==> '${abs_srcdir}
+	@echo '***************************************************************'
+	@echo
+
+build : title $(LIB) add-lib sys$E
+
+$(LIB):	$(OBJS)
+
+add-lib:
+	@echo
+	ar rc ${LIB} ${OBJS}
+	$(RANLIB) $(LIB)
+	@echo
+
+clean : title
+	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.stackdump core *.core core.*
+
+distclean: clean
+	-rm makefile sys$E
+
+${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
+	cd ${top_srcdir}/util ; make DebugMalloc.o
+
+debug : ${top_srcdir}/util/DebugMalloc.o
+	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o' build
+
+lint: title
+#	-splint -D_REENTRANT -I${SNERT_INCDIR} +posixlib +boolint *.c
+
+sys$E: sys.c
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}sys$E sys.c  $(LIBSNERT) ${LIBS}
+

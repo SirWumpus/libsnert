@@ -1,0 +1,172 @@
+#
+# @package_copyright@
+#
+# @configure_input@
+#
+
+.POSIX :
+
+.SUFFIXES :
+A = .@LIBEXT@
+O = .@OBJEXT@
+E = @EXEEXT@
+.SUFFIXES : .txt .c $O $A
+
+#
+# Paths for supporting headers and libraries.
+#
+top_srcdir = @top_srcdir@
+abs_srcdir = @abs_srcdir@
+SNERT_TARDIR	= @snert_tardir@
+SNERT_INCDIR	= @snert_incdir@
+SNERT_LIBDIR	= @snert_libdir@
+
+LIB	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
+BAK	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
+TGZ	= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
+
+CC		= @CC@
+CC_E	= @CC_E@
+CC_O	= @CC_O@
+CFLAGS	= ${CFLAGS_PREFIX} @CFLAGS@
+LDFLAGS	= ${LDFLAGS_PREFIX} @LDFLAGS@
+LIBS	= ${LIBS_PREFIX} @LIBS@
+
+
+XARGSI	= @XARGSI@
+RANLIB	= @RANLIB@
+ARCHIVE	= @ARCHIVE@
+COMPILE	= @COMPILE@
+
+LIBSNERT = @LIBSNERT@
+
+LIB_DB		= @HAVE_LIB_DB@
+LIB_RT		= @HAVE_LIB_RT@
+LIB_PTHREAD	= @HAVE_LIB_PTHREAD@
+LIB_SQLITE3	= @HAVE_LIB_SQLITE3@
+LIB_WS2_32	= @HAVE_LIB_WS2_32@
+LIB_IPHLPAPI	= @HAVE_LIB_IPHLPAPI@
+
+#######################################################################
+
+#%$O : %.c
+.c$O :
+	$(COMPILE)
+
+#(%) : %
+#	$(ARCHIVE)$*
+
+#%$E : %.c
+.c$E :
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)$*$E $< $(LIBSNERT) $(LIBS)
+
+#%$E : %$O
+$O$E :
+	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
+
+#######################################################################
+
+OBJS =  grey$O tlds$O MailSpan$O parsePath$O mime$O siq$O spf$O smdb$O \
+	smtp2$O smtpOpen$O smtpRead$O smtpWrite$O smtpError$O mfReply$O smf$O
+
+.MAIN : build
+
+build: title $(LIB) add-lib parsePath$E tlds$E
+
+title :
+	@echo
+	@echo '***************************************************************'
+	@echo '==> '${abs_srcdir}
+	@echo '***************************************************************'
+	@echo
+
+$(LIB):	$(OBJS)
+
+add-lib:
+	@echo
+	ar rc ${LIB} ${OBJS}
+	$(RANLIB) $(LIB)
+	@echo
+
+#add-lib:
+#	@echo
+#	for obj in $(OBJS); do $(ARCHIVE); done
+#	$(RANLIB) $(LIB)
+#	@echo
+
+clean : title
+	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.stackdump core *.core core.* *.log
+	-rm -f parsePath$E smdb$E smtp$E smtp2$E spf$E siq$E tlds$E digestbl$E mime$E
+	-rm -f tlds-alpha-by-domain.c two-level-tlds.c
+
+distclean: clean
+	-rm makefile
+
+${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
+	cd ${top_srcdir}/util ; make DebugMalloc.o
+
+debug : ${top_srcdir}/util/DebugMalloc.o
+	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o' build
+
+backup-tlds:
+	-mv two-level-tlds.txt two-level-tlds.txt.bak
+	-mv tlds-alpha-by-domain.txt tlds-alpha-by-domain.txt.bak
+
+update-tlds: backup-tlds tlds-alpha-by-domain.txt two-level-tlds.txt
+
+tlds-alpha-by-domain.txt:
+	wget -r -O tlds-alpha-by-domain.txt http://data.iana.org/TLD/tlds-alpha-by-domain.txt
+
+tlds-alpha-by-domain.c : tlds.sed tlds-alpha-by-domain.txt
+	sed -f tlds.sed tlds-alpha-by-domain.txt >tlds-alpha-by-domain.c
+
+two-level-tlds.txt:
+	wget -r -O two-level-tlds.txt http://spamcheck.freeapp.net/two-level-tlds
+
+# Has a more detailed two-level TLD list, which I don't agree within many cases.
+#http://svn.apache.org/repos/asf/spamassassin/trunk/lib/Mail/SpamAssassin/Util/RegistrarBoundaries.pm
+
+two-level-tlds.c : tlds.sed two-level-tlds.txt
+	sed -e '/^#/d' -e 's/.*/"&",/' two-level-tlds.txt >two-level-tlds.c
+
+tlds$O : tlds-alpha-by-domain.c two-level-tlds.c tlds.c
+	$(CC) $(CFLAGS) -c tlds.c
+
+lint: title
+	-splint -D_REENTRANT -U__WIN32__ -I${SNERT_INCDIR} +posixlib +boolint *.c
+
+parsePath$E :  MailSpan.c parsePath.c
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)parsePath$E parsePath.c MailSpan.c $(LIBSNERT) $(LIBS)
+
+# This cannot be built until AFTER the lib/io routines have been built.
+smtp$E : ../io/Dns$O smtpError$O smtp.c
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp$E smtp.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI}
+
+# This cannot be built until AFTER the lib/io routines have been built.
+smtp1$E : ../io/Dns$O smtpError$O smtpError$O smtpRead$O smtpWrite$O smtpOpen.c
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp1$E smtpOpen.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI}
+
+# This cannot be built until AFTER the lib/io routines have been built.
+smtp2$E : ../io/Dns$O smtp2.c
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp2$E smtp2.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+
+# This cannot be built until AFTER the lib/io routines have been built.
+spf$E :  ../io/Dns$O spf.c
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)spf$E spf.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+
+# This cannot be built until AFTER the lib/io routines have been built.
+siq$E :  ../io/Dns$O siq.c
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)siq$E siq.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+
+tlds$E : tlds-alpha-by-domain.c two-level-tlds.c tlds.c
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)tlds$E tlds.c $(LIBSNERT) $(LIBS)
+
+mime$E : mime.c
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)mime$E mime.c $(LIBSNERT) $(LIBS)
+
+# In order to test singleKey() and doubleKey() lookups.
+smdb$E : smdb.c
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smdb$E smdb.c $(LIBSNERT) ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+
+digestbl$E : digestbl.c
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)digestbl$E digestbl.c $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}

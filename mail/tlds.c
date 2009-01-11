@@ -1,0 +1,365 @@
+/*
+ * tlds.c
+ *
+ * Copyright 2005, 2006 by Anthony Howe. All rights reserved.
+ */
+
+/***********************************************************************
+ *** No configuration below this point.
+ ***********************************************************************/
+
+#include <com/snert/lib/version.h>
+
+#include <ctype.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <com/snert/lib/util/Text.h>
+#include <com/snert/lib/mail/tlds.h>
+
+/***********************************************************************
+ *** Global Variables & Constants
+ ***********************************************************************/
+
+static const char usage_tld_level_one[] =
+  "The absolute file path of a text file, containing white space\n"
+"# separated list of global and country top level domains (without\n"
+"# any leading dot), eg. biz com info net org eu fr uk. This list\n"
+"# will override the built-in list.\n"
+"#"
+;
+static const char usage_tld_level_two[] =
+  "The absolute file path of a text file, containing white space\n"
+"# separated list of two-level domains (without any leading dot),\n"
+"# eg. co.uk ac.uk com.au gouv.fr tm.fr. This list will override\n"
+"# the built-in list.\n"
+"#"
+;
+
+Option tldOptLevelOne	= { "tld-level-one-file", "", usage_tld_level_one };
+Option tldOptLevelTwo	= { "tld-level-two-file", "", usage_tld_level_two };
+
+static int tld_init_done;
+
+static const char *tld_root[] = {
+	NULL
+};
+
+static const char *tld_one[] = {
+#include "tlds-alpha-by-domain.c"
+	NULL
+};
+
+static const char *tld_two[] = {
+#include "two-level-tlds.c"
+	NULL
+};
+
+const char **tld_level_one = tld_one;
+const char **tld_level_two = tld_two;
+
+static const char **tld_level_root = tld_root;
+static const char ***nth_tld[] = { &tld_level_root, &tld_level_one, &tld_level_two, NULL };
+
+/***********************************************************************
+ *** Routines
+ ***********************************************************************/
+
+/**
+ * @param filepath
+ *	The absolute file path of a text file, containing white space
+ *	separated list of top level domains (without any leading dot).
+ */
+int
+tldLoadTable(const char *filepath, const char ***table)
+{
+	FILE *fp;
+	int last_ch, ch;
+	char **words, *word;
+	size_t word_count, byte_count, n;
+
+	if (filepath == NULL || *filepath == '\0' || table == NULL)
+		return -1;
+
+	if (*table != tld_one && *table != tld_two)
+		free(*table);
+	*table = NULL;
+
+	if ((fp = fopen(filepath, "r")) == NULL)
+		return -1;
+
+	/* Count bytes and white space separated words. */
+	word_count = byte_count = 0;
+	for (last_ch = ' '; (ch = fgetc(fp)) != EOF; last_ch = ch) {
+		if (isspace(last_ch) && !isspace(ch))
+			word_count++;
+ 		byte_count++;
+	}
+
+	rewind(fp);
+
+	if ((words = malloc((word_count+1) * sizeof (const char *) + (byte_count+1))) == NULL) {
+		fclose(fp);
+		return -1;
+	}
+
+	/* Read the whole file into a buffer and null terminate it. */
+	word = (char *) &words[word_count+1];
+	n = fread(word, 1, byte_count, fp);
+	word[byte_count] = '\0';
+	fclose(fp);
+
+	if (n != byte_count) {
+		free(words);
+		return -1;
+	}
+
+	/* Skip leading white space. */
+	word += strspn(word, " \t\f\r\n");
+
+	for (n = 0; n < word_count; n++) {
+		/* Remember start of word. */
+		words[n] = word;
+
+		/* Find end of word and terminate it. */
+		word += strcspn(word, " \t\f\r\n");
+		*word++ = '\0';
+
+		/* Find start of next word. */
+		word += strspn(word, " \t\f\r\n");
+	}
+
+	words[n] = NULL;
+	*table = (const char **) words;
+
+	return 0;
+}
+
+#ifdef OLD
+static int
+tldCopyTable(const char **source, const char ***target)
+{
+	size_t length, i;
+	const char **words;
+
+	free(*target);
+	*target = NULL;
+
+	for (length = 0; source[length] != NULL; length++)
+		;
+
+	if ((words = malloc((length+1) * sizeof (const char *))) == NULL)
+		return -1;
+
+	for (i = 0; i < length; i++)
+		words[i] = source[i];
+
+	words[i] = NULL;
+	*target = words;
+
+	return 0;
+}
+#endif
+
+int
+tldInit(void)
+{
+	int rc;
+
+	if (!tld_init_done) {
+#ifdef OLD
+		if (*tldOptLevelOne.string == '\0')
+			rc = tldCopyTable(tld_one, &tld_level_one);
+		else
+			rc = tldLoadTable(tldOptLevelOne.string, &tld_level_one);
+		if (rc != 0)
+			return -1;
+
+		if (*tldOptLevelTwo.string == '\0')
+			rc = tldCopyTable(tld_two, &tld_level_two);
+		else
+			rc = tldLoadTable(tldOptLevelTwo.string, &tld_level_two);
+		if (rc != 0)
+			return -1;
+#else
+		if (*tldOptLevelOne.string != '\0'
+		&& (rc = tldLoadTable(tldOptLevelOne.string, &tld_level_one)))
+			return -1;
+
+		if (*tldOptLevelTwo.string != '\0'
+		&& (rc = tldLoadTable(tldOptLevelTwo.string, &tld_level_two)))
+			return -1;
+#endif
+		tld_init_done = 1;
+	}
+
+	return 0;
+}
+
+/**
+ * @param domain
+ *	A domain name with or without the root domain dot specified,
+ *	ie. example.com or example.com.
+ *
+ * @param level
+ *	Find the Nth level from the right end of the domain string.
+ *
+ * @return
+ *	The offset in the string; otherwise -1 if not found.
+ */
+int
+indexValidNthTLD(const char *domain, int level)
+{
+	size_t length;
+	const char **tld;
+	int i, lastdot, rootdot;
+
+	if (domain == NULL) {
+		errno = EFAULT;
+		return -1;
+	}
+
+	if (*domain == '\0' || level < 1 || 2 < level) {
+		errno = EINVAL;
+		return -1;
+	}
+
+#ifdef OLD
+	if (!tld_init_done && tldInit())
+		return -1;
+#endif
+
+	length = strlen(domain);
+	rootdot = (0 < length && domain[length-1] == '.');
+	length -= rootdot;
+	lastdot = length;
+
+	for (i = 0; i < level; i++)
+		lastdot = strlrcspn(domain, lastdot-1, ".");
+
+	length -= lastdot;
+	domain += lastdot;
+
+	for (tld = *nth_tld[level]; *tld != NULL; tld++) {
+		if (TextInsensitiveCompareN(domain, *tld, length) == 0
+		&& ((*tld)[length] == '\0' || (*tld)[length] == '.'))
+			return lastdot;
+	}
+
+	return -1;
+}
+
+/**
+ * @param domain
+ *	A domain name with or without the root domain dot specified,
+ *	ie. example.com or example.com.
+ *
+ * @return
+ *	The offset in the string; otherwise -1 if not found.
+ */
+int
+indexValidTLD(const char *domain)
+{
+	int offset, level;
+
+	if (domain != NULL && *domain != '\0') {
+		for (level = 2; 0 < level; level--) {
+			if (0 <= (offset = indexValidNthTLD(domain, level)))
+				return offset;
+		}
+	}
+
+	return -1;
+}
+
+/**
+ * @param domain
+ *	A domain name with or without the root domain dot specified,
+ *	ie. example.com or example.com.
+ *
+ * @param level
+ *	Check Nth top level domain, ie. .co.uk or .com.au. Valid
+ *	values are currently 1 and 2.
+ *
+ * @return
+ *	True of the domain end with a valid top level domain.
+ */
+int
+hasValidNthTLD(const char *domain, int level)
+{
+	return indexValidNthTLD(domain, level) != -1;
+}
+
+/**
+ * @param domain
+ *	A domain name with or without the root domain dot specified, ie
+ *	example.com or example.com.
+ *
+ * @return
+ *	True of the domain end withs a valid top level domain.
+ */
+int
+hasValidTLD(const char *domain)
+{
+	return indexValidNthTLD(domain, 1) != -1;
+}
+
+#ifdef TEST
+# include <errno.h>
+# include <stdio.h>
+# include <com/snert/lib/util/getopt.h>
+
+static char usage[] = "usage: tlds [-1 file][-2 file][-l 1|2] domain ...\n";
+
+static Option *optTable[] = {
+	&tldOptLevelOne,
+	&tldOptLevelTwo,
+	NULL
+};
+
+int
+main(int argc, char **argv)
+{
+	int i, ch, level = 1;
+
+	optionInit(optTable, NULL);
+
+	while ((ch = getopt(argc, argv, "l:1:2:")) != -1) {
+		switch (ch) {
+		case '1':
+			optionSet(&tldOptLevelOne, optarg);
+			break;
+		case '2':
+			optionSet(&tldOptLevelTwo, optarg);
+			break;
+		case 'l':
+			level = strtol(optarg, NULL, 10);
+			break;
+		default:
+			(void) fprintf(stderr, usage);
+			return 64;
+		}
+	}
+
+	if (argc <= optind) {
+		(void) fprintf(stderr, usage);
+		return 64;
+	}
+
+	if (tldInit()) {
+		fprintf(stderr, "tldInit error: %s (%d)\n", strerror(errno), errno);
+		return 1;
+	}
+
+	for (i = optind; i < argc; i++) {
+		int answer = hasValidNthTLD((char *) argv[i], level);
+		int offset = indexValidNthTLD((char *) argv[i], level);
+		int off = indexValidTLD((char *) argv[i]);
+
+		printf("%s %s %d %d\n", argv[i], answer ? "yes" : "no", offset, off);
+	}
+
+	return 0;
+}
+#endif

@@ -1,0 +1,63 @@
+Return-Path: <fim@dpa.com.ve>
+Received: from host.uuserver.net (root@localhost)
+	by uuism.net (8.13.7/8.13.7) with ESMTP id l984qNWw020338;
+	Sun, 7 Oct 2007 23:52:23 -0500
+X-ClientAddr: 200.74.220.180
+X-DomainKeys: Sendmail DomainKeys Filter v0.6.0 host.uuserver.net l984q4BB020083
+Received: from mail.inlaca.com.ve (dpa.com.ve [200.74.220.180])
+	by host.uuserver.net (8.13.7/8.13.7) with ESMTP id l984q4BB020083
+	(version=TLSv1/SSLv3 cipher=DHE-RSA-AES256-SHA bits=256 verify=NO)
+	for <uuce@uuce.org>; Sun, 7 Oct 2007 23:52:09 -0500
+Message-Id: <200710080452.l984q4BB020083@host.uuserver.net>
+Received: from pchome-proxy ([220.249.189.140])
+        by mail.inlaca.com.ve (Merak 7.4.5) with ASMTP id HQW74688;
+        Thu, 04 Oct 2007 07:21:24 -0400
+From: =?GB2312?B?1cXA9rfS?= <fim@dpa.com.ve>
+To: "u-tone" <u-tone@u-tone.com>
+Subject: {High Scoring Spam?} =?GB2312?B?t8bCybH20sbD8cH00afQxc+iOQ==?=
+Date: Thu, 4 Oct 2007 19:20:59 +0800
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="gb2312"
+Content-Transfer-Encoding: base64
+X-Priority: 3
+X-MSMail-Priority: Normal
+X-Mailer: Microsoft Outlook Express 6.00.2800.1106
+X-MimeOLE: Produced By Microsoft MimeOLE V6.00.2800.1106
+X-Greylist: SPF_NOT_OK From fim@dpa.com.ve at IP 200.74.220.180 - Delayed for 00:49:13 by milter-greylist-4.0b2 (host.uuserver.net [69.94.104.180]); Sun, 07 Oct 2007 23:52:10 -0500 (CDT)
+X-Null-Tag: 909a795a88b1b2e80169a4448f29e18a
+Received-SPF: None; receiver=; client-ip=200.74.220.180; envelope-from=<fim@dpa.com.ve>
+Received-SPF: None; receiver=; client-ip=200.74.220.180; helo=mail.inlaca.com.ve
+X-UUism.net-MailScanner-Information: Please contact hostmaster@uuism.net for more information
+X-UUism.net-MailScanner: Found to be clean
+X-UUism.net-MailScanner-SpamCheck: spam, SpamAssassin (not cached,
+	score=23.298, required 5, BAYES_99 8.10, FORGED_MUA_OUTLOOK 2.00,
+	FORGED_OUTLOOK_HTML 0.00, HTML_EXTRA_CLOSE 2.81,
+	HTML_IMAGE_ONLY_12 2.46, HTML_IMAGE_RATIO_02 0.38, HTML_MESSAGE 0.00,
+	HTML_TAG_BALANCE_HEAD 1.33, MIME_BASE64_TEXT 1.75,
+	MIME_HTML_ONLY 1.46, MSGID_FROM_MTA_HEADER 0.00, URIBL_BLACK 3.00)
+X-UUism.net-MailScanner-SpamScore: sssssssssssssssssssssss
+X-UUism.net-MailScanner-From: fim@dpa.com.ve
+Status:   
+
+PGh0bWw+DQoNCjxoZWFkPg0KPG1ldGEgaHR0cC1lcXVpdj0iQ29udGVudC1UeXBlIiBjb250ZW50
+PSJ0ZXh0L2h0bWw7IGNoYXJzZXQ9Z2IyMzEyIj4NCjx0aXRsZT6/1bnJu6TV1TwvdGl0bGU+DQo8
+QkFTRSBocmVmPSJodHRwOi8vJiN4MDAwMDY1OyYjeDAwMDA2NDsmI3gwMDAwNmQ7JiN4MDAwMDJl
+OyYjeDAwMDA2YjsmI3gwMDAwNjE7JiN4MDAwMDc3OyYjeDAwMDA2MTsmI3gwMDAwNmI7JiN4MDAw
+MDYxOyYjeDAwMDA2ZDsmI3gwMDAwNjk7JiN4MDAwMDJlOyYjeDAwMDA2MzsmI3gwMDAwNmY7JiN4
+MDAwMDZkOyYjeDAwMDAyZTsmI3gwMDAwNzQ7JiN4MDAwMDc3Oy9tbTIvIj4NCjxwIGFsaWduPSJj
+ZW50ZXIiPjxmb250IGNvbG9yPSIjRkYwMDAwIj48Yj48YSB0YXJnZXQ9Il9ibGFuayIgaHJlZj0i
+aHR0cDovLyYjeDAwMDA2NTsmI3gwMDAwNjQ7JiN4MDAwMDZkOyYjeDAwMDAyZTsmI3gwMDAwNmI7
+JiN4MDAwMDYxOyYjeDAwMDA3NzsmI3gwMDAwNjE7JiN4MDAwMDZiOyYjeDAwMDA2MTsmI3gwMDAw
+NmQ7JiN4MDAwMDY5OyYjeDAwMDAyZTsmI3gwMDAwNjM7JiN4MDAwMDZmOyYjeDAwMDA2ZDsmI3gw
+MDAwMmU7JiN4MDAwMDc0OyYjeDAwMDA3NzsvbW0yLyI+DQq/tLK7tb3K/b7dx+uwtLTLvPw8L2E+
+PC9iPjwvZm9udD48L3A+DQoNCjxwPjxtYXAgbmFtZT0iRlBNYXAwIj4NCjxhcmVhIHRhcmdldD0i
+X2JsYW5rIiBjb29yZHM9IjE4MywgOTAsIDQ1OSwgMTIzIiBzaGFwZT0icmVjdCIgaHJlZj0iLi4v
+bW0xL2luZGV4Lmh0bSI+DQo8YXJlYSB0YXJnZXQ9Il9ibGFuayIgY29vcmRzPSIzLCAxMSwgNTYx
+LCA4MiIgc2hhcGU9InJlY3QiIGhyZWY9ImluZGV4Lmh0bWwiPg0KPGFyZWEgdGFyZ2V0PSJfYmxh
+bmsiIGhyZWY9ImluZGV4Lmh0bWwiIHNoYXBlPSJyZWN0IiBjb29yZHM9IjEwLCAxMjcsIDU2NSwg
+NzI1Ij4NCjwvbWFwPg0KPGltZyBib3JkZXI9IjAiIHNyYz0iaW1hZ2VzLzMuZ2lmIiB3aWR0aD0i
+NTY2IiBoZWlnaHQ9IjcyNiIgdXNlbWFwPSIjRlBNYXAwIj48L3A+DQoNCjwvYm9keT4NCjxwIGFs
+aWduPSJsZWZ0Ij4NCjxjb2xvcj0iI2ZmMDAwMCI+PGEgdGFyZ2V0PSJfYmxhbmsiIGhyZWY9Ii4u
+L25vbWFpbCI+yPTE+rK70qrU2crVtb20y8Dg0bbPosfrsLS0yzwvZm9udD48L2I+DQoNCjwvcD4N
+Cg0KPC9odG1sPg0KPC9odG1sPg==

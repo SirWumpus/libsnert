@@ -1,0 +1,3933 @@
+
+-------
+
+The major number changes for such things as code rewrites, changes in
+syntax, and/or dramatic changes in functionality. The minor number
+changes for corrections, enhancements, etc. made to the code. There
+is no set schedule for releases.
+
+--TODO--
+
+   +	smdb.c: parseCfAliasFile() should support multiple AliasFile
+	options and database access type as described in the Bat Book
+	3e. Requested by Didi Rieder.
+
+   +	Add an API that returns a vector of all the IP addresses,
+	machine name aliases, from across all interfaces.
+
+   +	With gcc 4.0 or -fstrict-aliasing turned on kvm.c reports
+   	several warning concerning the (DBT185 *) pointer casts. This
+   	should be fixed probably with a union type for dual mode, and
+   	the proper type without casts for db 1.85.
+
+   ?	mcc: pthread_exit/pthread_cancel portability issues to Win32.
+
+   ?	mcc: appears to hang on exit when input piped from standard in.
+
+   ?	Consider a TextFind2. Brain storm...
+
+   	a) that supports a regex-like subset and single character backreferences
+   	b) shortest match instead of longest
+   	c) parse on the fly
+   	d) ^ $ anchors, . ? wild cards, * + (long match), # ~ (short match),
+   	   < > word boundaries,
+        e) \w \W word chars, \d \D digits, \s \S whitespace, and other predefined
+           classes with a special design that treats them like "(\w)" so that
+           backreferences could be done on single characters;
+           \p \P punctuation, \x \X hex digits,
+	f) no ( ) or { } to avoid recusion issues
+
+	As long as you have enough puntuation characters for special operations,
+	you can parse in real time. Actually if you drop the longest match and only
+	use first/shortest match, you simplify things and you can drop the +
+	operator since you can do "a+" as "aa*"
+
+	*** To be refined. (ARSE = anthony's reduced search expressions)
+
+--1.69.25--
+
+   *	Conversion to GIT source control management.
+
+   !	Moved com/snert/include/com/snert/lib/* -> com/snert/src/lib/include
+   	for GIT. Added symbolic link to maintin original structure.
+
+   !	Moved com/snert/include/org/valgrind -> com/snert/src/lib/include
+   	for GIT. Added symbolic link to maintin original structure.
+
+   !	Moved com/snert/src/tools -> com/snert/src/lib/tools
+   	for GIT. Added symbolic link to maintin original structure.
+
+   !	tools/makefile.in: some path corrections for change in directory
+   	structure.
+
+   +	Add queue.c/h API for message queues between producer/consumer
+   	threads.
+
+
+--1.69.24--
+
+   !	dnsListQueryNs: Changed lookup method.
+
+	Problem in handling wnrl37.cheesereason.com. Version 1 did an
+	initial SOA lookup wnrl37.cheesereason.com assuming the DNS
+	server would return an SOA for the queried host or parent
+	domain. This does not always appear to be the case. Example:
+
+		dig soa wnrl37.cheesereason.com		SERVFAIL
+		dig soa cheesereason.com		OK (SOA result)
+		dig ns wnrl37.cheesereason.com    	OK (SOA result)
+		dig ns cheesereason.com    		OK (NS list)
+
+	However if you do a NS lookup and get an SOA result, then
+	recurse once using the SOA domain. This still works fine for
+	CNAME records, like www.snert.com.
+
+   !	pdq.c/h: Added optDnsMaxTimeout and optDnsRoundRobin as global
+   	options defined and supplied by PDQ API for consistency and
+   	maintenance.
+
+   !	mcc.c/h: replaced mcc_extra_t by mcc_hooks structure. Rearrange
+	the hooks and data so that they are passed to mccCreate.
+	Normally we'd assign the hooks immediately after mccCreate, but
+	the prepare and finalise hooks need to be declared for mccCreate
+	and mcc_sql_recreate. The expire hook should be defined before
+	mccStartGc is called.
+
+--1.69.23--
+
+   !    Upgraded SQLite to 3.6.7
+
+   +	Added valgrind headers to libsnert manifest.
+
+   +	Added net/getRFC2821DateTime.c.
+
+   +	Added net/server.c API based on hibachi and smtpf.
+
+   !	socketTimeoutIO.c: added support for use of clock_gettime instead
+   	of gettimeofday when possible.
+
+   !	timer.h: moved extern for timespec* and timeval* functions out of
+   	the #ifdef blocks.
+
+   +	timer.h. timespec.c, timeval.c: added timespecSet and timevalSet.
+
+   +	Added a generalised threaded net/server.c API based on the design
+   	used by smtpf and hibachi.
+
+   !	getopt.c/g: additional portability fixes for Windows.
+
+   +	pdq.c: added pdqListPrune5A and pdqListPruneMatch as separate
+   	functions to provide more granularity. Reimplemented pdqListPrune
+   	in terms of these new functions.
+
+   !	pdqListFindIP, pdqFindAddress, pdqFindHost: functions should
+	only attempt to find records that with an PDQ_RCODE_OK,
+	otherwise a bus error or seg.fault might occur if we test value
+	fields outside of an incomplete result.
+
+   !	pdqListFindIP, pdqListFindAddress, pdqListFindHost: minor
+	corrections to limit the possible types that can be used in the
+	search
+
+   +	pdq.c/h: added pdqGetAddress as a convience function for printing
+   	an A/AAAA address found using pdqListFineName.
+
+--1.69.22--
+
+   !	uri.c, dnsList.c/h: moved the dnsList* functions into their own
+   	API since the same code is used in uri CLI, milter-link, and
+   	BarricadeMX.
+
+--1.69.21--
+
+   !	uri.c: fixed minor bug in process() the list name returned by
+	nsListLookup was being saved to the wrong variable.
+
+   !	uri.c: Removed old Dns client code. PDQ is now the one and only.
+
+   +	Copied OpenBSD's /usr/include/sysexits.h to com/snert/lib/sys,
+   	since the MINGW build environment doesn't supply sysexits.h.
+
+   +	version.h.in.in: added QUOTE and QUOTE_THIS macros.
+
+   !	spf.c, pdq.c, uri.c: documented CLI exit codes in usage text.
+
+   !	alt_flock: fix handling of LOCK_NB.
+
+--1.69.20--
+
+   !	pidSave, pidLock, pidUnlock: Fixed pid file locking semantics.
+
+   !	uri.c: enhanced CLI to test URI and/or NS BL lists. Renamed -d
+   	option by -u and added -n option. Requested by April Lorenzen.
+
+--1.69.19--
+
+   !	mcc.c/h: Added call-back hooks hook_expire, hook_remote_replace, and
+   	hook_remote_remove to allow some control over GC and listener thread
+   	actions.
+
+--1.69.18--
+
+   !	aclocal.m4, version.h.in.in, LibSnert.c: added configure and compile
+   	options to VersionInfo structure.
+
+--1.69.17--
+
+   !    Upgraded SQLite to 3.6.6.2
+
+   !	aclocal.m4, org/sqlite/makefile: added support for SQLite patch
+	files if necessary.
+
+   !	tlds.c; updated 1st and 2nd level tld lists.
+
+   !	mime.h/c: renamed
+
+   		mime_part_start -> mime_body_start
+		mime_part_finish -> mime_body_finish
+		mime_part_length -> mime_body_length
+		mime_part_decode_length -> mime_body_decode_length
+
+	Added a new mime_part_length for overall MIME part length.
+
+   +	mime.h/c: added mime_header_octet hook.
+
+   !	uri.c: Disabled old mime parser in favour of using newer version.
+   	Added uriMimeCreate and uriMimeFree.
+
+   !	pdq.c: Added some extra log messages to attempt to identify the
+	packet request/response name that causes a "unsupported DNS RR
+	type" error.
+
+   !	pdq.c: Added extra info for "pdq_name_copy() out of bounds" error
+   	displaying the initial 40 bytes of the data copied into buffer.
+
+   !	pdq.c: fixed pdq_name_skip to detect potential buffer out of
+   	bounds condition; previously it could cause undefined result#
+   	and/or a seg.fault.
+
+   !	getopt.c/h, flock.c/h: Mac OS X links libc symbols ahead of
+	replacement functions. In order to ensure we link with our
+	version, we need to use an alternative name.
+
+   !	pthreadSleep: Mac OS X does not have a clock_gettime, even though
+   	pthread_cond_timedwait needs an absolute timespec to be specified.
+   	Have implemented pthreadSleep using nanosleep or sleep as a fall
+   	back.
+
+
+--1.69.16--
+
+   !	aclocal.m4: SNERT_GCC_SETTINGS remove -s from LDFLAGS in favour of using
+   	strip(1) as needed. MAC OS X doesn't support -s.
+
+   +	net/isRFC2606.c, network.h: added IS_TLD_LAN for .lan TLD.
+
+   +	pid.c: added exclusive flock on the pid file that a process
+   	maintains to prevent other instances of the application from
+   	replacing the pid file before it is ready.
+
+--1.69.15--
+
+   !	mccGetKey: assert that the value_data does not overflow its max.
+	size.
+
+   +	aclocal.m4: added check for getloadavg.
+
+   !	processDumpCore: minor changes to support Linux additional settings
+   	for core dumps.
+
+--1.69.14--
+
+   !	uri.c: fix handling of cid:, it was being incorrectly treated
+	like mailto: Report by Alex Broens.
+
+   !	uri.c: fix implicit matching of email addresses so as not to
+	match runs of characters surrounding an at-sign (@) that do not
+	actually form an email address. Report by Alex Broens.
+
+   !	uri.c: URL decode the URL before parsing. Some URL in spam URL
+   	encode the :// including query strings with email addresses.
+   	This ment that the URI was misidentified as an email address
+   	instead of HTTP. See uri.txt. Reported by Alex Broens.
+
+   !	uri.c: handle decoding "&lt;", "&gt;", and "&amp;" strings that
+   	could be used around and withing a URI.
+
+--1.69.13--
+
+   !    Upgraded SQLite to 3.6.4
+
+   !	socketReadLine2: add a debug guard around use of TIME_START and
+	TIMER_DIFF that might have been causing some CPU load.
+
+   !	socketReadLine2, socketWrite, socketWriteTo: added sleep(1) in
+   	the event of EAGAIN to avoid getting into a tight busy-wait-loop.
+
+--1.69.12--
+
+   +	Added util/digestbl.c
+
+   !	mimeNextCh: fixed lazy boundary detection so as to exclude
+	matching the "--" mail signature boundary.
+
+   !	mime.c: Major fix of the lazy MIME boundary detection code to
+	take into account that the CRLF before the boundary line is part
+	of the boundary as per RFC 2046 section 5.1.1. Common Syntax
+
+--1.69.11--
+
+   !	pdqPoll, pdq_wait: added debug guards before TIMER_START calls.
+
+--1.69.10--
+
+   +	Added tools/rarlist.c tool similar to ziplist.
+
+--1.69.9--
+
+   +	tools/taglengths.c: added a stats tools to identify HTML tags and
+   	comments, lengths, frequency, total length, average length, and
+   	max. length.
+
+--1.69.8--
+
+   !	ziplist.c: modified to read little-endian data stream in a machine
+   	neutral manner.
+
+   !	smdb.c/h: Changed value of SMDB_ACCESS_TEMPFAIL. This really shouldn't
+   	be here as it is currently only specific to BarricadeMX, which should
+   	handle detecting TEMPFAIL or TRAP.
+
+   !	mcc.h: structe mcc_extra renamed to avoid conflicting with the typedef
+   	of the same name.
+
+  !!	mcc.c/h: Changed thread stack size used from 2*PTHREAD_STACK_MIN
+	to be MCC_STACK_SIZE, which is 32KB by default. FreeBSD 6.2 sets
+	PTHREAD_STACK_MIN at 2KB.
+
+--1.69.7--
+
+   !    Upgraded SQLite to 3.6.3
+
+   +	smdb.c/h: Added TEMPFAIL word.
+
+--1.69.6--
+
+   !	socket2.c: moved socketAddress* functions into a socketAddress.c.
+
+   !	pdq.c: replaced "union socket_address" by SocketAddress. Seems
+   	pointless not to take advantage of the socket address API.
+
+   !	options.c: optionUsage added NULL guards concerning o->string.
+
+   +	Added pdqDump and pdqLog for a single record.
+
+   !	pdqListPrune, pdqListFindName, pdqSetName: The handling of
+	implicit MX 0 rule was broken. The MX 0 rule that was created
+	forgot the root label. Thus pdqListPrune would prune the MX 0
+	record, because pdqListFindName failed to find the host name due
+	to the missing root label. pdqSetName now asserts that a root
+	label is always present and pdqListFindName will match a host
+	name with or without the root label.
+
+--1.69.5--
+
+   !    Upgraded SQLite to 3.6.2
+
+   !	pdq.c: Windows: when there are no DNS servers specified, default
+   	to localhost. See pdq_get_name_servers.
+
+   +	pdq.c: added pdqSetSourcePortRandomisation and test option for CLI.
+   	Intend for use on systems that might not randomise the source port
+   	in the kernel.
+
+   !	aclocal.m4: SNERT_BUILD_THREADED_SQLITE3 now appened --enable-debug
+   	when necessary and enforce --disable-amalgamation.
+
+--1.69.4--
+
+   !	spf.c: when --enable-pdq, the handling of ptr entries with a domain
+   	specifier failed. For example
+
+   		./spf 194.192.15.188 cplaromas.com
+
+   	with a TXT record "v=spf1 +mx +a:mx11bx.cplaromas.com
+	+a:mx12bx.cplaromas.com +mx:cplaromas.com +mx:softcom.dk
+	+ptr:softcom.dk -all" should pass. There were two logic errors in
+	processing the PTR list loop.
+
+--1.69.3--
+
+   +	Added util/timespec.c with timespec support routines: timespecAdd,
+   	timespecSubtract.
+
+   +	Added util/timeval.c with timeval support routines: timevalAdd,
+   	timevalSubtract.
+
+   !	util/timer.h: when HAVE_CLOCK_GETTIME is defined, then TIMER_DIFF
+   	uses timespecSubtract.
+
+   +	util/timer.h: added timer routines for HAVE_GETTIMEOFDAY when
+   	HAVE_CLOCK_GETTIME is not defined.
+
+   !	socketReadLine2: Windows appears to generate a lot more EAGAIN
+   	warning messages for non-blocking input than unix systems. Changed
+   	the warning log message from counter based to a single second
+   	timer. The log message exists to catch unusually long waits for
+   	input and to alert to possible infinite loops waiting for input.
+
+  !!	pdqInit: default to localhost when resolv.conf is empty.
+
+   !	optionUsage: change usage output to use += notation for lists.
+
+   !	spfCheck: when --enable-pdq, the handling of A and MX records with
+   	dual-cidr specified was incorrectly ported to PDQ. For example
+
+   		./spf 12.32.40.146 thecreek.com
+
+   	with a TXT record of "v=spf1 mx/24 -all" should pass.
+
+--1.69.2--
+
+   !    Upgraded SQLite to 3.6.0
+
+   !	aclocal.m4: added checks for sleep, usleep, and nanosleep.
+
+   !	kvm_open_sql: sqlite3_prepare_v2 can return SQLITE_BUSY when the
+	database is locked by another process. This means that
+	kvm_open_sql would fail for a temporary condition. Added
+	kvm_prepare_sql to keep looping over the sqlite3_prepare_v2 with
+	one second pause between retries.
+
+--1.69.1--
+
+  !!	spf.c: when using PDQ API, fixed error handling of the list of
+	TXT records returned where some of the answers might set rr->
+	rcode to something other than PDQ_RCODE_OK (instead of just the
+	first one), which would mean that the text.value field would be
+	NULL and cause a seg. fault if accessed.
+
+--1.69.0--
+
+   !	Build id reset to zero.
+
+   +	socket2.c/h: addedd socketAddressEqual.
+
+   !	pdq.c; pdq_query_reply now validates that the PDQ response comes
+	from a previously queried name server. This was added based on
+	http://tools.ietf.org/html/draft-ietf-dnsext-forgery-resilience-05
+	section 3.
+
+   -	pdq.c: removed ENABLE_PDQ_FD_PER_NS code.
+
+  !!	pdq.c: fixed pdq_query_fill when performing a query for "." or a
+	domain name starting with a leading dot, eg. ".snert.com". An
+	extra root label was inadvertantly added to the query,
+	displacing the remain fields by one byte, which would cause a
+	timeout, which in turn caused pdq_reply_rr to fail to generate
+	an "error" RR and ultimately result in a seg. fault when trying
+	to set the record->code to PDQ_RCODE_TIMEDOUT.
+
+   |	pdq.c: In the event of a time out in pdq_query_send_all and in
+   	case pdq_reply_rr should return NULL do to out of memory or an
+   	unknown RR type, only set the error code if the record is not
+   	NULL to avoid potential seg. faults in the future.
+
+--1.68.972--
+
+   +	pdq.c: Added support for RFC 2672 DNAME type.
+
+   !	pdqSizeOfType: unknown DNS type return 0 size.
+
+   !	pdq_reply_parse: fixed handling of unknown records types that
+   	would case pdq_reply_rr to return NULL. Unknown RR types are
+   	now skipped instead of discarding all the returned RR parsed.
+
+  !!	kvmap.c: fixed -d crashing when the value is an empty string.
+  	Also skip the record if the key is an empty string.
+
+   !	pdqFree now expressed in terms of pdqDestroy, which frees a
+	single PDQ_rr record.
+
+   !	spf.c: fixed CLI when --enable-pdq, setups pdqInit and pdqFini
+   	instead of relying pdqOpen doing a pdqInit behind the scenes.
+
+   !	spf.c: when --enable-pdq and processing the mx mechanism, the
+	convience function pdqGetMX could return NULL after pruning,
+	which is not an indication of an internal error if errno is
+	zero.
+
+   !	pdq.c: Added -p option for the CLI to test pdqListPrune code.
+
+  !!	pdqListPrune: Fixed memory leak when discarding invalid A/AAAA
+  	records. The loop would skip over non-A/AAAA records, but failed
+  	to update the "prev" pointer that remembers the address of the
+  	previous record's next field. This affected pdqGetMx, spfCheck,
+  	and any where that pdqListPrune was used after a MX, NS, or SOA
+  	lookup.
+
+   !	isReservedTLD: improve performance by finding the last dot in a
+	domain name then comparing the tail end of the domain for
+	reserved names, instead of use TextInsensitiveEndWith
+	repeatedly.
+
+   +	Add -g option for mcc CLI to start a GC on a specified interval.
+
+   !	mccStartUnicast: set the unicast socket to non-blocking.
+
+   !	socketOpen: fix opening a unix domain socket.
+
+   !	pdq_txt_create, pdqDestroy: when the overall length and the
+	accumenlate TXT string length mismatch, we freed the value
+	field, but neglected to set it to NULL, which caused a double
+	free in pdqDestroy.
+
+   !	PDQ API is now enabled by default.
+
+
+--1.68.971--
+
+   +	Added fileSetCloseOnExec to perfer a read-modify-write operation
+   	when setting FD_CLOEXEC as there might be other flags in future.
+   	Based on SUS rationale for fcntl.
+
+   !	uri.c, option.c, smtp2.c: replaced fcntl with fileSetCloseOnExec.
+
+   +	Added util/timer.h for time difference logging.
+
+--1.68.970--
+
+   !	socketAddressGetIPv6: added extra flags parameter that for
+	assorted conversions. Currently only SOCKET_ADDRESS_AS_IPV4 is
+	supported to normalise IPv4-mapped to IPv4-compatible address.
+	Particularly useful when you want to compare IPv4 addresses
+	returned by an IPv6 network stack.
+
+--1.68.969--
+
+   !    Upgraded SQLite to 3.5.9
+
+   !	ProcTitle: undo previous ProcTitleInit change that freed environ.
+   	causes a glibc abort in free.
+
+   !	aclocal.m4: SNERT_PTHREAD added check for pthread_attr_getscope
+   	and pthread_attr_setscope
+
+   !	mccStartUnicast, mccStartMulticast, mccStartGc: apply thread
+	attributes to set stack size (PTHREAD_STACK_MIN) and scope
+	(PTHREAD_SCOPE_SYSTEM).
+
+   !	mcc.c: Removed from mccSetMulticastTTL the test if the multicast
+   	listener is running as there is a race condition between starting
+   	the mcc_listener_thread, which sets the is_running flag, and the
+   	initialisation thread that starts the listner and then calls
+   	mccSetMulticastTTL to setup the socket. socketMulticastTTL already
+   	checks for a NULL socket pointer before applying the setting.
+
+   !	processDumpCore: silence Linux valgrind errors concerning
+	missing prctl arguments.
+
+   !	optionsArray: fix small memory leak when an unknown option is not
+   	found in the option table, then value from optionParse should be
+   	freed. This is not serious since the option parsing typically is
+   	called at program start-up.
+
+  !!	pdqGetDnsList: when doing DNS BL lookups and returning on the
+	first positive answer (pdqWait), then undefined answers
+	(NXDOMAIN) would cause a memory leak, because of using free
+	instead of pdqFree to discard the PDQ_RCODE_UNDEFINED record.
+	Have corrected, but disabled this code. PDQ_RCODE_UNDEFINED
+	records are now returned.
+
+  !!	pdqGetDnsList: when querying two or more DNS BL lists and using
+  	pdqWait, if there were still pending answers, then the partial
+  	answers were not accumulated in a list each iteration thus
+  	causing a memory leak.
+
+  !!	pdqGet: if a query for an MX returns PDQ_RCODE_UNDEFINED record,
+  	then the implicit MX 0 record was created, without having freed
+  	the PDQ_RCODE_UNDEFINED record thus causing a memory leak.
+
+  !!	spfCheck: if a query for a TXT returns PDQ_RCODE_UNDEFINED record,
+  	then a memory leak would occur.
+
+--1.68.968--
+
+   +	TextFind: extended to support character class matches.
+
+		"a[]]c"		exact match for "a]c"
+
+		"[abc]"		match a single "a", "b", or "c".
+
+		"[^abc]"	match a single charcater except "a", "b", or "c".
+
+		"[a-z]"		match a single character "a" through "z" (assumes ASCII)
+
+		"[0-9]"		match a single digit "0" through "9" (assumes ASCII)
+
+		"[-ac]"		match a single charcater "-", "a", or "c".
+
+		"[]-ac]		match a single charcater "]", "-", "a", or "c".
+
+		"[^-ac]"	match a single charcater except "-", "a", or "c".
+
+		"[^]-ac]	match a single charcater execpt "]", "-", "a", or "c".
+
+	This is similar to filename pattern matching and not to be
+	confused with regex.
+
+   !	pdqGetDnsList: fixed potential error for access off either end of
+   	the prefix name buffer. Reported by valgrind.
+
+   !	socketTimeouts: when using poll, we can get a small performance
+	gain for small sets by allocating a fixed number of struct
+	pollfd on the stack instead of using malloc/free. This would
+	improve socketHasInput, socketCanSend, and socketTimeoutIO which
+	only handle a single socket at a time via socketTimeouts.
+
+   !	socketTimeouts: fixed potential bug when using poll. Previously
+	the fd_table could potentialy contain INVALID_SOCKET entries,
+	which were skipped when filling in the set of struct pollfd.
+	However, the post poll code that would fill in fd_ready based on
+	the results assumed that poll set was of equal length to
+	fd_table and fd_ready; if "set" were ever shorter, undefined
+	results would be returned. This bug never appeared that I know
+	of since only valid sockets were ever passed. The solution was
+	to make it a requirement that fd_table not contain
+	INVALID_SOCKET entries otherwise we return false and set errno
+	to EINVAL.
+
+   +	time62.c/h: moved these functions from BarricadeMX into library
+	for use by other titles, eg. Hibachi and milter-null.
+
+   !	spfCheck: simplified handling of pdqFree following pdq lookup.
+
+   +	pdq.c: added pdqInitialTimeout function.
+
+   !	ProcTitle: on linux, glibc will free environ. No need to do it
+   	ourselves in ProcFini.
+
+   !	aclocal.m4: Fix SNERT_PTHREAD to detect pthread_cleanup_push/pop
+	when defined as macros.
+
+--1.68.967--
+
+   !	aclocal.m4, configure.in: merged SNERT_NETWORK and SNERT_SOCKET into one.
+
+   !	SNERT_NETWORK for Windows now detects sockaddr types and sa_len member
+   	in order to correctly build IPv6 support.
+
+   !	mcc.c/h: Added mccSetMulticastTTL to allow for finer control over
+   	multicast packets.
+
+   +	tools/echod.c: add a simple echo daemon for testing IPv4 & IPv6 socket
+   	code.
+
+   !	socketAddressCreate: changed malloc to calloc for the
+	SocketAddress structure in order to ensure a clear and sane
+	state. On Windows, failure to do this meant that IPv6 addresses
+	wouldn't bind due to garbage in the sockaddr_in6 structure.
+
+--1.68.966--
+
+   !	parsePath; split STRICT_SYNTAX into two STRICT_ANGLE_BRACKETS
+	and STRICT_ADDR_SPEC.
+
+   !	parsePath: the address <Vanessa-kauskas:@SELSOL.COM> is bad
+	(colon is reserved for soure route addresses), but was returning
+	"address incomplete" instead of "invalid local part", which is
+	the more correct error.
+
+   !	smdb.c: reduceDomain when called from reduceMail was not advancing
+   	the tag such that the last lookup "tag:user.name@" was not being
+   	performed.
+
+   !	pdq.c, formatIP.c: failed to properly format ::1. Also RFC 4291
+	indicates that :: can represent one or more groups of zero bits,
+	whereas previously is was understood / assumed to be two or more
+	groups. While "::" equals "::0" and "fe80::" equals "fe80::0",
+	the latter forms are more expressive and used.
+
+   !	aclocal.m4, version.h.in.in: SNERT_NETWORK macro now checks for
+   	getaddrinfo, freeaddrinfo, and getnameinfo.
+
+   +	socket2.c/h: socketAddressGetName to convert a socket address back
+   	into a host name or it's IP address. Use PDQ, getaddrinfo, or
+   	gethostbyaddr. PDQ is default since it is thread safe.
+
+   !	socketAddressGetString: replace with_port boolean flag with a set
+	of flag bits SOCKET_ADDRESS_WITH_PORT, SOCKET_ADDRESS_WITH_BRACKETS,
+	SOCKET_ADDRESS_AS_FULL, SOCKET_ADDRESS_AS_IPV4
+
+   +	format.c, socket2.h: Added socketAddressFormatIp that can format
+   	socketaddr (sockaddr_in, sockaddr_in6, and sockaddr_un) into a
+   	buffer.
+
+   +	sys/sys.c: added sysGetCpuCount, sysGetCpuOnline, getSysCtlInt, and
+   	getSysCtlString. The CPU query functions should work for Linux,
+   	*BSD, Windows, and some other systems that can report number of
+   	processors via sysconf. The getSysCtl* functions are only on
+   	OpenBSD for now and may change or be moved.
+
+   !	formatIP: IPv4-compatible-IPv6 and IPv4-mapped-IPv6 are represented
+   	as RFC 4291 section 2.2 point 3 hybrid IPv6/IPv4 notation. This is
+   	more convenient and familar for use in logs and displays.
+
+   !	socketAddressFormatIp: must ignore other protocol/address familys.
+   	Only supports AF_INET, AF_INET6, and AF_UN. In particualr AF_IPX
+   	on Windows must fail (return 0).
+
+--1.68.965--
+
+   +	pdq.c: added pdqSetRoundRobin and modified pdq_query_send to
+	query NS one at a time in round robin order if pdq_round_robin
+	is set. This is was implemented in case querying all the NS at
+	once causes too much load on NS machines.
+
+--1.68.964--
+
+   !    Upgraded SQLite to 3.5.7
+
+   !	pdq.c: wrapped existing code with ENABLE_PDQ_FD_PER_NS, which is
+   	rather resource intensive and implement one FD per pdq structure.
+   	FreeBSD 4 jails are problematic and require --enable-pdq-fd-per-ns.
+
+   !	pdq now parses and returns all the records given by a lookup so
+   	that it is easier to distinguish between an error and a valid
+   	domain without records of a requested type.
+
+   !	sqlargs.c: SunOS cc defines __unix, but not __unix__. Version.h
+	handle defining __unix__ if __unix, but this header was included
+	after the configuration section. Reported by Rob McMahon.
+
+   !	pdq.c now defines rand_seed and set srand accordingly for use with
+   	rand_r when available.
+
+   !	networkGetMyName, networkGetHostIp: added some error logging; moved
+   	into new file networkGetMyDetails.c.
+
+   !	pthread_join emulation in Windows failed to handle a NULL 2nd
+   	argument.
+
+   !	LogPrintV: switched from using gmtime to localtime_r.
+
+   !	LogPrintV: now uses flockfile / funlockfile or a mutex to ensure
+	output to the log file from multiple threads is safe.
+
+   !	uri.c: added ENABLE_PDQ switch and code.
+
+   !	tools/show.c: when using -f and -n -num, fflush the tail output
+   	before processing -f.
+
+   !	LogPrintV: increased log line buffer to 512 bytes.
+
+   !	mccStartMulticast: I was binding to the multicast address, which
+	worked on unix for some reason, but not on Windows. Now I bind
+	to INADDR_ANY (0.0.0.0 or ::0) and the multicast port for the
+	listener thread, then join the multicast address/port for the
+	broadcast.
+
+   +	socket2.c/h: added socketMulticastLoopback and socketMulticastTTL.
+
+   +	mccStartMulticast: now disables the multicast loopback.
+
+   !	socket.c/h: Added ERRNO_EQ_EAGAIN macro to finally deal with possible
+   	instances both EAGAIN and EWOULDBLOCK being defined and not equal to
+   	each other.
+
+   !	smtp2.c: Added a new internal flag SMTP_FLAG_ERROR for IO errors.
+   	Used by mxPrint and mxResponse in order to skip further IO on duff
+   	session.
+
+   !	smtp2.c: smtp2Open, smtp2OpenMx, mailOpen all replace debug
+	argument with a flags argument. Added a new public flag
+	SMTP_FLAG_TRY_ALL for mailOpen to indicate whether the message
+	should continue to be sent even if there are partial errors (ie.
+	some sessions reject/fail) or fail on any errors. This allows
+	messages sent to more than one recipient to continue to be sent
+	even if some recipients fail.
+
+   !	smtp2.c; Added new -a option to smtp2 CLI to set SMTP_FLAG_TRY_ALL.
+
+   !	smtp2.c: smtp2Open, smtp2OpenMx, mailOpen now support two timeout
+   	arguments: one for connection, the other for SMTP commands.
+
+--1.68--
+
+   !	mime.h; MIME_BUFFER_SIZE reduced from 2048 to 1024.
+
+   !	smdbMailMail: fixed bug for from:domain:to:mail lookups not being
+   	found.
+
+   !	pdq.c reworked without an internal cache. Changed the pdqPoll,
+	pdqWait, and pdqWaitAll API. Added several pdqList* functions
+	Also add pdqGetDnsList and pdqFetchDnsList functions to simplify
+	querying DNS based lists. Fixed glitch in pdqListRemove. Simplified
+	pdqGet and pdqGet5A.
+
+   +	pdq.c: added support for DNS NULL, HINFO, and MINFO RR types.
+
+   !	uriParse2: fixed bug with decoding URI that are URL encoded.
+
+   !	uriIsDomainBL, uriIsHostBL moved into a separate file in preparation
+   	to replace the old Dns API with the new PDQ API.
+
+   !	optionUsage: minor change to skip writing option name settings when
+   	the option name starts with a non-printable character.
+
+   +	configure.in, version.h.in.in: added a compile time option --enable-pdq
+   	in order to select which DNS client API to use in some functions.
+
+   !	socket2.c, siq.c, smtp2.c, spf.c: added ENABLE_PDQ switch and code.
+
+   !	mcc.c: mccStartUnicastDomain disabled when using ENABLE_PDQ; too lazy
+   	to port and it's more confusing to use that mccStartUnicast, should
+   	go away.
+
+   !	uriParse2: When handling an "Invalid or unknown scheme followed by ://"
+   	make sure we don't test beyond the start of the URI string, which
+   	could cause a seg. fault for some systems.
+
+   !	tlds.c: tldInit now an external function. tldInit must be explicitly
+   	called in order to load tld files, otherwise the default internal
+   	tables are used.
+
+   !	ipinclient.c: fixed find_substr which was matching.
+
+		Only ignore punctuation in the string. Do NOT ignore
+		non-hex alpha in the string. Consider
+
+		193.190.238.226	smtp-out.west-vlaanderen.be
+
+		Bytes 2 & 1 (eebe) would incorrectly match the substring
+		"eren.be", ignoring the 'r' and 'n' in the string.
+
+   !	ipinclient.c: fixed find_octets what was mismatching
+
+		83.98.0.245 	intthsv06.thuk.ioko365.com
+
+	on the 16-bit octal word tests.
+
+   !	formatIP: fixed IPv6 bug when formatting an IP address with an
+   	odd number of leading zeros like ::1.
+
+   !	pdqOpen: fixed crash when pdqOpen fails and proceeds to pdqClose
+   	a PDQ structure that was not completely initialised.
+
+   !	pthread_join, pthread_cancel, pthread_detach: fix potential
+	Windows thread handle leaks.
+	***
+	NOTE avoid the idiom
+
+		pthread_detach(pthread_self);
+
+	and instead have the caller of pthread_create do pthread_detach
+	or pthread_join so as to avoid HANDLE leaks.
+	***
+
+   !	mcc.c: mcc_sql_create can now detect if the table and/or index have
+   	already been defined, thus avoid unnecessary log messages.
+
+--1.67--
+
+   !    Upgraded SQLite to 3.5.6
+
+   !	aclocal.m4: Fixed missing LDFLAGS when using --enable-mingw.
+
+   !	sys/pthread.c: pthread_exit using ExitThread; not 100% correct.
+
+   !	sys/pthread.c: disabled pthread_cancel, MSDN state that use of
+   	TerminateThread is unsafe and that the developer should implement
+   	their own cancellation code if UNIX semantics are required.
+
+   !	version.h.in.in, sys/pthread.h: moved Win32 HAVE_PTHREAD_
+	definitions from version.h to sys/pthread.h.
+
+   !	socketTimeoutIO.c: added FD_ZERO() in socket_reset_set() to
+   	prevent Windows build from seg. faulting.
+
+   !	uriHttpOrigin(): fixed handling of redirects that required query
+   	string arguments, without which an infinite loop could result.
+   	(milter-link, BarricadeMX)
+
+   !	aclocal.m4, version.sh.in, */makefile.in: added conditional
+   	inclusion of -lws2_32 when --enable-mingw.
+
+   !	pthread.c: pthread_mutex_timeout_lock(), used in WIN32
+	emulation, failed to wait for the given timeout period.
+
+   !	uriParse2(): fixed invalid parsing of tokens starting with a
+   	leading at-sign (@) like: @font-face @SimSun @page. (milter-link,
+   	BarricadeMX)
+
+   !	smtp2.c: fixed potential memory leak between smtp2Read() and
+   	mxResponse().
+
+   !	aclocal.m4: added BDB 4.6 to list of versions to search for.
+
+   +	Added Martin Pool's strnatcmp.c code, with ANSI C portability
+	changes, to the library. License updated to reflect original
+	source.
+
+   +	pdq.c: further changes and additions to the PDQ API.
+
+   !	Dns.c, pdq.c, uri.c, siq.c, smtp2.c, options.c: make sure that
+	open file descriptors are automatically closed on fork/exec.
+
+   !	pthread.c, pthreadSleep.c: moved pthreadMutexDestroy() to pthread.c
+
+   +	kvm.c: add pthread_atfork handlers.
+
+   !	uriParse2(): implicit_domain_min_dots was been correctly handled
+   	but subsequently discarded, because a default scheme was not set.
+   	When an implied host name is found, assume HTTP scheme.
+
+   !	mcc.c: rename mcc_sql_step() to be a public function mccSqlStep().
+
+   !	tlds.c: Added the ability to replace the built-in TLD lists from
+   	supplied text file.
+
+   +	ipinclient.c: Added additional check for when high or low halfs
+	of an IPv4 address is expressed as 16-bit decimal, octet, or hex
+	words. For example dsl88-244-35467.ttnet.net.tr should match
+	[88.224.138.139].
+
+   !	uri.c: Changed uriParse2() trace output at debug level 4, because
+   	when doing MIME parsing, the uriParse2 is called far too much to
+   	follow the lower debug levels.
+
+   !	uriParse2: incorrectly parsed Microsoft Office smart tags:
+
+	   <o:SmartTagType =
+	   namespaceuri=3D"urn:schemas-microsoft-com:office:smarttags"
+	    name=3D"Street" =
+	   downloadurl=3D"http://www.5iantlavalampft-com:office:smarttags"/>
+
+	The neither namespaceuri nor downloadurl attributes should
+	parse. Note how they resemble SOME.DOMAIN-NAME:PORT, but should
+	not parse because the PORT is not numeric.
+
+   !	sys/Time.c: replaced the TIME_API selector in favour of the autoconf
+   	detected functions.
+
+   !	mcc.c: added a call-back structure that can provide ways for third
+   	party code to added custom functions and statements that operate on
+   	the cache. See BarricadeMX grey.c.
+
+   !	socket2.c: renamed socketPeek to socketPeekByte and added a new
+   	socketPeek function similar to socketRead that fills a buffer
+   	without draining the input.
+
+   !	Buf.c: overhauled to use Buf * and size_t for offset and length.
+	BufAddInputLine and BufAddReadLine retain the newline character
+	at the end of the buffer. Added BufTrim to remove trailing white
+	space.
+
+   !	option.c, option.h: added a length field to the Option structure.
+
+   !	uriParse2: now parses implicit IPv4 and IPV6 addresses.
+
+   !	uri.c: now find the IP in the query part of URL like:
+
+   	http://www.zdnetasia.com/search/results.htm?query=mari+misato+at+dynamix+%3CIFRAME%20src=//72.232.39.252/a/%3E.html
+
+   !	spanIP.c, uri.c: moved spanIP, spanIPv4, spanIPv6 into a separate
+   	source file as they are generally useful.
+
+   +	findIP.c: created new functions findIPv4, findIPv6, and findIP to
+   	scan through a string looking for the first IP contained there in.
+
+   !	mccStartUnicast: in the event of socket setup error, the function
+   	incorrectly called mccStopMulticast, instead of mccStopUnicast.
+
+   !	mcc: exit if -M and/or -U listener threads cannot be started.
+
+   !	uri.c: turned on #define TEST_MESSAGE_PARTS to enable message/rfc822
+   	scanning. I had concerns that scanning message/rfc822 might prove
+   	a problem for both bounce and forwarded messages, but I won't know
+   	until I turn it on.
+
+   !	pdq.c: nameCopy now returns the length of the string copied into
+   	the buffer. This removed the need for nameLength.
+
+   !	pdq.c: pdq_query_parse failed to assign the IP address string
+	length and for A records failed to place the binary IPv4
+	adderss to the right of the IPv6 sized buffer.
+
+   !	mime.c: fixed bug where spammers send quoted printable mail as a
+	single continuous line, exceeding RFC 2821 line limits. If a
+	quoted printable character sequence "straddles across" the
+	buffer end, ie. "=X" are the last things in the buffer and the
+	state is mimeStateQpDecode, then we have to "carry over" the
+	information related to that state as part of the buffer reset.
+
+--1.66.951--
+
+  !!	smdb.c: fixed off-by-one error in reduceDomain which could cause
+	a segmentation fault. This only occurs when looking up keys with
+	no tag.
+
+--1.66.950--
+
+   !	tools/sqlargs: Windows native version.
+
+   !	kvm.c: Solaris 9 does not define the flock() constants in the
+   	usual place it seems. Added #include <com/snert/lib/io/file.h>
+
+--1.66--
+
+   !	Upgraded SQLite to 3.5.3
+
+   !	smdb.c: rewritten and enhanced to support combined tag lookups.
+
+   !	smdbMailMail() was calling singleKey instead of singleKeyGetCode
+   	and returning 0 or -1 result instead of an SMDB_ACCESS_* result,
+   	which breaks combo tag handling in BarricadeMX.
+
+   !	mcc.c: mcc_listener_thread() make sure old_row.key_data is NUL
+	byte terminate when writing syslog lines to avoid displaying
+	undefined / unrelated data that could be confused as corruption.
+
+   +	mcc: Added mccSetIfCorrupt() for debugging. Allows an application
+   	to bail or retain a corrupted cache database instead of replacing
+   	it automatically.
+
+   +	mcc: Added mccSetSync() to adjust synchronisation behaviour.
+
+   !	mcc, kvm: Changed to use recommended sqlite_prepare_v2() API.
+   	mcc_sql_step / kvm_sql_step changed accordingly.
+
+   !	mcc, kvm: Based on SQLite wiki comments, a sqlite_reset() is
+	called by mcc_sql_step / kvm_sql_step for everything except
+	SQLITE_ROW return, assuring that the statement's state machine
+	is reset for the next call.
+
+   !	mcc: mcc_sql_step() use pthreadSleep() when available.
+
+   !	convertDate() family of functions now ignore RFC 2822 header
+   	comments that might appear in the date/time string.
+
+   !	convertDate() family of functions now take a 3rd parameter that
+   	returns a pointer to the next unread character in the string.
+
+   !	smdbOpen() had an off-by-one bug when an map file type was
+	specified without a leading table name. Affects Snert milters
+	and smtpf. Reported by Cristian Merz.
+
+   !	aclocal.m4: SNERT_BUILD_THREADED_SQLITE3: fixed passing of
+	extra CFLAGS/LDFLAGS, especially when --enable-64bit is
+	specified.
+
+   !	mime.c, smdb.c: added casts to resolve 64-bit signedess warnings
+
+   !	SNERT_OPTION_ENABLE_DEBUG specifies -O0 when debug is enabled.
+
+   !	smdb.c: fixed logging of key/value lookups.
+
+   !	uri.h, uri.c: rename the "struct mime" to "struct mime_uri_parse"
+   	as it conflicts with mail/mime.h. Also rename mimeReset to
+   	mimePartReset.
+
+   !	smfAccessPattern(): make regex pattern matching case insensitive.
+
+   +	process.[ch]: Migrated from smtpf / hibachi some common code:
+   	processDropPrivelages(), processDumpCore().
+
+   +	processDumpCore() now supports FreeBSD kern.sugid_coredump.
+
+   !	processDumpCore() allows for OpenBSD kern.nosuidcoredump=2 to
+   	be set.
+
+   !	uri.c: modified uriParse2() to attempt to find a possible URI
+   	when the scheme might be invalid or unknown, but is followed by
+   	an identifiable "://" used in a URI. Reported by Jim Hermann.
+	This should allow a URI prefixed by multibyte character
+	sequences to be found, for example:
+
+   		パソコン・携帯　http://www.c-evian.com
+
+   !	uri.c: fixed command line tool to find URI at the end of a file
+   	that does not end with a newline.
+
+   !	uri.c: fixed mimeGetUri() to decode HTML numerical entities that
+   	are used to obfuscate URL domains.
+
+   !	smdb.: singleKey() fixed joining of tag and key into a new string
+   	which Valgrind reported as "Conditional jump or move depends on
+   	uninitialised value" line 210. Fixed a second instance of similar
+   	string construction line 246.
+
+   !	mccDestroy(): fixed potential memory leak of mcc->secret.
+
+   !	mccCreate(): fix potential seg. fault; assert that a empty secret
+   	is defined, otherwise mcc_send() could seg. fault.
+
+   !	b64.c: b64Encode(), b64EncodeFinish() changed behaviour of
+	marking the end-of-data of an encoding ending on a full
+	quantum by "====" into a parameter. Normally this should be
+	ignored by well implemented decoders, except sendmail doesn't
+	seem to handle this case well when used in AUTH PLAIN.
+
+   	The Open Group Base Specifications Issue 6 IEEE Std 1003.1,
+	2004 Edition uuencode -m supports the use of "====" to denote
+	end-of-data.
+
+	And from RFC 2045 section 6.8 Base64 Content-Transfer-Encoding
+	states:
+
+	    Because it [equals-sign] is used only for padding at the
+	    end of the data, the occurrence of any "=" characters may
+	    be taken as evidence that the end of the data has been
+	    reached (without truncation in transit).  No such
+	    assurance is possible, however, when the number of octets
+	    transmitted was a multiple of three and no "=" characters
+	    are present.
+
+	    Any characters outside of the base64 alphabet are to be
+	    ignored in base64-encoded data.
+
+   !	isIPv4InClientName(): adjusted heuristic when looking for
+	least significant octet of IP address; make sure to check for
+	two consecutive hex digits to avoid false positives for
+	something like: dns3.nettica.com 64.94.136.13
+
+   !	isIPv4InClientName(): fixed bug which incorrectly identified
+   	ns1.ipandmore.de [213.252.1.1] or any case of *.1.1 in a string
+   	containing only a single digit 1.
+
+   +	io/file.[ch]: moved chownByName() and chmodByName() convience
+   	functions into a single function pathSetPermsByName() and added
+   	similar functions. io/file.h will eventually replace io/posix.h.
+
+   !	version.h.in.in: moved flock() constants and definition into
+   	io/file.h.
+
+   +	Added socketTimeouts() to handle multiple file descriptors.
+
+   !	socketTimeoutIO() changed to use socketTimeouts().
+
+   !	Dns.c: moved string reversal functions into net/reverse.c.
+
+   +	pdq.c: Added new "Posted Domain Query" as a new replacement
+   	asynchronous DNS client that supports TCP queries too.
+
+   +	smtp2.[ch]: Yet another SMTP engine API to use in place of the
+	previous incarnations. Not backwards compatible. This version
+	actually has a two APIs that makes a distinction between two
+	operational layers: SMTP connection (multiple recipients for
+	the same destination) and sending mail directly (multiple
+	recipients to multiple destinations). It will also make sure
+	that RFC 2822 required headers are sent if not otherwise
+	specified.
+
+   -	tools/smtpout.c dropped in favour or smtp2 CLI.
+
+   !	uri.c, mime.c: mimiGetUri() now handles a line of hyphens that
+	end with a quoted-printable soft line break, for example:
+
+   		----------------------------------------=\n
+   		-------\n
+
+   	Prior to this, the first line would be misinterpreted as a
+	MIME boundary. (In mime.c it was two boundaries.)
+
+   !	uri: Fixed CLI to better detect mail messages (ie. leading
+   	headers) vs. a text file when parsing for URI.
+
+   !	Cache.c: fixed double call to db_create().
+
+   !	smdb.c: singleKey() would return not found if tag1 is NULL,
+	however there are times we do want to lookup a value without a
+	tag. So now if tag1 is NULL, then set it to the empty string.
+
+   !	smdb.c: doubleKey(), like singleKey() can accept NULL for both
+   	tag1 and tag2, in which case tag1 default to an empty string
+   	and tag2 to ":".
+
+   !	smdb.c: singleKey(), doubleKey(), smdbGetValue() add database
+	handle NULL guard; milter-ahead by default does not open
+	access.db, but still makes the function calls relying on the
+	functions to return SMDB_ACCESS_NOT_FOUND.
+
+   +	Added isIPv4InName() which can take optional TextMatch B/W
+	pattern lists. Reimplemented isIPv4InClientName() in terms of
+	isIPv4InName().
+
+   +	Added tools/sqlargs.c CLI. Commissioned by Alex Broens.
+
+	usage:  sqlargs [-c command_template][-d delim][-m max] db_url
+			[select_statement]
+
+	An xargs(1) like command-line tool that queries a data source
+	for arguments to be used in a command substitution. Each row
+	from the data source will invoke one instance of the command
+	(default is to echo the row to standard output), with a limit
+	as to how many instances of the command may be running at a
+	time.
+
+	-c command_template
+		A shell command line, where $1 through $n are replaced
+		by the corresponding columns specified. This command is
+		passed to /bin/sh using the -c flag; interpretation, if
+		any, is performed by the shell. The default is similar
+		to ''echo "$@"''
+
+	-d delim
+		The column delimiter used to split CSV file.
+
+	-m max
+		The maximum number of commands, specified by -c, that
+		can be on going at any one time. The default is one (1).
+
+	db_url
+		Use one of the following formats:
+
+			csv:/path/to/file.txt
+			sqlite:/path/to/db.sq3
+
+	select_statement
+		The select statement to invoke on the data source. The
+		order of columns returned will be the order used for
+		positional parameters used for substitution in the
+		command template string. This argument is ignored for
+		csv:
+
+   !	tools/popin.c: changed to leave the end-of-message dot from
+	the pop sever in the output. This allows other tools in a pipe
+	to detect where one message ends and the next begins, eg.
+	smtp2
+
+   +	tools/popin,c: added -u (UIDL) and -s (STAT) options. STAT was
+	always the default command when no option was present, but it
+	wasn't possible to invoke STAT along with other options at the
+	same time.
+
+   +	tools/popin.c: added APOP login support for when it detects
+   	a banner token between angle brackets, it use APOP in place
+   	of USER/PASS commands.
+
+   !	tools/popin.c: fixed minor logging bug that failed to print
+   	the user login name in the login and logout lines.
+
+   !	tools/popin.c: with -v -v logging goes to standard error
+	instead of the maillog (similar to smtp2.c -v -v logging
+	behaviour).
+
+   !	options.c: allow option names to start with underscore. Will
+   	probably be used to denote experimental options.
+
+   +	tools/mimepart.c: added -d option to support maildir message
+	files when used in conjunction with -f. Requested by Alex
+	Broens.
+
+   !	uri.c: fixed quoted-printable bug where =20 at the end of a
+   	URI, ie. http://oxakeysu.com=20 would incorrectly append the
+   	space to the decode buffer, instead of removing it.
+
+   !	Updated for native Windows builds with MINGW: pidKill() (stubbed),
+   	pthreadSleep() (use Sleep()), Properties.c (flock emu)
+
+   !	configure.in: add -I/usr/include/w32api to --enable-mingw CFLAGS
+
+   !	mail/mime.c: mimeStateHeader() added buffer underflow guard to
+   	avoid reading before the start of the mime source buffer.
+
+--1.65--
+
+   +	mcc.c: Added mccStartUnicastDomain() and -d option to mimic
+   	smtpf's cache-unicast-domain for testing and maintenance.
+
+   +	network.h: Added some commonly used flag sets for isReserved
+	family of functions: IS_IP_RESTRICTED, IS_IP_LAN, IS_IP_LOCAL.
+
+   !	mcc: Added volatile keyword to is_running flag to avoid it
+   	being optimised into a register. Add lots more debug log
+   	tracing information when -v set.
+
+   !	mcc: Added pthread_yield() statement before main input loop
+   	in order to ensure the listener and gc threads are started.
+   	Without this, input can be read and EOF seen before the
+   	other threads are ready, resulting in undefined behaviour.
+
+   !	kvm.c, mcc.c: Changed how table creation is handled. Some
+   	applications might create the .sq3 file, but not the tables,
+   	in which case the API needs to detect the missing tables
+   	and create them if necessary. The old method was based on
+   	file existence. This also allows mcc and kvm tables to
+   	exist in the same file (though this has not been tested).
+
+   !	kvm.c, mcc.c: Corrections for gcc version 4.1.0 20060304 and 64-
+	bit CPU, which is rather pedantic about char * vs unsigned char
+	* issues.
+
+   +	aclocal.m4, configure.in: added checks for rand_r() and SUS
+   	spec for random() et al.
+
+   !	aclocal.m4: fix search for clock_gettime() library under Linux.
+
+   !	mcc: Added "PRAGMA synchronous = OFF" to improve performance at
+	the sake of reliability. Since we're a cache, if it becomes
+	corrupt, chuck it and start again.
+
+   !	mcc: SQLITE_CANTOPEN is also treated same as SQLITE_CORRUPT.
+
+   !	option.c: replaced optionGet() with optionParse(), which has a
+   	simplified function signature.
+
+   !	aclocal.m4: fixed to build SQLite3 for FreeBSD 4 systems.
+
+   !	LogClose(): added NULL pointer guard for logFile.
+
+   !	Windows native (mingw) corrections for kvm, mcc. Add emulation
+   	for pthread_mutex_trylock(), pthread_join(), pthread_cancel(),
+   	kill().
+
+   !	version.h.in.in, mcc: fixes for exact int types required when
+   	moving between 64-bit and 32-bit machines, particularly when
+   	mapping UDP packets.
+
+   +	aclocal.m4, makefile.in: added distclean for libsnert's copy of
+	sqlite3.
+
+   +	tlds.c: indexValidTLD() must treat a domain that is the
+	empty string as an error for the same reasons when it is a
+	NULL domain string pointer. The function only makes sense if
+	you have defined non-empty string to scan. Affects most
+	milters when using unqualified addressess. Reported by
+	Christopher Lindsey.
+
+   !	If setproctitle() exists, use it instead; otherwise fall back
+   	onto the old methods. Added a quick ProcTitle test tool.
+
+   !	socketAccept() tracing now reports the errno value as part of the
+   	log line.
+
+   !	socketReadLine2(), smtpRead(): Changed errno returned for an EOF
+	state from ESHUTDOWN to ENOTCONN. The former pertains to writing
+	data after close, while the latter better describes the lost
+	connection. This also means that use of strerror() for read
+	error will make more sense.
+
+   +	Added pthreadSleep() to sleep a thread, not the process, using
+   	pthread_cond_timedwait(). sleep() typically pauses the whole
+   	process.
+
+   +	Added md4.c and md4.h from RFC 1320.
+
+   +	aclocal.m4: added SNERT_FIND_LIB as a generic function to find
+   	which dynamic libraries a binary is linked with. Modified
+   	SNERT_FIND_LIBC to use and added SNERT_FIND_LIBPTHREAD.
+
+   +	DebugMalloc.c: enhanced to report leaked memory at the end of
+   	each thread. Replaced some environment variables used to
+   	control behaviour.
+
+   +	Added ProcTitleFini() to cleanup any allocated structures (Linux).
+
+   !	uri.c:729: changed from memcpy() to memmove() to silence
+	valgrind report about copying an overlapping memory region,
+	where the dst is explicitly one less than the src, which is not
+	a problem for memcpy if you assume left-to-right copying.
+
+   !	mcc.c:804: added guard to skip memcpy() when dst equals src to
+	silence valgrind report about copying an overlapping memory
+	region.
+
+   +	b64.c: added b64Encode() to encode character by character in
+   	quantum units. Also added a CLI test mode.
+
+   + 	mime.c: added a generic on-the-fly MIME parsing API.
+
+   !	Upgraded SQLite to 3.4.1
+
+   +	spf.c: Added option spf-temp-error-dns that can disable DNS
+   	lookup errors that would result in a TempError in order to
+   	allow the remainder of the record to be parsed and processed.
+
+   +	spf.c: When looking up a TXT record, treat a DNS server failure
+	(rcode 2) the same as undefined (rcode 3) and return a None
+	result. Too many DNS servers appear to be misconfigured or
+	broken such that they return A, MX, and PTR records, but return
+	ServFail for TXT.
+
+   +	uri: Added a -P port selector option to filter output. Requested
+   	by Alex Broens.
+
+   +	tools/ixhash.c: added a C based ixhash generator tool. Requested
+   	by Alex Broens.
+
+   +	aclocal.m4, version.h.in.in: add check for pthread_atfork().
+
+   !	kvm.c: kvm_sql_step() uses pthreadSleep() when compiled with
+   	pthread support.
+
+   !	mcc.c: Linux: mccDestroy() moved syslog() trace line after NULL
+	pointer guard in an effort to avoid hanging on tzset_lock mutex
+	in libc called by strftime() from syslog(). This can happen if
+	the mutex is locked when either signal or thread context switch
+	occurs and the new context calls syslog().
+
+   !	two-level-tlds.txt and two-level-tlds.txt updated.
+
+--1.64--
+
+   +	tlds.c: indexValidNthTLD() must treat a domain that is the
+	empty string as an error for the same reasons when it is a
+	NULL domain string pointer. The function only makes sense if
+	you have defined non-empty string to scan. Affects most
+	milters when using unqualified addressess. Reported by
+	Christopher Lindsey.
+
+   !	smfAccessHost(), smfAccessMail(), smfAccessRcpt(): Disabled
+	support for sendmail's untaggedd access.db entries. These have
+	been deprecated by sendmail and should no longer be used. This
+	reduces the access.db lookups for a slight performance gain.
+	Use --enable-sendmail-tagless-records to enable at compile time.
+
+   +	Added smdb-relay-ok option. When enabled, a right hand side
+   	access.db value of RELAY will be treated the same as a white
+   	list OK value, which is technical correct according to the
+   	sendmail definition. However, some sites want to "filter before
+   	relay" and so do not want to treat RELAY as a white list entry.
+
+   !	mccCreate(): reset the database if SQLITE_CORRUPT error is
+   	returned. There is no way to recover other than discarding the
+   	old databsae and starting a new.
+
+   !	LICENSE.TXT updated to expressly exclude SQLite from the
+	statement of original work.
+
+   !	kvm.c: The kvmd -p option now support unix domain socket path.
+
+   !	kvm.c: Disable SIGPIPE handler.
+
+  !!	kvm.c: Fixed kvmd code for sendmail queries.
+
+   +	socket2.c: Added socketHasBufferedInput() and socketPeek().
+
+   +	socketAddressCreate() supports IP addresses within square
+   	brackets in order to support [IPv6]:port specifiers. For
+   	consistency (and simplicity in milter-ahead), a hostname
+   	can also appear in square brackets ie. [host]:port.
+
+   +	aclocal.m4, configure.in: added --enable-fcntl-locks to use
+   	LibSnert's own flock(), which is a cover function to fcntl(),
+   	lockf(), or locking(). Linux prefers fcntl() locking.
+
+   !	berkeley.h, kvm.c, Cache.c: The DBTXN * argument was not
+	supplied to db->associate, open, rename, and remove until BDB
+	4.1 (grrr). Added macro to handle this difference between 4.0
+	and 4.1.
+
+   !	kvm.c: Clear the SQLite data structure on allocation before
+   	opening an .sq3. If the .sq3 or its location does not exist,
+   	the kvm_close_sql() would segfault trying to cleanup bogus
+   	pointers.
+
+--1.63.892--
+
+   !	Updated the two-level-tlds.txt and tlds-alpha-by-domain.txt.
+
+--1.63--
+
+   +	Added sys/rlimits.c for dumping process limits to syslog().
+
+   +	smfMainStart() now dumps the milter's process limits for
+   	verbose=debug.
+
+   +	Added isReservedIPv4().
+
+   +	Added mfReply() et co. which will eventually replace the
+   	smfReply() family.
+
+   +	Added kvm.[ch] to provide a low level API that handles socket
+	maps, Berkeley DB files, and SQLite3. There are also two CLI
+	utilities, kvmc & kvmd, that can be used to test the API.
+
+   +	kvm.c: supports linking with both BDB 1.85 and a newer BDB at
+	the same time. For read-only access, the code will autodetect
+	earlier 1.85 hash/btree or newer hash/btree formats. NOTE that
+	BDB 1.85 is NOT OFFICIALLY SUPPORTED and barely tolerated
+	unofficially.
+
+   !	smdb.[ch]: overhauled to use the kvm API and so support either
+	Berkeley DB, socket maps, and/or SQLite. This allows most of
+	the milters to use access-db settings of the following form:
+
+		[table-name![read-only!]type![sub-type!]]location
+
+	The following maps forms of type![sub-type!]location are
+	supported:
+
+ 		NULL				(assumes hash!)
+ 		hash!				(in memory hash)
+		text!/path/map.txt		(flat text file)
+		/path/map.db			(original, BDB hash)
+		db!/path/map.db			(BDB hash)
+		db!btree!/path/map.db		(BDB btree)
+		multicast!group:port!map	(broadcast & store)
+		sql!/path/database		(SQLite3)
+		socketmap!host:port		(internet socket)
+		socketmap!/path/local/socket	(local socket)
+
+	Note the schema used for SQLite3 is:
+
+		CREATE TABLE kvm (
+			k BLOB PRIMARY KEY,
+			v BLOB
+		);
+
+	If the SQLite database doesn't exist, it will be created with
+	the table above.
+
+   !	smfAccessRcpt() added missing curly brackets to popauth_info
+   	block. Reported by Mike Elliot.
+
+   !	Increased default Hash table size from 997 to 4093.
+
+   +	socket2.[ch]: Added socketMulticast(), socketSetReuse(),
+   	socketGetError().
+
+   !	Dns.c, socketTimeoutIO.c: moved socketTimeoutIO() into its
+   	own file from Dns.c.
+
+   !	socketAddressGetString() now takes an extra flag to include
+   	the port number with the string.
+
+   !	tools/flip: can act as a pipe filter, changing newlines read
+   	from standard input and write to standard output.
+
+  !!	smtpOpen.c: mxResponse(); fixed memory corruption bug caused
+	by advancing the very array pointer we need to later free.
+
+  !!	smtpOpen.c: smtpAddRcpt(); fixed incorrect size of recipient
+  	structure allocated, which could cause a memory overrun.
+
+  !!	smtpRead(): fixed possible memory corruption bug when reading
+	multiline responses due to incorrect advancing of the offset
+	index.
+
+   !	smtpAddRcpt(): dropped new_connection flag.
+
+   !	networkGetMyDetails() now sets the host name according to
+	machine name returned by gethostname(), which is passed to
+	gethostbyname() to get the official FQDN as outlined by Linux
+	hostname(1).
+
+   +	smf.c: Added milter-queue option to specify the libmilter's
+   	setting for the sendmail / milter connection queue size. The
+   	default is 20.
+
+  !!	smfAccessPattern(): some reported errors incorrectly included
+   	the work space pointer in place of a string.
+
+   !	smtpAddRcpt() now sets the MX socket non-blocking.
+
+   !	uri.[ch]: moved TEXT_VS_INLINE macro definition from .c to .h
+   	to resolve possible mismatched structure sizes.
+
+   !	spfCheck(): added TextNull() wrapper around alt_txt argument.
+
+  !!	spfMacro(): fixed possible memory leak when processing %p.
+
+   !	spfCheck()/spfMacro(): fixed bug in handling of ptr method or
+	%p. The ptr test neglected to check the validated IP / host
+	domain against the target name as outlined in RFC 4408.
+	Reported by Dave Tanner.
+
+   !	smf.c: getMyDetails() rewritten.
+
+   !	Add socketAddressGetIPv6() to copy IPv4 or IPv6 socket
+   	addres into an IPV6_BYTE_LENGTH buffer.
+
+   +	Added isIPv4InClientName().
+
+   !	DebugMalloc() now sets the whole allocated area including
+	upper and lower boundary areas to 0xdf to more easily identify
+	freed memory. Also when allocating a chunk, the boundary below
+	the MemoryMarker structure is set to 0xda while above the
+	marker to the start of the chunk is set to 0xd0 to more easily
+	distinguish where the marker is sitting.
+
+   !	DebugRealloc() corrected computation of MemoryMarker
+	structure.
+
+   +	Added optionString(), optionStringV().
+
+   !	smfAccessClient(), smfAccessPattern(): when using the default
+	pattern list, be sure to pass the client IP address so that
+	net/cidr patterns can be matched. smfAccessPattern() will only
+	apply net/cidr patterns if the haystack is an IP address.
+
+   !	smfActionPattern() fixed bug where a NEXT action returned
+   	SMDB_ACCESS_UNKNOWN instead of SMDB_ACCESS_NOT_FOUND, when
+   	the action value was not to be passed back.
+
+   +	ProcTitle.c fixed to support Linux.
+
+   !	Fixed old convertDate() porting error concerning time zones
+	from milter-date. Reported by Jim Hermann.
+
+   !	convertDate() now skips leading white space before trying to
+   	parse the date string.  Reported by Jim Hermann.
+
+   !	spfCheck(): fixed returned error w.r.t. to TXT record lookup
+   	not being found according RFC 4408 SPF Classic section 4.3.
+   	and 4.4.
+
+   +	Added socketSetKeepAlive().
+
+   !	socketWrite(), socketWriteTo() changed to support the sending
+	of a zero-length packet. This probably depends on the
+	underlying socket implementation.
+
+   !	uri.c: spanDomain() now treats double dots in the domain name
+   	as illegal, eg. https://smallbusiness..dell.com/ should not
+   	parse.
+
+   -	Dropped uri-implicit-domain-min-dots in favour of a constant
+   	value of 2 for MIME content filtering. A value of one can
+   	result in too many false positives.
+
+   +	Added uriParse2() which can be passed as an extra argument
+   	the implicit-domain-min-dots when using the function to test
+   	URIs that didn't originate in message content.
+
+   +	Add SQLite3 support for kvm and mcc APIs. Integrated SQLite3
+   	distrobution with LibSnert. Use an explicit --with-sqlite3 or
+   	--without-sqlite3 to disable.
+
+   +	Added mcc (multicast & unicast cache) API.
+
+   !	aclocal.m4/configure.in: --without-db can be used to disable
+	linking with all new Berkeley DB versions other than the old
+	1.85.
+
+   !	aclocal.m4/configure.in: Take care in detecting libpam,
+	libsqlite3, librt, libpthread, since they're often an .so and
+	not all my software requires them. However, by detecting it,
+	its automatically added to $LIBS and so a version specific
+	reference could end up appearing in the dynamic library start
+	sequence. If the library has a major update, the old one
+	deleted, and the application didn't really need the library,
+	then it will refuse to start due to library version change.
+	End result, try to link with only those libraries that an
+	application requires. Reported by Andrey Chernov
+
+  !!	Dns.c, spf.c: Fixed bug in the processing of TXT record
+  	lengths that could result in the extra NUL byte writing
+  	into memory (way) outside our allocated data/string buffer.
+
+   !	Cleaned up assorted minor compiler warnings for 64-bit SuSE
+   	Linux concerning the signedness of arguments. Requested by
+   	Gary Faith.
+
+   !	Added null pointer guard to md5_append() for "data" argument.
+
+   !	DebugMalloc: Added to a simple CRC check of the marker.
+
+   +	Added TextInputLine2() and TextReadLine2().
+
+   !	DnsGet(): When trying to resolve MX, NS, or similar records,
+	if one of the A / AAAA lookups failed, then the whole list was
+	discarded and an undefined result given. Now it returns a
+	partially complete answer. This fix also allows RFC 2317
+	reverse dns delegation (CNAME -> PTR) to work.
+
+   !	Cache.c: Fixed compiler error when using --enable-cache-db-185.
+   	Reported by Jay West. Note that support for Berkeley DB 1.85
+   	was dropped two or three years ago.
+
+   !	spfCheck(): fix bug concerning RFC 4408 section 5. Mechanism
+	Definitions last paragraph with respect to the failure of
+	subordinate DNS requests, ie. when server DNS recusion is off
+	and you have a successful MX lookup followed by A records
+	lookups that are undefined you would receive TempError,
+	instead of simply continuing processing the as per the RFC.
+
+   +	Added isReservedTLD() as a means to select which RFC 2606
+	or similar reserved domains should be tested for. isRFC2606()
+	is now just a cover function for isReservedTLD(path, ~0).
+
+   !	parsePath.c, MailSpan.c: only allowed backslash escaping
+	within a quoted string, which is correct according to RFC 2822
+	grammar for the local-part, eg. <"quoted\\string"@example.com>.
+	However, it appears that sendmail will accept backslash
+	escapes outside of a quoted string too, eg.
+	<escape\ space@example.com> As this might be an oversight by
+	RFC 2822 and backslash escape is a common idiom in and out of
+	quoted strings, I've elected to support it. Reported by
+	Dariusz Walczak.
+
+   !	Updated libmilter version handling in smf.c for sendmail 8.14
+	changes, in particular the changes concerning SMFI_VERSION.
+
+   !	version.h now defines __unix__ if __unix is defined, because
+	some C compilers, like for SunOS 5.8, only define the latter,
+	while I use the former. Reported by Mathew Huff.
+
+   !	Dns.c: If UDP response was truncated, then return a Not
+	Implemented error (4) instead of OK, since we don't support
+	TCP lookups yet. This should avoid possible parsing errors due
+	to chopped records.
+
+   !	spf.c: If the DNS TXT lookup returns Not Implemented, then be
+	sure to return a None instead of Temp. Fail.
+
+--1.62--
+
+   +	Added socketBind() to allow for binding client sockets to
+   	a local address and/or port.
+
+   !	Changed smtpError.c in favour of using error codes instead
+   	of constant error strings. Its easier to classify based on
+   	an error code between SMTP, I/O, and internal errors.
+
+   !	smtpOpen.c smtpRead.c, smtpWrite.c now use SMTP_ERROR_ codes.
+
+   +	smtpGetError() added a function to return a short SMTP error
+   	message.
+
+   !	smfAccessHost() changed testing of loopback address from using
+	{if_addr} macro to testing the {client_addr}. Postfix 2.3
+	milter support does not support the {if_addr} macro.
+
+   +	smdbAccessCode() now recognises Postfix 2.3 DUNNO action which
+   	is equivalent to Sendmail SKIP action.
+
+   +	smfAccessHost(): Postfix 2.3 uses "unknown" for client_name
+   	when there is no rDNS result instead of an IP-as-domain-literal
+   	"[123.45.67.89]" which Sendmail uses. Test and exclude "unknown"
+   	from reject-unknown-tld test.
+
+   +	Added experimental option -smdb-key-has-nul for Postfix 2.3
+	where postmap(1) is used to generate .db files. When set, key
+	lookups add one for the C string terminating NUL byte.
+
+   +	smf.c: added smdb-use-stat and smdb-key-has-nul to the common
+   	set of options for milters.
+
+   !	smfOpenProlog(): When raw_client_addr is NULL assume address
+	is 127.0.0.1. Postfix 2.3 invokes xxfi_connect handler with
+	client_name="localhost" and client_addr=NULL instead of the IP
+	address. The libmilter documentation states that client_addr
+	is on NULL for stdin or unsupported socket type. So assuming
+	127.0.0.1 is probably the safest.
+
+   +	uriIsDomainBL(), uriIsHostBL(): Added a bit-mask facility to
+	handle aggregate lists like multi.surbl.org.
+
+
+--1.61--
+
+   !	uri.c: The CLI now returns exit code 1 for errors or when a
+   	black listing is found.
+
+   !	uri.c: cid: and mid: URIs are no longer confused as a email
+   	addresses.
+
+   !	uri.c: spanScheme() failed to stop on non-scheme characters.
+
+   !	uri.c: spanDomain() failed to disallow hyphen as the start
+   	of a domain label.
+
+   !	uri.c: spanDomain() asserts that the TLD is alpha only.
+
+   +	uri.c: Added test & option for empty text/plain vs. inline
+   	content.
+
+   !	uri.c: mimeGetUri() now skips top level message/rfc822 part
+	containing mail header information, but does test the
+	remaining sub-parts of the message/rfc822.
+
+   !	TextMatch(): fixed bug related to using a ``stop'' pointer
+   	and memory wrap around when hay_size was set to "unlimited".
+
+   +	uri.c: mimeGetUri() added hack to detect qmail failure
+	notices, because qmail is too stupid to use the MIME
+	message/report formatting.
+
+   +	Added new option.[ch] as a getopt() alternative.
+
+   !	uriParse() will try to parse something without a scheme first
+	as domain name, second as an email address.
+
+   !	mimeGetUri() no longer prefixes addresses it thinks might
+   	look like a host name or mail address. It leaves uriParse()
+   	to figure it out.
+
+   !	uriHttpOrigin() fixed to better handle URIs without a scheme
+   	that might be an http: reference.
+
+   !	smf.c, smdb.c: use option.[ch] in place of smfSetFlags() and
+	smdbSetFlags(). More flexible and allows for library options
+	to be set more universally from the command line and/or
+	options file.
+
+   !	uri.c: uriIsDNSBL() broken into uriIsHostBL() and uriIsDomainBL().
+   	uriIsDomainBL() domain & sub-domain lookups from surbl.org and
+   	uribl.com. uriIsHostBL() handles host/IP lookups from classic
+   	DNS BL, like spamhaus.org.
+
+   -	uri.c: CLI -b option removed in favour of just using -d.
+
+   +	parsePath.[ch]:Added IS_IP_THIS_HOST for 0.0.0.0/32 and IPv6:::0.
+	Previously it was group under IS_IP_THIS_NET, but RFC 3330
+	defines "this" host and it can be useful to test for.
+
+   !	smf.[ch]: Many changes in preparation to switch from old to
+   	new preferred option style.
+
+   !	aclocal.m4: Debugging is off by default.
+
+   !	siq: Added "expires" member to SIQ structure as a convenience.
+   	This is the timestamp when the response was received, plus the
+   	response TTL. This simplifies some code with respect to caching
+   	in milter-siq.
+
+   !	socketAddressCreate() now correctly sets the socket length
+	structure member when HAVE_STRUCT_SOCKADDR_SA_LEN is define,
+	this impacted UDP packets being sent using socketWriteTo().
+
+   !	socketReadFrom(): the `from' argument can be NULL.
+
+   !	isReservedIPv6(): IS_IP_V6 has been added as the complimentary
+	classification to IS_IP_V4; also IS_IP_V4_COMPATIBLE and
+	IS_IP_V4_MAPPED can now be individually tested for.
+
+   +	Added TextFind() that returns the offset of the start of found
+   	text.
+
+   +	Added sys/pid.[ch] for PID file support; some functions moved
+   	from smf.c.
+
+   +	Added io/network.[ch] for network support functions; moved
+	networkContainsIp() from spf.c and smf.c to here; added
+	networkGetMyDetails()
+
+  !!	smfAccessClient(): When an access lookup matches an IP and a
+	network/cidr is specified on the RHS, the client_name was
+	incorrectly passed to smfAccessPattern() instead of
+	client_addr, which causes an IP parse error. Reported by Ryan
+	Weaver.
+
+   !	Changed LogPrintV handling of newlines and ASCII control
+   	characters.
+
+   !	socketAddressCreate(): fixed bug where specifying an IPv4
+   	this-host (0.0.0.0) was flaged as IPv6.
+
+   +	socketReadLine2() added with an extra boolean parameter to
+   	indicate whether to keep the CRLF in the line buffer.
+
+   +	smtpRead() added to read and return multiline response.
+
+   +	smtpWrite() simplified version similar to smtpPrintLine().
+
+   !	VectorRemoveAll(): Added NULL pointer guard.
+
+   !	DnsInit(), DnsGet(): now handles /etc/hosts lookups.
+
+   !	Dns.c: nameLength() and nameCopy() now return the root segment
+   	"." instead of an empty string.
+
+   +	New SMTP rountines that simplify some of the grunt work of
+	writing simple send message routines, sending long messages
+	(+64K), and multiple recipients: smtpOpen, smtpClose,
+	smtpAddRcpt, smtpPrint, smtpPrintf, smtpPrintfV,
+	smtpTimeoutGet, smtpTimeoutSet, smtpAssertCRLF. Intended for
+	use in milter-report.
+
+   -	mail/smtp.c has been dropped in favour of the above mentioned
+   	smtp API.
+
+   !	smfAccessMail(), smfAccessRcpt() fixed "unknown TLD" for IP-
+    	as-domain literals, which are not TLDs and so should not be
+    	tested.
+
+   !	Fixed bug in mimeGetUri() boundary handling code that could
+	cause a change in MIME content-type inappropiately. Reported
+	by Ken Anderson.
+
+--1.60.816--
+
+   !	util/makefile.in: fix build of uri CLI on some platforms like
+   	Solaris. Reported by Rieder Dietmar.
+
+--1.60--
+
+   - 	Removed io/URI.c. It wasn't as complete as I would have liked
+   	and decided to start over.
+
+   +	Added util/uri.c for parsing a URI string into its component
+	parts. Also provides assorted span functions, uriHttpOrigin(),
+	uriIsSURBL(), and mimeGetUri(). It can also be built as a CLI
+	for testing.
+
+   -	DebugMalloc.h removed from distribution. Its not required for
+	the current implementation.
+
+   !	tlds.c: Added hasValidNthTLD(), indexValidTLD(), indexValidNthTLD().
+
+   !	tlds.c: An empty string is not a valid TLD.
+
+   !	TextMatch() has extra arguments to limit the size of the haystack
+   	and flag case-insensitive match.
+
+   !	smfReplyV(): Changed "reply..." message from SMF_LOG_INFO to
+	SMF_LOG_TRACE. Typically the reply message is reported in the
+	mail log by sendmail anyways.
+
+   +	Added TextCat(), similar to strlcat() for systems that don't
+   	supply strlcat().
+
+   !	socketClient(): Assert that so_error is zero before calling
+   	getsockopt(SO_ERROR).
+
+   +	smf.h: added LIBMILTER_SOCKET_TIMEOUT constant (7210) since
+	the libmilter headers don't provide one. See smfi_settimeout()
+	documentation.
+
+   !	spf.c: Fixed redirect= so that the domain passed to the
+	recusive spfCheck() is an independant copy of the macro
+	buffer. Reported by Mike Elliott.
+
+   !	spf.c: Fixed handling of ptr mechanism to account for multi-
+	homed hosts. Reported by Mike Elliott.
+
+   !	smfMainStart(): Add guard against incorrect setting of
+	--localstatedir and --enable-pid file in milter ./configure
+	scripts to base system directories which could inadvertantly
+	change the directory ownership and permissions. Reported by
+	Steve Freegard.
+
+   !	spf.c: Fixed support for dual-cidr-length used for A and MX
+   	mechanisms.
+
+   !	spf.c: If a ptr mechanism fails on the forward DNS lookup,
+	proceed to the next clause instead of giving an error. More
+	fault tolerent of difficult ISPs. Suggested by Mike Elliott.
+
+   +	spf.c: Added spfCheckHeloMailTxt() and -t option for the CLI
+	to specify an initial TXT record to start with instead of
+	looking up the SPF record of the sender. Suggested by Mike
+	Elliott. This can simplify testing.
+
+   !	spf.c: Falling off the end of the SPF record that does not
+	contain an ``all'' or ``redirect'' clause, failed to set the
+	default result correctly to Neutral. Reported by Mike Elliott.
+
+
+--1.59--
+
+   !	smfReplyV(): If the format string starts with an extended
+	status code, then use that instead of that provided by ecode.
+	This allows functions like parsePath() to return strings with
+	the extended status code it thinks better corresponds to the
+	error.
+
+   !	berkeley_db.h: removed last #error message when there is no
+	linkable Berkeley DB defined. Solves build issues when
+	building Cygwin mingw library.
+
+   !	Cache.c, smdb.[ch], smf.c: replaced LIBSNERT_WITH_BERKELEY_DB
+	by HAVE_DB_H. They are effectively equivalent now.
+
+   !	socket2.c: socketOpen() fixed opening of unix domain sockets
+   	returning unsupported protocol error, EPROTONOSUPPORT.
+
+   !	tools/clamstream.c: fixed -H with unix domain sockets.
+
+   !	socket2.c: socketAddressLength() returned the incorrect
+	structure length for unix domain sockets, which caused an
+	EINVAL error on Linux 2.4 kernel (and maybe others) at
+	connect() time.
+
+   !	Updated TLD list from IANA.
+
+--1.58--
+
+   !	smdbGetValueInternal() added missing argument to syslog()
+   	error message.
+
+   !	socketAddressCreate(): added NULL guard for host/ip string.
+
+   !	socketClient(): clear errno before connect() to be sure we
+	don't fail the connection for a previous unrelated error.
+
+   !	smdbAccessIp(): fixed off-by-one erro concerning the handling
+	of IPv6 address with an "IPv6:" prefix not being properly
+	stripped before lookup. Reported by Panagiotis Christias.
+
+
+--1.57--
+
+   !	spfNetworkContains(), networkContainsIp(): When a network/CIDR
+	is specified, be sure to apply the mask to both the IP address
+	being tested and the network address, because in some
+	instances the network address is not properly specified, ie:
+	10.123.45.67/8 is valid, but confusing when the network
+	address should be 10.0.0.0/8. Reported by Steve Sladewig and
+	Derek Balling.
+
+   +	Added special flag +smtp-auth-ok to allow people the ability
+	to enable/disable use of SMTP+AUTH for white listing. Some
+	ISPs do not trust their clients enough to allow them to bypass
+	milters.
+
+   +	Enhanced smfAccess*() to support empty tag lookups as a means
+	to provide global defaults for B/W listing. This only works
+	for milter specific tags and NOT sendmail tags (connect:,
+	from:, spam:, or to:)
+
+   +	Added smfAccessAuth() to support the ability to lookup the
+   	tagged {auth_authen} macro and pass the result through the
+   	RHS pattern list.
+
+	  tag:auth_authen			RHS
+	  tag:auth_authen:			RHS
+
+   !	Fixed memory leak in smfAccess*() functions after introduction
+   	of smfAccessPattern() semantics.
+
+   !	isRFC2606() now knows about .localdomain despite its NOT being
+   	in RFC 2606.
+
+   !	smfMainStart() now asserts that the directory used by the pid
+   	file exists. OpenBSD and possibly others remove all the contents
+   	of /var/run including subdirectories on server restart.
+
+   !	aclocal.m4: Changed the SNERT_OPTION_ENABLE_CACHE_FILE macro
+	to append a .db file extension. This make it easier to use
+	makemap(1) to dump the cache, since it always appends a .db
+	extension to the filename.
+
+   +	Cache.c: Added BDB file locking code.
+
+   +	Dns: DnsEntry now has members for the original address length
+   	and a string representation of the address. This reduces the
+   	need for isReservedIPv6(IS_IP_V4) and formatIP() for some
+   	callers.
+
+   !	smdb.c: Added snprintf() overflow checks in case the
+	smdbAccess*() functions are called with exceptionally long
+	strings. Otherwise they can go into exceptionally long loops
+	that do unpredictable things that could crash the process.
+
+   !	mkpath(): fixed creation of absolute directory paths.
+	Previously only relative ones could be done.
+
+   !	Dns.c, Socket2.c: implemented support for huge file descriptor
+	sets when using select() on unix systems.
+
+   !	smtpSendMessageV() changed to break the MX connection loop
+   	on SMTP session and I/O errors, but not connection errors.
+
+   !	smfAccessRcpt() now excludes <postmaster> from the valid TLD test.
+
+   !	socketClient(): Replaced non-portable "liberal" connection
+   	technique for blocking sockets, with a non-blocking connect()
+   	and a defined default timeout.
+
+   !	smfReplyV() now replaces non-printable characters with spaces
+   	since smfi_setreply() will fail otherwise.
+
+   !	CacheBdbWalk(): added NULL pointer checks of DBT.data fields
+	after cursor->c_get(), since we use DB_DBT_REALLOC flag which
+	might result in NULL being passed back.
+
+   !	smfOpenProlog(): changed to use formatIP().
+
+   !	smfAccess*(): changed wording of white listed entries to just
+	say "OK" instead of "white listed, skipping", since sometimes
+	message does not make sense or is misleading in the caller's
+	context.
+
+   !	smtpSendMessageV() now does isReservedIPv6() and hasValidTLD()
+   	tests on the MX.
+
+   +	Complete rewrite of DebugMalloc memory debugging code into
+   	something useable for OpenBSD, Linux, and Windows; thread-safe
+   	and reentrant. Useful for catching double-free, over/under runs,
+   	and invalid pointers.
+
+   +	aclocal.m4: add SNERT_FIND_LIBC and SNERT_SETJMP macros. The
+   	find libc macro is used by DebugMalloc.
+
+   !	CacheBdbOpen(): disabled verification of cache before opening.
+   	Possible malloc/free issue.
+
+   !	aclocal.m4: added test to SNERT_CHECK_CONFIGURE to find either
+   	autoconf-2.59 or autoconf. OpenBSD packages install an autoconf
+   	with a version number.
+
+   !	socketAddressToString(): specified the wrong constant for the
+   	string buffer size.
+
+   !	socketAccept(): if accept() returned an error other than EINTR
+	then the client socket structure would be freed, but the
+	function failed to return NULL because of a typo ("c == NULL;"
+	should have been "c = NULL;"). This would likely cause memory
+	corruption and unpredictable behaviour.
+
+   !	aclocal.m4, berkeley_db.h, version.h.in.in: updated Berkeley DB
+   	header and library discovery. See SNERT_BERKELEY_DB.
+
+   !	parseIPv6(): fixed segmentation fault caused by parsing an
+	unsually long IPv6 styled string like "1:2:3:4:5:6:7:8:9:a:b"
+
+   !	nameLength(), nameCopy(), nameSkip(): added lots of bounds
+   	checking of offsets and pointers within the packet, since we
+   	cannot blindly trust 3rd party DNS sources (bad implementaion,
+   	corruption, hacking).
+
+   !	smfAccessRcpt(): The address <postmaster> was excluded from
+   	TLD testing. This has been expanded to include <postmaster@...>
+   	for site internal domains.
+
+   !	parsePath() no longer lowers the case of the localRight portion
+	of the path. This might be a folder name, hash, or token, which
+	could be case sensitive.
+
+   !	smfAccessHost() now tests the {if_addr} macro instead of
+	client_addr string for detecting the loopback interface.
+
+--1.56--
+
+   +	Moved new socket.[ch] API from Roundhouse into LibSnert as
+	io/socket2.c and io/socket2.h. This socket API supports IPv6.
+
+   !	socket2.h: Fixed #define order of SHUT_RDWR and co. to be
+   	after the inclusion of sys/socket.h where these constants
+   	are defined.
+
+   +	Added socketShutdown() cover function to socket2 API.
+
+   +	Moved clamstream.c from Roundhouse into tools, since it
+   	uses the socket2 API and is not related to Roundhouse.
+
+   !	mail/siq.c, mail/smtp.c, tools/popin.c, tools/smtpout.c now
+   	use the socket2 API.
+
+   -	io/Message.[ch] and io/MessageStream.[ch] removed. This was
+   	leftover code from a previous job and no longer used.
+
+   +	Added hasValidTLD() based on publisbled IANA list from
+   	http://data.iana.org/TLD/tlds-alpha-by-domain.txt
+
+   +	smfAccessHost(), smfAccessMail, smfAccessRcpt() now check for
+   	unknown/illegal TLDs, default -Z +reject-unknown-tld.
+
+   !	siq.c: more detailed usage description.
+
+   !	LogOpen("(standard error)") now opens the log file on standard
+   	error. Implemented for Roundhouse.
+
+   !	Dns.c: nameLength() now performs an upper bounds check against
+   	the max. length of a domain name in order to guard against odd
+   	or corrupted packets that exceed this.
+
+   !	Dns.c: nameLength() and nameCopy() parse code did not handle
+	compression jumps to a root (zero length) label correctly.
+	This would result often in a busy loop that would drive up the
+	CPU. Reported by Kevins Brooks.
+
+   !	aclocal.m4: Changed SNERT_OPTION_ENABLE_PID and
+	SNERT_OPTION_ENABLE_SOCKET to accept optional default paths.
+
+   !	spf.c: spfNetworkContains() now checks the range of the CIDR
+   	value.
+
+   !	spf.c: spfCheck() now returns a PermError for an out of range
+   	CIDR value.
+
+   !	aclocal.m4, smfSetProcessOwner() has to set the supplemental
+	groups.
+
+   !	spf.c: fixed handling of null address according to SPF-Classic
+   	Internet Draft section 2.2
+
+   !	spf.c: fixed handling of qualifiers applied to an include.
+   	The result of the include evaluation was incorrectly being
+   	returned instead of the qualifier for the include if the
+   	evaluation passed. Reported by Mike Elliott.
+
+--1.55--
+
+   !	siq.[ch]: Added #define constants for negative score
+	definitions as specified in SIQ draft 02.
+
+   !	getSiqScoreA() now correctly sets the SIQ.score member
+   	to RESPONSE_ERROR for any client error conditions.
+
+   !	siq.[ch]: The SIQ structure now returns the extra_length
+   	and extra data portions of the response as defined in
+   	SIQ draft 02.
+
+--1.54--
+
+   !	spf.c: fix bug in comparison of host name returned from a PTR
+   	lookup, where the host name will have a trailing root dot,
+   	but the result of spfMacro() doesn't and so the test to see
+   	if a host name ends with the consulted SPF domain failed.
+   	Reported by Derek Balling.
+
+   !	setBitWord2() modified to support optional +/- prefixes on
+   	flag words.
+
+   +	smdbSetFlags() added to support experimental or internal
+	runtime options, default "-Z -smdb-use-stat".
+
+   !	smfSetFlags() also calls smdbSetFlags().
+
+   +	New NEXT action is a Snert milter extension that can only be
+	used with milter specific tags in access.db.
+
+   	Normally when the access.db lookup matches a milter tag, then
+	RHS regex pattern list is processed and there are no further
+	access.db lookups possible.
+
+   	The NEXT action allows the access.db lookups to resume and is
+	effectively the opposite of SKIP.
+
+   	Consider the following trival example:
+
+   		milter-NAME-from:com	/@com/REJECT NEXT
+   		From:com		OK
+
+   	would reject mail from places like compaq.com or com.com if
+	the pattern matches, but resume the the access.db lookups
+	otherwise.
+
+   	Now consider this more complex example concerning the format
+	of aol.com mail addresses. AOL local parts are between 3 and
+	16 characters long and can contain dots and RFC 2822 atext
+	characters except % and /.
+
+   	First is what might be specified if NEXT were not possible:
+
+   		milter-NAME-from:aol.com  /^.{1,2}@aol.com$/REJECT /^[^@]{17,}@aol.com$/REJECT /[%\/]/REJECT
+   		From:fred@aol.com	OK
+   		From:john@aol.com	OK
+
+   	Now consider this shorter version using NEXT:
+
+   		milter-NAME-from:aol.com  /^[a-zA-Z0-9!#$&'*+=?^_`{|}~.-]{3,16}@aol.com$/NEXT REJECT
+   		From:fred@aol.com	OK
+   		From:john@aol.com	OK
+
+   	The NEXT used above allowed me to specify one simple regex
+	instead of (a complex one using alternation or) three in order
+	to validate the format aol.com address and then proceed to
+	lookup white listed and/or black listed addresses.
+
+--1.53--
+
+   !	smdbGetValue() add NULL pointer guards.
+
+   !	smfAccessPattern() changed to allow for an arbitrary "action"
+   	to be returned, such as an email address (see milter-bcc).
+
+   !	Fixed smfAccessPattern() pattern delimiter scanning. RFC 2822
+	allows exclamation (!) and slash (/) characters to be part of
+	the local-part of an address and so must be escaped in order
+	to match.
+
+   !	parsePath(): some minor changes for when strict-syntax
+	checking is disabled with respect to whitespace.
+
+   !	aclocal.m4: fixed the double expansion issues of some
+	configure variables that are passed into .h or .c files
+	(CACHE_FILE, PID_FILE, and SOCKET_FILE).
+
+   !	aclocal.m4: renamed SNERT_OPTION_ENABLE_WIN32 to
+   	SNERT_OPTION_ENABLE_MINGW
+
+   !	Dns.c: Fixed DnsInit() for Windows to always get the size of
+   	GetNetworkParams() buffer, which can vary.
+
+   !	Dns.c: Add more error handling when using VectorAdd().
+
+   !	Dns.c: Overhauled internal function DnsResolve() for clarity.
+
+  !!	spf.c: Fix problem concerning multihomed MX records. Reported
+   	by Tristan Griffiths.
+
+   !	smfAccessRcpt(), smfWork: Add new skipRecipient field for
+	white listing per recipient only, instead of white listing the
+	whole message once any white listed recipient is seen. In the
+	milters that act on skipRecipient, spam software that send to
+	multiple RCPTs per SMTP transaction and hit a white listed
+	RCPT, would not impact all the other RCPTs. Requested by
+	Sergey Stepanov. Impacts milter-gris, milter-spamc, and others.
+
+   !	MailSpan.c: allow underscore in domain names. Used for RFC
+	2782 SRV record suport. Reported by Ben Lentz.
+
+  !!	smfSetFileOwner() now checks for unix: or local: prefix on
+   	the file name in case its a libmilter unix domain socket.
+   	This removes the need for a milter to be seteuid() and can
+   	instead can simply setuid(milter) for better security.
+
+   	As a result smfSetProcessOwner() now sets setuid() instead
+   	of seteuid() and does more error checking of the results.
+   	Thus smfAtExitCleanUp() no longer needs to revert back to
+   	root in order to delete the unix socket, since it will have
+   	the same ownership as the process.
+
+   	This only works when a more recent version of libmilter that
+   	supports smfi_opensocket() is present.
+
+--1.52--
+
+   !	aclocal.m4: Fix AC_LANG(C) macro to place a space in between
+	the -o option and its argument for GCC 3.
+
+   !	Dns.c: Use protected includes of sys/time.h and time.h for Mac
+	OS X.
+
+   !	version.h.in.in: Max OS X does not define __unix__ even though
+	its unix under the hood. Add #ifdef __APPLE__ to define
+	__unix__.
+
+   !	Make sure #include <com/snert/lib/version.h> appears first in
+	several .c files, particularly before any use of #ifdef
+	__unix__.
+
+   !	version.h.in.in: Added typedef for socklen_t, which is not
+	defined for SunOS (size_t) and Mac OS X (int).
+
+   !	Socket.[ch]: Resolve compiler warnings for Mac OS X related to
+	socklen_t.
+
+   !	aclocal.m4: Added type check for socklen_t.
+
+   !	TokenSplitA(): fix bug where an extra empty argument is added
+   	to the array when splitting options from a text file, because
+   	of the last newline.
+
+   !	TokenSplitA() no longer zeros the 0 to offset-1 array entries.
+   	This allows an array to be built up through repeated calls to
+   	TokenSplitA().
+
+   !	TokenSplitA() no longer takes an initial offset argument.
+
+   !	Dns.c: DnsInit() for Windows now uses GetNetworkParams() to get
+   	the default list of DNS servers.
+
+   !	smf.c, Socket.c: fix type of size argument to match SUSv3.
+	OpenBSD 3.6 defines a size_t for size, while SUSv3 uses
+	socklen_t. These can end up being different byte lengths on
+	64-bit architectures. Reported by Kevin Rosenberg.
+
+	  const char *
+	  inet_ntop(int af, const void *restrict src,
+	  	char *restrict dst, socklen_t size);
+
+   !	Dns.c: Replaced sizeof (long) and sizeof (short) with constants
+   	for network long and short types, which are 32 and 16 bites by
+   	definition. On an AMD 64 machine, this would blow up very
+   	dramatically because the long C type is 64 bits instead of 32.
+
+   !	smtp.c: Fixed free() of bogus buffer value.
+
+   !	siq.[ch] CLI supports Internet draft-irtf-asrg-iar-howe-siq-02.txt
+   	with some backwards compatibility detection for drafts 00 and 01.
+
+   !	siq.c: fixed seg.fault in siq CLI.
+
+   -	io/stdopen.c dropped. Only three testing tools remained using it.
+   	Dropped in favour of a simplier solution that worked better with
+   	Cygwin/mingw libraries.
+
+   !	tools/uue.c,kat.c,cksum.c modifed to use simplified private copies
+   	of stdopen.c, which has been dropped.
+
+   !	smdb.c: readSendmailCf() can now open virtusertable.db. Intend for
+   	milter-report.
+
+   !	smtp CLI testing tool for Windows now initialises winsock.
+
+--1.51--
+
+  !!	spf.c: spfCheck(): Fixed double release of memory bug. Reported
+  	by Jan Holmberg.
+
+--1.50--
+
+   +	Add smtpSendString() to smtp.c.
+
+   !	More smtpSendMessage*() API changes.
+
+  !!	spf.c: Fix circular reference bug caused by domains like
+  	budgetdialup.com that have two SPF records including each
+  	other. Requested by Derek Balling.
+
+   +	spf.c: Add DNS lookup limits as outlined in the Internet
+   	draft for DNS related mechanisms and %{p} macros.
+
+   +	grey.[ch]: Added grey-listing code as a library function.
+
+   +	TextMatch.[ch]: Added simple pattern matching function that
+   	supports '*' and '?' wild cards.
+
+   +	smf.c: Added support to smfAccess*() functions to allow for
+	pattern matching. A tagged access.db value can now specify a
+	list of patterns to apply for an IP, host name, MAIL, or RCPT.
+	For example:
+
+   	  milter-NAME-from:example.com	!fred@*!REJECT /^[^.]+\.smith@.*/DISCARD OK
+
+   	Would reject mail from fred@example.com, discard mail from
+	any.smith@example.com, and accept the rest. Note that there
+	are two supported patterns mechanisms: simple * ? matching and
+	exteneded regex.
+
+   +	aclocal.m4: Added SNERT_REGEX to look for the standard POSIX
+	Regular Expression API.
+
+   !	aclocale.m4: Fix SNERT_LIBMILTER detection of libmilter and
+	package loading for Debian.
+
+  !!	Fixed bug in smdb_open() that caused milters to crash when
+	access.db is updated. Reported by Joe Matuscak.
+
+--1.49--
+
+   !	With some versions of gcc 3.x smtpSendMessageV() and
+	smtpMessage can not pass a va_list around and assign it a
+	structure member. It would appear that it can only be pass
+	around as a function argument once assigned.
+
+   +	smf.c, aclocal.m4, configure.in, version.h.in.in: Added new
+	compile time option --enable-popauth to enable code to test a
+	the sendmail macro {popauth_info} when used with dracd.
+	Similar in bahaviour to {auth_authen}. Requested by Michael
+	Elliott. See contrib directory for notes.
+
+   !	Fixed smtpSend* bug for milter-report. The result of rushing a
+   	fix out for SPF in 1.48, while in the middle of other changes.
+
+   +	spf.c: Fix recursion for include: mechanism. Fix suggested by
+   	Matanya Elchanani.
+
+--1.48--
+
+   !	smtpSendMessageV() neglected to send a QUIT command.
+
+   !	smtpSendMessageV() will now except a NULL message and skip the
+   	DATA command.
+
+   !	smtpSend*() function signatures changed.
+
+   !	Added smtpErrorBusy, smtpErrorNoService error messages.
+
+   !	SocketOpenTcpClientWait(): The change back to a blocking
+	socket is done right after the connect() and before the
+	select(). Otherwise on Windows, we get WSAEWOULDBLOCK (10035)
+	on the select().
+
+   !	spf.c: fix bug in recursive handling of SPF records.
+
+   !	spf.c: fix string comparison bug concerning "all" and "a"
+   	mechanisms.
+
+   +	Added DnsError* string constants to Dns.h.
+
+   +	ParsePath. Added isWhiteListed convenience member to the
+   	structure.
+
+--1.47--
+
+   +	Added reverseSegments() to Dns.c.
+
+   +	Added strlrspn() and strlcspn() taken from hibachi/2.10 code.
+
+   +	spf.c: Added spfCheckMail() and spfCheckHeloMail(). Implemented
+   	the missing %{s}, %{l}, %{o}, %{h}, and %{p} macros and
+   	transformations.
+
+--1.46--
+
+   +	Buf.[ch]: Added BufCreateWithString() for use in milter-report.
+
+   !	Buf.[ch]: Renamed BufFrom*() to BufCreateFrom*() to correspond
+	the naming convention used by Data.h
+
+   +	Cache.c: Added CacheRemoveAll() for all three cache types.
+
+   !	Moved cover functions gmtime_r() and localtime_r() from Time.c
+	into gmtime_r.c. These functions will use a static POSIX mutex
+	when available, otherwise they are not thread safe.
+
+   +	Added cover functions for ctime_r() and asctime_t(). These
+	functions will use a static POSIX mutex when available,
+	otherwise they are not thread safe (yet).
+
+   +	Added sys/pthread.[ch] for emulation of POSIX thread & mutexes
+   	for Windows. Taken from hibachi 2.
+
+   -	DebugMalloc.c: Removed POSIX mutex emulation for Windows.
+
+   +	Added util/ProcTitle.[ch] for Tick Cafe 3 CGIs.
+
+   +	Added setBitWord2() to accept a delimiter string.
+
+   !	smfOpenProlog() uses a private mutex now, instead of smfMutex.
+
+   +	DnsOpen() will now invoke DnsInit() if necessary.
+
+   !	DnsGet() would return a name not found error for an MX lookup
+   	if any of the MX in the list did not resolve. Now we return
+   	the partial list. Reported by Didi Rieder.
+
+   !	Moved SMTP_IS_* macros from smf.h to smtp.h.
+
+   +	Added SMTP_ISS_* macros to smtp.h. Similar to SMTP_IS_* but
+   	checks the first ASCII digit of a response code.
+
+   +	Added SMF_LOG_ERROR category for consistency and is always
+	logged.
+
+   !	smfReplyV() changed "reply %s %s %s" from SMF_LOG_DEBUG to
+	SMF_LOG_INFO so that there is one searchable string in the
+	mail log that always returns the milter's reply, which is
+	typically a temporary or permanent reject, but could be a
+	success result too. This can then be used for per-milter
+	statistics and graphing. Requested by Jeff Powell.
+
+   !	TextC.c: Break out some of the more commonly used functions
+	and cover functions into separate source files. Also most of
+	the in-place string functions have dropped the offset arguement.
+
+  !!	Properties.c: The base-64 buffer length was being given as 2
+	bytes too long, the length of "*?" base-64 lead-in, to the
+	Base64DecodeBuffer routine, which could result in a corrupted
+	input by PropertiesLoad(). Also made sure to reset the decode
+	buffer between uses. This also affects loading of Cache
+	flatfiles.
+
+   +	siq.[ch]. Added SIQ query code as a library function.
+
+   +	Added DnsSetNameServers().
+
+   !	Changed DnsOpen(char **) to DnsOpen(void).
+
+   +	spf.[ch]: Added SPF query function. Incomplete.
+
+--1.45--
+
+   -	smdb.c, smf.c: Removed smdReload() function.
+
+   !	smdb.c: Modified smdbGetValue() to use flock() for controlled
+   	access to sendmail database files. newaliases and makemap also
+   	use flock().
+
+   !	smdb routinues now have a mutex per smdb structure.
+
+   !	Dns.c: hasInput() when using poll(): changed POLLHUP condition
+	to return EPIPE only once all input has been exhausted.
+
+  !!	License change to allow for private individual/single machine
+  	license.
+
+--1.44--
+
+   !	aclocal.m4: fix Debian apt-get handling for Berkeley DB
+	developmemt. After the apt-get, must redo the tests to find
+	the headers.
+
+   !	zoned.c: fixed authentication when not using PAM, as previously
+   	done for filed.c
+
+--1.43--
+
+   !	Dns.c: fix logic bug that would cause some invalid "DNS
+   	circular reference" errors.
+
+   !	Dns.c: fix circular/bogus reference issue; SOA is returned for
+	a request and the lookup of the A record of primary NS returns
+	SOA again.
+
+   !	Dns.c: failed to correctly handle cases where a lookup of
+	something other than an SOA returned the SOA.
+
+--1.42--
+
+   +	Added VectorAll(), VectorSome(), HashAll(), HashSome() methods.
+
+   !	Changed VectorWalk() behaviour to to pass the Vector to the
+   	walk function.
+
+   !	Socket.c: fixed sigwait() function signature issues for:
+   	SunOS sbox 5.9 Generic_118558-05 sun4u sparc SUNW,Sun-Fire-480R
+
+   !	version.h.in.in: When an old version of libmilter.h is found
+	without the newer handlers, then SET_SMFI_VERSION was left
+	undefined, yet expected in smf.c.
+
+   !	aclocal.m4, version.h.in.in, Socket.h: added tests for struct
+   	sockaddr_un.
+
+   !	aclocal.m4: fix typo for apt-get command (libc6-dev).
+
+   !	aclocal.m4: SNERT_PTHREAD must detect and link with -lpthread
+	for SunOS. The AC_SEARCH_LIBS macro found a stub elsewhere and
+	thus never checked the remaining library list. Replace
+	AC_SEARCH_LIBS with AC_CHECK_LIB which does an explicit test.
+
+   +	smfMainStart(): detect when the .pid references a non-existant
+   	process and overwrite it. An old .pid file could be left behind
+   	if the milter crashes or is forcefully killed.
+
+--1.41--
+
+   !	Cache.c: Fixed preprocessor macros to properly exclude all
+   	Berkeley DB for versions prior to 3.2.
+
+   !	Cache.c: fixed segfault with db->verify() caused when there
+   	is no previously existing cache.db. Reported by Oliver Falk.
+
+   !	Fixed configure.in, aclocal.m4 script to better handle
+	Berkeley DB library and header searches. All these cases
+	should now work.
+
+   		./configure
+   		./configure --with-db
+   		./configure --with-db=/usr/local/BerkeleyDB-4.2
+   		./configure --without-db
+
+   	LibSnert checks for and has been tested in the past with db
+	4.2, 4.1, 3.3, 3.2, and 1.85. It will select the headers of
+	the --with-db directory or the most current version found. It
+	will note the presence of db4/db.h, db3/db.h, and/or db.h
+	headers in com/snert/lib/version.h.
+
+   +	configure.in: When building on Debian, will install libmilter-dev
+   	if the headers are not found. Will also install the matching
+   	Berkeley DB headers and pam headers.
+
+   !	configure.in now has an option `--enable-cache-with-db-185' to
+	allow the cache to support BDB 1.85 for any brave souls that
+	want to try and see why the cache gets corrupted on *BSD.
+
+   !	smfMainStart(): removed the masking of SIGQUIT, because
+   	pthread_sigmask() affects *the current thread* in addition to
+   	future threads, which would mean that SIGQUIT would never get
+   	delivered to a milter. Doh! Reported by Mike Boev.
+
+   !	counter.c, sendform.c: fixed -v, nph, and cgi handling.
+
+   +	Added smfHeaderRemove().
+
+   !	Cleaned up mailout.c to use syslog when on unix. Added more
+   	error checking. Altered -f option behaviour. Added -t option.
+   	The default sender address is now the DSN null address.
+
+   !	Renamed mailout.c to smtpout.c.
+
+   +	Added popin.c to read from POP mail accounts.
+
+   +	configure.in, version.h.in.in: Check for sysexits.h.
+
+   +	version.h.in.in: added my own EXIT_* codes, since sysexits.h is
+   	not available for non-Unix like systems and I wanted error codes
+   	I know would remain constant in all my code.
+
+   !	smfAccessMail() and smfAccessRcpt() now explicitly clear the
+   	skipMessage flag for REJECT/ERROR/HATER values. Use SKIP to
+   	obtain the previous behaviour of a lookup short-circuit.
+
+   	This issue was raised based on a question from Anke Breeuwsma,
+   	where you white-list based on a connect: tag, but want to
+   	override later based on from: or to: tag variants.
+
+   !	Simplified configure.in and */makefile.in to avoid using xargs
+   	for building the libsnert.a.
+
+   !	Socket.c: Fixed a timeout bug with select() for Linux systems
+	that modify the timeout structure:
+
+		On Linux, the function select modifies timeout to
+		reflect the amount of time not slept; most other
+		implementations do not do this.  This causes problems
+		both  when  Linux code which reads timeout is ported
+		to other operating systems, and when code is  ported
+		to  Linux  that  reuses  a struct  timeval  for
+		multiple selects in a loop without reinitializing it.
+		Consider timeout to be undefined after select returns.
+
+   !	configure.in, version.h.in.in: Fixed detection and handling of
+	flock() constants for some systems like Solaris 2.5.1 that
+	talk about the constants in the flock man page, but fail to
+	declare them in any headers. Reported by Stephen Carr.
+
+   +	MailSpan.c: added functions MailSpanPath(), MailSpanAtDomainList(),
+   	MailSpanMailbox(), and MailSpanIPv6().
+
+   !	parsePath(): updated to recognise source routed addresses, IPv6
+	address literals, and to perform regression testing.
+
+   !	Cache.c: remove BDB 3.2+ restriction in the version testing
+	macros in order to be sure that DBTXN is defined. Reported by
+	Vittorio Moccia.
+
+   !	counter.c: more usage text.
+
+   +	smf.c: add smfMultiLineReply(), smfMultiLineReplyV(), and
+	smfMultiLineReplyA() support. This requires Sendmail / libmilter
+	8.13+ with smfi_setmlreply().
+
+   +	Added mimepart.c to extract top level MIME body parts.
+
+   +	smfAccessHost(), smfAccessMail(), smfAccessRcpt(): Added test
+	for reserved RFC 2606 domains in MAIL or RCPT address.
+	Suggested by Andrey Chernov.
+
+   -	configure.in: Removed gcc option -fvolatile, which is no longer
+   	supported in as of gcc 3.4.
+
+   !	util/Properties.c, util/Cache.c: Fixed PropertiesSave() and
+	PropertiesLoad() to create/open and lock the file until its
+	closed by the routine. Previously the lock was released
+	possibly too soon and the file closed elsewhere, such that
+	another thread or process could begin to modify the file
+	before the fclose() and result in a corrupted flat file.
+
+   +	Added mail/smtp.c, which provides a set of routines for sending
+	a message via SMTP. Similar to PHP's mail() function.
+
+   +	parsePath(): Added flag argument to enable/disable strict
+   	syntax and component length tests.
+
+   !	Changed the smfInfo structure. The stateDir member has been
+   	replaced by pid and workdir members.
+
+   +	Added smfSetFileOwner(), smfStartBackgroundProcess(),
+   	smfKillProcess(), smfOptions().
+
+   !	Cache.c: flatfile type will immediately create an empty file
+   	if the cache does not exist.
+
+   !	Renamed TextToken() to TokenNext() and placed in its own file.
+
+   +	Added util/Token.h, TokenCount(), TokenSplit(), and TokenSplitA().
+
+   +	io/flock.c: added support for mingw file locking.
+
+   !	io/Log.c: Changed function signatures for most Log*()
+	functions. Changed behaviour of LogError(). LogError() no
+	longer writes to both the log file and standard error, only
+	the log file now. Use LogStderr() instead. Added LogPrintV()
+	to write to the log file without writing a newline.
+
+   +	SocketWriteIP: Block and discard SIGPIPE, particularly
+	important in a threaded application.
+
+   +	SockerWriteIP: Handle EAGAIN when using non-blocking write.
+
+   !	smdbAccessCode() now tests the RHS value (OK, REJECT, ...) in
+	a case-insensitive manner.
+
+   !	smfMainStart(): ensures that a previous instance of the
+	milter's .pid file does not already exist.
+
+   !	Changed smfMainStart() function signature. The smfiDesc is now
+	a member of the smfInfo structure.
+
+   +	formatPath(): added %S and %T formats for source-route
+	elements of a path.
+
+   +	parsePath.c: Added formatPathLength() and allocatePath().
+
+   !	Fix bug in formatPath() when formatting a buffer that is
+	exactly the required length including space for the null byte.
+	Even though space for the null byte was accounted for, the
+	formatted string was short by one byte.
+
+   !	strlcpy() is used when availble in place of TextCopy()
+
+   +	parsePath.[ch]: Added isReservedIPv6(), isReservedIP(),
+	parseIPv6(), and formatIP() functions.
+
+   !	type/Hash.c: fix seg. fault in HashRemoveAll() code.
+
+   +	Added smfSetFlags() and smfFlags to control some library
+	internals.
+
+   +	Added smfLog() to simplify common expressions.
+
+   !	Moved the smdbReload() check from smfAccessHost() to
+   	smfOpenProlog(), because smfAccessHost() may not be called
+   	by some milters.
+
+   !	tools/filed.c, tools/zoned.c now supports password checking
+	using crypt() when there is no PAM library.
+
+   !	configure.in: Replaced APR_CHECK_FILE by AC_CHECK_FILE. The
+	Apache version using m4's translit() on cygwin deleted the
+	letter 'r'.
+
+   !	aclocal.m4 to detect libmilter extension handlers and modified
+   	smf.* to enable xxfi_unknown and xxfi_data handles when supported
+   	by the installed version of libmilter.
+
+   +	Added SMF_FLAG_REJECT_PERCENT_HACK and test to smfAccessRcpt().
+
+   +	Added code to smfMainStart() to detect the libmilter version at
+   	runtime and set the milter's smfiDesc to match.
+
+  !!	Complete rewrite of the DNS client code to support IPv6 and
+	other DNS types of lookups: A, AAAA, CNAME, MX, NS, PTR, SOA,
+	and TXT. Also detects circular references. Impacts Socket.c,
+	smtp.c, milter-sender, milter-siq.
+
+  !!	Updated LICENSE.TXT.
+
+--1.40--
+
+   !	Fixed those tools that used LogOpen() to handle the new return
+	code.
+
+   !	Cache.c: Disable Berkeley DB support when BDB 1.85 is the only
+	version available. Default becomes "flatfile".
+
+   !	Base64DecodeBuffer() now allcoates an extra octet for the
+	buffer and null terminates the end of the buffer just in case
+	its a C string.
+
+   !	counter.c, sendform.c: fixed handling of HTTP response line.
+
+   +	Added tools/where-are-you.c and tools/here-i-am.c. These are a
+	client/server that use broadcast messages on the local subnet
+	to find the here-i-am server on a particular port.
+
+   	For example setup an intranet web application on TCP port
+	8008, set here-i-am as a server on UDP 8008 on the same
+	machine, then the where-are-you client can broadcast from
+	other workstations to port 8008 to discover the IP of the
+	server. The idea here, is that an intranet client application
+	could discover the intranet server and configure itself.
+
+   !	smdb.c: minor optimisations.
+
+   !	Fixed memory leaks in CacheBdbGet() and CacheBdbWalk() code
+	when using BDB 3.2 or better.
+
+   !	Renamed DataInitFromBytes() -> DataInitWithBytes() to remain
+	consistent with my naming/action conventions. A *FromType is a
+	copy from source and a *WithType is an assignment and/or
+	passing of responsiblity of source.
+
+--1.39--
+
+   !	Cache.c: Fixed bug in CacheBdbGet() saving the wrong DBT
+   	member for the Data length.
+
+   !	Cache.c: Fixed null pointer reference for cache->get when
+   	using flatfile or hash types and no entry is found.
+
+   +	Cache.c: Added more cache debug code.
+
+   +	smfMainStart(): now masks SIGQUIT from other threads.
+
+   +	smfInfo, smfMainStart(): now can choose to close, leave as is,
+   	or ignore standard I/O. Suggested by someone.
+
+   +	Data.[ch]: Added DataCreateWithBytes().
+
+   +	Base64.[ch]: Added new utility object type to encode/decode
+   	base 64 strings.
+
+   +	Properties.c now supports the saving and loading of binary key
+   	and/or value encoded as a modified Base64 string.
+
+   +	Added objectSize and objectMethodCount to all object-oriented
+	types. The objectSize is the first member of any object and is
+	equivalent of the sizeof the object. objectMethodCount is the
+	number of method pointers following the objectName and before
+	any instance data.
+
+   +	smf.[ch]: Added smfSetProcessOwner(), which can be called
+	before smfMainStart() so that files opened by the process have
+	the correct ownership.
+
+   !	smfMainStart() will still call smfSetProcessOwner() if the
+	process is still owned by root at that point.
+
+   !	Fixed the configuration file to recognise OpenBSD. Reported by
+	Francisco of Blackant dot Net.
+
+   -	Log.[ch]: dropped LOG_RAW, it was an idea that was never used.
+
+   !	Log.h: changed for better portability with syslog.h when
+	moving between Windows and Unix.
+
+   !	LogV(): switch to binary mode output when compiling with
+	Borland C.
+
+   !	LogOpen() changed return code from 0/1 to -1/0.
+
+   !	uriDecode(): fixed.
+
+   +	counter.c, sendform.c: basic CGIs for Unix/Windows
+
+   *	Note to self about installs on Debian: First find the matching
+   	"libdbN.N-del" development package for the runtime library:
+
+		apt-cache search berkeley
+		apt-cache search milter
+
+	Then install. For example:
+
+		apt-get install libdb4.2-dev
+		apt-get install libmilter-dev
+
+--1.38--
+
+   +	Bumped version to clearly indicate a new version after some
+	people got hold of pre-release work in progress.
+
+--1.37--
+
+   +	smf.[ch]: Added some of the more commonly used Sendmail macro
+	string constants.
+
+   + 	When --disable-debug is set, #define NDEBUG now, which removes
+	lots of syslog code. Requested by Alex Tkachenko. I've agreed
+	to this for consistency with how --disable-debug is used in
+	the milters. I may at somepoint remove many #ifndef NDEBUG
+	wrappers in order to always keep some specific syslog code.
+
+   !	Cache.c, smdb.h, configure.in: Fix inclusion of correct db.h
+   	header.
+
+   +	setBitWord.[ch] function added.
+
+   !	smfSetLogDetail() now returns void and uses setBitWord().
+
+   !	smfNullWorkspaceError() now returns SMFIS_ACCEPT as it use
+   	to prior to 1.36.
+
+   !	smfAccessHost() should always perform smdbReload() of the access
+   	database.
+
+   +	Add mutex wrapper in smdbClose().
+
+   !	smdb.[ch]: Completely revamped the API once more.
+
+   !	Socket.c: Only call shutdown() once for a given SHUT_ constant.
+
+--1.36--
+
+   !	I finally understand how the access database SKIP value is
+	intended to be used. smdb.c routines now apply it as intended,
+	which is that SKIP short circuits a subnet/subdomain search.
+	So using the example given by sendmail:
+
+		Connect:128.32                  RELAY
+		Connect:128.32.2                SKIP
+
+	Relay for all of 128.32.0.0/16 except 128.32.2.0/8, which
+	skips the search without making a reject or accept decision.
+
+	So now smdbIsAccessOk() will return SMDB_ACCESS_UNKNOWN
+	instead of SMDB_ACCESS_OK for SMDB_ACCESS_SKIP.
+
+   +	Socket.[ch]: add extra debug level SOCKET_DEBUG_FD for just
+   	tracking file descriptors opened and closed.
+
+   +	smdbAccessGetTagIp() add test for ':' in an IPv6 address (not
+   	tested) when searching for subnets.
+
+   +	mail/smf.c added to generalise a lot of common milter code I use.
+
+--1.35--
+
+   !	smdb.c: parseCfAccessFile() fixed double free bug (found using
+   	FreeBSD MALLOC_OPTIONS enviroment variable). realloc()ing a word
+   	and then using VectorSet(), which releases the old object caused
+   	this.
+
+   !	smdbAccessGetValue() neglected to add a terminating null byte to
+   	the value.
+
+   !	smdbAccessGetCode() reimplemented to use smdbAccessGetValue().
+
+   !	Added mutex protection to smdbAccessGetValue(). Berkeley DB 1.85,
+   	which is annoyingly still used by FreeBSD and friends, manages
+   	the memory passed back through DBT by db->get. This is NOT thread
+   	safe. Also in Berkeley DB 2 or better, the DB handle is only
+   	thread safe if DB_THREAD is used, which I don't in favour of
+   	using my own mutex here.
+
+
+--1.34--
+
+   !	Modified smdbReload() and smdbReopen() to treat the smdb
+	argument as a volatile pointer to a volatile structure.
+
+   !	Replaced the struct stat finfo member with just the mtime that
+	we're really interested in.
+
+   !	Modified pthread_mutex_* cover functions in Mutex.c to apply
+	"volatile" semantics through the pthread_mutex_t *.
+
+   !	Hell, just switch to using with gcc.
+
+   !	Dns.c: Replaced 127.0.0.1 with 0.0.0.0 for "this host". This
+	resolves some problems discovered with jailed FreeBSD virtual
+	machines found in some colocation services. Reported by Volker
+	Stolz.
+
+   !	SocketAddressToIP() converts a NULL string into 0.0.0.0.
+
+   +	smdb.c: Added stub functions for when LIBSNERT_WITH_BERKELEY_DB
+   	is not defined.
+
+   +	Added smdbAccessIsOk() to generalise the SMDB_ACCESS_* codes.
+   	Note that SMDB_ACCESS_DISCARD is generalised as SMDB_ACCESS_OK.
+
+   !	smdb.[ch]: Replaced smdbAccessGet*Access() by smdbAccessGetTag*()
+   	which now return a specific SMDB_ACCESS_* code.
+
+   +	smdb.[ch]: smdbAccessGet{Ip|Domain|EmailDomainUser}(), which
+	are similar to smdbAccessIs{Ip|Domain|EmailDomainUser}Ok(),
+	but return a specific SMDB_ACCESS_* code. So for example:
+
+   		smdbAccessIsIpOk() = smdbAccessIsOk(smdbAccessGetIp());
+
+   !	Replaced // comments in Cache.c and Luhn.c with /* .. */
+	Reported by Willi Burmeister
+
+   !	smdbReopen(): Changed goto point when db->verify() fails.
+
+   !	smdb.h: fixed header include order and structure declarations
+   	when Berkeley DB is NOT found.
+
+   !	parsePath.h: renamed "Text" structure used by ParsePath to
+	"string" to avoid namespace collisions with lib/type/Text.h
+	object.
+
+   +	Added range to tools to display a range of numbers.
+
+   +	Added grouplist to tools to display members of a group.
+
+   +	Added mailgroup to tools to mail to all members of a group.
+
+   +	Added the inetd server "filed" a version or two ago.
+
+   +	Added the inetd server "zoned" a version or two ago.
+
+   !	Dns.c: FreeBSD jailed machines have problems with UDP sockets
+	for some stupid reason. Once a socket sends a packet to a
+	host, the UDP socket locks in on that address, which is not
+	suppose to happen with UDP sockets. The work around is
+	open/close the socket for each DNS query packet (ugly but it
+	works). Reported by Volker Stolz.
+	http://www.freebsd.org/cgi/query-pr.cgi?pr=kern/26506
+
+   +	smdb.[ch]: added
+
+   		smdbAccessGetValue()
+   		smdbAccessGetValueTagDomain()
+   		smdbAccessGetValueTagEmailDomainUser()
+
+   +	Begin annotating and `splint' checking the source code. The
+   	subdirectories crc, mail, and type have been done.
+
+
+--1.33--
+
+   !	TextCopy() reimplemented to be like BSD's strlcpy().
+
+   -	TextCopyN() dropped in favour of redefined TextCopy().
+
+   !	TextInputLine(), TextReadLine() now takes long size and
+	returns a long length instead of int.
+
+   !	Dns.c: readResolvConf(): If there are no nameserver entries or
+	the /etc/resolv.conf can't be found or opened, then the
+	default is to use the local machine. Reported by Andrey
+	Chernov.
+
+   +	configure.in, version.h.in: added missing tests for inet_pton.
+
+   !	Log.[ch]: Renamed openlog() used for Window or Cygwin to be
+	LogOpenLog(), with macro replacements for syslog functions.
+	This allows for:
+
+   		#define WITHOUT_SYSLOG
+   		#include <com/snert/lib/io/Log.h>
+
+   	to override syslog. WITHOUT_SYSLOG is assumed for Windows.
+
+   !	DebugMalloc.c now uses pthread_mutex_* routines or Windows
+	mutex routines instead of Mutex.
+
+   +	Implemented some object oriented like data types:
+
+   		type/Object
+   		type/Data
+   		type/Decimal
+   		type/Hash
+   		type/Integer
+   		type/Text
+   		type/Vector
+   		util/Properties
+
+   	The type/Hash replaces util/Hashtable. The type/Vector
+	replaces util/Vector. Updated those file that used Vector
+	or Hashtable.
+
+	The type/Text and util/Text both have a similar set of
+	functions, but a disjoint set of function names so that both
+	can be used at the same time. Eventually util/Text will go
+	away.
+
+   +	Added:
+
+   		util/Cache
+
+	The util/Cache provides a front end to some persistent data
+	store like Berkeley DB or a flat file, or non-persistent Hash.
+	This can be extended latter to use other database types.
+
+	This will replace my cache support in milter-sender and be
+	used in some other milter projects needing a cache.
+
+   +	BufAddInputLine() and BufAddReadLine() will now correctly
+	return a positive value when data has been read and the EOF is
+	seen before a newline
+
+   +	Add some cover functions for pthread_mutex_* functions for
+	systems without the pthread_mutex_* api, eg. Windows.
+
+   !	../tools/show.c: switched to buffered I/O as default and added
+   	-u option for unbuffered output.
+
+   !	Thread.c: resolved compiler warnings for POSIX code. All should
+   	work now except ThreadWaitOn().
+
+   !	Socket.[hc]: Replaced occurence of socklen_t with size_t, since
+   	it appears to have some wierd problem on some Solaris boxen,
+   	probably a header mix up.
+
+   +	Add smdbAccessGetCode() to return the exact code from the access
+   	database. smdbAccessGetAcces() returned a generic code, which may
+   	not be suitable for specialised tests.
+
+--1.32--
+
+   +	smdbAccessGetDomainAccess() makes sure that the lookup key is
+   	lower case. Reported by Mark Frey.
+
+   !	BufFromBytes() forgot to add the extra nul sentinel byte for
+	use with C string functions. See BufAddByte() for commentary.
+
+
+--1.31--
+
+   +	smdbReopen() now close and reopens the database handle after the
+   	db->verify() for older versions of Berkeley DB. For Berkeley DB
+   	4.2.52, we can't even do a DB->close() on the handle:
+
+		The DB handle may not be accessed again after
+		DB->verify is called, regardless of its return.
+
+   +	TextSensitiveFind(), TextInsensitiveFind() added.
+
+   +	Socket.c: fixed references to PF_INET6 to be conditionally compiled.
+
+   !	configure.in: on Solaris fix search for library containing inet_ntoa()
+   	and/or inet_ntop(). Also library containing sem_init() for POSIX
+   	semaphores.
+
+   !	configure.in: fix inclusion of -lpthread for Solaris machines.
+	Appears that there is a stub in the standard library that
+	confuses the configure script into thinking it has the correct
+	library already in its list.
+
+   !	Mutex.c: Fixed sem_init() bug for POSIX semaphores; doesn't
+	anyone choose to use POSIX by choice?
+
+   +	../tools/show.c now supports -f option and -p to highlight patterns.
+
+   -	Dropped ../tools/CHANGES-TOOLS.TXT. since its too much hassle to
+	keep updated and in-sync with CHANGES-LIBSNERT.TXT.  All tool
+	changes will be documented here from now on, since the tools are
+	always bundled with LibSnert.
+
+   !	smdb.[ch]: replaced keyBuffer member which was not thread safe.
+
+   !	Changed the type of function passed to VectorOnRemove() to be
+   	a simple destructor, like "void free(void *)".
+
+   !	Changed VectorCreate() to take a second parameter that sets the
+   	onRemove function.
+
+
+--1.30--
+
+   !	smdb.c: Renamed LINE_SIZE to SMCF_LINE_SIZE to avoid possible name
+   	conflicts within other system headers.
+
+   !	Duplicate code for SocketWaitForInput() and SocketWaitForOutput()
+   	now merged into an internal function SocketWait().
+
+   !	Merged SOCKET_DEBUG_READ and SOCKET_DEBUG_WRITE into
+   	SOCKET_DEBUG_READ_WRITE. Merged SOCKET_DEBUG_GET and SOCKET_DEBUG_SET
+   	into SOCKET_DEBUG_GET_SET.
+
+   +	Add debug log line to SocketGetError().
+
+   !	Renamed HAVE_BERKELEY_DB to LIBSNERT_WITH_BERKELEY_DB to avoid future
+   	name space collisions.
+
+   !	Error.c, tools/flip.c: Fix FatalPrintLineV() to use ErrorPrintLineV()
+   	to avoid the need to use a (va_list) 0  cast which assumes a pointer.
+   	Patch given by Volker Stolz.
+
+   +	Added new argument to TextToken() and TextSplit() that allows empty
+   	tokens to be returned. So for example:
+
+		TextSplit("name=", "=", 0)	returns Vector of length 1
+   		TextSplit("name=", "=", 1)	returns Vector of length 2
+   		TextSplit("a,,c", ",", 0)	returns Vector of length 2
+   		TextSplit("a,,c", ",", 1)	returns Vector of length 3
+
+   +	Dns.c: getRecord() saves a copy of the IP address as a C string.
+
+   !	Dns.c: getRecordList() when resolving an answer against the extra
+   	records now assigns both the IP address value and its C string version
+   	to the answer record.
+
+   !	DnsTest.c: changed inet_ntoa(host->ip) to host->value.
+
+   +	Dns.c: Now supports /etc/resolv.conf for list of nameservers. Use
+   	DnsInit() at start of application to load the list. If the list
+   	changes, the application has to be restarted.
+
+   !	DnsTest.c: The list of DNS servers is now optional, in which case
+   	the list given by /etc/resolv.conf is used.
+
+   !	DnsOpen() can be passed NULL to use the system name server list.
+
+   !	SocketAddressToIp() rewritten to use DnsGetAddresses() instead
+	of using gethostbyname() and gethostbyname_r() code. The
+	former is not thread safe and the latter appears to crash
+	threaded processes on old Linux kernels or glibc libraries (at
+	least that's what is alluded to after googling for bug
+	reports). The problem with gethostbyname_r() may be the cause
+	of obscure crashes seen with milter-sender.
+
+   !	DnsOpen(), DnsClose(), sendQuery(), SocketOpen*() functions
+	changed to work around a chicken-n-egg problem as a result of
+	SocketAddressToIp() changes.
+
+   -	configure.in: Commented out the tests for gethostbyname() and
+   	gethostbyname_r() as they are no longer used in LibSnert.
+
+   +	smdb.c: Add parsing support for $M (Masquerade As) macro. Sets
+   	global C string smMasqueradeAs if defined.
+
+   +	smdb.c: Add parsing support for ClientPortOptions option. Sets
+   	two global structures, smClientPortInet4 and/or smClientPortInet6.
+
+   +	readSendmailCf() and smMasqueradeAs are always available regardless
+   	whether LIBSNERT_WITH_BERKELEY_DB is defined or not.
+
+   !	MailSpanAddressLiteral() returns 0 if the trailing ']' is missing.
+
+   !	Changed MailSpan*() arguments from char * to const char *.
+
+   !	parsePath(): The ParsePath address member now contains the original
+   	address as found in the path argument. That is to say, there is no
+   	case folding done on the address. Note however that there the other
+   	structure members are folded to lower case.
+
+   -	Removed "plus" member from ParsePath structure that did not appear
+   	to be used.
+
+   !	smdb.c: Fixed compiler warnings with FreeBSD with Berkeley DB 1.85.
+
+   !	smdbAccessGetAccess(): under FreeBSD with Berkeley DB 1.85, a
+	seg.fault could occur some times when attempting to log the
+	leading part of value.data. Moved the debug code after just
+	after copying of the leading value to the work buffer, which
+	is forced to be null terminated and safe to print.
+
+   !	Text*With() family of functions now return -1 for no match, or the
+   	length of prefix/suffix that matched. This allows for the empty
+   	(zero length) string to be matched.
+
+   !	Fixed configure.in detection of gethostbyname() and co. for Solaris.
+
+   +	Mutex.c: SYSTEMV_API code section now saves the semaphore ID to the
+	lockfile. The value saved here can then be used to release a leaked
+	semaphore in the event of a crash. POSIX_API creates an empty lockfile
+	for the moment so that its existance can be detected else where; not
+	sure if anything useful can be recorded for POSIX_API.
+
+   +	tools/strings.c: a basic version of strings for machines without one.
+
+   !	readSendmailCf() takes an extra argument to control which sendmail
+   	databases to open.
+
+--1.29--
+
+   +	Added MutexPreRelease() to hide the Unix trick of pre-releasing
+	mutexes (like temp. file handles) that they can continue to use
+	until the process terminates. This resolves semaphore leakage on
+	some platforms with respect to my milters that are not shutdown in a
+	the normal clean manner, because Sendmail takes control of the
+	signals INT, TERM, HUP, and QUIT to provide a delayed shutdown
+	sequence, which is far too long.
+
+   !	Rename EmailSpan* to MailSpan*. Moved files into new subdirectory.
+   	com/snert/src/lib/mail.
+
+   +	Added parsePath.[ch] files from milters to com/snert/src/lib/mail.
+
+   !	MailSpanLocalPart() now will validate quoted string for the
+   	local-part part as given by RFC 2821. Before it only validated
+   	a dot-string.
+
+   +	addTimeStamp() renamed to TimeStampAdd() and moved to Time.c from
+   	milters.
+
+   +	Moved getIp4Octets(), ip4ToString(), and inet_top() cover function
+   	from milters to	Socket.c.
+
+   +	Move smdb.c from milters to com/snert/src/lib/mail. Created smdb.h.
+
+   !	getopt() now returns an error if GNU-style long options are passed,
+   	instead of end of argument list. Reported by Torsten Neuer.
+
+   !	SocketOpenTcpClient(): resolve possible side-effects issue with
+   	syslog() calls refering to SocketGetError() during debugging, but
+   	not in some error test code. Reported by Torsten Neuer.
+
+   !	Fixed a problem with EAGAIN/EINTR handling, in particular withn
+   	SocketReadLine(), not calling SocketClearError() before	resuming an
+   	interrupted operation. SocketReadLine() would complete reading a line,
+   	but the caller would then check SocketGetError() and misreport an
+   	interruption ("Interrupted system call (4)" messages for example) that
+   	had been dealt with. Discovered by Jan Holmberg.
+
+
+--1.28--
+
+   !	Define socklen_t for SunOs 5.6-i386. Reported by Jorge Valdes.
+
+   +	Added BufInsertBytes().
+
+
+--1.27--
+
+   !	SocketWaitForInput(), SocketRead(): fixed to support buffered
+   	input. The support for buffered non-blocking input implemented
+   	for SocketReadLine() in 1.24 neglected to inform these other
+   	two functions that things were a little different. Reported by
+   	Igor R.Babkin.
+
+--1.26--
+
+   !	Socket.c: It appears that SOL_TCP is not defined universally.
+	Replaced SOL_TCP with IPPROTO_TCP. Reported by Claudio
+	Eichenberger
+
+--1.25--
+
+   !	Socket.c: Fix portability issues with Alex Vasylenko's Unix
+   	domain socket patch, that use PF_LOCAL, AF_LOCAL, and SUN_LEN
+   	macros instead of PF_UNIX, AF_UNIX, and sizeof. Reported by
+   	Chris M. Miller.
+
+   !	Socket.[ch]: Created InetAddress object. Modified Socket
+	functions to use this object. Made SocketWriteIp() public and
+	intended for writing UDP packets to different InetAddresses.
+
+   !	Several fixes for Unix domain sockets that were missed by the
+   	original patch from Alex Vasylenko: SocketAccept() client socket
+   	and SocketRead() recv member have to be setup properly.
+
+   !	Dns.c now open uses only one UDP socket to query each DNS server,
+   	instead of the one per server.
+
+--1.24--
+
+   !	version.h.in: Added missing HAVE_INET_* defines, in particular
+   	HAVE_INET_NTOP, used by milter-*.  Reported by Andrey Chernov.
+
+   !	SocketGetError(): only set the Socket error value if the call
+   	to getsockopt() succeeds, otherwise the so_error is unreliable.
+   	Reported by Jan Holmberg.
+
+   !	Text.h: fixed prototypes for TextToLower() and TextToUpper()
+   	to be TextLower() and TextUpper() as they appear in Text.c.
+
+   +	Added TextCopy(), which copies one string to another limiting
+   	the length copied based on which is shorter the shortest between
+   	the two strings.
+
+   !	configure.in: replace sem_init search with pthread_create search.
+
+   +	configure.in: Added use of -Wall with GCC everywhere possible.
+
+   +	Dns.c: getRecordList() added check for null DnsRecord in parse
+   	loop.
+
+   +	Added Unix domain socket support to Socket.c Patch provided by
+   	Alex Vasylenko. Useful for milter-spamc, see -H option.
+
+   +	Added TextSubstring().
+
+   !	SocketClose() will now only perform a clean shutdown if there
+	were no errors of any sort.
+
+   !	SocketReadLine() re-implemented to allow for more efficient reads
+   	when in non-blocking mode, which is now preferred.
+
+--1.23--
+
+   !	configure.in: simplified and reduced library searches so as to
+   	only specify those libraries we really need.
+
+   !	Added null guard to TextSplit() when it creates the vector.
+
+   !	MemoryFree() now returns 0 on success and -1 for a memory
+   	consistency check error. Tests for already freed chunks.
+
+   !	MemoryCreate() will now call malloc() to allocate the large
+   	block to partition, if the block argument is null.
+
+   +	DebugMalloc() added that uses Memory*() functions as a malloc
+   	library replacement for debugging purposes. When built with
+   	_REENTRANT, then a mutex is used to protect threaded processes.
+   	These routines are NOT part of libsnert.a and must explicitly
+   	linked when needed.
+
+   +	VectorCreate() will default to an initial capacity of 1 when
+   	zero or less is specified.
+
+   !	MemoryAllocate(): fix bug in best-fit loop. This does not
+	affect any of the milters, but does affect mod_watch and
+	mod_require_host, which use a copy of this module.
+
+   +	MemoryAllocate() and MemoryFree() now set errno for EINVAL,
+   	ENOMEM, and EFAULT (consistency error).
+
+   +	Memory.c enhanced to detect overflow conditions.
+
+
+--1.22--
+
+   +	Add -pthread to CFLAGS. Ensure that LibSnert is built ready
+   	for threads, especially for milters.
+
+--1.21--
+
+   +	Added TextReverse() and TextInvert().
+
+   +	Added Luhn.c and Luhn.h to validate and generate Luhn
+	checksums. Ported from my Java, JavaScript, and PHP code.
+
+   !	Added fix for SunOS / Solaris gethostbyname_r() that returns
+   	a pointer instead of an int. Reported by Roland Kaltefleiter.
+
+   !	Change last argument type for ErrorPrintV(),
+	ErrorPrintLineV(), FatalPrintV(), FatalPrintLineV(), LogVLog),
+	and StderrV() from a void * to va_list. While void * and
+	va_list might be equivalent in size some compilers for RH 7.2
+	Alpha report errors for strange type conversions. Essentially
+	I was being too clever for my own good, think it would help
+	portability.
+
+   !	configure.in: Added test for inet_aton() in libresolv for
+   	SunOS 5.8, required by libmilter and socket applications.
+
+--1.20--
+
+   +	More debug information in SocketOpenTcpClientWait().
+
+   !	SocketOpenTcpClient() now tests for EINTR after connect().
+
+   !	SocketWaitForInput() and SocketWaitForOutput() now test for
+	EINTR after select().
+
+   !	Modified SocketRead() log message to report the last byte read.
+
+   !	SocketReadLine() now checks for EINTR and EAGAIN after
+	SocketRead(). In particular EAGAIN would be returned half way
+	through reading the welcome message from btconnect.com. Reported
+	by Richard at noc dot moose dot co dot uk.
+
+   !	SocketSetNonBlocking() fix bug that failed to correctly restore
+   	a non-blocking socket to a blocking one.
+
+   +	Support for GNU autoconf 2.57 implemented.  No more *.mk files!
+   	Just ./configure. The ../mk directory and the old makefile files
+   	will be removed at a later date.
+
+   	Note that while I have figured out how to create a configure
+   	script with autoconf, my source does not yet take advantage of
+   	all the tests out side of the ones I wrote for the time, mutex,
+   	and shared memory API
+
+   +	Added ../tools to the build process. Moved all the Windows-only
+   	stuff to another project and kept the portable stuff that builds
+   	on multiple platforms.
+
+   !	Assorted minor changes for autoconf to *.c files.
+
+   !	Modified makefile.in files to use old-style implicit rules, since
+   	some servers have only an old make command or a make other than
+   	GNU make. (FreeBSD 4.8 hmmm)
+
+
+--1.19--
+
+   +	Fixed SocketReadLine() to detect and return an EOF condition
+   	instead of an empty line result.
+
+   +	Add logging debug code in SocketWaitForInput() and
+   	SocketWaitForOutput().
+
+
+--1.18--
+
+   !	Socket.c: All the syslog debugging code is compiled in by default
+   	now.  Can be disabled by defining NDEBUG at the top of the file.
+
+   !	SocketOpenTcpClientWait(): After the connect() and the wait for
+	writability, I failed to check the socket error value as
+	outlined in the man page I had inserted as a comment - doh! So
+	ECONNREFUSED would be return much later on the first socket
+	read/write operation. Reported by Volker Stolz with regards to
+	milter-sender.
+
+   !	Socket.c: Fixed SocketGetAddress() and SocketGetSourceAddress()
+   	to handle inet_ntop() or inet_ntoa(). Define HAS_INET_NTOP in
+   	*.mk as required.
+
+   +	Dns.c: sendQuery(): Added work around for FreeBSD sendto()
+	returning EINVAL for UDP packets, when sendto() doesn't define
+	EINVAL as a valid return code under FreeBSD. Reported by Volker
+	Stolz. http://www.freebsd.org/cgi/query-pr.cgi?pr=26506
+
+   +	Dns.c: Add DnsSetDebugMask() and lots of syslog() debugging
+	throughout the DNS code in a similar manner to Socket.c. This
+	code is on by default. Can be disabled by defining NDEBUG at the
+	top of the file.
+
+   !	Log.c: fix compiler warning about getpid().
+
+   !	mkpath.c: fix compiler warning about mkdir().
+
+   !	Buf.[ch]: Changed function signature of BufAddByte() to accept
+   	an int instead of unsigned char.
+
+   !	BufAddByte() fix compiler warning about losing significant digits.
+
+   !	Text.c fix compiler warnings about losing significant digits.
+
+   -	BuildId.h file removed and all reference to it removed from all
+   	LibSnert headers. Fixes compiler warnings about LibSnert
+   	structure pointer not being used.
+
+   +	BuildId structure replaced by VersionInfo structure found in
+   	com/snert/lib/version.h. This file contains LIBSNERT_ macros
+   	defining version and copyright information. This file is
+   	machine generated from version.master.h.
+
+   !	Modified LibSnert.c for new VersionInfo structure. LibSnert
+   	is now a structure instead of a pointer to a structure.
+
+   +	Log.c: Added LogStderrV() and LogStderr().
+
+   !	Log.c: existing Log() renamed LogV() and Log() created with
+   	variable argument list. This allows for simple name replacement
+   	of syslog() and vsyslog() under Windows.
+
+   -	Log.c: Removed LogMessage(). Was not used.
+
+--1.17--
+
+   +	Add SocketShutdownNow() for use in milter-spamc. The SPAMC
+   	protocol uses a shutdown() of the writing side to signal EOF
+   	to SPAMD.
+
+   +	BufAddByte(), BufAddBytes(), BufInputLine(), BufReadLine(), and
+	BufSetLength(): For convenience make sure the buffer is always
+	null terminated so that we can use BufBytes() to pass the buffer
+	to C string functions. The null byte is not part of the data nor
+	its length.
+
+
+--1.16--
+
+   !	MailSpanDomainName(): changed to validate both characters and
+   	syntax of a domain name and allow for the minimum number of dots
+   	to look for to be specified.
+
+
+--1.15--
+
+   !	SocketAddressToIP(): FreeBSD does not have gethostbyname_r(), but
+   	does appear to have gethostbyname() in libc_r, which I'm assuming
+   	is not thread safe given the info found here:
+
+   		http://www.unobvious.com/bsd/freebsd-threads.html
+
+   	To be on the safe side, SocketAddressToIP(), SocketOpenTcpClient(),
+   	and SocketOpenTcpClientWait() should be wrapped with a mutex when
+   	used within a threaded application, like milter-sender.
+
+   !	SocketAddressToIp(): Modified gethostbyname_r() support to avoid
+   	allocating a large buffer on the stack, which can blow up some
+   	stacks. Instead malloc()/free() the buffer as needed.
+
+   !	SocketAddressToIp(): test value of h_errno even if gethostbyname_r()
+   	returns zero.
+
+   !	Vector.c: It didn't make sense to pass a "void **" for the passed
+   	in data pointer to an opaque object for walk and remove handlers.
+   	Changed VectorWalkFunction and VectorRemoveFunction types and
+   	supporting functions to pass just a "void *" instead. Impacts
+	Dns.c, HashTable.c, Text.c, milter-sender.c
+
+   !	Socket.c: More debug code. SocketSetDebugMask().
+
+   !	SocketClose(): added test of sock->fd member before system call.
+
+   !	SocketOpen(): modified error handling and return.
+
+   !	SocketGetError() modified SocketGetError() to cache the socket
+   	so_error result and added SocketClearError() to explicitly clear
+   	the cached copied and errno. SocketClearError() is called by Socket*
+   	functions prior to socket system calls.
+
+   !	Add -D_REENTRANT to CFLAGS macro in all *.mk files. This library
+   	has to be compiled with _REENTRANT to be thread-safe, especially with
+   	regards to errno.
+
+--1.14--
+
+   +	Added SocketSetNonBlocking() since the use of SocketSetReadFlags()
+   	and SocketSetWriteFlags() requires the inclusion of header files
+   	for socket flags we're trying to hide behind a portability layer.
+
+   !	Modified SocketOpenTcpClientWait() to use SocketSetNonBlocking().
+
+   +	SocketOpenTcpClientWait(): After connect(), in test for EINPROGRESS,
+   	must exclude errno = 0 from error condition, since it appears that
+   	connect() can return non-zero and set errno = 0. Thank you Roland
+   	Kaltefleiter.
+
+   +	SocketAddressToIP(): Use of gethostbyname() is NOT thread safe.
+   	Modified to use gethostbyname_r(), which has different function
+   	signatures for Linux and Sun (grrr). Thank you Roland Kaltefleiter.
+
+   !	Fix SNERT macro in all *.mk to reflect typical unpack location of
+   	/usr/local/src, instead of personal development directory.
+
+--1.13--
+
+   !	Socket.c: Reading zero length bytes in SocketReadLine() should
+	NOT be an error condition. Instead be sure to null terminate
+	the line buffer on a zero length read and return the length of
+	the line buffer. This allows the caller finer control in the
+	case of a zero length or partial reads.
+
+--1.12--
+
+   !	Duh! Forgot to update the version number. Thanks Jeff Powell.
+
+--1.11--
+
+   !	Dns.c: RFC 974 "Issuing a Query" paragraph 4 concerning CNAME
+   	when looking for MX records, now correctly supported. Example
+   	of such a case is "omail.xowwc.com". Thanks to Ralf Fischer
+	for reporting this.
+
+   	Yes, I know I should have used libresolv, BUT that library does
+   	not build under Windows using Borland C compiler.
+
+   !	MailSpan.c: Added missing '/' character to accepted local part
+   	character list in MailSpanLocalPart(). Thanks to Ralf Fischer
+	for reporting this.
+
+--1.10--
+
+   !	Log.c: fix syslog()/vsyslog() cover functions to send newlines.
+
+   !	Dns.[ch]: replaced internal routines getDnsHostList() and
+	findHostEntry() with getRecordList() and getRecord() in order
+	to simplify a complex loop and fixed a bug where a domain name
+	actually doubles as a host name caused the RR parsing code to
+	match the wrong RR returned in the result, eg. dig alrec.nl mx
+	is a good example of what caused a problem. Thanks to Ralf Fischer
+	for reporting this.
+
+   !	Dns.[ch]: DnsHost and DnsHostRemoveEntry() renamed DnsRecord and
+   	DnsRecordRemoveEntry() to reflect a more general purpose data
+   	type for future use.
+
+   !	DnsTest.c: Added null pointer guards for when the result vector
+   	is null signifying no answer.
+
+--1.9--
+
+   !	Fixed mk/FreeBSD.mk and makefiles to support xargs -J instead of
+   	-I for older versions of FreeBSD, like version 4.4.
+
+   !	Dns.c: Clear packet buffer before SocketRead() in sendQuery().
+
+   +	Dns.c: DnsGetNameServers() needed code similar to DnsGetMailServers()
+   	to make sure that we actually got the IP addresses for an NS record.
+   	findHostEntry() modified so that MX, NS, or CNAME can return the
+   	server name without a matching A record.
+
+   !	Dns.c: DnsGetNameServers() / DnsGetMailServers() - if a secondary
+   	A record lookup fails for an entry, we remove the entry from the
+   	result list.
+
+   !	Dns.c: Fix memory leak in internal function findHostEntry() when an
+   	MX is found AND the a matching A record is supplied, then the
+   	entry->name allocated for the MX case would be overwritten with a
+   	duplicate value for the A case.
+
+   !	Vector.c: Fix bug in VectorRemove() not decrementing the vector length.
+
+   !	Log.[hc]: Added LOG_FATAL and LogFatal(). Reports message to log file
+   	and standard error then exits with exit code 9 (I choose this because
+   	it matches "kill -9"). My view of exits code is rather loose, but for
+   	years I have used the following: 0 normal (true), 1 error (false),
+   	2 usage, and now 9 for fatal exit (don't ask me where abort() sits).
+
+--1.8--
+
+   +	Added mk/FreeBSD.mk. Renamed linux.mk and sunos-5.8.mk to Linux.mk
+   	and SunOS-5.8.mk to correspond to their "uname -s" values.
+
+   !	Replaces "xargs -i" in all makefiles with XARGSI macro. System V
+   	and BSD likes systems differ on -i and -I support.
+
+   !	makefile rules for crctable and DnsTest now explicitly state their
+   	recipes, instead of inferring them.
+
+   !	Remove redundant display of pid from syslog() statements. The will
+   	be displayed if LOG_PID argument is passed to openlog().
+
+--1.7--
+
+   !	Dns.c: modified "domain name does not exist" error to "DNS name
+   	not found" to reflect the more general error case were it might
+   	not exist or just wasn't found quickly.
+
+   !	Dns.[ch]: more null pointer guards.
+
+   !	Socket.[ch]: Change SocketOpen() signature to pass the socket type
+   	SOCK_DGRAM or SOCK_STREAM instead of the protocol.
+
+   !	Log.[ch]: Add LogMessage() to log a message without a log level.
+
+   !	Log.[ch]: Export Log() now. Add cover functions for Unix syslog()
+   	and vsyslog() for none unix environments for easy porting.
+
+   +	Added and tested mk/sunos-5.8.mk.
+
+   !	Socket.[ch]: Define INADDR_NONE when no definition found. Likewise
+   	for SOL_TCP.
+
+   !	Dns.c, DnsTest.c: Add more debugging code using Log file output. Can
+   	be disabled by defining the macro NDEBUG. Really handy when there is
+   	no debugger on the target machine.
+
+   !	Dns.c: Added macros to access network short and long words at odd
+   	memory addresses, which can cause a bus error on some CPU architectures
+   	(Sun sparc for example).
+
+   !	Dns.c: Fixed what looked to be a memory leak in findHostEntry() due to
+   	bizarre complex loop code.
+
+   !	Socket.[ch]: Changed internal SocketIP() to an exported SocketAddressToIP()
+   	function, which can be used to hide portability issues between inet_addr()
+   	vs. inet_aton().
+
+   !	Dns.c: Changed DnsSetAttempts() to multiply the number of attempts by
+   	the number of servers being consulted.  This means that sendQuery() will
+   	cycle through ALL servers at most N times.
+
+   !	Dns.c: The DNS server timeout uses an exponential backoff algorithm
+   	divided by the number of servers.  However, for two or more servers
+   	the first few attempts will have really short unreasonable timeouts,
+   	so now we maintain a minimum specified by DNS_DEFAULT_TIMEOUT.
+
+   !	Dns.c: Renamed getDomain() as getName() and rewrote a group of functions
+   	related to resource record name parsing
+
+--1.6--
+
+   +	Socket.[ch]: Added SocketOpenTcpClientWait() and SocketWaitForOutput().
+
+   !	Socket.c: fixed compile time warnings for Borland C.
+
+--1.5--
+
+   !	Dns.c: DnsGetMailServers() changed handling of MX lookup which
+   	returns an empty list according to RFC 974. I was pretty close
+   	before, but this corresponds more closely to the RFC.
+
+   !	Socket.c: Made the use of inet_aton() the default instead of
+   	inet_addr() SocketIP(). Use the macro USE_INET_ADDR to use the
+   	older function (see ../mk/bcc.mk).
+
+   +	Dns.c: Added null pointer guard to DnsClose().
+
+   +	Vector.[ch]: implemented VectorWalk(), VectorWalkIgnore(),
+   	VectorRemoveAbort(), VectorRemoveTrivial(), VectorOnRemove()
+   	to be similar to HashTable. Prior to this there may have been
+   	memory leaks with respect to TextSplit() when a returned
+   	Vector was destroyed (similarly for HashTableDestroy()).
+
+   -	Dns.[ch], Dnstest.c: Dropped DnsHostListFree() in favour of setting
+   	a VectorOnRemove() function, DnsHostRemoveEntry(), for cleanup by
+   	VectroyDestroy().
+
+   +	Text.c: Specified VectorOnRemove() function for when vector is
+   	destroyed.
+
+   !	HashTable.[ch]: Altered function definition of HashTableOnRemove()
+   	to use a HashTableRemoveFunction instead of HashTableWalkFunction
+   	to reduce possible confusion. HashTableWalkAbort renamed to
+   	HashTableRemoveAbort and added HashTableRemoveTrivial.
+
+   +	LibSnert.c, BuildId.h: Added BuildId structure for version tracking.
+   	Each object file will link in a pointer LibSnert to __LibSnert__ in
+   	any executable using LibSnert functions.
+
+   +	Text.[ch]: Added TextLower() and TextUpper()
+
+--1.4--
+
+   +	Clean up several compiler warnings for Cygwin:
+
+	    crc/crctable.c: Add missing header for strerror().
+	    util/Time.h: Add missing newline before EOF.
+	    util/Buf.c: Add missing header for read().
+	    io/Message.c: Alter header inclusion code.
+
+   +	*/makefile: Changed the library build receipes from a shell
+   	for-loop to use ls/xarg and force that the file objects be
+   	added to the library. There are some (older?) Linux systems that
+   	appear to have trouble with performing all the makefile actions
+   	resulting in undefined references when linking an application.
+
+   +	*/makefile: Added missing calls to "ranlib" required for some
+   	platforms.
+
+   +	Add more helpful commentary to the makefile for build and install.
+
+--1.3--
+
+   !	sys/mutex.c: Replace source with version from mod_watch to solve
+   	union semun issues.
+
+   !	Dns.[ch]: Add TTL field to DnsHost for applications that want to
+   	provide some type of cache support.
+
+   !	Dns.c: Add null pointer guard to DnsHostListFree().
+
+   !	HashTable.[ch]: Added HashTableWalk(), HashTableOnNext(), and
+   	changed HashTableGet(), HashTableSet(), HashTableRemove().
+
+--1.2--
+
+   +	MailSpan.c: Generalised email address validation code from
+   	milter-sender.c for use by tools/mailout.c. Note that IPv6
+   	validation not implemented and does not actually test syntax
+   	(yet).
+
+   +	io/posix.h: Add a header file to provide common definitions
+   	for low-level POSIX I/O functions that are available with
+   	Borland, but through non-standard headers.
+
+   !	Socket.c: Fixed some Borland C 5.5 relate compiler errors and
+   	warnings.
+
+   !	LICENSE.TXT: Changed to further clarify terms and conditions.
+
+   !	Dns.[ch]: Modified to support multiple DNS servers. Fixed
+   	timeout handling to be more like ISC BIND (libresolv)
+   	behaviour.
+
+   !	Dns.c, DnsTest.c: buildQuery() now sets the default error message
+   	to an empty string, instead of a null string pointer. I disliked
+   	the idea that an error might occur and DnsSetError() might not
+   	have been called to set the nature of the error. I'm pretty sure
+   	all returns are accounted for with a DnsSetError(), but prefer
+   	to protect myself against my future self not being so vigilant.
+   	So use DnsGetReturnCode() to test for RCODE_OK instead of testing
+   	for a null pointer from DnsGetError().
+
+   !	DnsTest.c: Command line argument order changed to test the
+   	Dns code using multiple DNS servers.
+
+   !	Vector.c: Modified the code so that the array of pointers to
+   	objects always has null pointer at the end. This allows
+   	routines that use the result of VectorBase() to detect the end
+   	of array easily.
+
+   !	Dns.[ch]: Rewrote most of the response parsing code to better handle
+   	{MX, NS} -> CNAME -> A lookups.
+
+   !	Dns.c: Fix DnsGetMailServers() makes secondary A record queries
+   	for an initial MX record request that failed to include them. It
+   	will also handle the case where a misconfigured MX actually returns
+   	an IPv4 address string instead of a domain name.
+
+   +	Dns.[ch]: Started working on DnsDumpLast(), but its not finished.
+
+--1.1--
+
+   !	Dns.c: DnsHostListFree() & DnsHostFree() added null pointer
+   	guards.
+
+   !	Dns.c: Fix potential memory leak in DnsGetMailServers().
+
+   +	Dns.c: Added DnsSetTimeout().
+
+   +	Socket.c: Added SocketSetBroadcast(), SocketSetKeepAlive(),
+   	SocketSetReuseAddr(), SocketGetError(), SocketSetShutdown(),
+   	SocketSetLinger()
+
+   !	Socket.c: SockwtReadLine() changed type of buffer size and
+   	return type from int to long to match with SoscketRead(),
+
+   +	Dns.c: query() disabled check for empty answer section, since
+   	there may be other parts of the response of interest to the
+   	caller.
+
+   !	Socket.c: SocketOpen() added better handling of "shutdown".
+
+   ~	I've been asked WHY bother writing my own Dns code, when there
+   	already exists the Bind libraries: simple, they are a PAIN to
+   	build for Windows or Cygwin. I tried and it wasn't at all clear
+   	and I wanted something that would work under several platforms
+   	easily. Added to the fact its been an interesting learning
+   	experience.
+
+   +	Text.c: Added TextCopyN().
+
+   ~	NOTE that the Thread.c code is incomplete. The Windows code
+   	should finished, but the Linux version not yet.
+
+--1.0--
+
+   +	First public release.
+
+
+
+

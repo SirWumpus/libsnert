@@ -1,0 +1,73 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>
+counter.cgi example
+</title>
+</head>
+<body>
+
+<table>
+<tr align="left">
+	<th>Plain Text using SSI:</th>
+	<th><!--#include virtual="counter.cgi/Software/download/com/snert/src/tools/counter.txt" --></th>
+</tr>
+<tr align="left">	
+	<td colspan="2">
+	
+	&lt;!--#include virtual="counter.cgi/Software/download/com/snert/src/tools/counter.txt" --&gt;
+	<br/>
+	<br/>
+	</td>
+</tr>
+<tr align="left">
+	<th>Digit Images using SSI:</th>
+	<th><!--#include virtual="counter.cgi/Software/download/com/snert/src/tools/counter.txt?digit=<img src%3D'Digits/broadway-red/{}.gif'>&width=4" --></th>
+</tr>
+<tr align="left">
+	<td colspan="2">
+	&lt;!--#include virtual="counter.cgi/Software/download/com/snert/src/tools/counter.txt?digit=&lt;img src%3D'Digits/broadway-red/{}.gif'&gt;&width=4" --&gt;
+	<br/>
+	<br/>
+	</td>	
+</tr>
+<tr align="left">
+ 	<th>JavaScript using SSI:</th>
+ 	<th> <script language="JavaScript" type="text/javascript">
+ 		counter = <!--#include virtual="counter.cgi/Software/download/com/snert/src/tools/counter.txt?width=1" -->;
+ 		document.write(counter);
+ 		</script>
+	</th>
+</tr>
+<tr align="left">
+	<td colspan="2">
+&lt;script language="JavaScript" type="text/javascript"&gt;
+<br/>counter = &lt;!--#include virtual="counter.cgi/Software/download/com/snert/src/tools/counter.txt?width=1" --&gt;;
+<br/>document.write(counter);
+<br/>&lt;/script&gt;
+	<br/>
+	<br/>
+	</td>	
+</tr>
+<tr align="left">
+ 	<th>JavaScript source fetch:</th>
+ 	<th>
+<script language="JavaScript" type="text/javascript" src="counter.cgi/Software/download/com/snert/src/tools/counter.txt?value=my_counter%3D%7B%7D%3B"></script>
+<script language="JavaScript" type="text/javascript">
+	document.write(my_counter);
+</script>
+	</th>
+</tr>
+<tr align="left">
+	<td colspan="2">
+&lt;script language="JavaScript" type="text/javascript" src="counter.cgi/Software/download/com/snert/src/tools/counter.txt?value=my_counter%3D%7B%7D%3B"&gt;&lt;/script&gt;
+<br/>&lt;script language="JavaScript" type="text/javascript"&gt;
+<br/>document.write(my_counter);
+<br/>&lt;/script&gt;
+	<br/>
+	<br/>
+	</td>	
+</tr>
+</table>
+</body>
+</html>

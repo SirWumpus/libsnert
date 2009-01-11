@@ -1,0 +1,92 @@
+----
+Test simple circular reference in CNAME:
+
+circular0               IN CNAME        circular0
+	
+Expect:
+DNS circular reference (3)
+
+./Dns a circular0.snert.net
+DNS circular reference (3)
+----
+Test circular reference in CNAME loop:
+
+circular1               IN CNAME        circular2
+circular2               IN CNAME        circular3
+circular3               IN CNAME        circular1
+	
+Expect when upstream server is BIND 9:
+DNS circular reference (3)
+
+Expect when upstream server is BIND 4:
+DNS server failure (2)
+
+./Dns a circular1.snert.net
+DNS circular reference (3)
+----
+Test a CNAME chain:
+
+chain1                  IN CNAME        chain2
+chain2                  IN CNAME        chain3
+chain3                  IN CNAME        pop
+
+./Dns a chain1.snert.net
+chain1.snert.net. 86400 IN CNAME chain2.snert.net. ; 193.41.72.72 
+chain2.snert.net. 86400 IN CNAME chain3.snert.net. ; 193.41.72.72 
+chain3.snert.net. 86400 IN CNAME pop.snert.net. ; 193.41.72.72 
+pop.snert.net. 86400 IN A 193.41.72.72 ; 193.41.72.72 
+----
+Test a PTR lookup of reverses IP address:
+
+./Dns ptr 34.10.97.82.in-addr.arpa
+34.10.97.82.in-addr.arpa. 80986 IN PTR mx.snert.net. ; 82.97.10.34 
+----
+Test a PTR lookup of normal IP address:
+
+./Dns ptr 193.41.72.72
+72.72.41.193.in-addr.arpa. 18995 IN PTR pop.snert.net. ; 193.41.72.72 
+----
+Test lookup with root in domain name:
+
+./Dns a www.snert.com.
+www.snert.com. 86400 IN CNAME pop.snert.net. ; 193.41.72.72 
+pop.snert.net. 86400 IN A 193.41.72.72 ; 193.41.72.72 
+----
+Test lookup short TXT record:
+
+./Dns txt snert.net
+snert.net. 86400 IN TXT "v=spf1 ip4:193.41.72.72 ip4:82.97.10.34 mx -all"
+----
+Test lookup long/multiple TXT records:
+
+./Dns txt aol.com
+aol.com. 189 IN TXT "spf2.0/pra ip4:152.163.225.0/24 ip4:205.188.139.0/24 ip4:205.188.144.0/24 ip4:205.188.156.0/23 ip4:205.188.159.0/24 ip4:64.12.136.0/23 ip4:64.12.138.0/24 ptr:mx.aol.com ?all"
+aol.com. 189 IN TXT "v=spf1 ip4:152.163.225.0/24 ip4:205.188.139.0/24 ip4:205.188.144.0/24 ip4:205.188.156.0/23 ip4:205.188.159.0/24 ip4:64.12.136.0/23 ip4:64.12.138.0/24 ptr:mx.aol.com ?all"
+----
+Test lookup MX with bogus host name:
+
+./Dns mx zensearch.net
+zensearch.net. 1794 IN MX 0 dev.null.
+----
+Test lookup of localhost.
+
+./Dns a localhost
+localhost. 21600 IN A 127.0.0.1 ; 127.0.0.1 
+----
+Test lookup of 127.0.0.1.
+
+./Dns a 127.0.0.1
+localhost.localhost 1 IN A 127.0.0.1 ; 127.0.0.1 
+----
+Test lookup of [127.0.0.1].
+
+./Dns a [127.0.0.1]
+localhost.localhost 1 IN A 127.0.0.1 ; 127.0.0.1 
+----
+Test lookup of thaiyahoo.com, which has a bogus result 
+that specifies the root domain for its MX:
+
+thaiyahoo.com.          IN MX 0 	. 
+
+./Dns mx thaiyahoo.com
+thaiyahoo.com. 2311 IN MX 0 .

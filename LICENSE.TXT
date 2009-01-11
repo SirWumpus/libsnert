@@ -3,7 +3,7 @@ LibSnert Software Library, Version 1
 Copyright 2001, 2007 by Anthony Howe.  All rights reserved.
 
 
-LICENSE AGREEMENT 1.6
+LICENSE AGREEMENT 1.7
 
 SNERTSOFT & CO. ARE WILLING TO LICENSE THE SOFTWARE IDENTIFIED ABOVE TO
 YOU ONLY UPON THE CONDITION THAT YOU ACCEPT ALL OF THE TERMS CONTAINED
@@ -18,10 +18,10 @@ AGREEMENT.
      form, any other machine readable materials provided (including,
      but not limited to documentation, sample files, data files), any
      updates or error corrections, and its derivative works.
-     
+
   2. ``Organisation'' means a legal entity or an individual.
- 
-  3. ``You'' (or ``Your'') means an Organisation exercising rights 
+
+  3. ``You'' (or ``Your'') means an Organisation exercising rights
      under, and complying with all of the terms of, this License or a
      future version of this License issued under Section 6.1. For
      legal entities, ``You'' includes any entity which controls, is
@@ -38,21 +38,24 @@ AGREEMENT.
   5. ``SnertSoft & Co.'' means SnertSoft and all authorised & licensed
      partners, such as value-added resellers or appliance manufacturers.
 
-  
+
 2. STATEMENT OF ORIGINAL WORK
 
   1. The Package is an original work written by SnertSoft, with
      exception of following third party code:
-     
+
      1. MD5 routines written by L. Peter Deutsch, based on RFC 1321;
 
      2. SQLite3 package is written by D. Richard Hipp of Hwaci and is
 	in the public domain.
 
+     3. strnatcmp.c is written by Martin Pool of sourcefrog.net and
+     	has a BSD style license.
+
 
 3. LICENSE TO USE
 
-  1. You may install and use this Package, without modifications, 
+  1. You may install and use this Package, without modifications,
      exclusively on machines for which You have purchased a license,
      provided You retain this notice, SnertSoft's copyright notice,
      any and all license control methods (see below), and any links
@@ -67,7 +70,7 @@ AGREEMENT.
 
 4. RESTRICTIONS
 
-  1. Redistribution, including but not limited to books, CDROMS, 
+  1. Redistribution, including but not limited to books, CDROMS,
      download mirrors, floppy diskettes, hard disks, hardcopy print
      outs, online archives, solid state disks, streaming tapes, or
      other current or future forms of storage or communication media
@@ -76,19 +79,19 @@ AGREEMENT.
      patches, or similar is expressly forbidden without prior written
      permission in hardcopy (ie. letter or fax) signed and dated by
      SnertSoft.
- 
+
   2. It is expressly forbidden for You to use the Package, in whole or
      in part, in any other software or appliance without prior written
      permission in hardcopy (ie. letter or fax) signed and dated by
      SnertSoft.
- 
-  3. It is expressly forbidden for You to use the Package to develop 
+
+  3. It is expressly forbidden for You to use the Package to develop
      any software or other technology having the same primary function
      as the Package, including but not limited to using the Package in
      any development or test procedure that seeks to develop like
      software or other technology, or determine if such software or
      other technology performs in a similar manner as the Package.
- 
+
   4. You may not sell, rent, lease, or transfer the Package to third
      parties without prior written permission in hardcopy (ie. letter
      or fax) signed and dated by SnertSoft.
@@ -98,8 +101,8 @@ AGREEMENT.
 
   1. This Agreement is effective until terminated. You may terminate
      this Agreement at any time by destroying all copies of the Package.
- 
-  2. This Agreement will terminate immediately without notice from 
+
+  2. This Agreement will terminate immediately without notice from
      SnertSoft if You fail to comply with any provision of this Agreement.
 
   3. Either party may terminate this Agreement immediately should any
@@ -114,14 +117,14 @@ AGREEMENT.
   1. New Versions. SnertSoft may publish revised and/or new versions
      of the License from time to time. Each version will be given a
      distinguishing version number.
-     
+
   2. Effect of New Versions. Once a version of the Package has been
      published under a particular version of the License, You may
      always continue to use it under the terms of that License
      version. You may also choose to use such Package under the terms
      of the most current version of the License published by
      SnertSoft.
-  
+
   3. No one other than SnertSoft has the right to modify the terms
      applicable to the Package created under this License.
 

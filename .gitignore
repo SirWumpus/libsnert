@@ -1,0 +1,14 @@
+*.bak
+*.o
+*.obj
+*.exe
+*.tds
+*.stackdump
+core
+*.core
+core.*
+*.md5
+config.log
+config.status
+version.sh
+include/version.h

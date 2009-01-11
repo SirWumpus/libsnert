@@ -1,0 +1,13 @@
+213.252.1.1	ns1.ipandmore.de
+213.252.2.1	ns1.ipandmore.de
+209.200.151.4	ns6.easydns.com
+151.164.1.1	ns1.swbell.net.
+151.164.11.218	ns2.swbell.net.
+64.94.136.13	dns3.nettica.com
+216.189.1.10	ns101.hostigation.com
+216.198.221.163	ns102.hostigation.com
+123.45.1.1	word2word1.example.com
+216.66.33.163	a368.g.akamai.net
+193.190.238.226	smtp-out.west-vlaanderen.be
+83.98.0.245 	intthsv06.thuk.ioko365.com
+206.55.70.44	mx3.sf-bay.org

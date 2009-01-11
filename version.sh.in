@@ -1,0 +1,58 @@
+#######################################################################
+#
+# @configure_input@
+#
+# @package_copyright@
+#
+#######################################################################
+
+libsnert_srcdir='@abs_top_srcdir@'
+SNERT_TARDIR=${libsnert_srcdir}/../../../..
+SNERT_INCDIR=${libsnert_srcdir}/../../include
+SNERT_LIBDIR=${libsnert_srcdir}/../../lib
+
+LIBSNERT_MAJOR='@package_major@'
+LIBSNERT_MINOR='@package_minor@'
+LIBSNERT_BUILD='@package_build@'
+LIBSNERT_NAME='@PACKAGE_NAME@'
+LIBSNERT_VERSION='@package_version@'
+LIBSNERT_STRING='@package_string@'
+LIBSNERT_AUTHOR='@PACKAGE_BUGREPORT@'
+LIBSNERT_COPYRIGHT='@package_copyright@'
+LIBSNERT_UNAME='@platform@'
+
+EXEEXT='@EXEEXT@'
+LIBEXT='@LIBEXT@'
+OBJEXT='@OBJEXT@'
+
+CC='@CC@'
+CC_E='@CC_E@'
+CC_O='@CC_O@'
+
+CFLAGS=${CFLAGS}' @CFLAGS@'
+LDFLAGS=${LDFLAGS}' @LDFLAGS@'
+LIBS=${LIBS}' @LIBSNERT@ @LIBS@'
+
+ARCHIVE='@ARCHIVE@'
+COMPILE='@COMPILE@'
+RANLIB='@RANLIB@'
+TAR_I='@TAR_I@'
+
+ENABLE_MINGW='@ENABLE_MINGW@'
+WITH_WINDOWS_SDK='@WITH_WINDOWS_SDK'
+
+HAVE_LIB_DB='@HAVE_LIB_DB@'
+HAVE_LIB_RT='@HAVE_LIB_RT@'
+HAVE_LIB_PAM='@HAVE_LIB_PAM@'
+HAVE_LIB_MILTER='@HAVE_LIB_MILTER@'
+HAVE_LIB_PTHREAD='@HAVE_LIB_PTHREAD@'
+HAVE_LIB_SQLITE3='@HAVE_LIB_SQLITE3@'
+HAVE_LIB_WS2_32='@HAVE_LIB_WS2_32@'
+HAVE_LIB_IPHLPAPI='@HAVE_LIB_IPHLPAPI@'
+
+LIBSNERT_SQLITE3_DIR='@LIBSNERT_SQLITE3_DIR@'
+LIBSNERT_SQLITE3_VERSION='@LIBSNERT_SQLITE3_VERSION@'
+
+#######################################################################
+# END
+#######################################################################

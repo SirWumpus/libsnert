@@ -1,0 +1,55 @@
+Simplified Pattern Matching
+
+
+An astrisk (*) acts as wildcard, scanning over zero or more bytes. A
+question-mark (?) matches any single character; a space ( ) will match
+any single white space character.
+
+A left square bracket ([) starts a character class that ends with a
+right square bracket (]) and matches one character from the class. If
+the first character of the class is a carat (^), then the remainder of
+character class is negated. If the first character (after a carat if
+any) is a right square bracket, then the right square bracket is a
+literal and loses any special meaning. If the first character (after a
+carat and/or right square bracket) is a hypen (-), then the hyphen is a
+literal and loses any special meaning. A range expression expressed as a
+start character followed by a hyphen followed by an end character
+matches a character in character-set order between start and end
+characters inclusive.
+
+A backslash follow by any character treats that character as a literal
+(it loses any special meaning).
+
+
+Examples
+
+
+"abc"		exact match for "abc"
+
+"abc*"		match "abc" at start of string
+
+"*abc"		match "abc" at the end of string
+
+"abc*def"	match "abc" at the start and match "def"
+		at the end, maybe with stuff in between.
+
+"*abc*def*"	find "abc", then find "def"
+
+"a[]]c"		exact match for "a]c"
+
+"[abc]"		match a single "a", "b", or "c".
+
+"[^abc]"	match a single charcater except "a", "b", or "c".
+
+"[a-z]"		match a single character "a" through "z" (assumes ASCII)
+
+"[0-9]"		match a single digit "0" through "9" (assumes ASCII)
+
+"[-ac]"		match a single charcater "-", "a", or "c".
+
+"[]-ac]		match a single charcater "]", "-", "a", or "c".
+
+"[^-ac]"	match a single charcater except "-", "a", or "c".
+
+"[^]-ac]	match a single charcater execpt "]", "-", "a", or "c".
+

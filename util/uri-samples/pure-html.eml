@@ -1,0 +1,67 @@
+From stc-41-return-7282-minister~saltwaterchurch.org@namich.com  Tue Oct  9 11:31:05 2007
+Return-Path: <stc-41-return-7282-minister~saltwaterchurch.org@namich.com>
+Received: from host.uuserver.net (root@localhost)
+	by uuism.net (8.13.7/8.13.7) with ESMTP id l99GV4ot026043;
+	Tue, 9 Oct 2007 11:31:04 -0500
+X-ClientAddr: 200.69.5.39
+X-DomainKeys: Sendmail DomainKeys Filter v0.6.0 host.uuserver.net l99GUnxB025938
+Received: from solutionsclick.com (server-200.69.5.39.solutionsclick.com [200.69.5.39])
+	by host.uuserver.net (8.13.7/8.13.7) with SMTP id l99GUnxB025938
+	for <minister@saltwaterchurch.org>; Tue, 9 Oct 2007 11:30:50 -0500
+Received: (qmail 680 invoked from network); 9 Oct 2007 16:31:23 -0000
+Received: from unknown (HELO namich.com) (192.168.1.10)
+  by solutionsclick.com with SMTP; 9 Oct 2007 16:31:23 -0000
+Message-ID: <20071009133123.2196166A66E19CF3@namich.com>
+From: hostmaster@uuism.net
+To: achowe@snert.com
+Subject: Example of pure html message with bad URI
+Date: 09 Oct 2007 13:31:23 -0300
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: 8bit
+X-Null-Tag: a361c27c9d327610ab49f86c3a1795f6
+Received-SPF: Pass; receiver=; client-ip=200.69.5.39; envelope-from=<stc-41-return-7282-minister~saltwaterchurch.org@namich.com>
+Received-SPF: Pass; receiver=; client-ip=200.69.5.39; helo=solutionsclick.com
+X-UUism.net-MailScanner-Information: Please contact hostmaster@uuism.net for more information
+X-UUism.net-MailScanner: Found to be clean
+X-UUism.net-MailScanner-SpamCheck: not spam, SpamAssassin (not cached,
+	score=3.617, required 5, BAYES_00 -3.40, HTML_IMAGE_ONLY_12 2.46,
+	HTML_MESSAGE 0.00, HTML_SHORT_LINK_IMG_1 0.00, MIME_HTML_ONLY 1.46,
+	RDNS_DYNAMIC 0.10, SPF_HELO_PASS -0.00, SPF_PASS -0.00,
+	URIBL_BLACK 3.00)
+X-UUism.net-MailScanner-SpamScore: sss
+X-UUism.net-MailScanner-From: stc-41-return-7282-minister~saltwaterchurch.org@namich.com
+X-Spam-Status: No
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 1
+
+<html>
+<body>
+<table>
+<tr>
+<td>
+<a href="http://namich.com/gro.hcruhcretawtlas=retsinim/30932257/289444257/00008257">
+<img src="http://namich.com/194/tinenti.jpg" border="0" /></a></td>
+</tr>
+</table>
+<p>
+<a href="http://namich.com/gro.hcruhcretawtlas=retsinim/30932257/00008257">
+<img border="0" SRC="http://namich.com/194/chepelotudito.gif" border="0" alt=""></a>
+</p>
+<table>
+<tr><td>
+<a href="http://namich.com/gro.hcruhcretawtlas=retsinim/30932257/289444257"><img src="http://namich.com/ccga/u.gif" border="0" alt=""></a>
+</td></tr>
+</table>
+<table>
+<tr><td>
+<a href="http://namich.com/00008257"><img src="http://namich.com/ccga/p.gif" border="0" alt=""></a>
+</td></tr>
+</table>
+<img src="http://namich.com/gro.hcruhcretawtlas=retsinim/289444257" border="0" alt="" width="100" height="10">
+</body>
+</html>
+

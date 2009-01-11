@@ -1,0 +1,3 @@
++debug -daemon
+number=999
+string='you look marvelous'
