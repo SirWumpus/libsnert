@@ -84,21 +84,6 @@ extern int processDropPrivilages(const char *run_user, const char *run_group, co
  *	Must be called after all setuid/setgid manipulation, else
  *	the value might be reset.
  *
- * FreeBSD
- *	  0	disable dump core (default)
- *	  1	enable dump core
- *
- * OpenBSD
- *	  0	dump core,
- *	  1	disable dump core (default)
- *	  2	dump core to /var/crash.
- *
- * Linux
- *	  0	disable dump core
- *	  1	enable dump core
- *	  2	enable dump core readable by root only
- *
- *
  * @return
  *	Previous value of the flag.
  */

@@ -29,9 +29,41 @@ typedef struct {
 } LogServer;
 
 /***********************************************************************
- *** Unix Daemon
+ ***
  ***********************************************************************/
+
+#include <com/snert/lib/sys/Time.h>
+#include <com/snert/lib/sys/process.h>
+#include <com/snert/lib/sys/sysexits.h>
+#include <com/snert/lib/util/getopt.h>
+
+#define _NAME			"server"
+#define PID_FILE		"/var/run/" _NAME ".pid"
+#define SYSLOG_PORT		514
+
+int debug;
+int server_quit;
+int daemon_mode = 1;
+char *windows_service;
+char *interface_address = "127.0.0.1:" QUOTE(SYSLOG_PORT);
+ServerSignals signals;
+
+#undef syslog
+
 void
+syslog(int level, const char *fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	if (logFile == NULL)
+		vsyslog(level, fmt, args);
+	else
+		LogV(level, fmt, args);
+	va_end(args);
+}
+
+oid
 serverOptions(int argc, char **argv)
 {
 	int ch;

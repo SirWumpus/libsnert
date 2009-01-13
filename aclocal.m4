@@ -1816,28 +1816,12 @@ AC_DEFUN(SNERT_INIT,[
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_AUTHOR, ["$PACKAGE_BUGREPORT"])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_COPYRIGHT, ["$package_copyright"])
 
-
-	if test `expr -- [$]0 : "'.*"` = 0; then
-		CONFIGURE_COMMAND="$CONFIGURE_COMMAND '[$]0'"
-	else
-		CONFIGURE_COMMAND="$CONFIGURE_COMMAND [$]0"
-	fi
-
+	snert_configure_command="$[]0"
 	for arg in $ac_configure_args; do
-		if test `expr -- $arg : "'.*"` = 0; then
-			if test `expr -- $arg : "--.*"` = 0; then
-				break;
-			fi
-			CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS '[$]arg'"
-		else
-			if test `expr -- $arg : "'--.*"` = 0; then
-				break;
-			fi
-			CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS [$]arg"
-		fi
+		# Remove previous quoting of single quote, place single quotes around option value
+		arg=`echo "$arg" | sed -e "s/'\\\\\\\\'//g" -e "s/^'\(.*\)'$/\1/" -e "s/\([[^=]]*=\)\([[^']].*[[^']]\)/\1'\2'/"`
+		snert_configure_command="${snert_configure_command} [$]arg"
 	done
-
-	snert_configure_command="${CONFIGURE_COMMAND} ${CONFIGURE_OPTIONS}"
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_CONFIGURE, ["$snert_configure_command"])
 
 	snert_build_date=`date +'%a, %d %b %Y %H:%M:%S %z'`

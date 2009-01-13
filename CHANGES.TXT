@@ -44,7 +44,21 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
---1.69.25--
+--1.70.1--
+
+   !	processDumpCore: OpenBSD/FreeBSD disabled the sysctl setting for
+   	setuid dore dumping as this is a kernel setting and not per process.
+
+   !	processDumpCore: now preforms the equivalent of "ulimit -S -c
+	unlimited" to enable core dumps in addition to any ther settings.
+
+   !	aclocal.m4: SNERT_INIT fixed quote handling on configure options (again).
+   	Wrapping configure options within single quote, like --enable-debug
+   	to '--enable-debug' creates a problem for autoconf reconfigure. Instead
+   	place single quotes around assigned options, --with-option=value to
+   	--with-option='value'.
+
+--1.69.25-- aka 1.70.0
 
    *	Conversion to GIT source control management.
 

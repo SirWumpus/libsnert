@@ -10,6 +10,23 @@
 
 #include <com/snert/lib/version.h>
 
+#ifdef HAVE_SYS_TYPES_H
+# include <sys/types.h>
+#endif
+#ifdef TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# ifdef HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+#ifdef HAVE_SYS_RESOURCE_H
+# include <sys/resource.h>
+#endif
+
 #if defined(__linux__) && defined(HAVE_SYS_PRCTL_H)
 # include <sys/prctl.h>
 #endif
@@ -145,21 +162,6 @@ processDropPrivilages(const char *run_user, const char *run_group, const char *r
  *	Must be called after all setuid/setgid manipulation, else
  *	the value might be reset.
  *
- * FreeBSD
- *	  0	disable dump core
- *	  1	enable dump core
- *
- * OpenBSD
- *	  0	dump core,
- *	  1	disable dump core (default)
- *	  2	dump core to /var/crash.
- *
- * Linux
- *	  0	disable dump core
- *	  1	enable dump core
- *	  2	enable dump core readable by root only
- *
- *
  * @return
  *	Previous value of the flag.
  */
@@ -167,14 +169,25 @@ int
 processDumpCore(int flag)
 {
 	int old_flag = 0;
+#if defined(RLIMIT_CORE)
+	struct rlimit limit;
 
+	if (getrlimit(RLIMIT_CORE, &limit) == 0) {
+		old_flag = 0 < limit.rlim_cur;
+		limit.rlim_cur = flag ? limit.rlim_max : 0;
+		(void) setrlimit(RLIMIT_CORE, &limit);
+	}
+#endif
 #if defined(__linux__) && defined(HAVE_SYS_PRCTL_H) && defined(PR_SET_DUMPABLE)
 	old_flag = prctl(PR_GET_DUMPABLE, 0,0,0,0);
 	/* Convert OpenBSD's 2nd core dump behaviour, to simply on. */
 	if (0 <= flag && flag <= 2)
 		(void) prctl(PR_SET_DUMPABLE, flag, 0,0,0);
 #endif
-#if defined(__OpenBSD__) && defined(HAVE_SYS_SYSCTL_H) && defined(KERN_NOSUIDCOREDUMP)
+
+#ifdef CHANGE_KERNEL_SETTINGS
+/* We shouldn't do this on a per process baises. */
+# if defined(__OpenBSD__) && defined(HAVE_SYS_SYSCTL_H) && defined(KERN_NOSUIDCOREDUMP)
 {
 	int mib[2], *new_flag = NULL;
 	size_t old_size, new_size = 0;
@@ -202,8 +215,8 @@ processDumpCore(int flag)
 
 	(void) sysctl(mib, 2, &old_flag, &old_size, new_flag, new_size);
 }
-#endif
-#if defined(__FreeBSD__) && defined(HAVE_SYS_SYSCTL_H)
+# endif
+# if defined(__FreeBSD__) && defined(HAVE_SYS_SYSCTL_H)
 {
 	int *new_flag = NULL;
 	size_t old_size, new_size = 0;
@@ -220,7 +233,8 @@ processDumpCore(int flag)
 	errno = 0;
 	(void) sysctlbyname("kern.sugid_coredump", &old_flag, &old_size, new_flag, new_size);
 }
-#endif
+# endif
+#endif /* CHANGE_KERNEL_SETTINGS */
 	return old_flag;
 }
 
