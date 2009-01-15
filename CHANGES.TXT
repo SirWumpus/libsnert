@@ -44,6 +44,13 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.70.3--
+
+   !    Upgraded SQLite to 3.6.10; removed previous local patch.
+
+   !	convertDate: Fixed parsing of RFC 2822/5322 date-time, which
+	allow seconds to be optional. Reported by Christopher P. Lindsey.
+
 --1.70.2--
 
    +	mime.c/h: added mimeBufferFlush.
