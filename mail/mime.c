@@ -142,8 +142,7 @@ mimeSourceLine(Mime *m, int ch)
 			m->decode.length = 0;
 		} else {
 			m->start_of_line = ch == ASCII_LF;
-			m->source.length = 0;
-			m->decode.length = 0;
+			mimeBufferFlush(m);
 		}
 	}
 }
@@ -497,15 +496,21 @@ mimeStateHeader(Mime *m, int ch)
  *** MIME API
  ***********************************************************************/
 
+void
+mimeBufferFlush(Mime *m)
+{
+	m->source.length = 0;
+	m->decode.length = 0;
+}
+
 static void
 mimeBoundary(Mime *m)
 {
 	b64Reset(&m->b64);
+	mimeBufferFlush(m);
 	m->state = mimeStateHeader;
 	m->next_part = mimeStateContent;
 	m->start_of_line = 1;
-	m->source.length = 0;
-	m->decode.length = 0;
 }
 
 /**
@@ -592,6 +597,10 @@ mimeNextCh(Mime *m, int ch)
 
 	return rc;
 }
+
+/***********************************************************************
+ *** MIME CLI
+ ***********************************************************************/
 
 #ifdef TEST
 #include <stdio.h>

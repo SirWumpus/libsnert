@@ -103,6 +103,12 @@ extern void mimeFree(Mime *);
 extern int mimeNextCh(Mime *, int);
 
 /**
+ * @param m
+ *	Pointer to a Mime context structure.
+ */
+extern void mimeBufferFlush(Mime *);
+
+/**
  * @param octet
  *	A quoted-printable hexadecimal digit character, which are
  *	defined to be upper case only.

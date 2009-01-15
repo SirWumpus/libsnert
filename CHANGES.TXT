@@ -44,6 +44,13 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.70.2--
+
+   +	mime.c/h: added mimeBufferFlush.
+
+   !	dnsList.c: added some NULL guards to dnsListQuery et al. when either
+   	the dns_list or lookup name are NULL or empty strings.
+
 --1.70.1--
 
    !	processDumpCore: OpenBSD/FreeBSD disabled the sysctl setting for

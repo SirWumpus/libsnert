@@ -1369,6 +1369,7 @@ main(int argc, char **argv)
 			LogSetProgramName("uri");
 			LogSetLevel(LOG_DEBUG);
 #endif
+			dnsListSetDebug(1);
 			socketSetDebug(1);
 			uriSetDebug(4);
 			pdqSetDebug(1);

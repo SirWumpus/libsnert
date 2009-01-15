@@ -76,6 +76,9 @@ dnsListCreate(const char *string)
 	DnsList *list;
 	char *slash, *suffix;
 
+	if (string == NULL || *string == '\0')
+		goto error0;
+
 	if ((list = malloc(sizeof (*list))) == NULL)
 		goto error0;
 
@@ -166,7 +169,7 @@ dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *nam
 	const char *list_name = NULL;
 	char buffer[DOMAIN_STRING_LENGTH];
 
-	if (dns_list == NULL || name == NULL)
+	if (dns_list == NULL || name == NULL || *name == '\0')
 		return NULL;
 
 	if (0 < spanIP(name)) {
@@ -239,6 +242,9 @@ dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domain
 	int offset;
 	const char *list_name = NULL;
 
+	if (dns_list == NULL || name == NULL || *name == '\0')
+		return NULL;
+
 	/* Find start of TLD. */
 	offset = indexValidTLD(name);
 
@@ -266,6 +272,9 @@ dnsListQueryNs0(DnsList *dns_list, PDQ *pdq, Vector names_seen, int recurse, con
 {
 	PDQ_rr *rr, *ns_list;
 	const char *list_name = NULL;
+
+	if (dns_list == NULL || name == NULL || *name == '\0')
+		return NULL;
 
 	if ((ns_list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_NS, name, NULL)) != NULL) {
 		for (rr = ns_list; rr != NULL; rr = rr->next) {
