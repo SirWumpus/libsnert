@@ -447,13 +447,17 @@ convertHMS(const char *hms_string, long *hours, long *minutes, long *seconds, co
 
 	hms_string = skipCommentWhitespace(next+1);
 	*minutes = strtol(hms_string, &next, 10);
-	if (hms_string == next || *next != ':')
-		return -1;
-
-	hms_string = skipCommentWhitespace(next+1);
-	*seconds = strtol(hms_string, &next, 10);
 	if (hms_string == next)
 		return -1;
+
+	if (*next == ':') {
+		hms_string = skipCommentWhitespace(next+1);
+		*seconds = strtol(hms_string, &next, 10);
+		if (hms_string == next)
+			return -1;
+	} else if (!isspace(*next)) {
+		return -1;
+	}
 
 	/* Valid range 00:00:00 .. 23:59:60 (accounts for leap seconds). */
 	if (*hours < 0 || 23 < *hours || *minutes < 0 || 59 < *minutes || *seconds < 0 || 60 < *seconds)
