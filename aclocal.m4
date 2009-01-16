@@ -1818,12 +1818,13 @@ AC_DEFUN(SNERT_INIT,[
 
 	snert_configure_command="$[]0"
 	for arg in $ac_configure_args; do
+		dnl skip environment variables that should appear BEFORE configure
 		case $arg in
 		CFLAGS=*|LDFLAGS=*)
 			continue
 			;;
 		esac
-		# Remove previous quoting of single quote, place single quotes around option value
+		dnl Remove previous quoting of single quote, place single quotes around option value
 		arg=`echo "$arg" | sed -e "s/'\\\\\\\\'//g" -e "s/^'\(.*\)'$/\1/" -e "s/\([[^=]]*=\)\([[^']].*[[^']]\)/\1'\2'/"`
 		snert_configure_command="${snert_configure_command} [$]arg"
 	done

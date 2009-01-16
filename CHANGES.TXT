@@ -44,6 +44,10 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.70.4--
+
+   *	Revert back to SQLite 3.6.7 with associated patch.
+
 --1.70.3--
 
    !    Upgraded SQLite to 3.6.10; removed previous local patch.
