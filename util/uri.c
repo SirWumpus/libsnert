@@ -1083,6 +1083,8 @@ uriMimeFree(void *_m)
 URI *
 uriMimeGetUri(Mime *m)
 {
+	if (m == NULL || m->mime_data == NULL)
+		return NULL;
 	return ((UriMime *) m->mime_data)->uri;
 }
 
