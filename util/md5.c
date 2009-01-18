@@ -51,6 +51,8 @@
   1999-05-03 lpd Original version.
  */
 
+#include <com/snert/lib/version.h>
+
 #ifdef ORIGINAL
 #include "md5.h"
 #else
@@ -390,6 +392,15 @@ md5_finish(md5_state_t *pms, md5_byte_t digest[16])
 #ifdef TEST
 
 #include <stdio.h>
+
+#if HAVE_INTTYPES_H
+# include <inttypes.h>
+#else
+# if HAVE_STDINT_H
+# include <stdint.h>
+# endif
+#endif
+
 
 unsigned char *tests[][2] = {
 	{ "\xd4\x1d\x8c\xd9\x8f\x00\xb2\x04\xe9\x80\x09\x98\xec\xf8\x42\x7e", "" },

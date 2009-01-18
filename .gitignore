@@ -81,3 +81,7 @@ type/kvmc
 type/kvmd
 type/mcc
 util/uri
+util/b64
+util/htmlstrip
+util/md4
+util/md5
