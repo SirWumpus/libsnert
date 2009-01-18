@@ -89,7 +89,10 @@ TokenNext(const char *string, const char **stop, const char *delims, int returnE
 
 		switch (*s) {
 		case '"': case '\'':
-			quote = *s == quote ? 0 : *s;
+			if (quote == 0)
+				quote = *s;
+			else if (*s == quote)
+				quote = 0;
 			continue;
 		case '\\':
 			escape = 1;

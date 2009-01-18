@@ -44,9 +44,37 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.70.5--
+
+   !	mime.c: fixed MIME boundary detection, when the first MIME
+	boundary immediate follows the end of headers CRLF. See uri-
+	samples/qp-long-one-line.eml for an example.
+
+   !	mime.c/h: externalise mimeDecodeAdd; added mimeNoHeaders to
+	switch initial state from message headers to content.
+
+   !	mimeNextCh, mimeSourceLine: now handles EOF character code.
+
+   !	mime.c: The CLI now signals EOF to the mimeNextCH to force the
+	processing of the last source & decode buffers.
+
+   !	mime.c: A quoted-printable soft line break no longer ends the
+   	physcial input line.in terms of when mimeSourceLine. This should
+   	reduce instances of a word being split across two lines.
+
+   |	html.c:added htmlstrip CLI code.
+
+   !	TokenNext: Fixed handling of single/double quoted string
+	containing a double or single quote.
+
+   !	htmlTokenRange: Fixed handling of single/double quoted string
+	containing a double or single quote.
+
 --1.70.4--
 
    *	Revert back to SQLite 3.6.7 with associated patch.
+
+   +	Added html.c/h an HTML tokeniser API.
 
 --1.70.3--
 

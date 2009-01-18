@@ -35,6 +35,7 @@ static int mimeStateBoundary(Mime *m, int ch);
 static int mimeStateContent(Mime *m, int ch);
 static int mimeStateBase64(Mime *m, int ch);
 static int mimeStateQpLiteral(Mime *m, int ch);
+static int mimeStateQpSoftLine(Mime *m, int ch);
 static int mimeStateQpEqual(Mime *m, int ch);
 static int mimeStateQpDecode(Mime *m, int ch);
 static int mimeStateHeader(Mime *m, int ch);
@@ -49,7 +50,7 @@ mimeIsBoundaryChar(int ch)
 	return strchr("-=_'()+,./:?", ch) != NULL;
 }
 
-static void
+void
 mimeDecodeAdd(Mime *m, int ch)
 {
 	m->mime_body_decoded_length++;
@@ -65,6 +66,16 @@ mimeDecodeCR(Mime *m)
 {
 	if (m->state != mimeStateBase64) {
 		mimeDecodeAdd(m, ASCII_CR);
+		m->newline = NULL;
+	}
+}
+
+static void
+mimeDecodeLF(Mime *m)
+{
+	if (m->state != mimeStateBase64) {
+		mimeDecodeAdd(m, ASCII_LF);
+		m->newline = NULL;
 	}
 }
 
@@ -79,12 +90,11 @@ mimeDecodeCRLF(Mime *m)
 	 * The CRLF are not part of the base64 codeset, thus
 	 * the call-back can be skipped.
 	 */
-	if (m->state != mimeStateBase64) {
+	if (m->newline != NULL) {
 		/* Was this part of a MIME conforming CRLF newline? */
-		if (m->newline == mimeStateCR) {
-			mimeDecodeAdd(m, ASCII_CR);
-		}
-		mimeDecodeAdd(m, ASCII_LF);
+		if (m->newline == mimeStateCR)
+			mimeDecodeCR(m);
+		mimeDecodeLF(m);
 	}
 }
 
@@ -120,7 +130,10 @@ mimeSourceLine(Mime *m, int ch)
 	 * Also reset the decode buffer. The decode buffer should reflect
 	 * the current contents of the source buffer.
 	 */
-	if ((ch == ASCII_LF && m->state != mimeStateLongHeader) || sizeof (m->source.buffer)-1 <= m->source.length) {
+	if (ch == EOF
+	|| (ch == ASCII_LF && m->state != mimeStateLongHeader
+	  && m->state != mimeStateQpEqual && m->state != mimeStateQpSoftLine)
+	|| sizeof (m->source.buffer)-1 <= m->source.length) {
 		/* Source line call-back. */
 		if (m->mime_source_line != NULL) {
 			m->source.buffer[m->source.length] = '\0';
@@ -332,6 +345,14 @@ mimeStateQpLiteral(Mime *m, int ch)
 }
 
 static int
+mimeStateQpSoftLine(Mime *m, int ch)
+{
+	int rc = mimeStateQpLiteral(m, ch);
+	m->state = mimeStateQpLiteral;
+	return rc;
+}
+
+static int
 mimeStateQpEqual(Mime *m, int ch)
 {
 	if (ch == ASCII_CR) {
@@ -341,7 +362,7 @@ mimeStateQpEqual(Mime *m, int ch)
 	} else if (ch == ASCII_LF) {
 		/* Ignore soft-line break, ie. =CRLF or =LF.
 		 */
-		m->state = mimeStateQpLiteral;
+		m->state = mimeStateQpSoftLine;
 	} else if (isxdigit(ch)) {
 		/* Initial part of a quoted printable. The tail
 		 * of the source buffer will contain "=X".
@@ -424,7 +445,9 @@ mimeStateLongHeader(Mime *m, int ch)
 
 	if (ch == ASCII_TAB) {
 		m->source.buffer[m->source.length-1] = ASCII_SPACE;
+		mimeDecodeAdd(m, ASCII_SPACE);
 	} else if (ch != ASCII_SPACE) {
+		m->decode.buffer[m->decode.length] = '\0';
 		m->source.buffer[--m->source.length] = '\0';
 
 		if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*multipart/*", m->source.length, 1)) {
@@ -445,9 +468,10 @@ mimeStateLongHeader(Mime *m, int ch)
 		if (m->mime_header != NULL)
 			(*m->mime_header)(m);
 
+		mimeBufferFlush(m);
 		m->start_of_line = 1;
-		m->source.length = 1;
-		m->source.buffer[0] = ch;
+		mimeDecodeAdd(m, ch);
+		m->source.buffer[m->source.length++] = ch;
 
 		if (m->mime_header_octet != NULL)
 			(*m->mime_header_octet)(m, ch);
@@ -467,24 +491,34 @@ mimeStateHeader(Mime *m, int ch)
 {
 	if (ch == ASCII_LF) {
 		m->source.length--;
-		if (0 < m->source.length && m->source.buffer[m->source.length-1] == ASCII_CR)
+		if (0 < m->source.length && m->source.buffer[m->source.length-1] == ASCII_CR) {
 			m->source.length--;
+			m->decode.length--;
+		}
+		m->source.buffer[m->source.length] = '\0';
+		m->decode.buffer[m->decode.length] = '\0';
 
 		if (0 < m->source.length) {
 			/* Check for folded header line on next character. */
 			m->state = mimeStateLongHeader;
 		} else {
 			/* End of headers. */
-			m->source.buffer[0] = '\0';
-
+			mimeBufferFlush(m);
 			m->mime_body_length = 0;
 			m->mime_body_decoded_length = 0;
 
 			if (m->mime_body_start != NULL)
 				(*m->mime_body_start)(m);
-			m->state = m->next_part;
+
+			if (!mimeIsMultipartCRLF(m, ch))
+				m->state = m->next_part;
+
+			/* Avoid inserting an extra newline after the end of headers. */
+			m->newline = NULL;
 		}
 	} else {
+		/* Keep decode buffer in sync with source buffer. */
+		mimeDecodeAdd(m, ch);
 		if (m->mime_header_octet != NULL)
 			(*m->mime_header_octet)(m, ch);
 	}
@@ -497,10 +531,18 @@ mimeStateHeader(Mime *m, int ch)
  ***********************************************************************/
 
 void
+mimeNoHeaders(Mime *m)
+{
+	m->state = mimeStateContent;
+}
+
+void
 mimeBufferFlush(Mime *m)
 {
 	m->source.length = 0;
+	*m->source.buffer = '\0';
 	m->decode.length = 0;
+	*m->decode.buffer = '\0';
 }
 
 static void
@@ -581,17 +623,19 @@ mimeNextCh(Mime *m, int ch)
 		return -1;
 	}
 
-	if (ch < 0 || 255 < ch) {
+	if (255 < ch) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	/* Save the current input source byte. */
-	m->source.buffer[m->source.length++] = ch;
-	m->mime_part_length++;
-	m->mime_body_length++;
+	if (ch != EOF) {
+		/* Save the current input source byte. */
+		m->source.buffer[m->source.length++] = ch;
+		m->mime_part_length++;
+		m->mime_body_length++;
 
-	rc = (*m->state)(m, ch);
+		rc = (*m->state)(m, ch);
+	}
 
 	mimeSourceLine(m, ch);
 
@@ -716,6 +760,7 @@ main(int argc, char **argv)
 			break;
 	}
 
+	(void) mimeNextCh(mime, EOF);
 	mimeFree(mime);
 
 	return 0;

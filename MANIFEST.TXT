@@ -173,6 +173,7 @@ com/snert/src/lib/util/bs.c
 com/snert/src/lib/util/convertDate.c
 com/snert/src/lib/util/escape.c
 com/snert/src/lib/util/getopt.c
+com/snert/src/lib/util/html.c
 com/snert/src/lib/util/makefile.in
 com/snert/src/lib/util/md4.c
 com/snert/src/lib/util/md5.c
@@ -255,6 +256,7 @@ com/snert/src/lib/include/util/Token.h
 com/snert/src/lib/include/util/bs.h
 com/snert/src/lib/include/util/convertDate.h
 com/snert/src/lib/include/util/getopt.h
+com/snert/src/lib/include/util/html.h
 com/snert/src/lib/include/util/md4.h
 com/snert/src/lib/include/util/md5.h
 com/snert/src/lib/include/util/setBitWord.h

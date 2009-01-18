@@ -70,12 +70,14 @@ OBJS = \
 	TextUpper$O TextSensitiveEndsWith$O TextInsensitiveEndsWith$O \
 	TextInsensitiveStartsWith$O TextSensitiveStartsWith$O TextHash$O TextDelim$O TextEmpty$O \
 	TextNull$O TextC$O setBitWord$O strlrcspn$O strlrspn$O strnatcmp$O bs$O Base64$O \
-	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O \
+	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O html$O \
 	uriIsDomainBL$O uri$O option$O time62$O timespec$O timeval$O
 
-TEST = b64$E md4$E md5$E Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
+TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
        DebugMallocTest$E uri$E convertDate$E TextCopy$E TextTransliterate$E \
        TextSensitiveEndsWith$E TextInsensitiveEndsWith$E TextMatch$E ProcTitle$E
+
+CLI = b64$E md4$E md5$E htmlstrip$E
 
 .MAIN : build
 
@@ -90,9 +92,11 @@ title :
 
 build : title $(LIB) add-lib
 
+build-cli: ${CLI}
+
 build-debug : title DebugMalloc$O $(LIB) add-lib
 
-build-tests: ${TEST}
+build-tests: build-cli ${TEST}
 
 $(LIB):	$(OBJS)
 
@@ -194,3 +198,6 @@ md5$E: md5.c
 
 time62$E : time62.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)time62$E time62.c
+
+htmlstrip$E : html.c
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)htmlstrip$E html.c $(LIBSNERT)
