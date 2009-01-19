@@ -70,6 +70,24 @@ is no set schedule for releases.
    !	htmlTokenRange: Fixed handling of single/double quoted string
 	containing a double or single quote.
 
+  !!	smtpRead: Fixed bogus string pointers when the SMTP response
+	lines exceeded 10.
+
+	Long standing bug. smtpRead allocates a table of string pointers
+	and string buffer all as one block to simplify releasing the
+	structure by the caller. When the number of response lines
+	filled the table, the table and string buffer would be
+	reallocated. Problem was that the table of string pointers
+	pointed back to what are now unallocated strings.
+
+	Now the table first saves only the string offsets from the start
+	of the string buffer and once all response lines have been read
+	we add in the string buffer base to each string offset. In
+	addition, when we enlarge the number of rows in the string
+	pointer table, we have to shift the read strings along to make
+	room for the extra pointers added to the table.
+
+
 --1.70.4--
 
    *	Revert back to SQLite 3.6.7 with associated patch.
