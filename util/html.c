@@ -168,6 +168,7 @@ htmlTokenNext(const char *start, const char **stop, int *state)
 #ifdef TEST
 
 #include <errno.h>
+#include <string.h>
 
 #if defined(HAVE_SYSLOG_H) && ! defined(__MINGW32__)
 # include <syslog.h>
@@ -192,6 +193,7 @@ typedef struct {
 
 int debug;
 int all_tags;
+int redact_html;
 Vector tags;
 Vector headers;
 StripMime strip;
@@ -212,11 +214,12 @@ const char *closed_tags[] = {
 };
 
 static char usage[] =
-"usage: htmlstrip [-v][-h header,...][-t tag,...] < message\n"
+"usage: htmlstrip [-vX][-h header,...][-t tag,...] < message\n"
 "\n"
 "-h header,...\tlist of message headers to strip \n"
 "-t tag,...\tlist of HTML tag names to strip, or \"all\"\n"
 "-v\t\tverbose logging to standard error\n"
+"-X\t\tredact HTML in place of stripping\n"
 "\n"
 LIBSNERT_COPYRIGHT "\n"
 ;
@@ -342,7 +345,12 @@ stripSourceLine(Mime *m)
 				;
 			fwrite(start, 1, stop - start, stdout);
 			ctx->part_length += stop - start;
-		} else if (ctx->close_tag) {
+		} else if (redact_html) {
+			for ( ; start < stop; start++)
+				fputc('X', stdout);
+		}
+
+		if (ctx->close_tag) {
 			ctx->strip_tag--;
 			if (0 < debug)
 				fprintf(stderr, "tag=%s depth=%d\n", ctx->tag, ctx->strip_tag);
@@ -383,7 +391,7 @@ main(int argc, char **argv)
 {
 	int ch;
 
-	while ((ch = getopt(argc, argv, "h:t:v")) != -1) {
+	while ((ch = getopt(argc, argv, "h:t:vX")) != -1) {
 		switch (ch) {
 		case 'h':
 			if ((headers = TextSplit(optarg, ",", 0)) == NULL) {
@@ -403,6 +411,10 @@ main(int argc, char **argv)
 
 		case 'v':
 			debug++;
+			break;
+
+		case 'X':
+			redact_html++;
 			break;
 
 		default:
