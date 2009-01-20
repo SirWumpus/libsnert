@@ -18,6 +18,7 @@ com/snert/src/lib/aclocal.m4
 com/snert/src/lib/configure
 com/snert/src/lib/configure.in
 com/snert/src/lib/makefile.in
+com/snert/src/lib/libsnert.pc.in
 com/snert/src/lib/stdlib.h
 com/snert/src/lib/version.h.in.in
 com/snert/src/lib/version.sh.in

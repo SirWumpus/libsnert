@@ -38,6 +38,7 @@ AC_CONFIG_HEADERS([include/version.h:version.h.in])
 
 AC_CONFIG_FILES(version.h.in)
 AC_CONFIG_FILES(version.sh)
+AC_CONFIG_FILES(libsnert.pc)
 AC_CONFIG_FILES(makefile)
 AC_CONFIG_FILES(crc/makefile)
 AC_CONFIG_FILES(object/makefile)
