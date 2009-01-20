@@ -184,7 +184,7 @@ htmlTokenNext(const char *start, const char **stop, int *state)
 typedef struct {
 	Mime *mime;
 	int part_length;
-	int strip_html;
+	int text_html;
 	int strip_tag;
 	int html_state;
 	int close_tag;
@@ -244,15 +244,24 @@ syslog(int level, const char *fmt, ...)
 #endif
 
 static void
-stripHeaders(Mime *m)
+stripMimeHeader(Mime *m)
 {
 	int length;
 	const char **hdr;
 	StripMime *ctx = m->mime_data;
 
-	if (all_tags && 0 <= TextFind(m->source.buffer, "Content-Type:*text/html*", m->source.length, 1)) {
-		ctx->strip_html++;
+	if (0 <= TextFind(m->source.buffer, "Content-Type:*text/html*", m->source.length, 1)) {
+		ctx->text_html++;
 		ctx->tag = NULL;
+	}
+
+	/* When we decode a text/html section, change the
+	 * Content-Transfer-Encoding to reflect the defcoded
+	 * output.
+	 */
+	if (ctx->text_html && 0 < TextInsensitiveStartsWith(m->source.buffer, "Content-Transfer-Encoding:")) {
+		printf("Content-Transfer-Encoding: 8bit\r\n");
+		return;
 	}
 
 	if (headers != NULL) {
@@ -268,8 +277,10 @@ stripHeaders(Mime *m)
 }
 
 static void
-stripHeaderOctet(Mime *m, int ch)
+stripMimeHeaderOctet(Mime *m, int ch)
 {
+	StripMime *ctx = m->mime_data;
+
 	/* If the first character is the start of a HTML tag, then
 	 * we can't be processing an email message, therefore switch
 	 * the state from headers to content.
@@ -277,6 +288,7 @@ stripHeaderOctet(Mime *m, int ch)
 	if (ch == '<') {
 		mimeNoHeaders(m);
 		m->mime_header = NULL;
+		ctx->text_html = 1;
 	}
 
 	m->mime_header_octet = NULL;
@@ -288,10 +300,13 @@ stripSourceLine(Mime *m)
 	StripMime *ctx = m->mime_data;
 	const char *start, *stop, **tag;
 
-	if (all_tags && ctx->strip_html)
+	if (!ctx->text_html) {
+		/* Write the source of MIME parts that are not text/html. */
+		fwrite(m->source.buffer, 1, m->source.length, stdout);
 		return;
+	}
 
-	if (m->decode.length <= 0)
+	if (all_tags || m->decode.length <= 0)
 		return;
 
 	for (start = m->decode.buffer; htmlTokenRange(&start, &stop, &ctx->html_state); start = stop) {
@@ -346,8 +361,11 @@ stripSourceLine(Mime *m)
 			fwrite(start, 1, stop - start, stdout);
 			ctx->part_length += stop - start;
 		} else if (redact_html) {
-			for ( ; start < stop; start++)
-				fputc('X', stdout);
+			for ( ; m->decode.buffer < (unsigned char *) start && isspace(start[-1]); start--)
+				;
+			for ( ; start < stop; start++) {
+				fputc(isspace(*start) ? *start : 'X', stdout);
+			}
 		}
 
 		if (ctx->close_tag) {
@@ -375,14 +393,14 @@ stripMimePartFinish(Mime *m)
 {
 	StripMime *ctx = m->mime_data;
 
-	if (all_tags && ctx->strip_html)
+	if (all_tags && ctx->text_html)
 		printf("<html><body>This HTML content has been removed.</body></html>\r\n");
 
 	if (0 < ctx->part_length)
 		fputs("\r\n", stdout);
 	fputs(m->source.buffer, stdout);
 
-	ctx->strip_html = 0;
+	ctx->text_html = 0;
 	ctx->html_state = 0;
 }
 
@@ -429,11 +447,11 @@ main(int argc, char **argv)
 	}
 
 	strip.mime->mime_data = &strip;
-	strip.mime->mime_header = stripHeaders;
+	strip.mime->mime_header = stripMimeHeader;
 	strip.mime->mime_body_start = stripMimePartStart;
 	strip.mime->mime_body_finish = stripMimePartFinish;
 	strip.mime->mime_source_line = stripSourceLine;
-	strip.mime->mime_header_octet = stripHeaderOctet;
+	strip.mime->mime_header_octet = stripMimeHeaderOctet;
 
 	while ((ch = fgetc(stdin)) != EOF) {
 		if (mimeNextCh(strip.mime, ch))
