@@ -32,3 +32,4 @@ A bp15.net			# multi.uribl.com only
 MX veridata.com			# has DNAME record
 NS roedu.net			# has unsupported A6 record
 A .				# TIMEDOUT
+MX beliefnet.com		# requires TCP

@@ -44,6 +44,12 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.70.6--
+
+   !	Add redact option to htmlstrip CLI.
+
+   !	Fixed htmlstrip to only process text/html sections.
+
 --1.70.5--
 
    !	mime.c: fixed MIME boundary detection, when the first MIME
