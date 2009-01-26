@@ -10,6 +10,9 @@
 
 #include <com/snert/lib/version.h>
 
+#ifndef __WIN32__
+/* Needs porting to windows for conditional variables. */
+
 #include <stdlib.h>
 
 #include <com/snert/lib/type/queue.h>
@@ -129,3 +132,5 @@ queueRemove(Queue *queue)
 
 	return item;
 }
+
+#endif /* __WIN32__ */

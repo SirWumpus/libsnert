@@ -40,12 +40,7 @@
 # include <unistd.h>
 #endif
 
-#ifdef __WIN32__
-# define _WIN32_WINNT	0x0500
-# include <windows.h>
-# include <com/snert/lib/io/socket2.h>
-#endif
-
+#include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/sys/Time.h>

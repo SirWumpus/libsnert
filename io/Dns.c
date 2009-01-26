@@ -52,9 +52,9 @@
 # include <com/snert/lib/io/Log.h>
 #endif
 
-#include <com/snert/lib/io/Dns.h>
-#include <com/snert/lib/io/posix.h>
 #include <com/snert/lib/io/socket2.h>
+#include <com/snert/lib/io/posix.h>
+#include <com/snert/lib/io/Dns.h>
 #include <com/snert/lib/mail/limits.h>
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/util/Text.h>

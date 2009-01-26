@@ -58,9 +58,9 @@
 #endif
 
 #include <com/snert/lib/io/Log.h>
-#include <com/snert/lib/io/Dns.h>
-#include <com/snert/lib/io/posix.h>
 #include <com/snert/lib/io/socket2.h>
+#include <com/snert/lib/io/posix.h>
+#include <com/snert/lib/io/Dns.h>
 #include <com/snert/lib/util/md5.h>
 #include <com/snert/lib/util/Text.h>
 

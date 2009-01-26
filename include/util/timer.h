@@ -47,6 +47,13 @@ extern "C" {
 #define UNIT_NANO 	1000000000L
 #endif
 
+#if defined(__MINGW32__)
+struct timespec {
+	time_t  tv_sec;   /* Seconds */
+	long    tv_nsec;  /* Nanoseconds */
+};
+#endif
+
 extern void timespecSet(struct timespec *acc, unsigned long ns);
 extern void timespecAdd(struct timespec *acc, struct timespec *b);
 extern void timespecSubtract(struct timespec *acc, struct timespec *b);

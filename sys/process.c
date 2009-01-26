@@ -23,7 +23,8 @@
 #  include <time.h>
 # endif
 #endif
-#ifdef HAVE_SYS_RESOURCE_H
+
+#if !defined(__MINGW32__) && defined(HAVE_SYS_RESOURCE_H)
 # include <sys/resource.h>
 #endif
 
@@ -169,7 +170,7 @@ int
 processDumpCore(int flag)
 {
 	int old_flag = 0;
-#if defined(RLIMIT_CORE)
+#if !defined(__MINGW32__) && defined(RLIMIT_CORE)
 	struct rlimit limit;
 
 	if (getrlimit(RLIMIT_CORE, &limit) == 0) {

@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/net/server.h>
 #include <com/snert/lib/sys/winService.h>
 #include <com/snert/lib/util/Text.h>
@@ -90,7 +91,7 @@ winServiceInstall(int install, const char *name, const char *brief)
 		service_path,			// service's binary
 		NULL,				// no load ordering group
 		NULL,				// no tag identifier
-		"Tcpip\0\0",			// dependencies
+		"Tcpip\0Tcpip6\0\0",		// dependencies
 		NULL,				// LocalSystem account
 		NULL				// no password
 	);

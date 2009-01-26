@@ -1367,9 +1367,6 @@ freeThreadData(void)
 int
 main(int argc, char **argv)
 {
-	long length;
-	char *cwd, *backslash, *server_root, default_root[256];
-
 	/* Get this now so we can use the event log. */
 	ReportInit();
 
@@ -1405,6 +1402,10 @@ main(int argc, char **argv)
 	}
 
 #ifdef NOT_USED
+{
+	long length;
+	char *cwd, *backslash, *server_root, default_root[256];
+
 	/* Get the absolute path of this executable and set the working
 	 * directory to correspond to it so that we can find the options
 	 * configuration file along side the executable, when running as
@@ -1435,6 +1436,7 @@ main(int argc, char **argv)
 		(void) chdir(cwd);
 		free(cwd);
 	}
+}
 #endif
 
 	return serverMain();
