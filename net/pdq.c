@@ -74,6 +74,7 @@
 
 #include <com/snert/lib/io/file.h>
 #include <com/snert/lib/io/socket2.h>
+#include <com/snert/lib/mail/tlds.h>
 #include <com/snert/lib/type/Vector.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/timer.h>
@@ -2634,6 +2635,104 @@ pdqIsCircular(PDQ_rr *list)
 	return 0;
 }
 
+/**
+ * @param pdq
+ *	A PDQ structure pointer for handling queries.
+ *
+ * @param name
+ *	A host or domain name to check.
+ *
+ * @return
+ *	Zero if the SOA is not bogus, otherwise a non-zero value
+ *	corresponding to which test case failed.
+ *
+ *	0	OK (or NULL or IP)
+ *	1	unknown TLD and not an IP.
+ *	2	CNAME value has invalid TLD
+ *	3	LHS of SOA is the root domain, query name does not exist
+ *	4	LHS of SOA RR does not match query name
+ *	5	MNAME of SOA has invalid TLD
+ *	6	RNAME of SOA has invalid TLD or missing user name portion
+ */
+int
+pdqIsValidSOA(PDQ *pdq, const char *name)
+{
+	int rc, offset;
+	PDQ_rr *rr, *rr_list;
+	unsigned char ipv6[IPV6_BYTE_LENGTH];
+
+	rc = -1;
+
+	if (name == NULL)
+		return 0;
+
+	/* Find start of TLD. */
+	if ((offset = indexValidTLD(name)) < 0)
+		/* Ignore IP addresses by assuming true. */
+		return parseIPv6(name, ipv6) <= 0;
+
+	/* Backup one label for the domain. */
+	offset = strlrcspn(name, offset-1, ".");
+
+	if ((rr_list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_SOA, name, NULL)) != NULL) {
+		rc = 0;
+
+		for (rr = rr_list; rr != NULL; rr = rr->next) {
+			if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_CNAME) {
+				name = ((PDQ_CNAME *) rr)->host.string.value;
+				if ((offset = indexValidTLD(name)) < 0) {
+					if (0 < debug)
+						syslog(LOG_DEBUG, "pdqIsValidSOA: %s CNAME %s invalid TLD", rr->name.string.value, name);
+					rc = 2;
+					break;
+				}
+				offset = strlrcspn(name, offset-1, ".");
+			} else if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_SOA) {
+				/* Is SOA LHS the root domain and query name is not? */
+				if (name[0] != '.' && name[1] != '\0' && rr->name.string.length == 1) {
+					if (0 < debug)
+						syslog(LOG_DEBUG, "pdqIsValidSOA: %s returns root SOA", name);
+					rc = 3;
+					break;
+				}
+
+				/* Is SOA LHS the tail of the name question with a root dot? */
+				if (TextInsensitiveEndsWith(name, rr->name.string.value) < 0) {
+					/* Is SOA LHS the tail of the name question without a root dot? */
+					rr->name.string.value[rr->name.string.length-1] = '\0';
+					if (TextInsensitiveEndsWith(name, rr->name.string.value) < 0) {
+						if (0 < debug)
+							syslog(LOG_DEBUG, "pdqIsValidSOA: %s SOA not tail of %s", rr->name.string.value, name);
+						rc = 4;
+						break;
+					}
+					rr->name.string.value[rr->name.string.length-1] = '.';
+				}
+
+				/* Primary name server have a TLD? */
+				if (indexValidTLD(((PDQ_SOA *) rr)->mname.string.value) <= 0) {
+					if (0 < debug)
+						syslog(LOG_DEBUG, "pdqIsValidSOA: %s SOA primary NS %s invalid TLD", rr->name.string.value, ((PDQ_SOA *) rr)->mname.string.value);
+					rc = 5;
+					break;
+				}
+
+				/* Does the responsible contact have a TLD? */
+				if (indexValidTLD(((PDQ_SOA *) rr)->rname.string.value) <= 0) {
+					if (0 < debug)
+						syslog(LOG_DEBUG, "pdqIsValidSOA: %s SOA contact %s invalid TLD", rr->name.string.value, ((PDQ_SOA *) rr)->mname.string.value);
+					rc = 6;
+					break;
+				}
+			}
+		}
+
+		pdqFree(rr_list);
+	}
+
+	return rc;
+}
+
 /***********************************************************************
  *** Convience Functions (pdqGet*, pdqFetch*)
  ***********************************************************************/
@@ -3312,7 +3411,7 @@ pdqSetSourcePortRandomisation(int flag)
 static char *query_server;
 
 static const char usage[] =
-"usage: pdq [-Lprsv][-c class][-l suffixes][-t sec][-q server]\n"
+"usage: pdq [-LprsSv][-c class][-l suffixes][-t sec][-q server]\n"
 "           type name [type name ...]\n"
 "\n"
 "-c class\tone of IN (default), CH, CS, HS, or ANY\n"
@@ -3321,6 +3420,7 @@ static const char usage[] =
 "-p\t\tprune invalid MX, NS, or SOA records\n"
 "-r\t\tenable round robin mode\n"
 "-s\t\tenable source port randomisation\n"
+"-S\t\tcheck SOA is valid for name\n"
 "-t sec\t\ttimeout in seconds, default 45\n"
 "-q server\tname server to query\n"
 "-v\t\tverbose debug output\n"
@@ -3405,15 +3505,16 @@ main(int argc, char **argv)
 	Vector suffix_list;
 	PDQ_rr *list, *answers;
 	PDQ_rr *(*wait_fn)(PDQ *);
-	int ch, type, class, i, prune_list;
 	char buffer[DOMAIN_STRING_LENGTH+1];
+	int ch, type, class, i, prune_list, check_soa;
 
+	check_soa = 0;
 	prune_list = 0;
 	wait_fn = pdqWait;
 	suffix_list = NULL;
 	class = PDQ_CLASS_IN;
 
-	while ((ch = getopt(argc, argv, "Lprsvc:l:t:q:")) != -1) {
+	while ((ch = getopt(argc, argv, "LprsSvc:l:t:q:")) != -1) {
 		switch (ch) {
 		case 'c':
 			class = pdqClassCode(optarg);
@@ -3445,6 +3546,10 @@ main(int argc, char **argv)
 
 		case 's':
 			pdqSetSourcePortRandomisation(1);
+			break;
+
+		case 'S':
+			check_soa = 1;
 			break;
 
 		case 'p':
@@ -3515,6 +3620,9 @@ main(int argc, char **argv)
 		} else {
 			answers = pdqListAppend(answers, list);
 		}
+
+		if (check_soa && (ch = pdqIsValidSOA(pdq, argv[i+1])) != 0)
+			printf("%s invalid SOA (%d)\n", argv[i+1], ch);
 	}
 
 	pdqListDump(stdout, answers);

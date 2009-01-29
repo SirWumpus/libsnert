@@ -972,6 +972,27 @@ extern int pdqIsCircular(PDQ_rr *list);
  */
 extern size_t pdqSizeOf(PDQ_rr *record);
 
+/**
+ * @param pdq
+ *	A PDQ structure pointer for handling queries.
+ *
+ * @param name
+ *	A host or domain name to check.
+ *
+ * @return
+ *	Zero if the SOA is not bogus, otherwise a non-zero value
+ *	corresponding to which test case failed.
+ *
+ *	0	OK (or NULL or IP)
+ *	1	unknown TLD and not an IP.
+ *	2	CNAME value has invalid TLD
+ *	3	LHS of SOA is the root domain, query name does not exist
+ *	4	LHS of SOA RR does not match query name
+ *	5	MNAME of SOA has invalid TLD
+ *	6	RNAME of SOA has invalid TLD or missing user name portion
+ */
+extern int pdqIsValidSOA(PDQ *pdq, const char *name);
+
 /***********************************************************************
  *** PDQ Application Options
  ***********************************************************************/
