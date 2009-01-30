@@ -347,9 +347,7 @@ mimeStateQpLiteral(Mime *m, int ch)
 static int
 mimeStateQpSoftLine(Mime *m, int ch)
 {
-	int rc = mimeStateQpLiteral(m, ch);
-	m->state = mimeStateQpLiteral;
-	return rc;
+	return mimeStateQpLiteral(m, ch);
 }
 
 static int
