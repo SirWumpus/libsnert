@@ -35,13 +35,13 @@ The following test cases
 
  N  U  -  -	cid:12345.67890@snert.com
 
- Y  N  N  -	www.fail.test
+ N  N  N  -	www.fail.test
 
- Y  N  Y  -	www.pass.test
+ N  N  Y  -	www.pass.test
 
- Y  N  N  -	www.anything.invalid
+ N  N  N  -	www.anything.invalid
 
- Y  N  N  -	www.anything.localhost
+ N  N  N  -	www.anything.localhost
   
  Y  ?  N  -	http://127.0.0.1/
 
@@ -73,11 +73,11 @@ The following test cases
 
  Y  ?  ?  Y     http://www.zdnetasia.com/search/results.htm?query=mari+misato+at+dynamix+%3CIFRAME%20src=//72.232.39.252/a/%3E.html
 
- Y  -  -  -	192.0.2.99
+ N  -  -  -	192.0.2.99
 
- Y  -  -  -	2001:0DB8::1234
+ N  -  -  -	2001:0DB8::1234
 
- Y  -  -  -	2001:0DB8::192.0.2.99
+ N  -  -  -	2001:0DB8::192.0.2.99
 
  Y  -  -  Y	http://www.google.com/pagead/iclk?sa=l&ai=EJVqDJ&num=65520&adurl=http://%73%6B%69%6E%61%70%70%6C%65%2E%63%6F%6D
 
@@ -195,6 +195,12 @@ URL encoded punctuation including double redirection and email query string.
 
  Y  ?  ?  ?	http%3A%2F%2Fwww%2Ecyberlink%2Ecom%2Fenglish%2Fdownload%2Faffiliate%2Ejsp%3Fclid%3D2581%5F603%5F11%5FBronze1login1108%5F0%26RedirectURL%3Dhttps%253A%2F%2Fmembership%2Ecyberlink%2Ecom%2Fenglish%2Fmembership%5Fprogram%2Fmember%5Farea%2Fpersonal%5Fprofile%2Ejsp%3FEmail%3Dmandtchristie@activ8.net.au
 
+----=_test_boundary
+Content-type: text/plain; charset=iso-8859-1
+Content-Transfer-Encoding: quoted-printable
+
+  <a href=3D"http://SKedbjjcffmjcDM=2Ejollaface=2Ecom/t=
+=2Easp=3Fa=3Dc&u=3D202717573&s=3D2129&e=3D43199255">=0A   
 
 ----=_test_boundary--
 

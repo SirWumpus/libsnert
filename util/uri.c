@@ -588,7 +588,8 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	/* This used to be spanDomain, but it is useful to also
 	 * try and find either IPv4 or IPv6 addresses.
 	 */
-	else if (0 < (span = spanHost(value, implicit_domain_min_dots)) && value[span] == '\0') {
+	else if (0 < (span = spanHost(value, implicit_domain_min_dots)) && value[span] == '\0'
+	&& 0 < TextInsensitiveStartsWith(value, "www.") && 0 < indexValidTLD(value)) {
 		uri->scheme = "http";
 		uri->host = value;
 	}
@@ -1088,7 +1089,6 @@ uriMimeGetUri(Mime *m)
 	return ((UriMime *) m->mime_data)->uri;
 }
 
-
 /***********************************************************************
  ***
  ***********************************************************************/
@@ -1114,7 +1114,7 @@ static Vector print_uri_ports;
 static long *uri_ports;
 
 static char usage[] =
-"usage: uri [-aflpqrv][-A delim][-n ns-bl,...][-u uri-bl,...]\n"
+"usage: uri [-aflpqrsv][-A delim][-n ns-bl,...][-u uri-bl,...]\n"
 "           [-P ports][-t sec][-T sec][arg ...]\n"
 "\n"
 "-a\t\tcheck all (headers & body), otherwise assume body only\n"
@@ -1129,6 +1129,7 @@ static char usage[] =
 "\t\tseparated list of port numbers to print and/or test\n"
 "-q\t\tcheck URL query part for embedded URLs\n"
 "-R\t\tenable DNS round robin mode, default parallel mode\n"
+"-s\t\tcheck URI domain has valid SOA\n"
 "-t sec\t\tHTTP socket timeout in seconds, default 60\n"
 "-T sec\t\tDNS timeout in seconds, default 45\n"
 "-u uri-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
@@ -1164,6 +1165,7 @@ syslog(int level, const char *fmt, ...)
 #endif
 
 PDQ *pdq;
+int check_soa;
 DnsList *ns_bl_list;
 DnsList *uri_bl_list;
 Vector ns_names_seen;
@@ -1217,6 +1219,7 @@ process(URI *uri, const char *filename)
 	}
 
 	if (uri->host != NULL) {
+		PDQ_valid_soa code;
 		const char *list_name = NULL;
 		if ((list_name = dnsListQuery(uri_bl_list, pdq, NULL, check_subdomains, uri->host)) != NULL) {
 			if (filename != NULL)
@@ -1229,6 +1232,13 @@ process(URI *uri, const char *filename)
 			if (filename != NULL)
 				printf("%s: ", filename);
 			printf("%s NS blacklisted %s\n", uri->host, list_name);
+			exit_code = EXIT_FAILURE;
+		}
+
+		if (check_soa && (code = pdqTestSOA(pdq, PDQ_CLASS_IN, uri->host, NULL)) != PDQ_SOA_OK) {
+			if (filename != NULL)
+				printf("%s: ", filename);
+			printf("%s bad SOA %s (%d)\n", uri->host, pdqSoaName(code), code);
 			exit_code = EXIT_FAILURE;
 		}
 	}
@@ -1320,7 +1330,7 @@ main(int argc, char **argv)
 	URI *uri;
 	int i, ch;
 
-	while ((ch = getopt(argc, argv, "aA:Dn:u:flmpP:qRT:t:v")) != -1) {
+	while ((ch = getopt(argc, argv, "aA:Dn:u:flmpP:qRsT:t:v")) != -1) {
 		switch (ch) {
 		case 'a':
 			check_all = 1;
@@ -1351,6 +1361,9 @@ main(int argc, char **argv)
 			break;
 		case 'q':
 			check_query = 1;
+			break;
+		case 's':
+			check_soa = 1;
 			break;
 		case 't':
 			uriSetTimeout(strtol(optarg, NULL, 10) * 1000);
