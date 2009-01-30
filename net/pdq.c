@@ -238,6 +238,20 @@ static struct mapping rcodeMap[] = {
 	{ 0, 				NULL			}
 };
 
+static struct mapping soaMap[] = {
+	{ PDQ_SOA_OK,		"OK"		},
+	{ PDQ_SOA_BAD_NAME,	"BAD NAME"	},
+	{ PDQ_SOA_UNDEFINED,	"UNDEFINED"	},
+	{ PDQ_SOA_MISSING,	"MISSING"	},
+	{ PDQ_SOA_BAD_CNAME,	"BAD_CNAME"	},
+	{ PDQ_SOA_ROOTED,	"ROOTED"	},
+	{ PDQ_SOA_MISMATCH,	"MISMATCH"	},
+	{ PDQ_SOA_BAD_NS,	"BAD NS"	},
+	{ PDQ_SOA_BAD_CONTACT,	"BAD CONTACT"	},
+	{ 0, 				NULL	}
+};
+
+
 static const char usage_dns_max_timeout[] =
   "Maximum timeout in seconds for a DNS query."
 ;
@@ -294,6 +308,12 @@ const char *
 pdqRcodeName(PDQ_rcode code)
 {
 	return pdq_code_to_name(rcodeMap, code);
+}
+
+const char *
+pdqSoaName(PDQ_valid_soa code)
+{
+	return pdq_code_to_name(soaMap, code);
 }
 
 PDQ_type
@@ -2612,9 +2632,7 @@ pdqWaitAll(PDQ *pdq)
 
 /**
  * @param list
- *	A pointer to a PDQ_rr pointer in which to pass back a
- *	list of records. It is the caller's responsibility to
- *	pdqListFree() this list when done.
+ *	A pointer to a PDQ_rr list.
  *
  * @return
  *	True if the list contains a CNAME loop.
@@ -2636,98 +2654,96 @@ pdqIsCircular(PDQ_rr *list)
 }
 
 /**
- * @param pdq
- *	A PDQ structure pointer for handling queries.
+ * @param list
+ *	A pointer to a PDQ_rr list.
  *
  * @param name
  *	A host or domain name to check.
  *
  * @return
- *	Zero if the SOA is not bogus, otherwise a non-zero value
- *	corresponding to which test case failed.
- *
- *	0	OK (or NULL or IP)
- *	1	unknown TLD and not an IP.
- *	2	CNAME value has invalid TLD
- *	3	LHS of SOA is the root domain, query name does not exist
- *	4	LHS of SOA RR does not match query name
- *	5	MNAME of SOA has invalid TLD
- *	6	RNAME of SOA has invalid TLD or missing user name portion
+ *	A PDQ_SOA_ code.
  */
-int
-pdqIsValidSOA(PDQ *pdq, const char *name)
+PDQ_valid_soa
+pdqListHasValidSOA(PDQ_rr *rr_list, const char *name)
 {
-	int rc, offset;
-	PDQ_rr *rr, *rr_list;
+	int offset;
+	PDQ_rr *rr;
+	PDQ_valid_soa rc;
 	unsigned char ipv6[IPV6_BYTE_LENGTH];
 
-	rc = -1;
+	rc = PDQ_SOA_MISSING;
 
 	if (name == NULL)
-		return 0;
+		return PDQ_SOA_OK;
 
-	/* Find start of TLD. */
-	if ((offset = indexValidTLD(name)) < 0)
-		/* Ignore IP addresses by assuming true. */
-		return parseIPv6(name, ipv6) <= 0;
+	/* Ignore IP addresses by assuming true. */
+	if (0 < parseIPv6(name, ipv6)) {
+		if (0 < debug)
+			syslog(LOG_DEBUG, "pdqIsValidSOA: %s is an IP", name);
+		return PDQ_SOA_OK;
+	}
 
-	/* Backup one label for the domain. */
-	offset = strlrcspn(name, offset-1, ".");
-
-	if ((rr_list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_SOA, name, NULL)) != NULL) {
-		rc = 0;
-
-		for (rr = rr_list; rr != NULL; rr = rr->next) {
-			if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_CNAME) {
-				name = ((PDQ_CNAME *) rr)->host.string.value;
-				if ((offset = indexValidTLD(name)) < 0) {
-					if (0 < debug)
-						syslog(LOG_DEBUG, "pdqIsValidSOA: %s CNAME %s invalid TLD", rr->name.string.value, name);
-					rc = 2;
-					break;
-				}
-				offset = strlrcspn(name, offset-1, ".");
-			} else if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_SOA) {
-				/* Is SOA LHS the root domain and query name is not? */
-				if (name[0] != '.' && name[1] != '\0' && rr->name.string.length == 1) {
-					if (0 < debug)
-						syslog(LOG_DEBUG, "pdqIsValidSOA: %s returns root SOA", name);
-					rc = 3;
-					break;
-				}
-
-				/* Is SOA LHS the tail of the name question with a root dot? */
-				if (TextInsensitiveEndsWith(name, rr->name.string.value) < 0) {
-					/* Is SOA LHS the tail of the name question without a root dot? */
-					rr->name.string.value[rr->name.string.length-1] = '\0';
-					if (TextInsensitiveEndsWith(name, rr->name.string.value) < 0) {
-						if (0 < debug)
-							syslog(LOG_DEBUG, "pdqIsValidSOA: %s SOA not tail of %s", rr->name.string.value, name);
-						rc = 4;
-						break;
-					}
-					rr->name.string.value[rr->name.string.length-1] = '.';
-				}
-
-				/* Primary name server have a TLD? */
-				if (indexValidTLD(((PDQ_SOA *) rr)->mname.string.value) <= 0) {
-					if (0 < debug)
-						syslog(LOG_DEBUG, "pdqIsValidSOA: %s SOA primary NS %s invalid TLD", rr->name.string.value, ((PDQ_SOA *) rr)->mname.string.value);
-					rc = 5;
-					break;
-				}
-
-				/* Does the responsible contact have a TLD? */
-				if (indexValidTLD(((PDQ_SOA *) rr)->rname.string.value) <= 0) {
-					if (0 < debug)
-						syslog(LOG_DEBUG, "pdqIsValidSOA: %s SOA contact %s invalid TLD", rr->name.string.value, ((PDQ_SOA *) rr)->mname.string.value);
-					rc = 6;
-					break;
-				}
+	for (rr = rr_list; rr != NULL; rr = rr->next) {
+		if (rr->rcode == PDQ_RCODE_UNDEFINED && rr->type == PDQ_TYPE_SOA) {
+			if (0 < debug)
+				syslog(LOG_DEBUG, "pdqIsValidSOA: %s undefined", rr->name.string.value);
+			rc = PDQ_SOA_UNDEFINED;
+			break;
+		} else if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_CNAME) {
+			name = ((PDQ_CNAME *) rr)->host.string.value;
+			if ((offset = indexValidTLD(name)) < 0) {
+				if (0 < debug)
+					syslog(LOG_DEBUG, "pdqIsValidSOA: %s CNAME %s invalid TLD", rr->name.string.value, name);
+				rc = PDQ_SOA_BAD_CNAME;
+				break;
 			}
-		}
+			offset = strlrcspn(name, offset-1, ".");
+			name += offset;
 
-		pdqFree(rr_list);
+			/*** TODO SOA lookup of CNAME target.
+			 ***/
+
+		} else if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_SOA) {
+			/* Is SOA LHS the root domain and query name is not? */
+			if (name[0] != '.' && name[1] != '\0' && rr->name.string.length == 1) {
+				if (0 < debug)
+					syslog(LOG_DEBUG, "pdqIsValidSOA: %s returns root SOA", name);
+				rc = PDQ_SOA_ROOTED;
+				break;
+			}
+
+			/* Is SOA LHS the tail of the name question with a root dot? */
+			if (TextInsensitiveEndsWith(name, rr->name.string.value) < 0) {
+				/* Is SOA LHS the tail of the name question without a root dot? */
+				rr->name.string.value[rr->name.string.length-1] = '\0';
+				if (TextInsensitiveEndsWith(name, rr->name.string.value) < 0) {
+					if (0 < debug)
+						syslog(LOG_DEBUG, "pdqIsValidSOA: %s SOA not tail of %s", rr->name.string.value, name);
+					rc = PDQ_SOA_MISMATCH;
+					break;
+				}
+				rr->name.string.value[rr->name.string.length-1] = '.';
+			}
+
+			/* Primary name server have a TLD? */
+			if (indexValidTLD(((PDQ_SOA *) rr)->mname.string.value) <= 0) {
+				if (0 < debug)
+					syslog(LOG_DEBUG, "pdqIsValidSOA: %s SOA primary NS %s invalid TLD", rr->name.string.value, ((PDQ_SOA *) rr)->mname.string.value);
+				rc = PDQ_SOA_BAD_NS;
+				break;
+			}
+
+			/* Does the responsible contact have a TLD? */
+			if (indexValidTLD(((PDQ_SOA *) rr)->rname.string.value) <= 0) {
+				if (0 < debug)
+					syslog(LOG_DEBUG, "pdqIsValidSOA: %s SOA contact %s invalid TLD", rr->name.string.value, ((PDQ_SOA *) rr)->mname.string.value);
+				rc = PDQ_SOA_BAD_CONTACT;
+				break;
+			}
+
+			rc = PDQ_SOA_OK;
+			break;
+		}
 	}
 
 	return rc;
@@ -3140,6 +3156,62 @@ pdqFetchMX(PDQ_class class, const char *name, long is_ip_mask)
 	}
 
 	return answer;
+}
+
+/**
+ * @param pdq
+ *	A PDQ structure pointer for handling queries.
+ *
+ * @param class
+ *	A PDQ_CLASS_ code of the DNS record class to find.
+ *
+ * @param name
+ *	A host or domain name to check.
+ *
+ * @param list
+ *	A pointer to PDQ_rr pointer in which to pass-back a list
+ *	of RR records contains an SOA and A records. The pointer
+ *	can be NULL if the list is not required.
+ *
+ * @return
+ *	A PDQ_SOA_ code.
+ */
+PDQ_valid_soa
+pdqTestSOA(PDQ *pdq, PDQ_class class, const char *name, PDQ_rr **list)
+{
+	int offset;
+	PDQ_rr *rr_list;
+	PDQ_valid_soa code;
+
+	/* Find start of TLD. */
+	if ((offset = indexValidTLD(name)) < 0) {
+		unsigned char ipv6[IPV6_BYTE_LENGTH];
+
+		/* Ignore IP addresses by assuming true. */
+		if (0 < parseIPv6(name, ipv6)) {
+			if (0 < debug)
+				syslog(LOG_DEBUG, "pdqIsValidSOA: %s is an IP", name);
+			return PDQ_SOA_OK;
+		}
+
+		if (0 < debug)
+			syslog(LOG_DEBUG, "pdqIsValidSOA: %s invalid TLD", name);
+		return PDQ_SOA_BAD_NAME;
+	}
+
+	/* Backup one label for the domain. */
+	offset = strlrcspn(name, offset-1, ".");
+	name += offset;
+
+	rr_list = pdqGet(pdq, class, PDQ_TYPE_SOA, name, NULL);
+	code = pdqListHasValidSOA(rr_list, name);
+
+	if (list == NULL)
+		pdqFree(rr_list);
+	else
+		*list = rr_list;
+
+	return code;
 }
 
 /***********************************************************************
@@ -3600,7 +3672,12 @@ main(int argc, char **argv)
 		type = pdqTypeCode(argv[i]);
 
 		if (suffix_list == NULL) {
-			list = pdqGet(pdq, class, type, argv[i+1], query_server);
+			if (check_soa) {
+				if ((ch = pdqTestSOA(pdq, class, argv[i+1], &list)) != 0)
+					printf("%s invalid SOA: %s (%d)\n", argv[i+1], pdqSoaName(ch), ch);
+			} else {
+				list = pdqGet(pdq, class, type, argv[i+1], query_server);
+			}
 
 			if (prune_list)
 				list = pdqListPrune(list, IS_IP_RESTRICTED|IS_IP_LAN);
@@ -3620,9 +3697,6 @@ main(int argc, char **argv)
 		} else {
 			answers = pdqListAppend(answers, list);
 		}
-
-		if (check_soa && (ch = pdqIsValidSOA(pdq, argv[i+1])) != 0)
-			printf("%s invalid SOA (%d)\n", argv[i+1], ch);
 	}
 
 	pdqListDump(stdout, answers);

@@ -134,6 +134,18 @@ typedef enum {
 #define PDQ_RR_IS_VALID(rr)		((rr) != NULL && (rr) != PDQ_CNAME_TOO_DEEP && (rr) != PDQ_CNAME_IS_CIRCULAR)
 #define PDQ_RR_IS_NOT_VALID(rr)		((rr) == NULL || (rr) == PDQ_CNAME_TOO_DEEP || (rr) == PDQ_CNAME_IS_CIRCULAR)
 
+typedef enum {
+	PDQ_SOA_OK 			= 0,	/* OK (or query name is NULL or an IP) */
+	PDQ_SOA_BAD_NAME,			/* Query name has invalid TLD. */
+	PDQ_SOA_UNDEFINED,			/* Query name is not defined.     */
+	PDQ_SOA_MISSING,			/* No SOA in list. */
+	PDQ_SOA_BAD_CNAME,			/* CNAME value in list has invalid TLD */
+	PDQ_SOA_ROOTED,				/* LHS of SOA is the root domain, query name does not exist */
+	PDQ_SOA_MISMATCH,			/* LHS of SOA RR does not match query name */
+	PDQ_SOA_BAD_NS,				/* MNAME of SOA has invalid TLD */
+	PDQ_SOA_BAD_CONTACT,			/* RNAME of SOA has invalid TLD or missing user name portion */
+} PDQ_valid_soa;
+
 /*
  * Common RR elements. Prefixes the start of each RR record.
  */
@@ -299,6 +311,14 @@ extern const char *pdqTypeName(PDQ_type typeCode);
  *	A pointer to a C string name for the rcode.
  */
 extern const char *pdqRcodeName(PDQ_rcode rcode);
+
+/**
+ * @param soa_code
+ *
+ * @return
+ *	A pointer to a C string name for the SOA code.
+ */
+extern const char *pdqSoaName(PDQ_valid_soa soa_code);
 
 /**
  * @param record
@@ -954,9 +974,7 @@ extern PDQ_rr *pdqListReverse(PDQ_rr *list);
 
 /**
  * @param list
- *	A pointer to a PDQ_rr pointer in which to pass back a
- *	list of records. It is the caller's responsibility to
- *	pdqFree() this list when done.
+ *	A pointer to a PDQ_rr list.
  *
  * @return
  *	True if the list contains a CNAME loop.
@@ -973,25 +991,36 @@ extern int pdqIsCircular(PDQ_rr *list);
 extern size_t pdqSizeOf(PDQ_rr *record);
 
 /**
- * @param pdq
- *	A PDQ structure pointer for handling queries.
+ * @param list
+ *	A pointer to a PDQ_rr list.
  *
  * @param name
  *	A host or domain name to check.
  *
  * @return
- *	Zero if the SOA is not bogus, otherwise a non-zero value
- *	corresponding to which test case failed.
- *
- *	0	OK (or NULL or IP)
- *	1	unknown TLD and not an IP.
- *	2	CNAME value has invalid TLD
- *	3	LHS of SOA is the root domain, query name does not exist
- *	4	LHS of SOA RR does not match query name
- *	5	MNAME of SOA has invalid TLD
- *	6	RNAME of SOA has invalid TLD or missing user name portion
+ *	A PDQ_SOA_ code.
  */
-extern int pdqIsValidSOA(PDQ *pdq, const char *name);
+extern PDQ_valid_soa pdqListHasValidSOA(PDQ_rr *list, const char *name);
+
+/**
+ * @param pdq
+ *	A PDQ structure pointer for handling queries.
+ *
+ * @param class
+ *	A PDQ_CLASS_ code of the DNS record class to find.
+ *
+ * @param name
+ *	A host or domain name to check.
+ *
+ * @param list
+ *	A pointer to PDQ_rr pointer in which to pass-back a list
+ *	of RR records contains an SOA and A records. The pointer
+ *	can be NULL if the list is not required.
+ *
+ * @return
+ *	A PDQ_SOA_ code.
+ */
+extern PDQ_valid_soa pdqTestSOA(PDQ *pdq, PDQ_class class, const char *name, PDQ_rr **list);
 
 /***********************************************************************
  *** PDQ Application Options

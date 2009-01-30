@@ -35,3 +35,4 @@ A .				# TIMEDOUT
 MX beliefnet.com		# requires TCP
 SOA thatforward.com		# bogus SOA
 SOA cowfair.com			# bogus SOA ". 3600 IN SOA . root.local. (2008120402 3600 900 3600000 3600)"
+SOA www.wroto.com		# servfail
