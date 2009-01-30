@@ -302,7 +302,7 @@ hasValidNthTLD(const char *domain, int level)
 int
 hasValidTLD(const char *domain)
 {
-	return indexValidNthTLD(domain, 1) != -1;
+	return indexValidTLD(domain) != -1;
 }
 
 #ifdef TEST
