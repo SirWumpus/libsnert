@@ -248,9 +248,15 @@ dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domain
 	/* Find start of TLD. */
 	offset = indexValidTLD(name);
 
-	if (offset < 0)
-		/* Might be a IP address. */
+	if (offset < 0) {
+		unsigned char ipv6[IPV6_BYTE_LENGTH];
+
+		if (parseIPv6(name, ipv6) <= 0)
+			return NULL;
+
+		/* Is an IP address. */
 		offset = 0;
+	}
 
 	/* Scan domain and subdomains from right-to-left. */
 	do {
