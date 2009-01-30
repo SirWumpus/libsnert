@@ -37,6 +37,10 @@ typedef struct {
 	char *query;
 	char *fragment;
 	int status;
+#ifdef NOT_YET
+	int offsetTLD;		/* TLD offset in uri, or -1 if not found. */
+	int reservedTLD;
+#endif
 } URI;
 
 /**

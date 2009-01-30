@@ -608,8 +608,14 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		snprintf(uri->uriDecoded, length+1, "%s%c%s", uri->userInfo, at_sign_delim, uri->host);
 	}
 
-	if (uri->scheme != NULL && uri->host != NULL)
+	if (uri->scheme != NULL && uri->host != NULL) {
+#ifdef NOT_YET
+		/* Convience information. */
+		uri->reservedTLD = isReservedTLD(uri->host);
+		uri->offsetTLD = indexValidTLD(uri->host);
+#endif
 		return uri;
+	}
 error1:
 	free(uri);
 error0:
