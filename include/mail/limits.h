@@ -79,12 +79,14 @@ extern "C" {
 #define SMTP_MINIMUM_MESSAGE_LENGTH	(64*1024)
 
 /*
- * RFC 2821 4.5.3.2 Timeouts
+ * RFC 2821 4.5.3.2 Timeouts in seconds
  */
+#define SMTP_WELCOME_TO			300
 #define SMTP_COMMAND_TO			300
 #define SMTP_DATA_REPLY_TO		120
 #define SMTP_DATA_BLOCK_TO		180
 #define SMTP_DOT_TO			600
+#define SMTP_SERVER_TO			300
 
 #ifndef IPV4_BIT_LENGTH
 #define IPV4_BIT_LENGTH			32
