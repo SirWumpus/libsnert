@@ -50,6 +50,36 @@ is no set schedule for releases.
 
    !	Fixed htmlstrip to only process text/html sections.
 
+   !	Assorted Windows/Mingw fixes for old Dns.h and struct timespec.
+
+   +	pdq.c: added pdqIsValidSOA to validate basic characteristics of
+   	na SOA.
+
+   +	pdq.c: added -S option to validate an SOA of a domain.
+
+   +	uri.c: added -s option to the CLI to do SOA validation
+
+   !	uriParse2, uri.txt: change parsing of implicit domains/IP to
+	only match if the implicit name starts with www. and ends with a
+	valid TLD. This will exclude abbreviations like "U.S.A."; it
+	will also ignore bare IP.
+
+   !	hasValidTLD: now checks both level 1 and 2 TLD; previously it
+   	only did level 1, while indexValidTLD checked both 1 and 2.
+
+   !	dnsListQuery: skip testing names without a TLD.
+
+   !	mime.c: Regression introduced in 1.70.5. mimeStateQpSoftLine
+	would always set the state to mimeStateQpLiteral regardless of
+	the current input character. This means a QP byte starting on
+	the next line immediately following a softline break would not
+	be correctly decoded. Example:
+
+   		start with some text,=
+   		=20soft line break, followed by a QP space
+
+   	The =20 would not be decoded correctly.
+
 --1.70.5--
 
    !	mime.c: fixed MIME boundary detection, when the first MIME
