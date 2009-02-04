@@ -611,7 +611,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	if (uri->scheme != NULL && uri->host != NULL) {
 #ifdef NOT_YET
 		/* Convience information. */
-		uri->reservedTLD = isReservedTLD(uri->host);
+		uri->reservedTLD = isRFC2606(uri->host);
 		uri->offsetTLD = indexValidTLD(uri->host);
 #endif
 		return uri;
@@ -1013,6 +1013,13 @@ uriMimeDecodedOctet(Mime *m, int ch)
 	}
 }
 
+void
+uriMimeFlush(Mime *m)
+{
+	/* Force parse of hold before flush. */
+	uriMimeDecodedOctet(m, '\n');
+}
+
 /**
  * @param include_headers
  *	When true, parse both the message headers and body for URI.
@@ -1036,6 +1043,7 @@ uriMimeCreate(int include_headers)
 		return NULL;
 	}
 
+	mime->mime_flush = uriMimeFlush;
 	mime->mime_body_start = uriMimeBodyStart;
 	mime->mime_body_finish = uriMimeBodyStart;
 	mime->mime_decoded_octet = uriMimeDecodedOctet;

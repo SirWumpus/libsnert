@@ -48,8 +48,8 @@ struct mime {
 	int is_multipart;			/* True if message is multipart. */
 	int start_of_line;			/* True if at start-of-line. */
 	int (*state)(struct mime *, int);	/* Current state. */
-	int (*newline)(struct mime *, int);
-	int (*next_part)(struct mime *, int);
+	int (*state_newline)(struct mime *, int);
+	int (*state_next_part)(struct mime *, int);
 
 	/* Public data. */
 	void *mime_data;			/* Data for parser call-backs. */
@@ -61,6 +61,7 @@ struct mime {
 	unsigned long mime_body_decoded_length;	/* Decoded MIME body length. */
 
 	/* Parsing call-back hooks. */
+	MimeHook mime_flush;			/* Source & decode buffers are flushed. */
 	MimeHook mime_header;			/* On complete header line. */
 	MimeHook mime_body_start;		/* At end of MIME headers, start of MIME body. */
 	MimeHook mime_body_finish;		/* At end of MIME body, start of next MIME headers. */

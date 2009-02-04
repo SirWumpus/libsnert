@@ -80,6 +80,31 @@ is no set schedule for releases.
 
    	The =20 would not be decoded correctly.
 
+   !	mime.c/h: renamed some Mime structure members to simplify
+   	understanding and added more comments.
+
+   !	mime.c/h, uri.c: Added a mime_flush hook. The UriMime handlers
+	maintain a separate hold buffer for collecting a URI from the
+	MIME source and decode buffers. When the MIME API flushes its
+	buffers between lines, in particular between two header lines,
+	when the previous line ends with something that is an URI, then
+	the UriMime handlers were not previously notified of this
+	transition via a CR or LF character. For example:
+
+		To: dfg@fsg.com
+		X-NLCID: 64556
+
+	would result in a suggested URI of
+
+		dfg@fsg.comX-NLCID
+
+	With the mime_flush hook, uriMimeDecodeOctet can be called with
+	a LF character to force a URI parse and flush. This results in
+	the correct URI being reported:
+
+		dfg@fsg.com
+
+
 --1.70.5--
 
    !	mime.c: fixed MIME boundary detection, when the first MIME
