@@ -104,6 +104,7 @@ is no set schedule for releases.
 
 		dfg@fsg.com
 
+   +	Vector.c/h: added VectorUniq.
 
 --1.70.5--
 

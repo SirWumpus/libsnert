@@ -31,6 +31,7 @@ typedef struct vector {
 	void (*set)(struct vector *self, long index, /*@keep@*/ void *object);
 	long (*size)(struct vector *self);
 	void (*sort)(struct vector *self, int (*compare)(const void *a, const void *b));
+	void (*uniq)(struct vector *self, int (*compare)(const void *a, const void *b));
 
 	/**
 	 * @param self
@@ -141,6 +142,7 @@ extern void VectorSet(Vector self, long index, /*@keep@*/ void *data);
 extern void VectorSetDestroyEntry(Vector self, /*@null@*/ void (*destroy)(void *entry));
 extern long VectorLength(Vector self);
 extern void VectorSort(Vector self, int (*compare)(const void *a, const void *b));
+extern void VectorUniq(Vector self, int (*compare)(const void *a, const void *b));
 extern int VectorAll(Vector self, int (*function)(Vector self, long index, void *object, void *data), void *data);
 extern int VectorSome(Vector self, int (*function)(Vector self, long index, void *object, void *data), void *data);
 extern int VectorWalk(Vector self, int (*function)(Vector self, long index, void *object, void *data), void *data);

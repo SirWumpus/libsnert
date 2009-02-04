@@ -181,6 +181,9 @@ VectorRemoveSome(Vector self, long index, long length)
 	if (! VectorMoveRange(self, index, index + length - 1, self->_length))
 		self->_length -= length;
 
+	/* Maintain NULL terminated array of pointers. */
+	self->_base[self->_length] = NULL;
+
 	return 0;
 }
 
@@ -323,6 +326,22 @@ VectorSort(Vector self, int (*compare)(const void *a, const void *b))
 		errno = EFAULT;
 	else
 		qsort(self->_base, (size_t) self->_length, sizeof (void *), compare);
+}
+
+void
+VectorUniq(Vector self, int (*compare)(const void *a, const void *b))
+{
+	long i;
+	void *curr = NULL;
+
+	if (self != NULL) {
+		for (i = 0; i < self->_length; i++) {
+			if ((*compare)(&curr, &self->_base[i]) == 0)
+				VectorRemove(self, i--);
+			else
+				curr = self->_base[i];
+		}
+	}
 }
 
 /**
@@ -476,6 +495,7 @@ VectorCreate(long capacity)
 		model.setDestroyEntry = VectorSetDestroyEntry;
 		model.size = VectorLength;
 		model.sort = VectorSort;
+		model.uniq = VectorUniq;
 		model.walk = VectorWalk;
 		model.all = VectorAll;
 		model.some = VectorSome;
