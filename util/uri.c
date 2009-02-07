@@ -917,9 +917,7 @@ void
 uriMimeBodyStart(Mime *m)
 {
 	UriMime *hold = m->mime_data;
-
-	free(hold->uri);
-	hold->uri = NULL;
+	uriMimeFreeUri(m);
 	hold->length = 0;
 }
 
@@ -973,7 +971,7 @@ uriMimeDecodedOctet(Mime *m, int ch)
 		}
 
 		hold->buffer[hold->length++] = ch;
-		hold->uri = NULL;
+		uriMimeFreeUri(m);
 
 		return;
 	}
@@ -1004,6 +1002,9 @@ uriMimeDecodedOctet(Mime *m, int ch)
 			hold->length--;
 			value++;
 		}
+
+		/* Discard previous URI before parsing a new one. */
+		uriMimeFreeUri(m);
 
 		hold->uri = uriParse2(hold->buffer+value, hold->length-value, IMPLICIT_DOMAIN_MIN_DOTS);
 		if (2 < uriDebug && hold->uri != NULL)
