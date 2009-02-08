@@ -106,6 +106,9 @@ is no set schedule for releases.
 
    +	Vector.c/h: added VectorUniq.
 
+  !!	uriMimeDecodedOctet: fixed memory leak introduced when mime_flush
+	was added.
+
 --1.70.5--
 
    !	mime.c: fixed MIME boundary detection, when the first MIME
