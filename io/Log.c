@@ -47,6 +47,7 @@ extern long getpid(void);
 FILE *logFile;
 static int logLevel = LOG_INFO;
 static char *logLevels[] = { "PANIC", "ALERT", "FATAL", "ERROR", "WARN", "NOTICE", "INFO", "DEBUG" };
+static char *logShortLevels[] = { "!", "A", "F", "E", "W", "N", "I", "D" };
 
 static const char *programName = "";
 
