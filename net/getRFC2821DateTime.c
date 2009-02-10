@@ -1,13 +1,14 @@
 /*
  * getRFC2821DateTime.c
  *
- * Copyright 2008 by Anthony Howe. All rights reserved.
+ * Copyright 2008, 2009 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
  ***
  ***********************************************************************/
 
+#include <stdio.h>
 #include <string.h>
 
 #ifdef TIME_WITH_SYS_TIME
