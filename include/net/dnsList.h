@@ -131,6 +131,29 @@ extern const char *dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, 
  */
 extern const char *dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name);
 
+/**
+ * @param dns_list
+ *	A pointer to a DnsList.
+ *
+ * @param pdq
+ *	A pointer to PDQ structure to use for the query.
+ *
+ * @param names_seen
+ *	A pointer to vector of previously looked up names. If name
+ *	is present in this vector, then the query is skipped and
+ *	NULL immiediately returned. The query name will be added
+ *	to this vector.	Specify NULL to skip this check.
+ *
+ * @param name
+ *	A host or domain name whos A/AAAA records are first found and
+ *	then passed to dnsListQueryName.
+ *
+ * @return
+ *	A C string pointer to a list name in which name is a member.
+ *	Otherwise NULL if name was not found in a DNS list.
+ */
+extern const char *dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name);
+
 /***********************************************************************
  ***
  ***********************************************************************/

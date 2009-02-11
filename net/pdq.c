@@ -1815,7 +1815,7 @@ pdq_query_send(PDQ *pdq, PDQ_query *query)
 /*
  * Parse name, type, and class into a PDQ_rr structure.
  */
-static PDQ_rr *
+PDQ_rr *
 pdq_reply_rr(struct udp_packet *packet, unsigned char *ptr, unsigned char **stop)
 {
 	PDQ_type type;

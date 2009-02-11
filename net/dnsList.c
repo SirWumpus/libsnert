@@ -272,6 +272,61 @@ dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domain
 	return NULL;
 }
 
+/**
+ * @param dns_list
+ *	A pointer to a DnsList.
+ *
+ * @param pdq
+ *	A pointer to PDQ structure to use for the query.
+ *
+ * @param names_seen
+ *	A pointer to vector of previously looked up names. If name
+ *	is present in this vector, then the query is skipped and
+ *	NULL immiediately returned. The query name will be added
+ *	to this vector.	Specify NULL to skip this check.
+ *
+ * @param name
+ *	A host or domain name whos A/AAAA records are first found and
+ *	then passed to dnsListQueryName.
+ *
+ * @return
+ *	A C string pointer to a list name in which name is a member.
+ *	Otherwise NULL if name was not found in a DNS list.
+ */
+const char *
+dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
+{
+	PDQ_rr *rr, *list;
+	const char *list_name = NULL;
+
+	list = pdqGet5A(pdq, PDQ_CLASS_IN, name);
+
+	for (rr = list; rr != NULL; rr = rr->next) {
+		if (rr->rcode != PDQ_RCODE_OK || (rr->type != PDQ_TYPE_A && rr->type != PDQ_TYPE_AAAA))
+			continue;
+
+		/* Some domains specify a 127.0.0.0/8 address for
+		 * an A recorded, like "anything.so". The whole
+		 * TLD .so for Somalia, is a wild card record that
+		 * maps to 127.0.0.2, which typically is a DNSBL
+		 * test record that always fails.
+		 */
+		if (isReservedIPv6(((PDQ_AAAA *) rr)->address.ip.value, IS_IP_LOOPBACK|IS_IP_LOCALHOST))
+			continue;
+
+		list_name = dnsListQueryName(dns_list, pdq, names_seen, ((PDQ_AAAA *) rr)->address.string.value);
+		if (list_name != NULL) {
+			if (0 < debug)
+				syslog(LOG_DEBUG, "%s [%s] listed in %s", name, ((PDQ_AAAA *) rr)->address.string.value, list_name);
+			break;
+		}
+	}
+
+	pdqFree(list);
+
+	return list_name;
+}
+
 #ifndef NS_VERSION1
 static const char *
 dnsListQueryNs0(DnsList *dns_list, PDQ *pdq, Vector names_seen, int recurse, const char *name)

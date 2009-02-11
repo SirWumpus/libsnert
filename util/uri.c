@@ -1123,19 +1123,22 @@ static int check_files;
 static int check_query;
 static int check_subdomains;
 static int print_uri_parse;
+static char *ipBlOption;
 static char *nsBlOption;
 static char *uriBlOption;
 static Vector print_uri_ports;
 static long *uri_ports;
 
 static char usage[] =
-"usage: uri [-aflpqrsv][-A delim][-n ns-bl,...][-u uri-bl,...]\n"
+"usage: uri [-aflpqrsv][-A delim][-i ip-bl,...][-n ns-bl,...][-u uri-bl,...]\n"
 "           [-P ports][-t sec][-T sec][arg ...]\n"
 "\n"
 "-a\t\tcheck all (headers & body), otherwise assume body only\n"
 "-A delim\tan alternative delimiter to replace the at-sign (@)\n"
 "-D\t\tcheck sub-domains segments of URI domains\n"
 "-f\t\tcommand line arguments are file names\n"
+"-i ip-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
+"\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
 "-l\t\tcheck HTTP links are valid & find origin server\n"
 "-n ns-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
@@ -1181,6 +1184,7 @@ syslog(int level, const char *fmt, ...)
 
 PDQ *pdq;
 int check_soa;
+DnsList *ip_bl_list;
 DnsList *ns_bl_list;
 DnsList *uri_bl_list;
 Vector ns_names_seen;
@@ -1240,6 +1244,13 @@ process(URI *uri, const char *filename)
 			if (filename != NULL)
 				printf("%s: ", filename);
 			printf("%s domain blacklisted %s\n", uri->host, list_name);
+			exit_code = EXIT_FAILURE;
+		}
+
+		if ((list_name = dnsListQueryIP(ip_bl_list, pdq, NULL, uri->host)) != NULL) {
+			if (filename != NULL)
+				printf("%s: ", filename);
+			printf("%s IP blacklisted %s\n", uri->host, list_name);
 			exit_code = EXIT_FAILURE;
 		}
 
@@ -1345,13 +1356,16 @@ main(int argc, char **argv)
 	URI *uri;
 	int i, ch;
 
-	while ((ch = getopt(argc, argv, "aA:Dn:u:flmpP:qRsT:t:v")) != -1) {
+	while ((ch = getopt(argc, argv, "aA:Di:n:u:flmpP:qRsT:t:v")) != -1) {
 		switch (ch) {
 		case 'a':
 			check_all = 1;
 			break;
 		case 'A':
 			at_sign_delim = *optarg;
+			break;
+		case 'i':
+			ipBlOption = optarg;
 			break;
 		case 'n':
 			nsBlOption = optarg;
@@ -1427,6 +1441,7 @@ main(int argc, char **argv)
 
 	ns_names_seen = VectorCreate(10);
 	VectorSetDestroyEntry(ns_names_seen, free);
+	ip_bl_list = dnsListCreate(ipBlOption);
 	ns_bl_list = dnsListCreate(nsBlOption);
 	uri_bl_list = dnsListCreate(uriBlOption);
 

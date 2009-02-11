@@ -44,6 +44,14 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.70.7--
+
+   +	dnsListQueryIP: added a function for IP BL queries, where a host's
+   	A/AAAA records are first looked up then their IPs are checked
+   	against IP BLs. This replaces the old uriIsHostBL.
+
+   +	uri.c: added -i option to check URI host IP against IP BLs.
+
 --1.70.6--
 
    !	Add redact option to htmlstrip CLI.
