@@ -62,6 +62,10 @@ extern "C" {
 
 #include <com/snert/lib/net/network.h>
 
+/***********************************************************************
+ *** PDQ Types
+ ***********************************************************************/
+
 typedef struct pdq PDQ;
 
 typedef struct {
@@ -129,6 +133,14 @@ typedef enum {
 	PDQ_RCODE_ANY			= 255,	/* any rcode, see pdqListFind */
 } PDQ_rcode;
 
+typedef enum {
+	PDQ_SECTION_UNKNOWN		= 0,
+	PDQ_SECTION_QUESTION		= 1,
+	PDQ_SECTION_ANSWER		= 2,
+	PDQ_SECTION_NS			= 3,
+	PDQ_SECTION_EXTRA		= 4,
+} PDQ_section;
+
 #define PDQ_CNAME_TOO_DEEP		((PDQ_rr *) 1)
 #define PDQ_CNAME_IS_CIRCULAR		((PDQ_rr *) 2)
 #define PDQ_RR_IS_VALID(rr)		((rr) != NULL && (rr) != PDQ_CNAME_TOO_DEEP && (rr) != PDQ_CNAME_IS_CIRCULAR)
@@ -151,6 +163,7 @@ typedef enum {
  */
 typedef struct pdq_rr {
 	struct pdq_rr *next;
+	PDQ_section section;
 	PDQ_rcode rcode;
 	time_t created;			/* When this record was created. */
 	PDQ_name name;			/* Domain, host, reversed-IP or request. */
@@ -343,6 +356,43 @@ extern const char *pdqGetAddress(PDQ_rr *record);
  *	Size of the type's structure.
  */
 extern size_t pdqSizeOfType(PDQ_type type);
+
+/**
+ * @param record
+ *	A single DNS resource record.
+ *
+ * @return
+ *	Size of the DNS record as a string..
+ */
+extern size_t pdqStringSize(PDQ_rr *rr);
+
+/**
+ * @param buffer
+ *	A buffer in which to write the record as a string.
+ *
+ * @param size
+ *	Size of the buffer.
+ *
+ * @param record
+ *	A single DNS resource record.
+ *
+ * @return
+ *	The length of the string, excluding the terminating NUL byte.
+ *	If size is zero, buffer may be a null pointer and no characters
+ *	will be written; the number of bytes that would have been written
+ *	excluding the terminating NUL byte, will be returned.
+ */
+extern int pdqStringFormat(char *buffer, size_t size, PDQ_rr * record);
+
+/**
+ * @param record
+ *	A single DNS resource record.
+ *
+ * @return
+ *	An allocated C string representing the record. It is the caller's
+ *	responsibility to free the string.
+ */
+extern char *pdqString(PDQ_rr *record);
 
 /***********************************************************************
  *** Instance Methods

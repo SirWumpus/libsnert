@@ -1372,6 +1372,157 @@ pdqListLog(PDQ_rr *list)
 	}
 }
 
+size_t
+pdqStringSize(PDQ_rr *record)
+{
+	size_t length;
+
+	if (record == NULL)
+		return 0;
+
+	/* "%s %lu %s %s " */
+	length = record->name.string.length + 1;
+	length += 10 + 1 + 2 + 1 + 5 + 1;
+
+	switch (record->type) {
+	case PDQ_TYPE_A:
+	case PDQ_TYPE_AAAA:
+		/* "%s" */
+		length += ((PDQ_A *) record)->address.string.length + 1;
+		break;
+
+	case PDQ_TYPE_SOA:
+		/* "%s %s (%lu %ld %ld %ld %lu)" */
+		length += ((PDQ_SOA *) record)->mname.string.length + 1;
+		length += ((PDQ_SOA *) record)->rname.string.length + 1;
+		length += 1 + 10 + 1 + 11 + 1 + 11 + 1 + 11 + 1 + 10 + 1 + 1;
+		break;
+
+	case PDQ_TYPE_MX:
+		/* "%d %s" */
+		length += 5 + 1;
+		length += ((PDQ_MX *) record)->host.string.length + 1;
+		break;
+
+	case PDQ_TYPE_NS:
+	case PDQ_TYPE_PTR:
+	case PDQ_TYPE_CNAME:
+	case PDQ_TYPE_DNAME:
+		/* "%s" */
+		length += ((PDQ_NS *) record)->host.string.length + 1;
+		break;
+
+	case PDQ_TYPE_TXT:
+		/* "%s" */
+		length += 1 + ((PDQ_TXT *) record)->text.length + 1 + 1;
+		break;
+
+	case PDQ_TYPE_NULL:
+		/* "%02x..." */
+		length += ((PDQ_NULL *) record)->text.length * 2 + 1;
+		break;
+
+	case PDQ_TYPE_HINFO:
+	case PDQ_TYPE_MINFO:
+		/* "\"%s\" \"%s\"" */
+		length += 1 + ((PDQ_HINFO *) record)->cpu.string.length + 1 + 1;
+		length += 1 + ((PDQ_HINFO *) record)->os.string.length + 1 + 1;
+		break;
+	}
+
+	return length;
+}
+
+int
+pdqStringFormat(char *buffer, size_t size, PDQ_rr * record)
+{
+	int length;
+
+	length = snprintf(buffer, size, PDQ_LOG_FMT, PDQ_LOG_ARG(record));
+
+	switch (record->type) {
+	case PDQ_TYPE_A:
+	case PDQ_TYPE_AAAA:
+		length += snprintf(
+			buffer+length, 0 < size ? size-length : 0, "%s",
+			((PDQ_A *) record)->address.string.value
+		);
+		break;
+
+	case PDQ_TYPE_SOA:
+		length += snprintf(
+			buffer+length, 0 < size ? size-length : 0,
+			"%s %s (%lu %ld %ld %ld %lu)",
+			((PDQ_SOA *) record)->mname.string.value,
+			((PDQ_SOA *) record)->rname.string.value,
+			(unsigned long)((PDQ_SOA *) record)->serial,
+			(long)((PDQ_SOA *) record)->refresh,
+			(long)((PDQ_SOA *) record)->retry,
+			(long)((PDQ_SOA *) record)->expire,
+			(unsigned long)((PDQ_SOA *) record)->minimum
+		);
+		break;
+
+	case PDQ_TYPE_MX:
+		length += snprintf(
+			buffer+length, 0 < size ? size-length : 0, "%d ",
+			((PDQ_MX *) record)->preference
+		);
+		/*@fallthrough@*/
+
+	case PDQ_TYPE_NS:
+	case PDQ_TYPE_PTR:
+	case PDQ_TYPE_CNAME:
+	case PDQ_TYPE_DNAME:
+		length += snprintf(
+			buffer+length, 0 < size ? size-length : 0, "%s",
+			((PDQ_NS *) record)->host.string.value
+		);
+		break;
+
+	case PDQ_TYPE_TXT:
+		length += snprintf(
+			buffer+length, 0 < size ? size-length : 0, "\"%s\"",
+			TextEmpty((char *) ((PDQ_TXT *) record)->text.value)
+		);
+		break;
+
+	case PDQ_TYPE_NULL:
+		length += snprintf(
+			buffer+length, 0 < size ? size-length : 0, "%lu bytes",
+			((PDQ_NULL *) record)->text.length
+		);
+		break;
+
+	case PDQ_TYPE_HINFO:
+	case PDQ_TYPE_MINFO:
+		length += snprintf(
+			buffer+length, 0 < size ? size-length : 0, "\"%s\" \"%s\"",
+			((PDQ_HINFO *) record)->cpu.string.value,
+			((PDQ_HINFO *) record)->os.string.value
+		);
+		break;
+	}
+
+	return length;
+}
+
+char *
+pdqString(PDQ_rr *record)
+{
+	int length;
+	char *buffer;
+
+	if (record == NULL)
+		return NULL;
+
+	length = pdqStringFormat(NULL, 0, record);
+	if ((buffer = malloc(length+1)) != NULL)
+		pdqStringFormat(buffer, length+1, record);
+
+	return buffer;
+}
+
 /***********************************************************************
  *** Response Record Name Routines
  ***********************************************************************/
@@ -1946,6 +2097,14 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			ptr += length;
 			continue;
 		}
+
+		if (i < packet->header.ancount)
+			record->section = PDQ_SECTION_ANSWER;
+		else if (i < packet->header.ancount + packet->header.nscount)
+			record->section = PDQ_SECTION_NS;
+		else
+			record->section = PDQ_SECTION_EXTRA;
+
 		record->rcode = rcode;
 
 		record->ttl = NET_GET_LONG(ptr);
