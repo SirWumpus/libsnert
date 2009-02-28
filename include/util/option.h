@@ -100,10 +100,37 @@ extern int optionParse(char *option, int assume_plus, char **name, char **value)
 extern int optionSet(Option *option, char *value);
 
 /**
+ * @param option
+ *	A pointer to an Option structure to set.
+ *
+ * @param value
+ *	An option's numerical runtime value to set.
+ *
+ * @return
+ *	True if option value was successfully set.
+ */
+extern int optionSetInteger(Option *opt, long value);
+
+/**
  * @param table
  *	A table of options to be written to standard output.
+ *
+ * @note
+ *	Equivalent to optionListAll(table, 2);
  */
 extern void optionUsage(Option *table[]);
+
+/**
+ * @param table
+ *	A table of options to be written to standard output.
+ *
+ * @param mode
+ *	0	options as assignments, no comments
+ *	1	options as booleans or assignments, no comments
+ *	2	options as booleans or assignments with leading comments
+ *	3	options as booleans or assignments with tailing comments
+ */
+extern void optionListAll(Option *table[], int mode);
 
 /**
  * @param table

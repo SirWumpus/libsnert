@@ -159,39 +159,65 @@ optionPrintAssignment(const char *name, const char *value, int comment)
 /**
  * @param table
  *	A table of options to be written to standard output.
+ *
+ * @param mode
+ *	0	options as assignments only, no comments
+ *	1	options as booleans or assignments, no comments
+ *	2	options as booleans or assignments with leading comments
+ *	3	options as booleans or assignments with tailing comments
  */
 void
-optionUsage(Option *table[])
+optionListAll(Option *table[], int mode)
 {
 	Option **opt, *o;
 
 	for (opt = table; *opt != NULL; opt++) {
 		o = *opt;
 
-		if (o->usage == NULL)
-			continue;
-
-		printf("# %s\n", o->usage);
+		if (mode == 2 && o->usage != NULL)
+			printf("# %s\n", o->usage);
 
 		if (isprint(*o->name)) {
 			if (o->initial == NULL) {
 				/* Action like -help/+help */
-				printf("#-%s or +%s\n\n", o->name, o->name);
+				if (mode == 2)
+					printf("#-%s or +%s\n", o->name, o->name);
 			} else if ((*o->initial == '+' || *o->initial == '-') && o->initial[1] == '\0') {
 				/* Boolean +option or -option */
-				if (o->string != NULL && strcmp(o->initial, o->string) != 0)
-					printf("#%s%s\n", o->initial, o->name);
-				printf("%s%s\n\n", o->value ? "+" : "-", o->name);
+				if (mode == 0) {
+					printf("%s=%ld\n", o->name, o->value);
+				} else {
+					if (o->string != NULL && strcmp(o->initial, o->string) != 0)
+						printf("#%s%s\n", o->initial, o->name);
+					printf("%s%s\n", o->value ? "+" : "-", o->name);
+				}
 			} else {
 				/* Assignment option=value or option+=value */
-				if (o->string == NULL || strcmp(o->initial, o->string) != 0)
+				if (mode == 2 && (o->string == NULL || strcmp(o->initial, o->string) != 0))
 					optionPrintAssignment(o->name, o->initial, o->string != NULL);
 
 				optionPrintAssignment(o->name, o->string, 0);
-				printf("\n");
 			}
 		}
+
+		if (mode == 2)
+			printf("\n");
+		else if (mode == 3 && o->usage != NULL)
+			printf("# %s\n\n", o->usage);
 	}
+}
+
+/**
+ * @param table
+ *	A table of options to be written to standard output.
+ *
+ * @note
+ *	Equivalent to optionListAll(table, 2);
+ */
+void
+optionUsage(Option *table[])
+{
+	optionListAll(table, 2);
 }
 
 /**
@@ -261,6 +287,27 @@ optionSet(Option *opt, char *value)
 	opt->string = value;
 
 	return 1;
+}
+
+int
+optionSetInteger(Option *opt, long value)
+{
+	char buffer[20];
+
+	if (opt->initial != opt->string)
+		free(opt->string);
+
+	if ((value == 0 && *opt->initial == '-') || (value == 1 && *opt->initial == '+')) {
+		opt->string = (char *) opt->initial;
+		opt->length = 1;
+	} else {
+		opt->length = snprintf(buffer, sizeof (buffer), "%ld", value);
+		opt->string = strdup(buffer);
+	}
+
+	opt->value = value;
+
+	return opt->string != NULL;
 }
 
 /**
