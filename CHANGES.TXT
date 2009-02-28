@@ -44,6 +44,22 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.70.8--
+
+   !    Upgraded SQLite to 3.6.10; removed previous local patch.
+
+   +	Added pdqStringSize, pdqStringFormat, and pdqString.
+
+   +	Added optionSetInteger.
+
+   +	Added optionListAll to provide alternative means of writing the
+   	options to standard output.
+
+   !	Reimplemented optionUsage in terms of optionListAll.
+
+   !	pdq.c/h: Added PDQ_section identifying the section the record
+   	came from.
+
 --1.70.7--
 
    +	dnsListQueryIP: added a function for IP BL queries, where a host's
