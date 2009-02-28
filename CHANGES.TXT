@@ -44,6 +44,11 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.70.9--
+
+   !	type/kvmap.c: allow kvmap to register keys with blank values using the
+   	-b option.
+
 --1.70.8--
 
    !    Upgraded SQLite to 3.6.10; removed previous local patch.
