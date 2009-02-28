@@ -25,10 +25,11 @@
  ***********************************************************************/
 
 static char usage[] =
-"usage: kvmap [-alLuU] map <textfile\n"
+"usage: kvmap [-ablLuU] map <textfile\n"
 "usage: kvmap  -d      map >textfile\n"
 "\n"
 "-a\t\tappend/modify an existing map\n"
+"-b\t\tallow blank or empty value field\n"
 "-d\t\tdump the map to standard output\n"
 "-l\t\tfold keys to lower case\n"
 "-L\t\tfold values to lower case\n"
@@ -84,12 +85,15 @@ main(int argc, char **argv)
 	unsigned long lineno;
 	char *table, *location;
 	static char buffer[BUFSIZ];
-	int rc, ch, dump_mode = 0, append_mode = 0, key_case = 0, value_case = 0;
+	int rc, ch, dump_mode = 0, append_mode = 0, key_case = 0, value_case = 0, allow_empty = 0;
 
-	while ((ch = getopt(argc, argv, "adluLU")) != -1) {
+	while ((ch = getopt(argc, argv, "abdluLU")) != -1) {
 		switch (ch) {
 		case 'a':
 			append_mode = 1;
+			break;
+		case 'b':
+			allow_empty = 1;
 			break;
 		case 'd':
 			dump_mode = 1;
@@ -152,14 +156,19 @@ main(int argc, char **argv)
 			}
 
 			if (length == key.size) {
-				fprintf(stderr, "kvmap: warning at %ld: key \"%s\" has no value, skipping\n", lineno, key.data);
-				continue;
-			}
+				if (!allow_empty) {
+					fprintf(stderr, "kvmap: warning at %ld: key \"%s\" has no value, skipping\n", lineno, key.data);
+					continue;
+				}
 
-			/* Value starts with first non-white space following key. */
-			value.size = key.size + 1 + strspn(buffer + key.size + 1, " \t");
-			value.data = (unsigned char *) buffer + value.size;
-			value.size = length - value.size;
+				value.data = (unsigned char *) "";
+				value.size = 0;
+			} else {
+				/* Value starts with first non-white space following key. */
+				value.size = key.size + 1 + strspn(buffer + key.size + 1, " \t");
+				value.data = (unsigned char *) buffer + value.size;
+				value.size = length - value.size;
+			}
 
 			switch (value_case) {
 			case 'l':
@@ -170,7 +179,7 @@ main(int argc, char **argv)
 				break;
 			}
 
-			if (value.size == 0) {
+			if (!allow_empty && value.size == 0) {
 				fprintf(stderr, "kvmap: warning at %ld: key \"%s\" has an empty value\n", lineno, key.data);
 			}
 
