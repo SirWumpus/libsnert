@@ -1061,7 +1061,7 @@ PDQ_rr *
 pdqListFindIP(PDQ_rr *list, PDQ_class class, PDQ_type type, const unsigned char ipv6[IPV6_BYTE_LENGTH])
 {
 	/* We can only find IP in A/AAAA records. */
-	if (type != PDQ_TYPE_A || type != PDQ_TYPE_AAAA || type != PDQ_TYPE_5A)
+	if (type != PDQ_TYPE_A && type != PDQ_TYPE_AAAA && type != PDQ_TYPE_5A)
 		return NULL;
 
 	for ( ; list != NULL; list = list->next) {
@@ -1105,7 +1105,7 @@ PDQ_rr *
 pdqListFindAddress(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *ip)
 {
 	/* We can only find IP in A/AAAA records. */
-	if (type != PDQ_TYPE_A || type != PDQ_TYPE_AAAA || type != PDQ_TYPE_5A)
+	if (type != PDQ_TYPE_A && type != PDQ_TYPE_AAAA && type != PDQ_TYPE_5A)
 		return NULL;
 
 	for ( ; list != NULL; list = list->next) {
