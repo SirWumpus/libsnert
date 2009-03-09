@@ -239,18 +239,26 @@ static struct mapping rcodeMap[] = {
 };
 
 static struct mapping soaMap[] = {
-	{ PDQ_SOA_OK,		"OK"		},
-	{ PDQ_SOA_BAD_NAME,	"BAD NAME"	},
-	{ PDQ_SOA_UNDEFINED,	"UNDEFINED"	},
-	{ PDQ_SOA_MISSING,	"MISSING"	},
-	{ PDQ_SOA_BAD_CNAME,	"BAD_CNAME"	},
-	{ PDQ_SOA_ROOTED,	"ROOTED"	},
-	{ PDQ_SOA_MISMATCH,	"MISMATCH"	},
-	{ PDQ_SOA_BAD_NS,	"BAD NS"	},
-	{ PDQ_SOA_BAD_CONTACT,	"BAD CONTACT"	},
-	{ 0, 				NULL	}
+	{ PDQ_SOA_OK,			"OK"		},
+	{ PDQ_SOA_BAD_NAME,		"BAD NAME"	},
+	{ PDQ_SOA_UNDEFINED,		"UNDEFINED"	},
+	{ PDQ_SOA_MISSING,		"MISSING"	},
+	{ PDQ_SOA_BAD_CNAME,		"BAD_CNAME"	},
+	{ PDQ_SOA_ROOTED,		"ROOTED"	},
+	{ PDQ_SOA_MISMATCH,		"MISMATCH"	},
+	{ PDQ_SOA_BAD_NS,		"BAD NS"	},
+	{ PDQ_SOA_BAD_CONTACT,		"BAD CONTACT"	},
+	{ 0, 				NULL		}
 };
 
+static struct mapping sectionMap[] = {
+	{ PDQ_SECTION_UNKNOWN,		"UNKNOWN" 	},
+	{ PDQ_SECTION_QUESTION,		"QUESTION" 	},
+	{ PDQ_SECTION_ANSWER,		"ANSWER" 	},
+	{ PDQ_SECTION_AUTHORITY,	"AUTHORITY" 	},
+	{ PDQ_SECTION_EXTRA,		"EXTRA"		},
+	{ 0, 				NULL 		}
+};
 
 static const char usage_dns_max_timeout[] =
   "Maximum timeout in seconds for a DNS query."
@@ -314,6 +322,12 @@ const char *
 pdqSoaName(PDQ_valid_soa code)
 {
 	return pdq_code_to_name(soaMap, code);
+}
+
+const char *
+pdqSectionName(PDQ_section code)
+{
+	return pdq_code_to_name(sectionMap, code);
 }
 
 PDQ_type
@@ -1211,9 +1225,11 @@ pdqListRemove(PDQ_rr *list, PDQ_rr *record)
 	return list;
 }
 
-#define PDQ_LOG_FMT	"%s %lu %s %s "
-#define PDQ_LOG_ARG(l)	(l)->name.string.value, (unsigned long) (l)->ttl,\
-			pdqClassName((l)->class), pdqTypeName((l)->type)
+#define PDQ_LOG_FMT		"%s %lu %s %s "
+#define PDQ_LOG_ARG(l)		(l)->name.string.value, (unsigned long) (l)->ttl,\
+				pdqClassName((l)->class), pdqTypeName((l)->type)
+#define PDQ_LOG_FMT_END		" ; %s"
+#define PDQ_LOG_ARG_END(l)	pdqSectionName((l)->section)
 
 void
 pdqDump(FILE *fp, PDQ_rr *record)
@@ -1274,6 +1290,8 @@ pdqDump(FILE *fp, PDQ_rr *record)
 		break;
 	}
 
+	(void) fprintf(fp, PDQ_LOG_FMT_END, PDQ_LOG_ARG_END(record));
+
 	if (record->rcode != PDQ_RCODE_OK)
 		(void) fprintf(fp, " %s", pdqRcodeName(record->rcode));
 
@@ -1303,29 +1321,35 @@ pdqLog(PDQ_rr *record)
 	case PDQ_TYPE_A:
 	case PDQ_TYPE_AAAA:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%s", PDQ_LOG_ARG(record),
-			((PDQ_A *) record)->address.string.value
+			LOG_DEBUG, PDQ_LOG_FMT "%s" PDQ_LOG_FMT_END,
+			PDQ_LOG_ARG(record),
+			((PDQ_A *) record)->address.string.value,
+			PDQ_LOG_ARG_END(record)
 		);
 		break;
 
 	case PDQ_TYPE_SOA:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%s %s (%lu %ld %ld %ld %lu)", PDQ_LOG_ARG(record),
+			LOG_DEBUG, PDQ_LOG_FMT "%s %s (%lu %ld %ld %ld %lu)" PDQ_LOG_FMT_END,
+			PDQ_LOG_ARG(record),
 			((PDQ_SOA *) record)->mname.string.value,
 			((PDQ_SOA *) record)->rname.string.value,
 			(unsigned long)((PDQ_SOA *) record)->serial,
 			(long)((PDQ_SOA *) record)->refresh,
 			(long)((PDQ_SOA *) record)->retry,
 			(long)((PDQ_SOA *) record)->expire,
-			(unsigned long)((PDQ_SOA *) record)->minimum
+			(unsigned long)((PDQ_SOA *) record)->minimum,
+			PDQ_LOG_ARG_END(record)
 		);
 		break;
 
 	case PDQ_TYPE_MX:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%d %s", PDQ_LOG_ARG(record),
+			LOG_DEBUG, PDQ_LOG_FMT "%d %s" PDQ_LOG_FMT_END,
+			PDQ_LOG_ARG(record),
 			((PDQ_MX *) record)->preference,
-			((PDQ_MX *) record)->host.string.value
+			((PDQ_MX *) record)->host.string.value,
+			PDQ_LOG_ARG_END(record)
 		);
 		break;
 
@@ -1334,31 +1358,39 @@ pdqLog(PDQ_rr *record)
 	case PDQ_TYPE_CNAME:
 	case PDQ_TYPE_DNAME:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%s", PDQ_LOG_ARG(record),
-			((PDQ_NS *) record)->host.string.value
+			LOG_DEBUG, PDQ_LOG_FMT "%s" PDQ_LOG_FMT_END,
+			PDQ_LOG_ARG(record),
+			((PDQ_NS *) record)->host.string.value,
+			PDQ_LOG_ARG_END(record)
 		);
 		break;
 
 	case PDQ_TYPE_TXT:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "\"%s\"", PDQ_LOG_ARG(record),
-			((PDQ_TXT *) record)->text.value
+			LOG_DEBUG, PDQ_LOG_FMT "\"%s\"" PDQ_LOG_FMT_END,
+			PDQ_LOG_ARG(record),
+			((PDQ_TXT *) record)->text.value,
+			PDQ_LOG_ARG_END(record)
 		);
 		break;
 
 	case PDQ_TYPE_NULL:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%lu bytes", PDQ_LOG_ARG(record),
-			((PDQ_NULL *) record)->text.length
+			LOG_DEBUG, PDQ_LOG_FMT "%lu bytes" PDQ_LOG_FMT_END,
+			PDQ_LOG_ARG(record),
+			((PDQ_NULL *) record)->text.length,
+			PDQ_LOG_ARG_END(record)
 		);
 		break;
 
 	case PDQ_TYPE_HINFO:
 	case PDQ_TYPE_MINFO:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "\"%s\" \"%s\"", PDQ_LOG_ARG(record),
+			LOG_DEBUG, PDQ_LOG_FMT "\"%s\" \"%s\"" PDQ_LOG_FMT_END,
+			PDQ_LOG_ARG(record),
 			((PDQ_HINFO *) record)->cpu.string.value,
-			((PDQ_HINFO *) record)->os.string.value
+			((PDQ_HINFO *) record)->os.string.value,
+			PDQ_LOG_ARG_END(record)
 		);
 		break;
 	}
@@ -2101,7 +2133,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 		if (i < packet->header.ancount)
 			record->section = PDQ_SECTION_ANSWER;
 		else if (i < packet->header.ancount + packet->header.nscount)
-			record->section = PDQ_SECTION_NS;
+			record->section = PDQ_SECTION_AUTHORITY;
 		else
 			record->section = PDQ_SECTION_EXTRA;
 
