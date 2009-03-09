@@ -126,3 +126,7 @@ formatIP$E: formatIP.c
 server$E : server.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}server$E server.c $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
 
+# Not ready
+#dnspkt$E : dnspkt.c
+#	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}dnspkt$E dnspkt.c $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+

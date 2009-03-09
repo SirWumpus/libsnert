@@ -49,6 +49,15 @@ is no set schedule for releases.
    !	type/kvmap.c: allow kvmap to register keys with blank values using the
    	-b option.
 
+   !	pdq.c: fix logic bug in guard test of the type passed to pdqListFindIP
+   	and pdqListFindAddress.
+
+   +	pdq.c/h: added pdqSectionName
+
+   !	pdqLog, pdqDump output changed to include the section name from which
+   	the RR came from. (See RFC 2308).
+
+
 --1.70.8--
 
    !    Upgraded SQLite to 3.6.10; removed previous local patch.
