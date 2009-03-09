@@ -137,7 +137,7 @@ typedef enum {
 	PDQ_SECTION_UNKNOWN		= 0,
 	PDQ_SECTION_QUESTION		= 1,
 	PDQ_SECTION_ANSWER		= 2,
-	PDQ_SECTION_NS			= 3,
+	PDQ_SECTION_AUTHORITY		= 3,
 	PDQ_SECTION_EXTRA		= 4,
 } PDQ_section;
 
@@ -332,6 +332,14 @@ extern const char *pdqRcodeName(PDQ_rcode rcode);
  *	A pointer to a C string name for the SOA code.
  */
 extern const char *pdqSoaName(PDQ_valid_soa soa_code);
+
+/**
+ * @param sectionCode
+ *
+ * @return
+ *	A pointer to a C string name for the section code.
+ */
+extern const char *pdqSectionName(PDQ_section sectionCode);
 
 /**
  * @param record
