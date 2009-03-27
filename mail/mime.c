@@ -61,6 +61,17 @@ mimeDecodeAdd(Mime *m, int ch)
 		(*m->mime_decoded_octet)(m, ch);
 }
 
+void
+mimeDecodeHeaderAdd(Mime *m, int ch)
+{
+	m->mime_body_decoded_length++;
+	m->decode.buffer[m->decode.length++] = ch;
+
+	/* Decoded character call-back. */
+	if (m->mime_header_octet != NULL)
+		(*m->mime_header_octet)(m, ch);
+}
+
 static void
 mimeDecodeCR(Mime *m)
 {
@@ -445,7 +456,7 @@ mimeStateHeaderLF(Mime *m, int ch)
 	if (ch == ASCII_TAB) {
 		/* Folded header line, convert TAB to SPACE. */
 		m->source.buffer[m->source.length-1] = ASCII_SPACE;
-		mimeDecodeAdd(m, ASCII_SPACE);
+		mimeDecodeHeaderAdd(m, ASCII_SPACE);
 	} else if (ch != ASCII_SPACE) {
 		/* End of previous header. */
 		m->decode.buffer[m->decode.length] = '\0';
@@ -473,11 +484,8 @@ mimeStateHeaderLF(Mime *m, int ch)
 		/* Start of next header. */
 		mimeBufferFlush(m);
 		m->start_of_line = 1;
-		mimeDecodeAdd(m, ch);
 		m->source.buffer[m->source.length++] = ch;
-
-		if (m->mime_header_octet != NULL)
-			(*m->mime_header_octet)(m, ch);
+		mimeDecodeHeaderAdd(m, ch);
 
 		/* When newlines are LF instead of CRLF, then
 		 * we have initiate this transition manually.
@@ -521,9 +529,7 @@ mimeStateHeader(Mime *m, int ch)
 		}
 	} else {
 		/* Keep decode buffer in sync with source buffer. */
-		mimeDecodeAdd(m, ch);
-		if (m->mime_header_octet != NULL)
-			(*m->mime_header_octet)(m, ch);
+		mimeDecodeHeaderAdd(m, ch);
 	}
 
 	return 0;
