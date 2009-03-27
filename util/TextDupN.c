@@ -13,13 +13,13 @@
  ***********************************************************************/
 
 char *
-TextDupN(const char *orig, size_t size)
+TextDupN(const char *orig, size_t length)
 {
 	char *copy;
 
-	if ((copy = malloc(size+1)) != NULL) {
-		memcpy(copy, orig, size);
-		copy[size] = '\0';
+	if ((copy = malloc(length+1)) != NULL) {
+		(void) memcpy(copy, orig, length);
+		copy[length] = '\0';
 	}
 
 	return copy;

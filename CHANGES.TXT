@@ -44,6 +44,10 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.70.10--
+
+   +	option.c: added optionInitOption to initialise a single option.
+
 --1.70.9--
 
    !	type/kvmap.c: allow kvmap to register keys with blank values using the

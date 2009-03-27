@@ -537,6 +537,26 @@ error0:
 }
 
 /**
+ * @param o
+ *	A pointer to an Option structure to initialise.
+ */
+void
+optionInitOption(Option *o)
+{
+	if (o->initial != o->string)
+		free(o->string);
+
+	o->value = 0;
+	o->string = (char *) o->initial;
+
+	if (o->string != NULL) {
+		o->value = strtol(o->string, NULL, 0);
+		if (o->string[0] == '+' && o->string[1] == '\0')
+			o->value = 1;
+	}
+}
+
+/**
  * @param table
  *	A NULL terminated table of options to be initialise.
  *
@@ -551,24 +571,13 @@ void
 optionInit(Option *table[], ...)
 {
 	va_list list;
-	Option **opt, *o;
+	Option **opt;
 
 	va_start(list, table);
 
 	for (opt = table; opt != NULL; opt = va_arg(list, Option **)) {
 		for ( ; *opt != NULL; opt++) {
-			o = *opt;
-
-			if (o->initial != o->string)
-				free(o->string);
-
-			o->string = (char *) o->initial;
-
-			if (o->string != NULL) {
-				o->value = strtol(o->string, NULL, 0);
-				if (o->string[0] == '+' && o->string[1] == '\0')
-					o->value = 1;
-			}
+			optionInitOption(*opt);
 		}
 	}
 

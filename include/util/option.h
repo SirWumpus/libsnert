@@ -35,6 +35,12 @@ typedef struct {
 extern void optionInit(Option *table[], ...);
 
 /**
+ * @param o
+ *	A pointer to an Option structure to initialise.
+ */
+extern void optionInitOption(Option *o);
+
+/**
  * @param table
  *	A NULL terminated table of options to be initialise.
  *
