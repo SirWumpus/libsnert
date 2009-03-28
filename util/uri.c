@@ -360,6 +360,7 @@ struct mapping {
 
 static struct mapping schemeTable[] = {
 	{ "cid",	sizeof ("cid")-1, 	0 },
+	{ "file",	sizeof ("file")-1,	0 },
 	{ "ftp",	sizeof ("ftp")-1, 	21 },
 	{ "gopher",	sizeof ("gopher")-1, 	70 },
 	{ "http",	sizeof ("http")-1, 	80 },
@@ -440,7 +441,7 @@ uriParse(const char *u, int length)
 /**
  * @param u
  *	A pointer to a C string representing a URI as described by
- *	RFC 2396.
+ *	RFC 2396, 3986.
  *
  * @param length
  *	The maximum length of the URI string to parse or -1 for the
@@ -545,6 +546,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		*uri->query++ = '\0';
 
 	if (value[0] == '/' && value[1] == '/') {
+		/* net_path (2396) / authority (rfc 3986) */
 		value += 2;
 
 		if ((uri->host = strchr(value, '@')) != NULL) {
@@ -578,10 +580,16 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 
 			if (strlen(uri->host) != span)
 				goto error1;
+		} else if (TextInsensitiveCompare(uri->scheme, "file") == 0) {
+			uri->host = "localhost";
+			uri->path = value;
 		} else {
 			uri->host = NULL;
 		}
 	} else if (value[0] == '/') {
+		/* abs_path (2396) */
+		if (TextInsensitiveCompare(uri->scheme, "file") == 0)
+			uri->host = "localhost";
 		uri->path = value;
 	}
 
