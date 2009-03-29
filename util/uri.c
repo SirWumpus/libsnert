@@ -580,7 +580,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 
 			if (strlen(uri->host) != span)
 				goto error1;
-		} else if (TextInsensitiveCompare(uri->scheme, "file") == 0) {
+		} else if (uri->scheme != NULL && TextInsensitiveCompare(uri->scheme, "file") == 0) {
 			uri->host = "localhost";
 			uri->path = value;
 		} else {
@@ -588,7 +588,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		}
 	} else if (value[0] == '/') {
 		/* abs_path (2396) */
-		if (TextInsensitiveCompare(uri->scheme, "file") == 0)
+		if (uri->scheme != NULL && TextInsensitiveCompare(uri->scheme, "file") == 0)
 			uri->host = "localhost";
 		uri->path = value;
 	}
