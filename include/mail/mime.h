@@ -110,13 +110,16 @@ extern int mimeNextCh(Mime *, int);
  * @param ch
  *	Parsed input octet to add to the decode buffer.
  */
-extern void mimeDecodeAdd(Mime *m, int ch);
+extern void mimeDecodeBodyAdd(Mime *m, int ch);
+extern void mimeDecodeHeaderAdd(Mime *m, int ch);
 
 /**
  * @param m
  *	Pointer to a Mime context structure.
  */
-extern void mimeBufferFlush(Mime *);
+extern void mimeBuffersFlush(Mime *);
+extern void mimeSourceFlush(Mime *m);
+extern void mimeDecodeFlush(Mime *m);
 
 /**
  * @param m

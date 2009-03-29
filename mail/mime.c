@@ -51,7 +51,7 @@ mimeIsBoundaryChar(int ch)
 }
 
 void
-mimeDecodeAdd(Mime *m, int ch)
+mimeDecodeBodyAdd(Mime *m, int ch)
 {
 	m->mime_body_decoded_length++;
 	m->decode.buffer[m->decode.length++] = ch;
@@ -76,7 +76,7 @@ static void
 mimeDecodeCR(Mime *m)
 {
 	if (m->state != mimeStateBase64) {
-		mimeDecodeAdd(m, ASCII_CR);
+		mimeDecodeBodyAdd(m, ASCII_CR);
 		m->state_newline = NULL;
 	}
 }
@@ -85,7 +85,7 @@ static void
 mimeDecodeLF(Mime *m)
 {
 	if (m->state != mimeStateBase64) {
-		mimeDecodeAdd(m, ASCII_LF);
+		mimeDecodeBodyAdd(m, ASCII_LF);
 		m->state_newline = NULL;
 	}
 }
@@ -166,7 +166,7 @@ mimeSourceLine(Mime *m, int ch)
 			m->decode.length = 0;
 		} else {
 			m->start_of_line = ch == ASCII_LF;
-			mimeBufferFlush(m);
+			mimeBuffersFlush(m);
 		}
 	}
 }
@@ -175,7 +175,7 @@ static int
 mimeStateContent(Mime *m, int ch)
 {
 	if (!mimeIsMultipartCRLF(m, ch))
-		mimeDecodeAdd(m, ch);
+		mimeDecodeBodyAdd(m, ch);
 
 	return 0;
 }
@@ -336,7 +336,7 @@ mimeStateBase64(Mime *m, int ch)
 
 		/* Ignore intermediate base64 states until an octet is decoded. */
 		if (BASE64_IS_OCTET(ch))
-			mimeDecodeAdd(m, ch);
+			mimeDecodeBodyAdd(m, ch);
 	}
 
 	return 0;
@@ -349,7 +349,7 @@ mimeStateQpLiteral(Mime *m, int ch)
 		if (ch == '=')
 			m->state = mimeStateQpEqual;
 		else
-			mimeDecodeAdd(m, ch);
+			mimeDecodeBodyAdd(m, ch);
 	}
 
 	return 0;
@@ -383,8 +383,8 @@ mimeStateQpEqual(Mime *m, int ch)
 		 * buffer will contain "=C".
 		 */
 		m->state = mimeStateQpLiteral;
-		mimeDecodeAdd(m, '=');
-		mimeDecodeAdd(m, ch);
+		mimeDecodeBodyAdd(m, '=');
+		mimeDecodeBodyAdd(m, ch);
 	}
 
 	return 0;
@@ -434,12 +434,12 @@ mimeStateQpDecode(Mime *m, int ch)
 		 * their part).
 		 */
 		value = qpHexDigit(m->source.buffer[m->source.length-2]) * 16 + qpHexDigit(ch);
-		mimeDecodeAdd(m, value);
+		mimeDecodeBodyAdd(m, value);
 	} else {
 		/* Invalid quoted printable sequence. Treat as literal. */
-		mimeDecodeAdd(m, '=');
-		mimeDecodeAdd(m, m->source.buffer[m->source.length-2]);
-		mimeDecodeAdd(m, ch);
+		mimeDecodeBodyAdd(m, '=');
+		mimeDecodeBodyAdd(m, m->source.buffer[m->source.length-2]);
+		mimeDecodeBodyAdd(m, ch);
 	}
 
 	m->state = mimeStateQpLiteral;
@@ -482,7 +482,7 @@ mimeStateHeaderLF(Mime *m, int ch)
 			(*m->mime_header)(m);
 
 		/* Start of next header. */
-		mimeBufferFlush(m);
+		mimeBuffersFlush(m);
 		m->start_of_line = 1;
 		m->source.buffer[m->source.length++] = ch;
 		mimeDecodeHeaderAdd(m, ch);
@@ -514,7 +514,7 @@ mimeStateHeader(Mime *m, int ch)
 			m->state = mimeStateHeaderLF;
 		} else {
 			/* End of headers. */
-			mimeBufferFlush(m);
+			mimeBuffersFlush(m);
 			m->mime_body_length = 0;
 			m->mime_body_decoded_length = 0;
 
@@ -546,22 +546,34 @@ mimeNoHeaders(Mime *m)
 }
 
 void
-mimeBufferFlush(Mime *m)
+mimeSourceFlush(Mime *m)
+{
+	m->source.length = 0;
+	*m->source.buffer = '\0';
+}
+
+void
+mimeDecodeFlush(Mime *m)
+{
+	m->decode.length = 0;
+	*m->decode.buffer = '\0';
+}
+
+void
+mimeBuffersFlush(Mime *m)
 {
 	if (m->mime_flush != NULL)
 		(*m->mime_flush)(m);
 
-	m->source.length = 0;
-	*m->source.buffer = '\0';
-	m->decode.length = 0;
-	*m->decode.buffer = '\0';
+	mimeSourceFlush(m);
+	mimeDecodeFlush(m);
 }
 
 static void
 mimeBoundary(Mime *m)
 {
 	b64Reset(&m->b64);
-	mimeBufferFlush(m);
+	mimeBuffersFlush(m);
 	m->state = mimeStateHeader;
 	m->state_next_part = mimeStateContent;
 	m->start_of_line = 1;
