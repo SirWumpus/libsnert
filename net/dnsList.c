@@ -299,6 +299,9 @@ dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 	PDQ_rr *rr, *list;
 	const char *list_name = NULL;
 
+	if (dns_list == NULL || name == NULL || *name == '\0')
+		return NULL;
+
 	list = pdqGet5A(pdq, PDQ_CLASS_IN, name);
 
 	for (rr = list; rr != NULL; rr = rr->next) {
