@@ -279,8 +279,8 @@ else
 		unset ac_cv_search_dbopen
 
 		BDB_BASE_DIRS="$with_db /opt/csw/bdb4 /opt /usr/local /usr"
-		BDB_VERSIONS='4.6 4.5 4.4 4.3 4.2 4.1 4.0 3.3 3.2'
-		BDB_NAMES='db-4.6 db4.6 db46 db-4.5 db4.5 db45 db-4.4 db4.4 db44 db-4.3 db4.3 db43 db-4.2 db4.2 db42 db-4.1 db4.1 db41 db-4 db4 db-3.3 db3.3 db33 db-3.2 db3.2 db32 db-3 db3 db'
+		BDB_VERSIONS='4.7 4.6 4.5 4.4 4.3 4.2 4.1 4.0 3.3 3.2'
+		BDB_NAMES='db-4.7 db4.7 db47 db-4.6 db4.6 db46 db-4.5 db4.5 db45 db-4.4 db4.4 db44 db-4.3 db4.3 db43 db-4.2 db4.2 db42 db-4.1 db4.1 db41 db-4 db4 db-3.3 db3.3 db33 db-3.2 db3.2 db32 db-3 db3 db'
 
 		# Find short list of directories to try.
 		for d in $BDB_BASE_DIRS ; do
