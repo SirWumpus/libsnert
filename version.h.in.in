@@ -54,6 +54,18 @@ extern "C" {
 
 #undef NDEBUG
 
+/*
+ * Intended for debugging in combination with valgrind, which often
+ * reports "...points to uninitialised byte(s)" when part of a buffer
+ * remains unused. Should only be used once you are sure that what
+ * valgrind is reporting can be safely ignored.
+ */
+#ifdef NDEBUG
+# define MEMSET(p, b, s)
+#else
+# define MEMSET(p, b, s)	memset((p),(b),(s))
+#endif
+
 typedef struct {
 	int major;
 	int minor;

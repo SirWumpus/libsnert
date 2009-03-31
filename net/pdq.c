@@ -1855,6 +1855,7 @@ pdq_query_create(void)
 	PDQ_query *query;
 
 	if ((query = malloc(sizeof (*query))) != NULL) {
+		MEMSET(query, 0, sizeof (*query));
 		query->prev = query->next = NULL;
 		query->created = time(NULL);
 		query->udp_index = -1;
