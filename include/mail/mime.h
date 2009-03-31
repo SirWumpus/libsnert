@@ -61,11 +61,13 @@ struct mime {
 	unsigned long mime_body_decoded_length;	/* Decoded MIME body length. */
 
 	/* Parsing call-back hooks. */
-	MimeHook mime_flush;			/* Source & decode buffers are flushed. */
 	MimeHook mime_header;			/* On complete header line. */
 	MimeHook mime_body_start;		/* At end of MIME headers, start of MIME body. */
 	MimeHook mime_body_finish;		/* At end of MIME body, start of next MIME headers. */
 	MimeHook mime_source_line;		/* On source line or full buffer. */
+	MimeHook mime_source_flush;		/* Source buffer is flushed. */
+	MimeHook mime_decode_line;		/* On decode line or full buffer. */
+	MimeHook mime_decode_flush;		/* Decode buffer is flushed. */
 	MimeHookOctet mime_header_octet;	/* Each header octet. */
 	MimeHookOctet mime_decoded_octet;	/* Each decoded body octet. */
 };

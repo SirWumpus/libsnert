@@ -69,29 +69,49 @@ const char uriErrorWrite[] = "socket write error";
 int uriDebug;
 
 static char at_sign_delim = '@';
-static char uri_excluded[] = " #<>%\"{}|\\^[]`";
+#ifdef OLD
+/* RFC 2396 */
+static char uri_excluded[] = "#<>%\"{}|\\^[]`";
 static char uri_reserved[] = ";/?:@&=+$,";
 static char uri_unreserved[] = "-_.!~*'()";
+#else
+/* RFC 3986
+ *
+ * Note that vertical bar (|) is not excluded, since it can
+ * appear in the file: scheme, eg. "file:///C|/foo/bar/"
+ * Assume it is reserved.
+ */
+static char uri_excluded[] = "\"<>{}\\^`";
+static char uri_reserved[] = "%:/?#[]@!$&'()*+,;=|";
+static char uri_unreserved[] = "-_.~";
+#endif
 static long socket_timeout = SOCKET_CONNECT_TIMEOUT;
 
 /***********************************************************************
  *** URI related support routines.
  ***********************************************************************/
 
+/**
+ * @param octet
+ *	An octet value to test.
+ *
+ * @return
+ *	True if octet is valid within a URI string.
+ *
+ * @see
+ *	RFC 3986 sections 2.2, 2.3.
+ */
 int
 isCharURI(int octet)
 {
+	/* Throw away the ASCII controls, space, and high-bit octets. */
 	if (octet <= 32 || 0x7F <= octet)
 		return 0;
 
-	/* RFC 2396 2.4.3. Excluded US-ASCII Characters states that
-	 * "#" separates the URI from a "fragment" and "%" is used
-	 * as the lead-in for escaped characters.
-	 *
-	 * ASCII space is also excluded, but its already tested for
-	 * just above, so skip it here.
+	/* uri_excluded is the inverse set of unreserved and
+	 * reserved characters from printable ASCII.
 	 */
-	if (strchr(uri_excluded+1, octet) != NULL)
+	if (strchr(uri_excluded, octet) != NULL)
 		return 0;
 
 	return 1;
@@ -111,8 +131,8 @@ spanURI(const char *uri, const char *stop)
 
 	for (start = uri; uri < stop || *uri != '\0'; uri++) {
 		/* I include %HH within a URI since you typically
-		 * want to extract a URI before you can unescape
-		 * any characters.
+		 * want to extract a URI before you can decode
+		 * any percent-encoded characters.
 		 */
 		if (*uri == '%') {
 			if ((a = qpHexDigit(uri[1])) < 0 || (b = qpHexDigit(uri[2])) < 0)
@@ -128,8 +148,15 @@ spanURI(const char *uri, const char *stop)
 	return uri - start;
 }
 
-/*
- * RFC 2396
+/**
+ * @param scheme
+ *	A C string pointer to the start of scheme.
+ *
+ * @return
+ *	The length of the valid scheme; otherwise zero (0).
+ *
+ * @see
+ *	RFC 3986 section 3.1
  */
 int
 spanScheme(const char *scheme)
@@ -139,7 +166,10 @@ spanScheme(const char *scheme)
 	if (scheme == NULL)
 		return 0;
 
-	for (start = scheme; *scheme != '\0'; scheme++) {
+	if (!isalnum(*scheme))
+		return 0;
+
+	for (start = scheme++; *scheme != '\0'; scheme++) {
 		switch (*scheme) {
 		case '+': case '-': case '.':
 			continue;
@@ -361,6 +391,7 @@ struct mapping {
 static struct mapping schemeTable[] = {
 	{ "cid",	sizeof ("cid")-1, 	0 },
 	{ "file",	sizeof ("file")-1,	0 },
+	{ "about",	sizeof ("about")-1,	0 },
 	{ "ftp",	sizeof ("ftp")-1, 	21 },
 	{ "gopher",	sizeof ("gopher")-1, 	70 },
 	{ "http",	sizeof ("http")-1, 	80 },
@@ -616,14 +647,13 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		snprintf(uri->uriDecoded, length+1, "%s%c%s", uri->userInfo, at_sign_delim, uri->host);
 	}
 
-	if (uri->scheme != NULL && uri->host != NULL) {
-#ifdef NOT_YET
-		/* Convience information. */
-		uri->reservedTLD = isRFC2606(uri->host);
-		uri->offsetTLD = indexValidTLD(uri->host);
-#endif
+	/* RFC 3986 allows everything after the scheme to be empty.
+	 * Consider Firefox's soecial "about:" URI. Since headers
+	 * can look like schemes, only return success for schemes
+	 * we know.
+	 */
+	if (uri->scheme != NULL && uriGetSchemePort(uri) != -1)
 		return uri;
-	}
 error1:
 	free(uri);
 error0:
@@ -950,7 +980,7 @@ uriMimeDecodedOctet(Mime *m, int ch)
 		hold->length = 0;
 
 	/* Accumulate URI characters in the hold buffer. */
-	if (ch == '%' || isCharURI(ch) || (0 < hold->length && hold->buffer[hold->length-1] == '&' && ch == '#')) {
+	if (isCharURI(ch)) {
 		/* Look for HTML numerical entities &#NNN; or &#xHHHH; */
 		if (0 < hold->length && ch == ';') {
 			int offset;
@@ -979,7 +1009,6 @@ uriMimeDecodedOctet(Mime *m, int ch)
 		}
 
 		hold->buffer[hold->length++] = ch;
-		uriMimeFreeUri(m);
 
 		return;
 	}
@@ -1052,7 +1081,7 @@ uriMimeCreate(int include_headers)
 		return NULL;
 	}
 
-	mime->mime_flush = uriMimeFlush;
+	mime->mime_decode_flush = uriMimeFlush;
 	mime->mime_body_start = uriMimeBodyStart;
 	mime->mime_body_finish = uriMimeBodyStart;
 	mime->mime_decoded_octet = uriMimeDecodedOctet;
@@ -1204,7 +1233,7 @@ process(URI *uri, const char *filename)
 	const char *error;
 	URI *origin = NULL;
 
-	if (uri == NULL || uri->host == NULL)
+	if (uri == NULL)
 		return;
 
 	if (uri_ports != NULL) {
@@ -1235,7 +1264,7 @@ process(URI *uri, const char *filename)
 		fputc('\n', stdout);
 	}
 
-	if (check_link) {
+	if (check_link && uri->host != NULL) {
 		error = uriHttpOrigin(uri->uriDecoded, &origin);
 		if (filename != NULL)
 			printf("%s: ", filename);

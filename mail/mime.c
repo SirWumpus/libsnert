@@ -51,12 +51,26 @@ mimeIsBoundaryChar(int ch)
 }
 
 void
-mimeDecodeBodyAdd(Mime *m, int ch)
+mimeDecodeAdd(Mime *m, int ch)
 {
 	m->mime_body_decoded_length++;
-	m->decode.buffer[m->decode.length++] = ch;
 
-	/* Decoded character call-back. */
+	/* Flush the decode buffer when full. */
+	if (sizeof (m->decode.buffer)-1 <= m->decode.length) {
+		if (m->mime_decode_line != NULL)
+			(*m->mime_decode_line)(m);
+		mimeDecodeFlush(m);
+	}
+
+	m->decode.buffer[m->decode.length++] = ch;
+	m->decode.buffer[m->decode.length  ] = '\0';
+}
+
+void
+mimeDecodeBodyAdd(Mime *m, int ch)
+{
+	mimeDecodeAdd(m, ch);
+
 	if (m->mime_decoded_octet != NULL)
 		(*m->mime_decoded_octet)(m, ch);
 }
@@ -64,10 +78,8 @@ mimeDecodeBodyAdd(Mime *m, int ch)
 void
 mimeDecodeHeaderAdd(Mime *m, int ch)
 {
-	m->mime_body_decoded_length++;
-	m->decode.buffer[m->decode.length++] = ch;
+	mimeDecodeAdd(m, ch);
 
-	/* Decoded character call-back. */
 	if (m->mime_header_octet != NULL)
 		(*m->mime_header_octet)(m, ch);
 }
@@ -148,7 +160,6 @@ mimeSourceLine(Mime *m, int ch)
 		/* Source line call-back. */
 		if (m->mime_source_line != NULL) {
 			m->source.buffer[m->source.length] = '\0';
-			m->decode.buffer[m->decode.length] = '\0';
 			(*m->mime_source_line)(m);
 		}
 
@@ -165,9 +176,22 @@ mimeSourceLine(Mime *m, int ch)
 			m->source.length = 2;
 			m->decode.length = 0;
 		} else {
-			m->start_of_line = ch == ASCII_LF;
-			mimeBuffersFlush(m);
+			m->start_of_line = (ch == ASCII_LF);
+			mimeSourceFlush(m);
 		}
+	}
+}
+
+static void
+mimeDecodeLine(Mime *m, int ch)
+{
+	if (ch == EOF
+
+	/* Flush the decode buffer if it was a line unit. */
+	|| (0 < m->decode.length && m->decode.buffer[m->decode.length-1] == '\n')) {
+		if (m->mime_decode_line != NULL)
+			(*m->mime_decode_line)(m);
+		mimeDecodeFlush(m);
 	}
 }
 
@@ -459,7 +483,6 @@ mimeStateHeaderLF(Mime *m, int ch)
 		mimeDecodeHeaderAdd(m, ASCII_SPACE);
 	} else if (ch != ASCII_SPACE) {
 		/* End of previous header. */
-		m->decode.buffer[m->decode.length] = '\0';
 		m->source.buffer[--m->source.length] = '\0';
 
 		/* Check the header for MIME behaviour. */
@@ -502,11 +525,12 @@ mimeStateHeader(Mime *m, int ch)
 {
 	if (ch == ASCII_LF) {
 		m->source.length--;
-		if (0 < m->source.length && m->source.buffer[m->source.length-1] == ASCII_CR) {
+		if (0 < m->source.length && m->source.buffer[m->source.length-1] == ASCII_CR)
 			m->source.length--;
-			m->decode.length--;
-		}
 		m->source.buffer[m->source.length] = '\0';
+
+		if (0 < m->decode.length && m->decode.buffer[m->decode.length-1] == ASCII_CR)
+			m->decode.length--;
 		m->decode.buffer[m->decode.length] = '\0';
 
 		if (0 < m->source.length) {
@@ -548,23 +572,26 @@ mimeNoHeaders(Mime *m)
 void
 mimeSourceFlush(Mime *m)
 {
-	m->source.length = 0;
+	if (m->mime_source_flush != NULL)
+		(*m->mime_source_flush)(m);
+
 	*m->source.buffer = '\0';
+	m->source.length = 0;
 }
 
 void
 mimeDecodeFlush(Mime *m)
 {
-	m->decode.length = 0;
+	if (m->mime_decode_flush != NULL)
+		(*m->mime_decode_flush)(m);
+
 	*m->decode.buffer = '\0';
+	m->decode.length = 0;
 }
 
 void
 mimeBuffersFlush(Mime *m)
 {
-	if (m->mime_flush != NULL)
-		(*m->mime_flush)(m);
-
 	mimeSourceFlush(m);
 	mimeDecodeFlush(m);
 }
@@ -651,6 +678,8 @@ mimeNextCh(Mime *m, int ch)
 		errno = EINVAL;
 		return -1;
 	}
+
+	mimeDecodeLine(m, ch);
 
 	if (ch != EOF) {
 		/* Save the current input source byte. */

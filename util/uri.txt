@@ -21,9 +21,13 @@ The following test cases
 
  N  -  -  -	www.123-.com
  
- Y  U  N  -	'host.abc.com'
+ N  U  N  -	'host.abc.com'
  
- Y  U  N  -	(smtp.abc.com)
+ N  U  N  -	(smtp.abc.com)
+
+ Y  U  N  -	'www.singlequote.com'
+ 
+ Y  U  N  -	(www.parenthesis.com)
 
  N  -  -  -	There are no numeric top-level-domains like foo.bar.123
 
@@ -33,7 +37,7 @@ The following test cases
 
  N  -  -  -	foo.bar.1a2
 
- N  U  -  -	cid:12345.67890@snert.com
+ Y  U  -  -	cid:12345.67890@snert.com
 
  N  N  N  -	www.fail.test
 
@@ -61,7 +65,7 @@ The following test cases
 
  Y  Y  Y  Y	<http://translate.google.com/translate?u=www.fsl.com&langpair=en%7Cen&hl=en>
 
- Y  Y  Y  Y	[http://autotrader.com/redirect/redirector_link.jsp?to_url=http://ic.fm0rt.com]
+ Y  Y  Y  Y	http://autotrader.com/redirect/redirector_link.jsp?to_url=http://ic.fm0rt.com
 
  Y  Y  Y  Y	{http://ad.doubleclick.net/clk;29825968;12395550;w?http://www.bocajava.com/referral.do?promo=ediets0027text}
 
@@ -73,14 +77,29 @@ The following test cases
 
  Y  ?  ?  Y     http://www.zdnetasia.com/search/results.htm?query=mari+misato+at+dynamix+%3CIFRAME%20src=//72.232.39.252/a/%3E.html
 
+ Y  -  -  Y	http://www.google.com/pagead/iclk?sa=l&ai=EJVqDJ&num=65520&adurl=http://%73%6B%69%6E%61%70%70%6C%65%2E%63%6F%6D
+
  N  -  -  -	192.0.2.99
 
  N  -  -  -	2001:0DB8::1234
 
  N  -  -  -	2001:0DB8::192.0.2.99
+ 
+ Y  -  -  -	http://[2001:0DB8::1234]:8008
 
- Y  -  -  Y	http://www.google.com/pagead/iclk?sa=l&ai=EJVqDJ&num=65520&adurl=http://%73%6B%69%6E%61%70%70%6C%65%2E%63%6F%6D
+ Y  -  -  -	http://[2001:0DB8::192.0.2.99]:8008
 
+ Y  -  N  -	file://host/path/some/where
+
+ Y  -  N  -	file:///path/any/where
+
+ Y  -  N  -	file:///C|/windows/path
+
+ Y  -  N  -	file:/path/not/here
+
+ Y  -  N  -	file:path/not/rooted
+
+ Y  -  -  -	about:
 
 ----=_test_boundary
 Content-Type: text/html
@@ -205,16 +224,38 @@ Content-Transfer-Encoding: quoted-printable
 ----=_test_boundary
 Content-type: text/plain; charset="koi8-r"
 Content-Transfer-Encoding: quoted-printable
+Comment: Russian encoded URL doesn't parse correctly, since
+	 RFC 3986 excludes octets with the high bit from a URI.
 
-Russian encoded URL... doesn't parse correctly.
-
-http://www.f=C1v=CFrit=C5-s=C5ri=C1ls.ru/
+ Y  -  N  -	http://www.f=C1v=CFrit=C5-s=C5ri=C1ls.ru/
 
 ----=_test_boundary
 Content-type: text/plain; charset=iso-8859-1
+Comment: expect to find dfg@fsg.com
 
 Header-ending-with-URI: dfg@fsg.com
-Next-Header: make sure URI and Next-Header are separate
+Next-Header: make sure URI at end of line and Next-Header are separate
+
+----=_test_boundary
+Content-type: text/plain
+Content-transfer-encoding: BASE64
+Content-disposition: inline
+Comment: source newline should not flush decode buffer
+	 expect http://sedona.arizona.bestcareerin.com/TO12O179O3272674
+	 expect http://summerbay.resorts.bestcareerin.com/ZO8O179O3272674
+
+U2Vkb25hIEFyaXpvbmEgQXdhaXRzICBFbmpveSBhIDIgTmlnaHQgU3RheSEgCjxodHRwOi8v
+c2Vkb25hLmFyaXpvbmEuYmVzdGNhcmVlcmluLmNvbS9UTzEyTzE3OU8zMjcyNjc0PgoKU2Vl
+IGJlYXV0aWZ1bCBSZWQgUm9jayBDb3VudHJ5IHdpdGggdGhpcyBsaW1pdGVkICB0aW1lIHBy
+b21vdGlvbiBjb21wbGltZW50cyBvZiBTdW1tZXIgQmF5IFJlc29ydC4gIAoKTm8gcHVyY2hh
+c2UgcmVxdWlyZWQgIEFjY2VzcyB0byBvdXIgVG9sbCBGcmVlIHJlc2VydmF0aW9ucyEgIAoK
+CgoKCgoKCgoKCgoKCgoKCgpTdW1tZXIgQmF5IFJlc29ydHMgYXQgNDA0NCBXLiBMYWtlIE1h
+cnkgQmx2ZC4sIFVuaXQgIzEwNC00MTkgTGFrZSBNYXJ5LCBGTCAzMjc0Ni0yMDEyClNheSBn
+b29kIGJ5ZSB0byBvdXIgbWVzc2FnZXMKaHR0cDovL3N1bW1lcmJheS5yZXNvcnRzLmJlc3Rj
+YXJlZXJpbi5jb20vWk84TzE3OU8zMjcyNjc0CgoKCiJHb2QgY3JlYXRlZCB0aGUgR3JhbmQg
+Q2FueW9uIGluIDcgZGF5cywgYnV0IGhlIGxpdmVzIGluIFNlZG9uYS4iIC0tIGxvY2FsIHNh
+eWluZyBmcm9tIG5hdGl2ZXMuCkNoYW5nZSB5b3VyIG1pbmQ/CjxodHRwOi8vc2Vkb25hLmFy
+aXpvbmEuYmVzdGNhcmVlcmluLmNvbS9UTzEyTzE3OU8zMjcyNjc0PgoKCgoKCg==
 
 ----=_test_boundary--
 
