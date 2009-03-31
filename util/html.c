@@ -267,7 +267,7 @@ stripMimeHeader(Mime *m)
 	if (headers != NULL) {
 		for (hdr = (const char **) VectorBase(headers); *hdr != NULL; hdr++) {
 			if (0 < (length = TextInsensitiveStartsWith(m->source.buffer, *hdr)) && (*hdr)[length] == ':') {
-				mimeBufferFlush(m);
+				mimeBuffersFlush(m);
 				return;
 			}
 		}
