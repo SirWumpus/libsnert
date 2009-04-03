@@ -111,11 +111,3 @@ TimeIsZero(Time *acc)
 	return acc->s == 0 && acc->ns == 0;
 }
 
-size_t
-TimeStampAdd(char *buffer, size_t size)
-{
-	time_t now = time(NULL);
-
-	return TimeStamp(&now, buffer, size);
-}
-

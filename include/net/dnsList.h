@@ -23,11 +23,23 @@ typedef struct {
 	unsigned long *masks;
 } DnsList;
 
+typedef enum {
+	DNS_LIST_LOG_HIT	= 1,
+	DNS_LIST_LOG_MISS	= 2,
+} DnsListLogResult;
+
 /**
  * @param level
  *	Set debug level. The higher the more verbose.  Zero is silent.
  */
 extern void dnsListSetDebug(int level);
+
+/**
+ *
+ */
+extern int dnsListLogOpen(const char *filename, DnsListLogResult what);
+extern void dnsListLog(const char *token, const char *name, const char *list_name);
+extern void dnsListLogClose(void);
 
 /**
  * @param _dns_list
@@ -153,6 +165,23 @@ extern const char *dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen
  *	Otherwise NULL if name was not found in a DNS list.
  */
 extern const char *dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name);
+
+/***********************************************************************
+ *** dnsList Application Options
+ ***********************************************************************/
+
+#include <com/snert/lib/util/option.h>
+
+extern Option optDnsListLogFile;
+extern Option optDnsListLogWhat;
+
+#define DNS_LIST_OPTIONS_TABLE \
+	&optDnsListLogFile, \
+	&optDnsListLogWhat
+
+#define DNS_LIST_OPTIONS_SETTING(debug) \
+	dnsListSetDebug(debug); \
+	dnsListLogOpen(optDnsListLogFile.string, optDnsListLogWhat.value);
 
 /***********************************************************************
  ***

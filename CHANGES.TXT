@@ -44,6 +44,35 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.70.12--
+
+   !	uriParse2: add support for file: scheme RFC 1738 section 3.10.
+
+   !	uriParse2: add support for about: scheme based on comments in
+   	RFC 3986 about schemes with empty scheme-info parts.
+
+   !	dnsListQueryIP: added NULL guard to avoid spurious lookups when
+   	there is no list.
+
+   !	aclocal.m4: add 4.7 to the BDB version list.
+
+   !	mime.c, uri.c: decouple source and decode buffer
+	synchronisation. When they are synced and the content-encoding
+	is Base64, then a newline in the source would flush the decode
+	prematurely. Reported by Alex Broens.
+
+   !	uri.c: Several changes for RFC 3986 which replaces RFC 2396.
+
+   !	version.h.in.in, pdq.c: add debugging MEMSET macro to suppress
+   	certain valgrind messages concerning uninitialised bytes.
+
+   !	Updated the TLD list files.
+
+   +	dnsList.c/h: Add dnsListLogOpen, dnsListLogClose, and dnsListLog.
+
+   !	dnslist.c: updated dnsListQuery and dnsListQueryIP to log pass/fail
+   	results to a separate file.
+
 --1.70.11--
 
    !	mime.c: fix bug discovered through uri CLI; headers appear to be

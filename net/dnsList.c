@@ -10,6 +10,7 @@
 
 #include <com/snert/lib/version.h>
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #ifndef __MINGW32__
@@ -19,6 +20,7 @@
 #endif
 #include <com/snert/lib/io/Log.h>
 
+#include <com/snert/lib/sys/Time.h>
 #include <com/snert/lib/mail/tlds.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/net/dnsList.h>
@@ -28,6 +30,28 @@
  ***********************************************************************/
 
 static int debug;
+static FILE *log_file;
+static DnsListLogResult log_what;
+
+static const char usage_dns_list_log_file[] =
+  "File name used to log DNS list lookup results separate from syslog.\n"
+"# Intended for debugging only.\n"
+"#"
+;
+
+Option optDnsListLogFile = { "dns-list-log-file", "", usage_dns_list_log_file };
+
+static const char usage_dns_list_log_what[] =
+  "What DNS list lookup results to log. 1 for successful lookups, 2 for\n"
+"# unsuccessful lookups, 3 for both.\n"
+"#"
+;
+
+Option optDnsListLogWhat = { "dns-list-log-what", "", usage_dns_list_log_what };
+
+/***********************************************************************
+ ***
+ ***********************************************************************/
 
 /**
  * @param level
@@ -37,6 +61,38 @@ void
 dnsListSetDebug(int level)
 {
 	debug = level;
+}
+
+int
+dnsListLogOpen(const char *filename, DnsListLogResult what)
+{
+	log_what = what & (DNS_LIST_LOG_HIT | DNS_LIST_LOG_MISS);
+	if ((log_file = fopen(filename, "a")) != NULL)
+		setvbuf(log_file, NULL, _IOLBF, 0);
+
+	return -(log_file == NULL);
+}
+
+void
+dnsListLogClose(void)
+{
+	if (log_file != NULL)
+		fclose(log_file);
+}
+
+void
+dnsListLog(const char *id, const char *name, const char *list_name)
+{
+	char timestamp[40];
+
+	if (log_file != NULL && name != NULL) {
+		TimeStampAdd(timestamp, sizeof (timestamp));
+
+		if ((log_what & DNS_LIST_LOG_MISS) && list_name == NULL)
+			(void) fprintf(log_file, "%s %s %s \n", timestamp, id, name);
+		else if ((log_what & DNS_LIST_LOG_HIT) && list_name != NULL)
+			(void) fprintf(log_file, "%s %s %s %s\n", timestamp, id, name, list_name);
+	}
 }
 
 /**
@@ -265,6 +321,7 @@ dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domain
 		if ((list_name = dnsListQueryName(dns_list, pdq, names_seen, name+offset)) != NULL) {
 			if (0 < debug)
 				syslog(LOG_DEBUG, "%s listed in %s", name+offset, list_name);
+
 			return list_name;
 		}
 	} while (test_sub_domains && 0 < offset);
