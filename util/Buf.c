@@ -346,7 +346,7 @@ BufAddByte(Buf *a, int byte)
 }
 
 int
-BufAddBytes(Buf *a, unsigned char *bytes, size_t offset, size_t len)
+BufAddBytes(Buf *a, unsigned char *bytes, size_t len)
 {
 	if (len == 0)
 		return 0;
@@ -355,7 +355,7 @@ BufAddBytes(Buf *a, unsigned char *bytes, size_t offset, size_t len)
 	if (enlarge(a, a->length + len + 1) < 0)
 		return -1;
 
-	memcpy(a->bytes + a->length, bytes + offset, len);
+	memcpy(a->bytes + a->length, bytes, len);
 	a->length += len;
 
 	/* Keep the buffer null terminated. See BufAddByte(). */
@@ -365,16 +365,41 @@ BufAddBytes(Buf *a, unsigned char *bytes, size_t offset, size_t len)
 }
 
 int
-BufAddString(Buf *a, char *s)
+BufAddString(Buf *a, const char *s)
 {
-	return BufAddBytes(a, (unsigned char *) s, 0, strlen(s));
+	return BufAddBytes(a, (unsigned char *) s, strlen(s));
 }
 
 int
 BufAddBuf(Buf *a, Buf *b, size_t offset, size_t len)
 {
 	bounds(b, &offset, &len);
-	return BufAddBytes(a, b->bytes, offset, len);
+	return BufAddBytes(a, b->bytes + offset, len);
+}
+
+int
+BufAddUnsigned(Buf *a, unsigned long value, int base)
+{
+	static char digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+	if (0 < value && BufAddUnsigned(a, value / base, base))
+		return -1;
+
+	if (base < 2 && 36 < base)
+		return -1;
+
+	return BufAddByte(a, digits[value % base]);
+}
+
+int
+BufAddSigned(Buf *a, long value, int base)
+{
+	if (base == 10 && value < 0) {
+		(void) BufAddByte(a, '-');
+		value = -value;
+	}
+
+	return BufAddUnsigned(a, (unsigned long) value, base);
 }
 
 void

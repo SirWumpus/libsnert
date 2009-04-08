@@ -72,6 +72,7 @@ com/snert/src/lib/net/dnsList.c
 com/snert/src/lib/net/findIP.c
 com/snert/src/lib/net/formatIP.c
 com/snert/src/lib/net/formatIP.txt
+com/snert/src/lib/net/http.c
 com/snert/src/lib/net/isReservedIPv4.c
 com/snert/src/lib/net/isReservedIPv6.c
 com/snert/src/lib/net/isReservedIP.c
@@ -217,6 +218,7 @@ com/snert/src/lib/include/mail/smtp2.h
 com/snert/src/lib/include/mail/spf.h
 com/snert/src/lib/include/mail/tlds.h
 com/snert/src/lib/include/net/dnsList.h
+com/snert/src/lib/include/net/http.h
 com/snert/src/lib/include/net/network.h
 com/snert/src/lib/include/net/pdq.h
 com/snert/src/lib/include/net/server.h

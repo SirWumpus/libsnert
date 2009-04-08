@@ -133,12 +133,14 @@ extern int BufCompareBuf(Buf *, size_t, Buf *, size_t, size_t);
  */
 extern int BufAddBuf(Buf *, Buf *, size_t offset, size_t length);
 extern int BufAddByte(Buf *, int);
-extern int BufAddBytes(Buf *, unsigned char *, size_t offset, size_t length);
-extern int BufAddString(Buf *, char *);
+extern int BufAddBytes(Buf *, unsigned char *, size_t length);
+extern int BufAddString(Buf *, const char *);
 extern int BufAddReadLine(Buf *, int, long);
 extern int BufAddInputLine(Buf *, FILE *, long);
+extern int BufAddSigned(Buf *, long value, int base);
+extern int BufAddUnsigned(Buf *, unsigned long value, int base);
 
-extern int BufInsertBytes(Buf *, size_t, unsigned char *, size_t offset, size_t length);
+extern int BufInsertBytes(Buf *, size_t target, unsigned char *, size_t source, size_t length);
 
 /*
  * In-place modifications

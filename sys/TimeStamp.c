@@ -17,6 +17,17 @@
 #include <com/snert/lib/sys/Time.h>
 
 size_t
+TimeStampGMT(time_t *now, char *buffer, size_t size)
+{
+	struct tm gmt;
+
+	if (gmtime_r(now, &gmt) == NULL)
+		return 0;
+
+	return strftime(buffer, size, "%a, %d %b %Y %H:%M:%S +0000", &gmt);
+}
+
+size_t
 TimeStamp(time_t *now, char *buffer, size_t size)
 {
 	char *tz;

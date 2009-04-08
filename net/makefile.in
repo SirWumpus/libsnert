@@ -64,7 +64,7 @@ $O$E :
 
 OBJS =  getRFC2821DateTime$O formatIP$O isRFC2606$O network$O networkGetMyDetails$O \
 	parseIPv6$O isReservedIPv4$O isReservedIPv6$O isReservedIP$O ipinclient$O \
-	reverse$O pdq$O spanIP$O findIP$O dnsList$O server$O
+	reverse$O pdq$O spanIP$O findIP$O dnsList$O server$O http$O
 
 
 .MAIN : build
@@ -83,7 +83,7 @@ clean : title
 	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.stackdump core *.core core.* *.log
 
 distclean: clean
-	-rm -f ipinclient$E pdq$E findIP$E formatIP$E server$E
+	-rm -f ipinclient$E pdq$E findIP$E formatIP$E server$E geturl$E
 	-rm makefile
 
 title :
@@ -125,6 +125,9 @@ formatIP$E: formatIP.c
 
 server$E : server.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}server$E server.c $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+
+geturl$E : ../include/net/http.h http.c
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}geturl$E http.c $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
 
 # Not ready
 #dnspkt$E : dnspkt.c

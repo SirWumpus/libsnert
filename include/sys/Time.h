@@ -70,6 +70,7 @@ extern int TimeIsZero(Time *acc);
  */
 extern size_t TimeStampAdd(char *buffer, size_t size);
 extern size_t TimeStamp(time_t *now, char *buffer, size_t size);
+extern size_t TimeStampGMT(time_t *now, char *buffer, size_t size);
 
 #if ! defined(HAVE_GMTIME_R)
 extern struct tm *gmtime_r(const time_t *, struct tm *);
