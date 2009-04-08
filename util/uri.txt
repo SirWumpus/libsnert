@@ -71,6 +71,8 @@ The following test cases
 
  Y  ?  Y  Y	http://rds.yahoo.com/S=8805213/K=computer/v=1/SID=a/l=WS1/R=1/SS=19512237/IPC=us/SHE=0/H=0/SIG=92qylAS97/EXP=020672989/*-http://xplrhto.s00p.net/
  
+ Y  -  -  Y	http://dect.myspace.com/event.ng/Type=click&Redirect=http://pillenhaus.ch
+
  N  U  Y  -     Missing scheme //Maildir/tmp/1147912780.P18481.andromede.tetragone.fr
  
  N  -  -  -	https://smallbusiness..dell.com/

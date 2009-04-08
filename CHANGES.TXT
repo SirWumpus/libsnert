@@ -44,7 +44,7 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
---1.70.12--
+--1.71.0--
 
    !	uriParse2: add support for file: scheme RFC 1738 section 3.10.
 
@@ -72,6 +72,15 @@ is no set schedule for releases.
 
    !	dnslist.c: updated dnsListQuery and dnsListQueryIP to log pass/fail
    	results to a separate file.
+
+   +	Added BufAddSigned and BufAddUnsigned.
+
+   !	BufAddBytes: removed offset argument, since this can be simply
+   	done by adding the to pointer.
+
+   +	Added TimeStampGMT.
+
+   +	Added an HTTP request API.
 
 --1.70.11--
 
