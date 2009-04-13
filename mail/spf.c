@@ -22,11 +22,7 @@
 # include <syslog.h>
 #endif
 
-#ifdef ENABLE_PDQ
 #include <com/snert/lib/net/pdq.h>
-#else
-#include <com/snert/lib/io/Dns.h>
-#endif
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/mail/spf.h>
@@ -104,7 +100,6 @@ spfSetDebug(int flag)
 	debug = flag;
 }
 
-#ifdef ENABLE_PDQ
 static int
 spfMatchIp(unsigned char ipv6[IPV6_BYTE_LENGTH], PDQ_rr *list, unsigned long cidr)
 {
@@ -119,24 +114,6 @@ spfMatchIp(unsigned char ipv6[IPV6_BYTE_LENGTH], PDQ_rr *list, unsigned long cid
 
 	return 0;
 }
-#else
-static int
-spfMatchIp(unsigned char ipv6[IPV6_BYTE_LENGTH], Vector entries, unsigned long cidr)
-{
-	int i;
-	DnsEntry *entry;
-
-	for (i = 0; i < VectorLength(entries); i++) {
-		if ((entry = VectorGet(entries, i)) == NULL)
-			continue;
-
-		if (entry->address != NULL && networkContainsIp(entry->address, cidr, ipv6))
-			return 1;
-	}
-
-	return 0;
-}
-#endif
 
 #ifdef NOT_FINISHED_REPLACEMENT
 static int
@@ -259,7 +236,6 @@ spfMacro(spfContext *ctx, const char *domain, const char *fmt)
 			value = strchr(ctx->ip, '.') == NULL ? "ip6" : "in-addr";
 			break;
 		case 'p':
-#ifdef ENABLE_PDQ
 {
 			int match;
 			PDQ_rr *list, *rr, *alist;
@@ -289,56 +265,12 @@ spfMacro(spfContext *ctx, const char *domain, const char *fmt)
 
 			pdqListFree(list);
 }
-#else
-{
-			Vector entries;
-			DnsEntry *entry;
-
-			value = (char *) unknown;
-
-			if (MAX_PTR_MACRO <= ctx->ptr_count++) {
-				syslog(LOG_ERR, "too many SPF %%{p} macro lookups");
-				return NULL;
-			}
-
-			if ((j = DnsGet2(DNS_TYPE_PTR, 0, ctx->ip, &entries, NULL)) != DNS_RCODE_OK)
-				break;
-
-			for (j = 0; j < VectorLength(entries); j++) {
-				int match;
-				Vector arecords;
-
-				if ((entry = VectorGet(entries, j)) == NULL)
-					continue;
-
-				value = entry->value;
-
-				if (DnsGet2(DNS_TYPE_A, 1, value, &arecords, NULL) != DNS_RCODE_OK) {
-					if (DnsGet2(DNS_TYPE_AAAA, 1, value, &arecords, NULL) != DNS_RCODE_OK) {
-						value = (char *) unknown;
-						VectorDestroy(entries);
-						goto break_switch;
-					}
-				}
-
-				match = spfMatchIp(ctx->ipv6, arecords, IPV6_BIT_LENGTH);
-				VectorDestroy(arecords);
-				if (match)
-					break;
-			}
-
-			j = TextCopy(macro, sizeof (macro), value);
-			if (0 < j && macro[j-1] == '.')
-				macro[j-1] = '\0';
-			VectorDestroy(entries);
-}
-#endif
 			goto already_copied_validated_ip;
 		default:
 			syslog(LOG_ERR, "SPF macro syntax error in \"%s\"", format);
 			return NULL;
 		}
-break_switch:
+
 		/* Take a working copy of the macro value. */
 		TextCopy(macro, sizeof (macro), value);
 already_copied_validated_ip:
@@ -472,15 +404,8 @@ spfIsCircularReference(spfContext *ctx, const char *domain)
 static const char *
 spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 {
-#ifdef ENABLE_PDQ
 	PDQ *pdq;
 	PDQ_rr *list, *rr;
-#else
-	long j;
-	Dns dns;
-	Vector entries;
-	DnsEntry *entry;
-#endif
 	char *txt;
 	Vector terms;
 	int qualifier;
@@ -538,7 +463,6 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 		goto error1;
 	}
 
-#ifdef ENABLE_PDQ
 	if ((pdq = pdqOpen()) == NULL) {
 		err = spfErrorInternal;
 		goto error1;
@@ -602,64 +526,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 		txt = (char *) alt_txt;
 		list = NULL;
 	}
-#else
-	if ((dns = DnsOpen()) == NULL) {
-		err = spfErrorInternal;
-		goto error1;
-	}
 
-	if (alt_txt == NULL) {
-		if ((entries = DnsGet(dns, DNS_TYPE_TXT, 1, domain)) == NULL) {
-			switch (DnsGetReturnCode(dns)) {
-			/* This result code is not to spec. but treats
-			 * broken DNS servers as Neutral (not None),
-			 * instead of TempError. This allows include: of
-			 * non-exsistant/broken domains to be ignored.
-			 */
-			case DNS_RCODE_SERVER:
-				qualifier = SPF_NEUTRAL;
-				break;
-
-			case DNS_RCODE_ERRNO:
-			case DNS_RCODE_UNDEFINED:
-			case DNS_RCODE_NOT_IMPLEMENTED:
-				break;
-			default:
-				qualifier = SPF_TEMP_ERROR;
-			}
-			err = DnsGetError(dns);
-			goto error2;
-		}
-
-		txt = NULL;
-		for (i = 0; i < VectorLength(entries); i++) {
-			DnsTXT *t;
-
-			if ((entry = VectorGet(entries, i)) == NULL || entry->type != DNS_TYPE_TXT)
-				continue;
-
-			if ((t = entry->value) == NULL || (txt = malloc(t->length+1)) == NULL) {
-				err = spfErrorInternal;
-				goto error3;
-			}
-
-			TextCopy(txt, t->length+1, (char *) t->data);
-
-			if (strncmp(txt, "v=spf1 ", sizeof ("v=spf1 ")-1) == 0)
-				break;
-
-			free(txt);
-			txt = NULL;
-		}
-
-		/* Zero entries or no matching ones found? */
-		if (txt == NULL)
-			goto error3;
-	} else {
-		txt = (char *) alt_txt;
-		entries = NULL;
-	}
-#endif
 	if (debug)
 		syslog(LOG_DEBUG, "domain=%s TXT=%s", domain, txt);
 
@@ -672,10 +539,9 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 
 	/* Start after the version specifier. */
 	for (i = 1; i < VectorLength(terms); i++, qualifier = SPF_NEUTRAL) {
-#ifdef ENABLE_PDQ
 		pdqListFree(list);
 		list = NULL;
-#endif
+
 		if ((term = VectorGet(terms, i)) == NULL)
 			continue;
 
@@ -724,7 +590,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				err = spfErrorSyntax;
 				goto error5;
 			}
-#ifdef ENABLE_PDQ
+
 			if ((list = pdqGet5A(pdq, PDQ_CLASS_IN, target)) == NULL) {
 				qualifier = SPF_TEMP_ERROR;
 				err = spfErrorInternal;
@@ -749,27 +615,6 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto done;
 			if (spfMatchIp(ctx->ipv6, list, cidr6))
 				goto done;
-#else
-			VectorDestroy(entries);
-			if ((entries = DnsGet(dns, DNS_TYPE_A, 1, target)) == NULL) {
-				if ((entries = DnsGet(dns, DNS_TYPE_AAAA, 1, target)) == NULL) {
-					if (DnsGetReturnCode(dns) == DNS_RCODE_UNDEFINED)
-						continue;
-					if (!spfTempErrorDns.value) {
-						ctx->temp_error = 1;
-						continue;
-					}
-					qualifier = SPF_TEMP_ERROR;
-					err = DnsGetError(dns);
-					goto error5;
-				}
-
-				cidr = cidr6;
-			}
-
-			if (spfMatchIp(ctx->ipv6, entries, cidr))
-				goto done;
-#endif
 		}
 
 		else if (TextInsensitiveCompareN(term , "mx", 2) == 0) {
@@ -791,7 +636,6 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto error5;
 			}
 
-#ifdef ENABLE_PDQ
 			if ((list = pdqGetMX(pdq, PDQ_CLASS_IN, target, 0)) == NULL) {
 				if (errno == 0)
 					continue;
@@ -813,53 +657,6 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto done;
 			if (spfMatchIp(ctx->ipv6, list, cidr6))
 				goto done;
-#else
-			VectorDestroy(entries);
-
-			/* Do NOT rely on recursion here, otherwise a
-			 * multihomed MX may fail to match correctly...
-			 */
-			if ((entries = DnsGet(dns, DNS_TYPE_MX, 0, target)) == NULL) {
-				if (DnsGetReturnCode(dns) == DNS_RCODE_UNDEFINED || !spfTempErrorDns.value)
-					continue;
-				qualifier = SPF_TEMP_ERROR;
-				err = DnsGetError(dns);
-				goto error5;
-			}
-
-			/* ... Instead lookup each MX host's A record
-			 * separately to ensure that all the multihomed
-			 * hosts are found.
-			 */
-			for (j = 0; j < VectorLength(entries); j++) {
-				int match;
-				Vector arecords;
-
-				if ((entry = VectorGet(entries, j)) == NULL)
-					continue;
-
-				if ((arecords = DnsGet(dns, DNS_TYPE_A, 1, entry->value)) == NULL) {
-					if ((arecords = DnsGet(dns, DNS_TYPE_AAAA, 1, entry->value)) == NULL) {
-						if (DnsGetReturnCode(dns) == DNS_RCODE_UNDEFINED)
-							continue;
-						if (!spfTempErrorDns.value) {
-							ctx->temp_error = 1;
-							continue;
-						}
-						qualifier = SPF_TEMP_ERROR;
-						err = DnsGetError(dns);
-						goto error5;
-					}
-
-					cidr = cidr6;
-				}
-
-				match = spfMatchIp(ctx->ipv6, arecords, cidr);
-				VectorDestroy(arecords);
-				if (match)
-					goto done;
-			}
-#endif
 		}
 
 		else if (TextInsensitiveCompareN(term , "ptr", 3) == 0) {
@@ -875,7 +672,6 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto error5;
 			}
 
-#ifdef ENABLE_PDQ
 			if ((list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_PTR, ctx->ip, NULL)) == NULL) {
 				qualifier = SPF_TEMP_ERROR;
 				err = spfErrorInternal;
@@ -934,63 +730,6 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				if (match)
 					goto done;
 			}
-#else
-			VectorDestroy(entries);
-
-			/* Do NOT rely on recursion here, otherwise a
-			 * multihomed host may fail to match correctly...
-			 */
-			if ((entries = DnsGet(dns, DNS_TYPE_PTR, 0, ctx->ip)) == NULL) {
-				if (DnsGetReturnCode(dns) == DNS_RCODE_UNDEFINED)
-					continue;
-				if (!spfTempErrorDns.value) {
-					ctx->temp_error = 1;
-					continue;
-				}
-				qualifier = SPF_TEMP_ERROR;
-				err = DnsGetError(dns);
-				goto error5;
-			}
-
-			for (j = 0; j < VectorLength(entries); j++) {
-				int k, match;
-				char *rootdot;
-				Vector arecords;
-				DnsEntry *arecord;
-
-				if ((entry = VectorGet(entries, j)) == NULL)
-					continue;
-
-				if ((arecords = DnsGet(dns, DNS_TYPE_A, 1, entry->value)) == NULL) {
-					if ((arecords = DnsGet(dns, DNS_TYPE_AAAA, 1, entry->value)) == NULL) {
-						break;
-					}
-				}
-
-				match = 0;
-
-				if ((rootdot = strrchr(entry->value, '.')) != NULL && rootdot[1] == '\0')
-					*rootdot = '\0';
-
-				for (k = 0; k < VectorLength(arecords); k++) {
-					if ((arecord = VectorGet(arecords, k)) == NULL)
-						continue;
-
-					if (arecord->address != NULL && networkContainsIp(arecord->address, IPV6_BIT_LENGTH, ctx->ipv6)) {
-						if (debug)
-							syslog(LOG_DEBUG, "ptr=%s target=%s", (char *) entry->value, target);
-						if (0 <= TextInsensitiveEndsWith(entry->value, target)) {
-							match = 1;
-							break;
-						}
-					}
-				}
-
-				VectorDestroy(arecords);
-				if (match)
-					goto done;
-			}
-#endif
 		}
 
 		else if (TextInsensitiveCompareN(term , "ip4:", 4) == 0 || TextInsensitiveCompareN(term , "ip6:", 4) == 0) {
@@ -1067,7 +806,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				err = spfErrorDnsLimit;
 				goto error5;
 			}
-#ifdef ENABLE_PDQ
+
 			if ((list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_A, target, NULL)) != NULL) {
 				if (list->rcode != PDQ_RCODE_OK) {
 					if (list->rcode == PDQ_RCODE_UNDEFINED)
@@ -1085,23 +824,6 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 
 				goto done;
 			}
-#else
-			VectorDestroy(entries);
-			if ((entries = DnsGet(dns, DNS_TYPE_A, 1, target)) == NULL) {
-				if (DnsGetReturnCode(dns) == DNS_RCODE_UNDEFINED)
-					continue;
-				if (!spfTempErrorDns.value) {
-					ctx->temp_error = 1;
-					continue;
-				}
-				qualifier = SPF_TEMP_ERROR;
-				err = DnsGetError(dns);
-				goto error5;
-			}
-
-			if (0 < VectorLength(entries))
-				goto done;
-#endif
 		}
 
 		else if (TextInsensitiveCompareN(term , "redirect=", 9) == 0) {
@@ -1137,17 +859,10 @@ error5:
 error4:
 	if (alt_txt == NULL)
 		free(txt);
-#ifdef ENABLE_PDQ
 error3:
 	pdqListFree(list);
 error2:
 	pdqClose(pdq);
-#else
-error3:
-	VectorDestroy(entries);
-error2:
-	DnsClose(dns);
-#endif
 error1:
 	ctx->result = qualifier;
 error0:
@@ -1254,15 +969,9 @@ spfCheckDomain(const char *client_addr, const char *domain, int *result)
 
 static char usage[] =
 "usage: spf [-v][-h helo]"
-#ifndef ENABLE_PDQ
-"[-n dns,...]"
-#endif
 "[-t txt] client-ip domain|mail ...\n"
 "\n"
 "-h helo\t\tthe SMTP EHLO/HELO argument to verify\n"
-#ifndef ENABLE_PDQ
-"-n dns,...\tone or more alternative DNS servers to consult\n"
-#endif
 "-t txt\t\tspecify the initial TXT record to use\n"
 "-v\t\tsend debugging information to the mail log.\n"
 "\n"
@@ -1366,18 +1075,13 @@ int
 main(int argc, char **argv)
 {
 	int i, ch, spf;
-	const char *error, *ns = NULL, *helo = NULL, *txt = NULL;
+	const char *error, *helo = NULL, *txt = NULL;
 
 	while ((ch = getopt(argc, argv, "h:n:t:Tv")) != -1) {
 		switch (ch) {
 		case 'h':
 			helo = optarg;
 			break;
-#ifndef ENABLE_PDQ
-		case 'n':
-			ns = optarg;
-			break;
-#endif
 		case 't':
 			txt = optarg;
 			break;
@@ -1393,11 +1097,7 @@ main(int argc, char **argv)
 			LogOpen("(standard error)");
 			LogSetLevel(LOG_DEBUG);
 #endif
-#ifdef ENABLE_PDQ
 			pdqSetDebug(1);
-#else
-			DnsSetDebug(1);
-#endif
 			spfSetDebug(1);
 			break;
 		default:
@@ -1411,7 +1111,6 @@ main(int argc, char **argv)
 		return EX_USAGE;
 	}
 
-#ifdef ENABLE_PDQ
 	if (atexit(pdqFini)) {
 		fprintf(stderr, "atexit() failed\n");
 		exit(EX_SOFTWARE);
@@ -1421,19 +1120,6 @@ main(int argc, char **argv)
 		fprintf(stderr, "pdqInit() failed\n");
 		exit(EX_SOFTWARE);
 	}
-#else
-	if (ns != NULL) {
-		Vector dns;
-
-		if ((dns = TextSplit(ns, ",", 0)) == NULL) {
-			fprintf(stderr, "out of memory\n");
-			exit(71);
-		}
-
-		DnsSetNameServers((char **) VectorBase(dns));
-		VectorDestroy(dns);
-	}
-#endif
 
 	for (i = optind+1; i < argc; i++) {
 		error = spfCheckHeloMailTxt(argv[optind], helo, argv[i], txt, &spf);
