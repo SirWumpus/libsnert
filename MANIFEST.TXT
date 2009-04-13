@@ -1,5 +1,5 @@
 org/sqlite/makefile
-org/sqlite/sqlite-3.6.10.tar.gz
+org/sqlite/sqlite-3.6.13.tar.gz
 com/snert/lib/Log.pm
 com/snert/src/tools
 com/snert/include/com/snert/lib
