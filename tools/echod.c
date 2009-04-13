@@ -155,7 +155,7 @@ workerThread(void *data)
 	long line_length, bytes_sent;
 	Socket2 *client = (Socket2 *) data;
 
-	while (0 < (line_length = socketReadLine2(client, buffer, sizeof (buffer), 1))) {
+	while (0 < (line_length = socketReadLine2(client, (char *) buffer, sizeof (buffer), 1))) {
 		bytes_sent = socketWrite(client, buffer, line_length);
 		if (line_length != bytes_sent)
 			break;

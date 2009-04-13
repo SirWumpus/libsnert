@@ -748,8 +748,8 @@ void
 listHeaders(Mime *m)
 {
 	if (m->source.length == 0
-	|| 0 <= TextFind(m->source.buffer, "Content-*", m->source.length, 1)
-	|| 0 <= TextFind(m->source.buffer, "X-MD5-*", m->source.length, 1)
+	|| 0 <= TextFind((char *) m->source.buffer, "Content-*", m->source.length, 1)
+	|| 0 <= TextFind((char *) m->source.buffer, "X-MD5-*", m->source.length, 1)
 	)
 		printf("%.3u: %s\r\n", m->mime_part_number, m->source.buffer);
 }

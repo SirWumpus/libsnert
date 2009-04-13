@@ -135,11 +135,11 @@ TextInputLine(FILE *fp, char *line, long size)
 
 #define TIME_CYCLE		60
 
-static int rand_seed;
 static char *maildir;
 static FILE *message_out;
 static char *message_filename;
 static const char base62[] = "0123456789ABCDEFGHIJKLMNOPQRSYUVWXYZabcdefghijklmnopqrsyuvwxyz";
+static unsigned rand_seed;
 
 static void
 time_encode(time_t when, char buffer[6])

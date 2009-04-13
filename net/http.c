@@ -85,7 +85,7 @@ httpSend(HttpRequest *request)
 		(void) BufAddByte(req, ':');
 		(void) BufAddString(req, request->url->port);
 	}
-	(void) BufAddBytes(req, "\r\n", sizeof ("\r\n")-1);
+	(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
 	if (0 < httpDebug) {
 		syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
@@ -95,7 +95,7 @@ httpSend(HttpRequest *request)
 	if (request->from != NULL) {
 		(void) BufAddString(req, "From: ");
 		(void) BufAddString(req, request->from);
-		(void) BufAddBytes(req, "\r\n", sizeof ("\r\n")-1);
+		(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
 		if (0 < httpDebug) {
 			syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
@@ -106,7 +106,7 @@ httpSend(HttpRequest *request)
 	if (request->credentials != NULL) {
 		(void) BufAddString(req, "Authorization: ");
 		(void) BufAddString(req, request->credentials);
-		(void) BufAddBytes(req, "\r\n", sizeof ("\r\n")-1);
+		(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
 		if (0 < httpDebug) {
 			syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
@@ -120,8 +120,8 @@ httpSend(HttpRequest *request)
 		length = strftime(stamp, sizeof (stamp), "%a, %d %b %Y %H:%M:%S GMT", &gmt);
 
 		(void) BufAddString(req, "If-Modified-Since: ");
-		(void) BufAddBytes(req, stamp, length);
-		(void) BufAddBytes(req, "\r\n", sizeof ("\r\n")-1);
+		(void) BufAddBytes(req, (unsigned char *) stamp, length);
+		(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
 		if (0 < httpDebug) {
 			syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
@@ -130,7 +130,7 @@ httpSend(HttpRequest *request)
 	}
 
 	/* End of headers. */
-	(void) BufAddBytes(req, "\r\n", sizeof ("\r\n")-1);
+	(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
 	if (0 < httpDebug) {
 		syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
@@ -148,7 +148,7 @@ httpSend(HttpRequest *request)
 
 	if (request->post_buffer != NULL) {
 		if (0 < httpDebug)
-			syslog(LOG_DEBUG, "> %lu:%s", request->post_size, request->post_buffer);
+			syslog(LOG_DEBUG, "> %lu:%s", (unsigned long) request->post_size, request->post_buffer);
 
 		if (socketWrite(socket, request->post_buffer, request->post_size) != request->post_size)
 			goto error2;
@@ -175,7 +175,7 @@ httpReadLine(Socket2 *socket, Buf *buf)
 	offset = BufLength(buf);
 
 	do {
-		length = socketReadLine2(socket, line, sizeof (line), 1);
+		length = socketReadLine2(socket, (char *) line, sizeof (line), 1);
 		if (length < 0)
 			return length;
 
@@ -196,13 +196,13 @@ httpGetHeader(Buf *buf, const char *hdr_pat, size_t hdr_len)
 	int span, ch;
 	char *string = NULL;
 
-	if (0 < (offset = TextFind(buf->bytes, hdr_pat, -1, 1))) {
+	if (0 < (offset = TextFind((char *) buf->bytes, hdr_pat, -1, 1))) {
 		offset += hdr_len;
-		offset += strspn(buf->bytes+offset, " \t");
-		span = strcspn(buf->bytes+offset, ";\r\n");
+		offset += strspn((char *) buf->bytes+offset, " \t");
+		span = strcspn((char *) buf->bytes+offset, ";\r\n");
 		ch = buf->bytes[offset+span];
 		buf->bytes[offset+span] = '\0';
-		string = strdup(buf->bytes+offset);
+		string = strdup((char *) buf->bytes+offset);
 		buf->bytes[offset+span] = ch;
 	}
 
@@ -237,7 +237,7 @@ httpRead(Socket2 *socket, HttpResponse *response)
 	} while (buf->length - offset != 2 || buf->bytes[offset] != '\r' || buf->bytes[offset+1] != '\n');
 
 	/* Parse headers. */
-	if (sscanf(buf->bytes, "HTTP/%*s %u", (unsigned int *) &code) != 1)
+	if (sscanf((char *) buf->bytes, "HTTP/%*s %u", (unsigned int *) &code) != 1)
 		goto error1;
 	response->result = code;
 
