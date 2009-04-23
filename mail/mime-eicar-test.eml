@@ -12,14 +12,17 @@ MIME-Version: 1.0
 To: achowe@fsg.com
 Subject: eicar anti-virus test
 Content-Type: multipart/mixed;
- boundary="------------090705030306040804080103"
-X-MD5-Expected: 17bec3fd387cdf134add7e7e60df3175
+ boundary="----=__PartF0D8505D.0__="
+X-MD5-Encoded: e497940f1bcc4c220e1a140358f42890
+X-MD5-Decoded: e497940f1bcc4c220e1a140358f42890
 
 This is a multi-part message in MIME format.
---------------090705030306040804080103
+
+------=__PartF0D8505D.0__=
 Content-Type: text/plain; charset=UTF-8; format=flowed
 Content-Transfer-Encoding: 7bit
-X-MD5-Expected: 2e4832a9f82a2c335b0fb7689d7003ea
+X-MD5-Encoded: 2e4832a9f82a2c335b0fb7689d7003ea
+X-MD5-Decoded: 2e4832a9f82a2c335b0fb7689d7003ea
 
 
 -- 
@@ -27,48 +30,56 @@ Anthony C Howe          Skype: SirWumpus                    SnertSoft
 +33 6 11 89 73 78         ICQ: 7116561          BarricadeMX & Milters
 http://www.snert.com/                       http://www.snertsoft.com/
 
---------------090705030306040804080103
+------=__PartF0D8505D.0__=
 Content-Type: text/plain;
  name="eicar.com"
 Content-Transfer-Encoding: base64
 Content-Disposition: inline;
  filename="eicar.com"
-X-MD5-Expected: 44d88612fea8a8f36de82e1278abb02f
+X-MD5-Encoded: 5138f3280e345184b8f717d4122e42a0
+X-MD5-Decoded: 44d88612fea8a8f36de82e1278abb02f
 
 WDVPIVAlQEFQWzRcUFpYNTQoUF4pN0NDKTd9JEVJQ0FSLVNUQU5EQVJELUFOVElWSVJVUy1U
 RVNULUZJTEUhJEgrSCo=
---------------090705030306040804080103
+------=__PartF0D8505D.0__=
 Content-Type: text/plain;
 	name="eicar.com"
 Content-Transfer-Encoding: quoted-printable
 Content-Disposition: inline;
  filename="eicar.com"
-X-MD5-Expected: 44d88612fea8a8f36de82e1278abb02f
+X-MD5-Encoded: fb777cdd2df0b3b15f2bb997bccdccae
+X-MD5-Decoded: 44d88612fea8a8f36de82e1278abb02f
 
 =58=35=4f=21=50=25=40=41=50=5b=34=5c=50=5a=58=35=
 =34=28=50=5e=29=37=43=43=29=37=7d=24=45=49=43=41=
 =52=2d=53=54=41=4e=44=41=52=44=2d=41=4e=54=49=56=
 =49=52=55=53=2d=54=45=53=54=2d=46=49=4c=45=21=24=
 =48=2b=48=2a
---------------090705030306040804080103
+------=__PartF0D8505D.0__=
 Content-Type: text/plain;
  name="eicar.com"
 Content-Transfer-Encoding: quoted-printable
 Content-Disposition: inline;
  filename="eicar.com"
-X-MD5-Expected: 44d88612fea8a8f36de82e1278abb02f
+X-MD5-Encoded: d843cd34b1b1a04e5cdd3a2ec70b7dfe
+X-MD5-Decoded: 44d88612fea8a8f36de82e1278abb02f
 
 X5O=21P=25=40AP=5b4=5cPZX54=28P=5e=297CC=297=7d=24EICAR=
 =2dSTANDARD=2dANTIVIRUS=2dTEST=2dFILE=21=24H=2bH=2a
---------------090705030306040804080103
+------=__PartF0D8505D.0__=
 Content-Type: text/plain; name="test1.txt"
 Content-Transfer-Encoding: quoted-printable
-X-MD5-Expected: 48eca408b89e7aedc276abe897df78e0
+X-MD5-Encoded: 02c3e0ff189b4b03c244a32806325337
+X-MD5-Decoded: ?
 
 A line of 60 hyphens:
 ----------------------------------------=
 --------------------
 Followed by some text.
 
---------------090705030306040804080103--
+--=20
+Your signature
+Appears here
+
+------=__PartF0D8505D.0__=--
 
