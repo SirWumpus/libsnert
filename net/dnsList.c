@@ -159,7 +159,8 @@ dnsListCreate(const char *string)
 		 */
 		length = strlen(suffix);
 		if (0 < length && suffix[length-1] != '.' && (rooted = malloc(length+2)) != NULL) {
-			suffix = strcpy(rooted, suffix);
+			(void) TextCopy(rooted, length+2, suffix);
+			suffix = rooted;
 			suffix[length  ] = '.';
 			suffix[length+1] = '\0';
 			VectorSet(list->suffixes, i, suffix);
