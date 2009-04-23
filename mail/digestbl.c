@@ -203,8 +203,8 @@ digestHeaders(Mime *m)
 	char *mark;
 	Digest *ctx = m->mime_data;
 
-	if (0 <= TextFind(m->source.buffer, "Content-Type:*", m->source.length, 1)) {
-		mark = &m->source.buffer[sizeof("Content-Type:")-1];
+	if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*", m->source.length, 1)) {
+		mark = (char *) &m->source.buffer[sizeof("Content-Type:")-1];
 		mark += strspn(mark, " \t");
 		mark[strcspn(mark, " \t\r\n;")] = '\0';
 		TextCopy(ctx->content_type, sizeof (ctx->content_type), mark);
