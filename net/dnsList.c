@@ -129,8 +129,9 @@ DnsList *
 dnsListCreate(const char *string)
 {
 	long i;
+	size_t length;
 	DnsList *list;
-	char *slash, *suffix;
+	char *slash, *suffix, *rooted;
 
 	if (string == NULL || *string == '\0')
 		goto error0;
@@ -147,6 +148,22 @@ dnsListCreate(const char *string)
 	for (i = 0; i < VectorLength(list->suffixes); i++) {
 		if ((suffix = VectorGet(list->suffixes, i)) == NULL)
 			continue;
+
+		/* Assert that the DNS list suffixes are rooted, ie.
+		 * terminated by a dot. This will prevent wildcard
+		 * lookups when resolv.conf specifies a 'search domain.com'
+		 * pragma and domain.com has a wildcard entry then
+		 * any NXDOMAIN returns result in .domain.com being
+		 * added to the end of the lookup and the wildcard being
+		 * returned.
+		 */
+		length = strlen(suffix);
+		if (0 < length && suffix[length-1] != '.' && (rooted = malloc(length+2)) != NULL) {
+			suffix = strcpy(rooted, suffix);
+			suffix[length  ] = '.';
+			suffix[length+1] = '\0';
+			VectorSet(list->suffixes, i, suffix);
+		}
 
 		if ((slash = strchr(suffix, '/')) == NULL) {
 			list->masks[i] = (unsigned long) ~0L;
@@ -185,7 +202,8 @@ dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 
 			bits = NET_GET_LONG(rr->address.ip.value + rr->address.ip.offset);
 
-			if ((bits & dns_list->masks[i]) != 0) {
+			if ((bits & dns_list->masks[i]) != 0
+			&& isReservedIPv4((unsigned char *) &bits, IS_IP_LOCAL|IS_IP_THIS_NET)) {
 				if (0 < debug)
 					syslog(LOG_DEBUG, "found %s %s", rr->rr.name.string.value, rr->address.string.value);
 
