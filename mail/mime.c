@@ -3,7 +3,7 @@
  *
  * RFC 2045, 2046, 2047
  *
- * Copyright 2007 by Anthony Howe. All rights reserved.
+ * Copyright 2007, 2009 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -23,454 +23,12 @@
 #include <com/snert/lib/util/Text.h>
 
 /***********************************************************************
- *** MIME Parse States
+ *** MIME Decoders & States
  ***********************************************************************/
 
-static void mimeBoundary(Mime *m);
-static int mimeStateCR(Mime *m, int ch);
-static int mimeStateCRLF(Mime *m, int ch);
-static int mimeStateCRLF1(Mime *m, int ch);
-static int mimeStateCRLF2(Mime *m, int ch);
-static int mimeStateCRLF3(Mime *m, int ch);
-static int mimeStateBoundary(Mime *m, int ch);
-static int mimeStateContent(Mime *m, int ch);
-static int mimeStateBase64(Mime *m, int ch);
-static int mimeStateQpLiteral(Mime *m, int ch);
-static int mimeStateQpSoftLine(Mime *m, int ch);
+static int mimeStateHdr(Mime *m, int ch);
+static int mimeStateBdy(Mime *m, int ch);
 static int mimeStateQpEqual(Mime *m, int ch);
-static int mimeStateQpDecode(Mime *m, int ch);
-static int mimeStateHeader(Mime *m, int ch);
-static int mimeStateHeaderLF(Mime *m, int ch);
-
-static int
-mimeIsBoundaryChar(int ch)
-{
-	if (isalnum(ch))
-		return 1;
-
-	return strchr("-=_'()+,./:?", ch) != NULL;
-}
-
-void
-mimeDecodeAdd(Mime *m, int ch)
-{
-	m->mime_body_decoded_length++;
-
-	/* Flush the decode buffer when full. */
-	if (sizeof (m->decode.buffer)-1 <= m->decode.length) {
-		if (m->mime_decode_line != NULL)
-			(*m->mime_decode_line)(m);
-		mimeDecodeFlush(m);
-	}
-
-	m->decode.buffer[m->decode.length++] = ch;
-	m->decode.buffer[m->decode.length  ] = '\0';
-}
-
-void
-mimeDecodeBodyAdd(Mime *m, int ch)
-{
-	mimeDecodeAdd(m, ch);
-
-	if (m->mime_decoded_octet != NULL)
-		(*m->mime_decoded_octet)(m, ch);
-}
-
-void
-mimeDecodeHeaderAdd(Mime *m, int ch)
-{
-	mimeDecodeAdd(m, ch);
-
-	if (m->mime_header_octet != NULL)
-		(*m->mime_header_octet)(m, ch);
-}
-
-static void
-mimeDecodeCR(Mime *m)
-{
-	if (m->state != mimeStateBase64) {
-		mimeDecodeBodyAdd(m, ASCII_CR);
-		m->state_newline = NULL;
-	}
-}
-
-static void
-mimeDecodeLF(Mime *m)
-{
-	if (m->state != mimeStateBase64) {
-		mimeDecodeBodyAdd(m, ASCII_LF);
-		m->state_newline = NULL;
-	}
-}
-
-static void
-mimeDecodeCRLF(Mime *m)
-{
-	/* The CRLF are not saved to the decode buffer, since
-	 * the source buffer for which the CRLF relates to will
-	 * have already been replaced while we were looking
-	 * ahead at the source for a MIME boundary.
-	 *
-	 * The CRLF are not part of the base64 codeset, thus
-	 * the call-back can be skipped.
-	 */
-	if (m->state_newline != NULL) {
-		/* Was this part of a MIME conforming CRLF newline? */
-		if (m->state_newline == mimeStateCR)
-			mimeDecodeCR(m);
-		mimeDecodeLF(m);
-	}
-}
-
-static int
-mimeIsMultipartCRLF(Mime *m, int ch)
-{
-	if (m->is_multipart) {
-		/* RFC 2046 section 5.1.1. Common Syntax states that the CRLF
-		 * preceeding the boundary line is conceptually part of the
-		 * boundary, such that it is possible to have a MIME part
-		 * that does not end with a CRLF.
-		 */
-		if (ch == ASCII_CR) {
-			/* Conforming CRLF newline. */
-			m->state = m->state_newline = mimeStateCR;
-			return 1;
-		} else if (ch == ASCII_LF) {
-			/* Non-conforming LF newline, common to unix files. */
-			m->state = m->state_newline = mimeStateCRLF;
-			return 1;
-		}
-
-		/* Within MIME part content. */
-	}
-
-	return 0;
-}
-
-static void
-mimeSourceLine(Mime *m, int ch)
-{
-	unsigned cr = 0, lf = 0;
-
-	/* When the source buffer contains a line unit or is full, reset it.
-	 * Also reset the decode buffer. The decode buffer should reflect
-	 * the current contents of the source buffer.
-	 */
-	if (ch == EOF
-	|| (ch == ASCII_LF && m->state != mimeStateHeaderLF
-	  && m->state != mimeStateQpEqual && m->state != mimeStateQpSoftLine)
-	|| sizeof (m->source.buffer)-1 <= m->source.length) {
-		if (m->mime_source_line != NULL) {
-			/* The trailing LF or CRLF is NOT part of the source
-			 * until we've check for a MIME boundary.
-			 */
-			if (0 < m->source.length && (lf = (m->source.buffer[m->source.length-1] == ASCII_LF)))
-				m->source.length--;
-			if (0 < m->source.length && (cr = (m->source.buffer[m->source.length-1] == ASCII_CR)))
-				m->source.length--;
-			m->source.buffer[m->source.length] = '\0';
-
-			(*m->mime_source_line)(m);
-		}
-
-		if (m->state == mimeStateQpDecode) {
-			/* If a quoted printable character sequence
-			 * "straddles across" the buffer end, ie. "=X"
-			 * are the last things in the buffer and the
-			 * state is mimeStateQpDecode, then we have to
-			 * "carry over" the information related to that
-			 * state as part of the buffer reset.
-			 */
-			m->source.buffer[0] = m->source.buffer[m->source.length-2];
-			m->source.buffer[1] = m->source.buffer[m->source.length-1];
-			m->source.length = 2;
-			m->decode.length = 0;
-		} else {
-			m->start_of_line = (ch == ASCII_LF);
-			mimeSourceFlush(m);
-
-			if (cr)
-				m->source.buffer[m->source.length++] = ASCII_CR;
-			if (lf)
-				m->source.buffer[m->source.length++] = ASCII_LF;
-		}
-	}
-}
-
-static void
-mimeDecodeLine(Mime *m, int ch)
-{
-	if (ch == EOF
-
-	/* Flush the decode buffer if it was a line unit. */
-	|| (0 < m->decode.length && m->decode.buffer[m->decode.length-1] == ASCII_LF)) {
-		if (m->mime_decode_line != NULL)
-			(*m->mime_decode_line)(m);
-		mimeDecodeFlush(m);
-	}
-}
-
-static int
-mimeStateContent(Mime *m, int ch)
-{
-	if (!mimeIsMultipartCRLF(m, ch))
-		mimeDecodeBodyAdd(m, ch);
-
-	return 0;
-}
-
-static int
-mimeStateCR(Mime *m, int ch)
-{
-	if (ch == ASCII_LF) {
-		m->state = mimeStateCRLF;
-	} else {
-		m->state = m->state_next_part;
-		mimeDecodeCR(m);
-		return (*m->state)(m, ch);
-	}
-
-	return 0;
-}
-
-static int
-mimeStateCRLF(Mime *m, int ch)
-{
-	/* First hyphen of boundary line? */
-	if (ch == '-') {
-		m->state = mimeStateCRLF1;
-	} else {
-		m->state = m->state_next_part;
-		mimeDecodeCRLF(m);
-		return (*m->state)(m, ch);
-	}
-
-	return 0;
-}
-
-static int
-mimeStateCRLF1(Mime *m, int ch)
-{
-	/* Second hyphen of boundary line? */
-	if (ch == '-') {
-		m->state = mimeStateCRLF2;
-	} else {
-		m->state = m->state_next_part;
-		mimeDecodeCRLF(m);
-		(void) (*m->state)(m, '-');
-		return (*m->state)(m, ch);
-	}
-
-	return 0;
-}
-
-static int
-mimeStateCRLF2(Mime *m, int ch)
-{
-	/* Is the boundary line lead-in (--) followed by CRLF or LF?
-	 *
-	 * This lazy MIME boundary parsing excludes a boundary marker
-	 * that is of zero length or starts with whitespace, eg.
-	 *
-	 *	Content-Type: multipart/mixed; boundary=""
- 	 *
-	 *	Content-Type: multipart/mixed; boundary=" foo bar"
-	 *
-	 * Ignoring zero length boundary markers ensures that email
-	 * signatures, often delimited by a simple "--CRLF" (see
-	 * Thunderbird MUA), remain part of the MIME part.
-	 */
-	if (isspace(ch)) {
-		/* Not a MIME boundary. */
-		m->state = m->state_next_part;
-		mimeDecodeCRLF(m);
-		(void) (*m->state)(m, '-');
-		(void) (*m->state)(m, '-');
-		return (*m->state)(m, ch);
-	} else if (ch == '=' && m->state_next_part == mimeStateQpLiteral) {
-		m->state = mimeStateCRLF3;
-	} else {
-		m->state = mimeStateBoundary;
-	}
-
-	return 0;
-}
-
-static int
-mimeStateCRLF3(Mime *m, int ch)
-{
-	/* Is the boundary line lead-in (--) followed by CRLF or LF?
-	 *
-	 * This lazy MIME boundary parsing excludes a boundary marker
-	 * that is of zero length or starts with whitespace, eg.
-	 *
-	 *	Content-Type: multipart/mixed; boundary=""
- 	 *
-	 *	Content-Type: multipart/mixed; boundary=" foo bar"
-	 *
-	 * Ignoring zero length boundary markers ensures that email
-	 * signatures, often delimited by a simple "--CRLF" (see
-	 * Thunderbird MUA), remain part of the MIME part.
-	 */
-	if (isxdigit(ch)) {
-		/* Not a MIME boundary. */
-		m->state = m->state_next_part;
-		mimeDecodeCRLF(m);
-		(void) (*m->state)(m, '-');
-		(void) (*m->state)(m, '-');
-		(void) (*m->state)(m, '=');
-		return (*m->state)(m, ch);
-	} else {
-		m->state = mimeStateBoundary;
-	}
-
-	return 0;
-}
-
-static int
-mimeStateBoundary(Mime *m, int ch)
-{
-	/* End of line or buffer full? */
-	if (ch == ASCII_LF || sizeof (m->source.buffer) <= m->source.length) {
-		int i, all_hyphen = 1;
-
-		/* RFC 2046 section 5.1.1 states a boundary delimiter line
-		 * is the two hyphen lead-in characters followed by 0 to 69
-		 * boundary characters. We treat it as 1 to 69 for reasons
-		 * stated in mimeStateCRLF2.
-		 */
-
-		/* RFC 2046 section 5.1.1
-		 *
-		 *   The boundary delimiter line is then defined as a line
-		 *   consisting entirely of two hyphen characters ("-",
-		 *   decimal value 45) followed by the boundary parameter
-		 *   value from the Content-Type header field, optional
-		 *   linear whitespace, and a terminating CRLF.
-		 *
-		 *
-		 *   boundary := 0*69<bchars> bcharsnospace
-		 *
-		 *   bchars := bcharsnospace / " "
-		 *
-		 *   bcharsnospace := DIGIT / ALPHA / "'" / "(" / ")" /
-		 *		      "+" / "_" / "," / "-" / "." /
-		 *		      "/" / ":" / "=" / "?"
-		 */
-		for (i = 2; i < m->source.length; i++) {
-			if (!mimeIsBoundaryChar(m->source.buffer[i]) && !isspace(m->source.buffer[i]))
-				break;
-
-			/* Treat ----\r\n, ====\r\n, -=-=-=-\r\n, ----=\r\n
-			 * as a run. Assumes CRLF is at the end of the line.
-			 */
-			all_hyphen = all_hyphen && strchr("-=\r\n", m->source.buffer[i]);
-		}
-
-		/* If the source buffer contains valid boundary characters
-		 * upto the end of the buffer, then assume it is a boundary
-		 * line.
-		 *
-		 * a) Look out for quoted-printable split line of hyphens, eg.
-		 *
-		 * 	----------------------------------------=\r\n
-   		 *	-------\r\n
-   		 *
-   		 * These should not be treated as two boundaries.
-   		 *
-   		 * b) Look out for signature line separator that should not
-   		 * be treated as a boundary even though it is valid, when
-   		 * using quoted printable.
-   		 *
-   		 *	--=20\r\n
-   		 *
-   		 * c) Take care with a valid boundary line, looks like a
-   		 * quoted printable soft line break.
-   		 *
-   		 *	--=__PartF0D8505D.0__=\r\n
-		 */
-		if (!all_hyphen && i == m->source.length) {
-			m->source.buffer[m->source.length] = '\0';
-			if (m->mime_body_finish != NULL)
-				(*m->mime_body_finish)(m);
-			m->mime_part_number++;
-			mimeBoundary(m);
-			(void) mimeNextCh(m, EOF);
-		} else {
-			/* Process the source stream before being flushed. */
-			m->state = m->state_next_part;
-			mimeDecodeCRLF(m);
-			for (i = 0; i < m->source.length; i++) {
-				if (m->state != mimeStateBase64 || !isspace(m->source.buffer[i]))
-					(void)(*m->state)(m, m->source.buffer[i]);
-			}
-		}
-	}
-
-	return 0;
-}
-
-static int
-mimeStateBase64(Mime *m, int ch)
-{
-	if (!mimeIsMultipartCRLF(m, ch)) {
-		ch = b64Decode(&m->b64, ch);
-
-		/* Ignore intermediate base64 states until an octet is decoded. */
-		if (BASE64_IS_OCTET(ch))
-			mimeDecodeBodyAdd(m, ch);
-	}
-
-	return 0;
-}
-
-static int
-mimeStateQpLiteral(Mime *m, int ch)
-{
-	if (!mimeIsMultipartCRLF(m, ch)) {
-		if (ch == '=')
-			m->state = mimeStateQpEqual;
-		else
-			mimeDecodeBodyAdd(m, ch);
-	}
-
-	return 0;
-}
-
-static int
-mimeStateQpSoftLine(Mime *m, int ch)
-{
-	return mimeStateQpLiteral(m, ch);
-}
-
-static int
-mimeStateQpEqual(Mime *m, int ch)
-{
-	if (ch == ASCII_CR) {
-		/* Ignore soft-line break, ie. =CRLF.
-		 */
-		;
-	} else if (ch == ASCII_LF) {
-		/* Ignore soft-line break, ie. =CRLF or =LF.
-		 */
-		m->state = mimeStateQpSoftLine;
-	} else if (isxdigit(ch)) {
-		/* Initial part of a quoted printable. The tail
-		 * of the source buffer will contain "=X".
-		 */
-		m->state = mimeStateQpDecode;
-	} else {
-		/* Invalid quoted-printable sequence. Treat the
-		 * leading equals-sign as a literal. The decode
-		 * buffer will contain "=C".
-		 */
-		m->state = mimeStateQpLiteral;
-		mimeDecodeBodyAdd(m, '=');
-		mimeDecodeBodyAdd(m, ch);
-	}
-
-	return 0;
-}
 
 /**
  * @param octet
@@ -500,10 +58,72 @@ qpHexDigit(int x)
 	return -1;
 }
 
+void
+mimeDecodeFlush(Mime *m)
+{
+	if (0 < m->decode.length) {
+		if (m->mime_decode_flush != NULL)
+			(*m->mime_decode_flush)(m);
+
+		*m->decode.buffer = '\0';
+		m->decode.length = 0;
+	}
+}
+
+int
+mimeDecodeAdd(Mime *m, int ch)
+{
+	if (ch != EOF) {
+		/* Flush the decode buffer when full. */
+		if (sizeof (m->decode.buffer)-1 <= m->decode.length)
+			mimeDecodeFlush(m);
+
+		if (m->mime_decoded_octet != NULL)
+			(*m->mime_decoded_octet)(m, ch);
+
+		m->mime_body_decoded_length++;
+		m->decode.buffer[m->decode.length++] = ch;
+		m->decode.buffer[m->decode.length  ] = '\0';
+	}
+
+	return ch;
+}
+
+static int
+mimeStateBase64(Mime *m, int ch)
+{
+	ch = b64Decode(&m->b64, ch);
+
+	/* Ignore intermediate base64 states until an octet is decoded. */
+	if (BASE64_IS_OCTET(ch))
+		(void) mimeDecodeAdd(m, ch);
+
+	return 0;
+}
+
+static int
+mimeStateQpLiteral(Mime *m, int ch)
+{
+	if (ch == '=')
+		m->decode_state = mimeStateQpEqual;
+	else
+		mimeDecodeAdd(m, ch);
+
+	return 0;
+}
+
+static int
+mimeStateQpSoftLine(Mime *m, int ch)
+{
+	return mimeStateQpLiteral(m, ch);
+}
+
 static int
 mimeStateQpDecode(Mime *m, int ch)
 {
 	unsigned value;
+
+	value = m->decode.buffer[m->decode.length];
 
 	if (isxdigit(ch)) {
 		/* Replace =XX with decoded octet.
@@ -515,32 +135,269 @@ mimeStateQpDecode(Mime *m, int ch)
 		 * correct thing (though that might be an oversight on
 		 * their part).
 		 */
-		value = qpHexDigit(m->source.buffer[m->source.length-2]) * 16 + qpHexDigit(ch);
-		mimeDecodeBodyAdd(m, value);
+		value = qpHexDigit(value) * 16 + qpHexDigit(ch);
+		mimeDecodeAdd(m, value);
 	} else {
 		/* Invalid quoted printable sequence. Treat as literal. */
-		mimeDecodeBodyAdd(m, '=');
-		mimeDecodeBodyAdd(m, m->source.buffer[m->source.length-2]);
-		mimeDecodeBodyAdd(m, ch);
+		mimeDecodeAdd(m, '=');
+		mimeDecodeAdd(m, value);
+		mimeDecodeAdd(m, ch);
 	}
 
-	m->state = mimeStateQpLiteral;
+	m->decode_state = mimeStateQpLiteral;
 
 	return 0;
 }
 
 static int
-mimeStateHeaderLF(Mime *m, int ch)
+mimeStateQpEqual(Mime *m, int ch)
 {
-	/* Either a new header or a folded header. */
-	m->state = mimeStateHeader;
+	if (ch == ASCII_CR) {
+		/* Ignore soft-line break, ie. =CRLF.
+		 */
+		;
+	} else if (ch == ASCII_LF) {
+		/* Ignore soft-line break, ie. =CRLF or =LF.
+		 */
+		m->decode_state = mimeStateQpSoftLine;
+	} else if (isxdigit(ch)) {
+		/* Initial part of a quoted printable. The tail
+		 * of the decode buffer will contain "=X".
+		 */
+		m->decode.buffer[m->decode.length] = ch;
+		m->decode_state = mimeStateQpDecode;
+	} else {
+		/* Invalid quoted-printable sequence. Treat the
+		 * leading equals-sign as a literal. The decode
+		 * buffer will contain "=C".
+		 */
+		m->decode_state = mimeStateQpLiteral;
+		mimeDecodeAdd(m, '=');
+		mimeDecodeAdd(m, ch);
+	}
 
-	if (ch == ASCII_TAB) {
-		/* Folded header line, convert TAB to SPACE. */
-		m->source.buffer[m->source.length-1] = ASCII_SPACE;
-		mimeDecodeHeaderAdd(m, ASCII_SPACE);
-	} else if (ch != ASCII_SPACE) {
-		/* End of previous header. */
+	return 0;
+}
+
+static void
+mimeDecodeSource(Mime *m)
+{
+	if (m->source_state != mimeStateHdr) {
+		unsigned i;
+
+		for (i = 0; i < m->source.length; i++)
+			(void) (*m->decode_state)(m, m->source.buffer[i]);
+	}
+}
+
+void
+mimeSourceFlush(Mime *m)
+{
+	if (0 < m->source.length) {
+		mimeDecodeSource(m);
+
+		if (m->mime_source_flush != NULL) {
+			m->source.buffer[m->source.length] = '\0';
+			(*m->mime_source_flush)(m);
+		}
+
+		*m->source.buffer = '\0';
+		m->source.length = 0;
+	}
+}
+
+static int
+mimeIsBoundaryChar(int ch)
+{
+	return isalnum(ch) || strchr("-=_'()+,./:?", ch) != NULL;
+}
+
+static int
+mimeStateBoundary(Mime *m, int ch)
+{
+	/* Accumulate the boundary line unitl LF or buffer full. */
+	if (ch == ASCII_LF || sizeof (m->source.buffer) <= m->source.length) {
+		unsigned i, has_qp = 0, all_hyphen = 1;
+
+		/* RFC 2046 section 5.1.1
+		 *
+		 *   The boundary delimiter line is then defined as a line
+		 *   consisting entirely of two hyphen characters ("-",
+		 *   decimal value 45) followed by the boundary parameter
+		 *   value from the Content-Type header field, optional
+		 *   linear whitespace, and a terminating CRLF.
+		 *
+		 *
+		 *   boundary := 0*69<bchars> bcharsnospace
+		 *
+		 *   bchars := bcharsnospace / " "
+		 *
+		 *   bcharsnospace := DIGIT / ALPHA / "'" / "(" / ")" /
+		 *		      "+" / "_" / "," / "-" / "." /
+		 *		      "/" / ":" / "=" / "?"
+		 */
+		for (i = 2; i < m->source.length; i++) {
+			if (!mimeIsBoundaryChar(m->source.buffer[i]) && !isspace(m->source.buffer[i]))
+				break;
+
+			/* Treat ----\r\n, ====\r\n, -=-=-=-\r\n, ----=\r\n
+			 * as a run. Assumes CRLF is at the end of the line.
+			 */
+			all_hyphen = all_hyphen && strchr("-=\r\n", m->source.buffer[i]);
+
+			if (isxdigit(m->source.buffer[i]) && m->source.buffer[i-1] == '=')
+				has_qp = 1;
+		}
+
+		/* If the source buffer contains valid boundary characters
+		 * upto the end of the buffer, then assume it is a boundary
+		 * line.
+		 *
+		 * a) Look out for quoted-printable split line of hyphens, eg.
+		 *
+		 * 	----------------------------------------=\r\n
+   		 *	-------\r\n
+   		 *
+   		 * These should not be treated as two boundaries.
+   		 *
+   		 * b) Look out for signature line separator that should not
+   		 * be treated as a boundary even though it is valid, when
+   		 * using quoted printable.
+   		 *
+   		 *	--=20\r\n
+   		 *
+   		 * c) Take care with a valid boundary line, looks like a
+   		 * quoted printable soft line break.
+   		 *
+   		 *	--=__PartF0D8505D.0__=\r\n
+		 */
+		if (!all_hyphen && !has_qp && i == m->source.length) {
+			/* Terminate decoding for this body part */
+			(void) (*m->decode_state)(m, EOF);
+			m->decode_state = mimeDecodeAdd;
+			mimeDecodeFlush(m);
+
+			/* Discard the boundary without flushing. */
+			m->source.length = 0;
+			m->source.buffer[0] = '\0';
+			m->source_state = mimeStateHdr;
+
+			if (m->mime_body_finish != NULL)
+				(*m->mime_body_finish)(m);
+			m->mime_part_number++;
+		} else {
+			/* Process the source stream before being flushed. */
+			m->source_state = mimeStateBdy;
+
+			for (i = 0; i < m->source.length; i++) {
+				(void) mimeStateBdy(m, m->source.buffer[i]);
+			}
+			(void) mimeStateBdy(m, ch);
+		}
+	}
+
+	return ch;
+}
+
+static int
+mimeStateDash2(Mime *m, int ch)
+{
+	/* Is the boundary line lead-in (--) followed by CRLF or LF?
+	 *
+	 * This lazy MIME boundary parsing excludes a boundary marker
+	 * that is of zero length or starts with whitespace, eg.
+	 *
+	 *	Content-Type: multipart/mixed; boundary=""
+ 	 *
+	 *	Content-Type: multipart/mixed; boundary=" foo bar"
+	 *
+	 * Ignoring zero length boundary markers ensures that email
+	 * signatures, often delimited by a simple "--CRLF" (see
+	 * Thunderbird MUA), remain part of the MIME part.
+	 */
+	if (isspace(ch)) {
+		/* Not a MIME boundary. */
+		m->source_state = mimeStateBdy;
+	} else {
+		m->source_state = mimeStateBoundary;
+	}
+
+	return ch;
+}
+
+static int
+mimeStateDash1(Mime *m, int ch)
+{
+	if (ch == '-') {
+		/* Second hyphen of boundary line? */
+		m->source_state = mimeStateDash2;
+	} else {
+		m->source_state = mimeStateBdy;
+	}
+
+	return ch;
+}
+
+static int
+mimeStateBdyLF(Mime *m, int ch)
+{
+	if (ch == '-') {
+		/* First hyphen of boundary line? */
+		m->source_state = mimeStateDash1;
+	} else if (ch == ASCII_LF) {
+		/* We have a LF LF pair. MIME message with LF newlines?
+		 * Flush the first LF and keep the second LF.
+		 */
+		(void) mimeStateBdy(m, ASCII_LF);
+	} else {
+		m->source_state = mimeStateBdy;
+	}
+
+	return ch;
+}
+
+static int
+mimeStateBdy(Mime *m, int ch)
+{
+	if (ch == ASCII_LF) {
+		int has_cr = 0;
+
+		/* Flush upto, but excluding the trailing CRLF or LF. */
+		m->source.length--;
+		if (0 < m->source.length && m->source.buffer[m->source.length-1] == ASCII_CR) {
+			m->source.length--;
+			has_cr = 1;
+		}
+		m->source.buffer[m->source.length] = '\0';
+		mimeSourceFlush(m);
+
+		/* Restore the newline, in case the MIME boundary
+		 * check fails to find a boundary line.
+		 */
+		if (has_cr)
+			m->source.buffer[m->source.length++] = ASCII_CR;
+		m->source.buffer[m->source.length++] = ASCII_LF;
+
+		if (m->is_multipart) {
+			/* Look for MIME boundary line. */
+			m->source_state = mimeStateBdyLF;
+		}
+	}
+
+	return ch;
+}
+
+static int
+mimeStateHdrLF(Mime *m, int ch)
+{
+	MimeHookOctet decode_state;
+
+	if (ch == ASCII_SPACE || ch == ASCII_TAB) {
+		/* Folded header, resume header gathering. */
+		m->source_state = mimeStateHdr;
+	} else if (0 < m->source.length) {
+		/* End of unfolded header line less newline. */
+		m->source_state = mimeStateHdr;
 		m->source.buffer[--m->source.length] = '\0';
 
 		/* Check the header for MIME behaviour. */
@@ -550,120 +407,75 @@ mimeStateHeaderLF(Mime *m, int ch)
 			/* Simply skip decoding this content. Look
 			 * only for the MIME boundary line.
 			 */
-			m->state_next_part = mimeStateContent;
+			;
+			m->decode_state = mimeDecodeAdd;
 		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Transfer-Encoding:*quoted-printable*", m->source.length, 1)) {
-			m->state_next_part = mimeStateQpLiteral;
+			m->decode_state = mimeStateQpLiteral;
 		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Transfer-Encoding:*base64*", m->source.length, 1)) {
-			m->state_next_part = mimeStateBase64;
+			m->decode_state = mimeStateBase64;
 			b64Reset(&m->b64);
 		}
 
-		/* Complete unfolded header line less the CRLF. */
+		/* HACK for backwards compatibility with previous versions. DEPRICATED. */
+		if (m->mime_header_octet != NULL) {
+			decode_state = (MimeHookOctet) m->decode_state;
+			m->decode_state = (int (*)(struct mime *, int)) m->mime_header_octet;
+		}
+
 		if (m->mime_header != NULL)
 			(*m->mime_header)(m);
+		mimeSourceFlush(m);
 
-		/* Start of next header. */
-		mimeBuffersFlush(m);
-		m->start_of_line = 1;
+		/* HACK for backwards compatibility with previous versions. DEPRICATED. */
+		if (m->mime_header_octet != NULL) {
+			(void) (*m->decode_state)(m, EOF);
+			mimeDecodeFlush(m);
+			m->decode_state = (int (*)(struct mime *, int)) decode_state;
+		}
+
 		m->source.buffer[m->source.length++] = ch;
-		mimeDecodeHeaderAdd(m, ch);
 
-		/* When newlines are LF instead of CRLF, then
-		 * we have initiate this transition manually.
+		/* When newlines are LF instead of CRLF, then we have
+		 * initiate the End Of Header transition manually.
 		 */
 		if (ch == ASCII_LF)
-			(void) mimeStateHeader(m, ASCII_LF);
+			(void) mimeStateHdr(m, ASCII_LF);
 	}
 
-	return 0;
+	return ch;
 }
 
 static int
-mimeStateHeader(Mime *m, int ch)
+mimeStateHdr(Mime *m, int ch)
 {
 	if (ch == ASCII_LF) {
-		/* Remove LF or CRLF from header. */
+		/* Remove trailing newline (LF or CRLF). */
 		m->source.length--;
 		if (0 < m->source.length && m->source.buffer[m->source.length-1] == ASCII_CR)
 			m->source.length--;
-		m->source.buffer[m->source.length] = '\0';
 
-		if (0 < m->decode.length && m->decode.buffer[m->decode.length-1] == ASCII_CR)
-			m->decode.length--;
-		m->decode.buffer[m->decode.length] = '\0';
-
-		if (0 < m->source.length) {
-			/* Check for folded header line on next character. */
-			m->state = mimeStateHeaderLF;
-		} else {
+		if (m->source.length == 0) {
 			/* End of headers. */
-			mimeBuffersFlush(m);
+			mimeDecodeFlush(m);
 			m->mime_body_length = 0;
 			m->mime_body_decoded_length = 0;
+			m->source_state = mimeStateBdy;
+			m->source.buffer[0] = '\0';
 
 			if (m->mime_body_start != NULL)
 				(*m->mime_body_start)(m);
-
-			if (!mimeIsMultipartCRLF(m, ch))
-				m->state = m->state_next_part;
-
-			/* Avoid inserting an extra newline after the end of headers. */
-			m->state_newline = NULL;
+		} else {
+			/* Check for folded header line next octet. */
+			m->source_state = mimeStateHdrLF;
 		}
-	} else {
-		/* Keep decode buffer in sync with source buffer. */
-		mimeDecodeHeaderAdd(m, ch);
 	}
 
-	return 0;
+	return ch;
 }
 
 /***********************************************************************
  *** MIME API
  ***********************************************************************/
-
-void
-mimeNoHeaders(Mime *m)
-{
-	m->state = mimeStateContent;
-}
-
-void
-mimeSourceFlush(Mime *m)
-{
-	if (m->mime_source_flush != NULL)
-		(*m->mime_source_flush)(m);
-
-	*m->source.buffer = '\0';
-	m->source.length = 0;
-}
-
-void
-mimeDecodeFlush(Mime *m)
-{
-	if (m->mime_decode_flush != NULL)
-		(*m->mime_decode_flush)(m);
-
-	*m->decode.buffer = '\0';
-	m->decode.length = 0;
-}
-
-void
-mimeBuffersFlush(Mime *m)
-{
-	mimeSourceFlush(m);
-	mimeDecodeFlush(m);
-}
-
-static void
-mimeBoundary(Mime *m)
-{
-	b64Reset(&m->b64);
-	mimeBuffersFlush(m);
-	m->state = mimeStateHeader;
-	m->state_next_part = mimeStateContent;
-	m->start_of_line = 1;
-}
 
 /**
  * @param m
@@ -674,12 +486,20 @@ mimeReset(Mime *m)
 {
 	if (m != NULL) {
 		b64Init();
-		mimeBoundary(m);
+		b64Reset(&m->b64);
+
+		mimeSourceFlush(m);
+		mimeDecodeFlush(m);
+
 		m->is_multipart = 0;
 		m->mime_part_number = 0;
 		m->mime_part_length = 0;
 		m->mime_body_length = 0;
 		m->mime_body_decoded_length = 0;
+
+		/* Assume RFC 5322 message format starts with headers. */
+		mimeHeadersFirst(m, 1);
+		m->decode_state = mimeDecodeAdd;
 	}
 }
 
@@ -717,41 +537,56 @@ mimeFree(Mime *m)
  * @param m
  *	Pointer to a Mime context structure.
  *
+ * @param flag
+ *	True if input starts with RFC 5322 message headers;
+ *	otherwise input begins directly with body content.
+ */
+void
+mimeHeadersFirst(Mime *m, int flag)
+{
+	m->source_state = flag ? mimeStateHdr : mimeStateBdy;
+}
+
+/**
+ * @param m
+ *	Pointer to a Mime context structure.
+ *
  * @param ch
- *	Next input octet to parse.
+ *	Next input octet to parse or EOF.
  *
  * @return
- *	Zero to continue, otherwise -1 on error.
+ *	Zero on success; otherwise EOF on error.
  */
 int
 mimeNextCh(Mime *m, int ch)
 {
-	unsigned rc;
-
 	if (m == NULL) {
 		errno = EFAULT;
-		return -1;
+		return EOF;
 	}
-
-	if (255 < ch) {
-		errno = EINVAL;
-		return -1;
-	}
-
-	mimeDecodeLine(m, ch);
 
 	if (ch != EOF) {
-		/* Save the current input source byte. */
-		m->source.buffer[m->source.length++] = ch;
+		if (ch < 0 || 255 < ch) {
+			errno = EINVAL;
+			return EOF;
+		}
+
 		m->mime_part_length++;
 		m->mime_body_length++;
+		m->source.buffer[m->source.length++] = ch;
 
-		rc = (*m->state)(m, ch);
+		(void) (*m->source_state)(m, ch);
 	}
 
-	mimeSourceLine(m, ch);
+	if (ch == EOF || sizeof (m->source.buffer)-1 <= m->source.length)
+		mimeSourceFlush(m);
 
-	return rc;
+	if (ch == EOF) {
+		(void) (*m->decode_state)(m, EOF);
+		mimeDecodeFlush(m);
+	}
+
+	return 0;
 }
 
 /***********************************************************************
@@ -816,15 +651,45 @@ listHeaders(Mime *m)
 void
 printSource(Mime *m)
 {
-	if (m->mime_part_number == extract_part && m->state != mimeStateHeader)
+	if (m->mime_part_number == extract_part && m->source_state != mimeStateHdr)
 		fwrite(m->source.buffer, 1, m->source.length, stdout);
 }
 
 void
 printDecode(Mime *m)
 {
-	if (m->mime_part_number == extract_part && m->state != mimeStateHeader)
+	if (m->mime_part_number == extract_part && m->source_state != mimeStateHdr)
 		fwrite(m->decode.buffer, 1, m->decode.length, stdout);
+}
+
+void
+processInput(Mime *m, FILE *fp)
+{
+	int ch;
+
+	if (fp != NULL) {
+		mimeReset(m);
+
+		do {
+			ch = fgetc(fp);
+			mimeNextCh(m, ch);
+		} while (ch != EOF);
+
+		(void) fflush(stdout);
+	}
+}
+
+void
+processFile(Mime *m, const char *filename)
+{
+	FILE *fp;
+
+	if ((fp = fopen(filename, "r")) == NULL) {
+		fprintf(stderr, "%s: %s (%d)\n", filename, strerror(errno), errno);
+	} else {
+		processInput(m, fp);
+		(void) fclose(fp);
+	}
 }
 
 int
@@ -863,17 +728,16 @@ main(int argc, char **argv)
 		mime->mime_header = listHeaders;
 		mime->mime_body_start = listHeaders;
 	} else if (enable_decode)
-		mime->mime_decode_line = printDecode;
+		mime->mime_decode_flush = printDecode;
 	else
-		mime->mime_source_line = printSource;
+		mime->mime_source_flush = printSource;
 
-	while ((ch = fgetc(stdin)) != EOF) {
-		if (mimeNextCh(mime, ch))
-			break;
+	if (optind + 1 == argc) {
+		processFile(mime, argv[optind]);
+	} else {
+		processInput(mime, stdin);
 	}
 
-	(void) mimeNextCh(mime, EOF);
-	(void) fflush(stdout);
 	mimeFree(mime);
 
 	return 0;

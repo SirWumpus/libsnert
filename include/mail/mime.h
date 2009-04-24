@@ -45,11 +45,9 @@ typedef void (*MimeHookOctet)(Mime *, int);
 struct mime {
 	/* Private state. */
 	B64 b64;
-	int is_multipart;			/* True if message is multipart. */
-	int start_of_line;			/* True if at start-of-line. */
-	int (*state)(struct mime *, int);	/* Current state. */
-	int (*state_newline)(struct mime *, int);
-	int (*state_next_part)(struct mime *, int);
+	int is_multipart;
+	int (*source_state)(struct mime *, int);
+	int (*decode_state)(struct mime *, int);
 
 	/* Public data. */
 	void *mime_data;			/* Data for parser call-backs. */
@@ -64,13 +62,12 @@ struct mime {
 	MimeHook mime_header;			/* On complete header line. */
 	MimeHook mime_body_start;		/* At end of MIME headers, start of MIME body. */
 	MimeHook mime_body_finish;		/* At end of MIME body, start of next MIME headers. */
-	MimeHook mime_source_line;		/* On source line or full buffer. */
-	MimeHook mime_source_flush;		/* Source buffer is flushed. */
-	MimeHook mime_decode_line;		/* On decode line or full buffer. */
-	MimeHook mime_decode_flush;		/* Decode buffer is flushed. */
-	MimeHookOctet mime_header_octet;	/* Each header octet. */
+	MimeHook mime_source_flush;		/* When source buffer is flushed. */
+	MimeHook mime_decode_flush;		/* When decode buffer is flushed. */
 	MimeHookOctet mime_decoded_octet;	/* Each decoded body octet. */
+	MimeHookOctet mime_header_octet;	/* Each decoded header octet. DEPRICATED */
 };
+
 
 /**
  * @param data
@@ -105,6 +102,7 @@ extern void mimeFree(Mime *);
  */
 extern int mimeNextCh(Mime *, int);
 
+#ifdef GONE
 /**
  * @param m
  *	Pointer to a Mime context structure.
@@ -114,20 +112,24 @@ extern int mimeNextCh(Mime *, int);
  */
 extern void mimeDecodeBodyAdd(Mime *m, int ch);
 extern void mimeDecodeHeaderAdd(Mime *m, int ch);
+#endif
 
 /**
  * @param m
  *	Pointer to a Mime context structure.
  */
-extern void mimeBuffersFlush(Mime *);
 extern void mimeSourceFlush(Mime *m);
 extern void mimeDecodeFlush(Mime *m);
 
 /**
  * @param m
  *	Pointer to a Mime context structure.
+ *
+ * @param flag
+ *	True if input starts with RFC 5322 message headers;
+ *	otherwise input begins directly with body content.
  */
-extern void mimeNoHeaders(Mime *m);
+extern void mimeHeadersFirst(Mime *m, int flag);
 
 /**
  * @param octet
