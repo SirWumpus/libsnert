@@ -267,7 +267,7 @@ stripMimeHeader(Mime *m)
 	if (headers != NULL) {
 		for (hdr = (const char **) VectorBase(headers); *hdr != NULL; hdr++) {
 			if (0 < (length = TextInsensitiveStartsWith(m->source.buffer, *hdr)) && (*hdr)[length] == ':') {
-				mimeBuffersFlush(m);
+				mimeSourceFlush(m);
 				return;
 			}
 		}
@@ -286,7 +286,7 @@ stripMimeHeaderOctet(Mime *m, int ch)
 	 * the state from headers to content.
 	 */
 	if (ch == '<') {
-		mimeNoHeaders(m);
+		mimeHeadersFirst(m, 0);
 		m->mime_header = NULL;
 		ctx->text_html = 1;
 	}
@@ -295,7 +295,7 @@ stripMimeHeaderOctet(Mime *m, int ch)
 }
 
 static void
-stripSourceLine(Mime *m)
+stripDecodeFlush(Mime *m)
 {
 	StripMime *ctx = m->mime_data;
 	const char *start, *stop, **tag;
@@ -450,7 +450,7 @@ main(int argc, char **argv)
 	strip.mime->mime_header = stripMimeHeader;
 	strip.mime->mime_body_start = stripMimePartStart;
 	strip.mime->mime_body_finish = stripMimePartFinish;
-	strip.mime->mime_source_line = stripSourceLine;
+	strip.mime->mime_decode_flush = stripDecodeFlush;
 	strip.mime->mime_header_octet = stripMimeHeaderOctet;
 
 	while ((ch = fgetc(stdin)) != EOF) {
