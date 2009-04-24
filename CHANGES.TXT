@@ -44,7 +44,113 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.71.1--
+
+   !	mimeStateBoundary: when crossing a MIME boundary issue an EOF
+   	to force any cleanup, before starting the next MIME part.
+
+   !	dnsListCreate: Assert that the DNS list suffixes are rooted, ie.
+	terminated by a dot. This will prevent wildcard lookups when
+	resolv.conf specifies a 'search domain.com' pragma and
+	domain.com has a wildcard entry then any NXDOMAIN returns result
+	in .domain.com being added to the end of the lookup and the
+	wildcard being returned. Reported by Steve Freegard for
+	netground.nl.
+
+   !	dnsListIsNameListed: only return a match for values that are
+   	either 127.0.0.0/8 or 0.0.0.0/8.
+
+   !	uri.c: added "email:", "mail:", and "from:" as pusedo schemes to
+	the schemes table in order to catch instances of:
+
+		email:user@domain.com		(explicit)
+	vs
+		email: user@domain.com		(implicit)
+
+   !	mime.c/h: complete overhaul of MIME API and testing tool to deal
+	with several parsing and decoding bugs.
+
+	The issues addressed by this major revision relate to a change
+	in design assumptions made in previous builds by the decoupling
+	of source and decode buffers. As a result several key points of
+	RFC 2046 were no longer handled correctly.
+
+	In particular RFC 2046 section 5.1.1
+
+		The boundary delimiter line is then defined as a line
+		consisting entirely of two hyphen characters ("-",
+		decimal value 45) followed by the boundary parameter
+		value from the Content-Type header field, optional
+		linear whitespace, and a terminating CRLF.
+
+		...
+
+		The boundary delimiter MUST occur at the beginning of a
+		line, i.e., following a CRLF, and the initial CRLF is
+		considered to be attached to the boundary delimiter line
+		rather than part of the preceding part.  The boundary
+		may be followed by zero or more characters of linear
+		whitespace. It is then terminated by either another CRLF
+		and the header fields for the next part, or by two
+		CRLFs, in which case there are no header fields for the
+		next part.  If no Content-Type field is present it is
+		assumed to be "message/rfc822" in a "multipart/digest"
+		and "text/plain" otherwise.
+
+		...
+
+		boundary := 0*69<bchars> bcharsnospace
+
+		bchars := bcharsnospace / " "
+
+		bcharsnospace := DIGIT / ALPHA / "'" / "(" / ")" /
+			      "+" / "_" / "," / "-" / "." /
+			      "/" / ":" / "=" / "?"
+
+	The lazy MIME boundary parsing excludes a boundary marker that
+	is of zero length or starts with whitespace, eg.
+
+		Content-Type: multipart/mixed; boundary=""
+
+		Content-Type: multipart/mixed; boundary=" foo bar"
+
+	Ignoring zero length boundary markers ensures that email
+	signatures, often delimited by a simple "--CRLF" (see
+	Thunderbird MUA) or "-- CRLF" remain part of the content.
+
+	Thus the following special cases had to be addressed carefully:
+
+	a) Care with quoted-printable split line of hyphens, with a
+	soft-line break, eg.
+
+		\r\n
+		-----------------------------------=\r\n
+		-------\r\n
+
+	These should not be treated as two boundaries.
+
+	b) Care for signature line separator that should not be treated
+	as a boundary even though it is valid, even when using quoted-
+	printable.
+
+		-- \r\n
+	or
+		--=20\r\n
+
+	c) Care with a valid boundary line that looks like a quoted
+	printable soft line break and with MIME parts that are
+	quoted-printable encoded.
+
+		\r\n
+		--=__PartF0D8505D.0__=\r\n
+
+	The mime-eicar-test.eml is crafted to test all of these special
+	cases using the mime CLI tool.
+
+
 --1.71.0--
+
+   !    Upgraded SQLite to 3.6.13; removed previous local patch.
 
    !	uriParse2: add support for file: scheme RFC 1738 section 3.10.
 
@@ -81,6 +187,11 @@ is no set schedule for releases.
    +	Added TimeStampGMT.
 
    +	Added an HTTP request API.
+
+   !	http.c, mime.c, echod.c, mimepart.c, digestbl.c, md4.c, md5.c:
+	resolve many "signedness" warnings.
+
+   !	spf.c: remove old Dns API code in favour of PDQ.
 
 --1.70.11--
 
