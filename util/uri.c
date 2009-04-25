@@ -1373,8 +1373,12 @@ process_file(const char *filename)
 		if ((uri = uriMimeGetUri(mime)) != NULL) {
 			process(uri, filename);
 			if (check_query) {
-				process_list(uri->query, "&", filename);
-				process_list(uri->query, "/", filename);
+				if (uri->query == NULL) {
+					process_list(uri->path, "&", filename);
+				} else {
+					process_list(uri->query, "&", filename);
+					process_list(uri->query, "/", filename);
+				}
 				process_list(uri->path, "/", filename);
 			}
 			uriMimeFreeUri(mime);
@@ -1507,8 +1511,12 @@ main(int argc, char **argv)
 		} else if ((uri = uriParse2((const char *) argv[i], -1, 1)) != NULL) {
 			process(uri, NULL);
 			if (check_query) {
-				process_list(uri->query, "&", NULL);
-				process_list(uri->query, "/", NULL);
+				if (uri->query == NULL) {
+					process_list(uri->path, "&", NULL);
+				} else {
+					process_list(uri->query, "&", NULL);
+					process_list(uri->query, "/", NULL);
+				}
 				process_list(uri->path, "/", NULL);
 			}
 			free(uri);
