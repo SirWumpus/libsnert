@@ -44,6 +44,13 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.71.2--
+
+   !	uri.c: fixed uri CLI when parsing a URL that uses & delimiters
+   	but no query string delimiter, eg.
+
+   	http://dect.myspace.com/event.ng/Type=click&Redirect=http://pillenhaus.ch
+
 --1.71.1--
 
    !	mimeStateBoundary: when crossing a MIME boundary issue an EOF
@@ -146,11 +153,6 @@ is no set schedule for releases.
 
 	The mime-eicar-test.eml is crafted to test all of these special
 	cases using the mime CLI tool.
-
-   !	uri.c: fixed uri CLI when parsing a URL that uses & delimiters
-   	but no query string delimiter, eg.
-
-   	http://dect.myspace.com/event.ng/Type=click&Redirect=http://pillenhaus.ch
 
 --1.71.0--
 
