@@ -204,7 +204,7 @@ dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 			bits = NET_GET_LONG(rr->address.ip.value + rr->address.ip.offset);
 
 			if ((bits & dns_list->masks[i]) != 0
-			&& isReservedIPv4((unsigned char *) &bits, IS_IP_LOCAL|IS_IP_THIS_NET)) {
+			&& isReservedIPv4(rr->address.ip.value + rr->address.ip.offset, IS_IP_LOCAL|IS_IP_THIS_NET)) {
 				if (0 < debug)
 					syslog(LOG_DEBUG, "found %s %s", rr->rr.name.string.value, rr->address.string.value);
 
