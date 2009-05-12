@@ -1,0 +1,35 @@
+Date: Sat, 08 Mar 2008 10:50:38 +0100
+Message-ID: <47D2616E.2080401@snert.com>
+From: Anthony Howe <achowe@snert.com>
+To: achowe@fsg.com
+Subject: mime-multi-test.eml
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="----=__PartF0D8505D.0__="
+X-MD5-Encoded: d41d8cd98f00b204e9800998ecf8427e
+X-MD5-Decoded: d41d8cd98f00b204e9800998ecf8427e
+
+------=__PartF0D8505D.0__=
+Content-Type: text/plain; charset="ISO-8859-1"
+Content-Transfer-Encoding: 7bit
+X-MD5-Encoded: 7fae0b834d9dc8ab5b2958a6d3443f49
+X-MD5-Decoded: 7fae0b834d9dc8ab5b2958a6d3443f49
+
+
+Initial blank line --^
+Last line without a newline...
+------=__PartF0D8505D.0__=
+Content-Type: text/html; charset="ISO-8859-1"
+X-MD5-Encoded: dcd4cb88f9817a8ab3094aae91a4df2c
+X-MD5-Decoded: dcd4cb88f9817a8ab3094aae91a4df2c
+
+<HTML>
+<BODY>
+
+Initial blank line --^
+Last line without a newline...
+</BODY>
+</HTML>
+
+------=__PartF0D8505D.0__=--
+

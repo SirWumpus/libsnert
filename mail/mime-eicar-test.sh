@@ -52,3 +52,7 @@ check_mime mime-eicar-test.eml
 echo "Checking mime-eicar-test-lf.eml with LF newline..." | tee  mime-eicar-test-lf.eml.out
 check_mime mime-eicar-test-lf.eml
 
+echo "Checking mime-multi-test.eml with CRLF newline and NO preamble text..." | tee  mime-eicar-test-lf.eml.out
+check_mime mime-multi-test.eml
+
+exit 0

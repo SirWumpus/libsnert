@@ -419,6 +419,22 @@ mimeStateBdy(Mime *m, int ch)
 	return ch;
 }
 
+
+static int
+mimeStateHdrBdy(Mime *m, int ch)
+{
+	m->source_state = mimeStateBdy;
+
+	/* End of header CRLF might be lead in to boundary
+	 * when there is no preamble text and/or newline
+	 * before the boundary.
+	 */
+	if (ch == '-')
+		return mimeStateBdyLF(m, ch);
+
+	return mimeStateBdy(m, ch);
+}
+
 static int
 mimeStateHdrLF(Mime *m, int ch)
 {
@@ -491,7 +507,7 @@ mimeStateHdr(Mime *m, int ch)
 			mimeDecodeFlush(m);
 			m->mime_body_length = 0;
 			m->mime_body_decoded_length = 0;
-			m->source_state = mimeStateBdy;
+			m->source_state = mimeStateHdrBdy;
 			m->source.buffer[0] = '\0';
 
 			if (m->mime_body_start != NULL)
