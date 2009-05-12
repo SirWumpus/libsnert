@@ -208,6 +208,36 @@ uri.txt: uri=http://rds.yahoo.com/S=8805213/K=computer/v=1/SID=a/l=WS1/R=1/SS=19
 	path=/S=8805213/K=computer/v=1/SID=a/l=WS1/R=1/SS=19512237/IPC=us/SHE=0/H=0/SIG=92qylAS97/EXP=020672989/*-http://xplrhto.s00p.net/
 	query=(NULL)
 	fragment=(NULL)
+uri.txt: uri=/S=8805213/K=computer/v=1/SID=a/l=WS1/R=1/SS=19512237/IPC=us/SHE=0/H=0/SIG=92qylAS97/EXP=020672989/*-http://xplrhto.s00p.net/
+	uriDecoded=http://xplrhto.s00p.net/
+	scheme=http
+	schemeInfo=//xplrhto.s00p.net/
+	userInfo=(NULL)
+	host=xplrhto.s00p.net
+	port=80
+	path=/
+	query=(NULL)
+	fragment=(NULL)
+uri.txt: uri=http://dect.myspace.com/event.ng/Type=click&Redirect=http://pillenhaus.ch
+	uriDecoded=http://dect.myspace.com/event.ng/Type=click&Redirect=http://pillenhaus.ch
+	scheme=http
+	schemeInfo=//dect.myspace.com/event.ng/Type=click&Redirect=http://pillenhaus.ch
+	userInfo=(NULL)
+	host=dect.myspace.com
+	port=80
+	path=/event.ng/Type=click&Redirect=http://pillenhaus.ch
+	query=(NULL)
+	fragment=(NULL)
+uri.txt: uri=http://pillenhaus.ch
+	uriDecoded=http://pillenhaus.ch
+	scheme=http
+	schemeInfo=//pillenhaus.ch
+	userInfo=(NULL)
+	host=pillenhaus.ch
+	port=80
+	path=(NULL)
+	query=(NULL)
+	fragment=(NULL)
 uri.txt: uri=https://smallbusiness..dell.com/
 	uriDecoded=https://smallbusiness..dell.com/
 	scheme=https
@@ -325,6 +355,26 @@ uri.txt: uri=about:
 	userInfo=(NULL)
 	host=(NULL)
 	port=0
+	path=(NULL)
+	query=(NULL)
+	fragment=(NULL)
+uri.txt: uri=email:
+	uriDecoded=email:
+	scheme=email
+	schemeInfo=
+	userInfo=(NULL)
+	host=(NULL)
+	port=25
+	path=(NULL)
+	query=(NULL)
+	fragment=(NULL)
+uri.txt: uri=email:achowe@snert.com
+	uriDecoded=achowe@snert.com
+	scheme=mailto
+	schemeInfo=@snert.com
+	userInfo=achowe
+	host=snert.com
+	port=25
 	path=(NULL)
 	query=(NULL)
 	fragment=(NULL)
