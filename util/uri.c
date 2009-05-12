@@ -1344,13 +1344,52 @@ process_list(const char *list, const char *delim, const char *filename)
 	VectorDestroy(args);
 }
 
+void
+process_query(URI *uri, const char *filename)
+{
+	if (uri->query == NULL) {
+		process_list(uri->path, "&", filename);
+	} else {
+		process_list(uri->query, "&", filename);
+		process_list(uri->query, "/", filename);
+	}
+	process_list(uri->path, "/", filename);
+}
+
+int
+process_input(Mime *m, FILE *fp, const char *filename)
+{
+	int ch;
+	URI *uri;
+
+	if (fp != NULL) {
+		mimeReset(m);
+
+		do {
+			ch = fgetc(fp);
+			(void) mimeNextCh(m, ch);
+
+			/* Is there a URI ready to check? */
+			if ((uri = uriMimeGetUri(m)) != NULL) {
+				process(uri, filename);
+				if (check_query)
+					process_query(uri, filename);
+				uriMimeFreeUri(m);
+			}
+		} while (ch != EOF);
+
+		(void) fflush(stdout);
+	}
+
+	return 0;
+}
+
 int
 process_file(const char *filename)
 {
-	URI *uri;
+	int rc;
 	FILE *fp;
 	Mime *mime;
-	int ch, rc;
 
 	rc = -1;
 
@@ -1360,37 +1399,15 @@ process_file(const char *filename)
 
 	/* Otherwise open the file. */
 	else if ((fp = fopen(filename, "r")) == NULL)
-		goto error0;
+		return -1;
 
-	if ((mime = uriMimeCreate(check_all)) == NULL)
-		goto error1;
-
-	while ((ch = fgetc(fp)) != EOF) {
-		if (mimeNextCh(mime, ch))
-			goto error2;
-
-		/* Is there a URI ready to check? */
-		if ((uri = uriMimeGetUri(mime)) != NULL) {
-			process(uri, filename);
-			if (check_query) {
-				if (uri->query == NULL) {
-					process_list(uri->path, "&", filename);
-				} else {
-					process_list(uri->query, "&", filename);
-					process_list(uri->query, "/", filename);
-				}
-				process_list(uri->path, "/", filename);
-			}
-			uriMimeFreeUri(mime);
-		}
+	if ((mime = uriMimeCreate(check_all)) != NULL) {
+		rc = process_input(mime, fp, filename);
+		uriMimeFree(mime);
 	}
 
-	rc = 0;
-error2:
-	uriMimeFree(mime);
-error1:
 	fclose(fp);
-error0:
+
 	return rc;
 }
 
@@ -1510,15 +1527,8 @@ main(int argc, char **argv)
 				break;
 		} else if ((uri = uriParse2((const char *) argv[i], -1, 1)) != NULL) {
 			process(uri, NULL);
-			if (check_query) {
-				if (uri->query == NULL) {
-					process_list(uri->path, "&", NULL);
-				} else {
-					process_list(uri->query, "&", NULL);
-					process_list(uri->query, "/", NULL);
-				}
-				process_list(uri->path, "/", NULL);
-			}
+			if (check_query)
+				process_query(uri, NULL);
 			free(uri);
 		}
 	}
