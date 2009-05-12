@@ -1687,6 +1687,16 @@ pdq_name_skip(struct udp_packet *packet, unsigned char *ptr)
 	unsigned char *packet_start = ptr;
 	unsigned char *packet_end = (unsigned char *) &packet->header + packet->length;
 
+	if (packet_end < ptr) {
+		syslog(
+			LOG_ERR, "pdq_name_skip() id=%hu pkt=%lx ptr=%lx out of bounds (1)!!!",
+			packet->header.id, (long) packet, (long) packet_start
+		);
+		pdqLogPacket(packet, 0);
+		errno = EINVAL;
+		return NULL;
+	}
+
 	for ( ; ptr < packet_end && *ptr != 0; ptr += *ptr + 1) {
 		if ((*ptr & 0xc0) == 0xc0) {
 			/* Skip 0xC0 byte and next one. */
@@ -1700,7 +1710,7 @@ pdq_name_skip(struct udp_packet *packet, unsigned char *ptr)
 
 	if (packet_end < ptr) {
 		syslog(
-			LOG_ERR, "pdq_name_skip() id=%hu pkt=%lx ptr=%lx out of bounds!!!",
+			LOG_ERR, "pdq_name_skip() id=%hu pkt=%lx ptr=%lx out of bounds (2)!!!",
 			packet->header.id, (long) packet, (long) packet_start
 		);
 		pdqLogPacket(packet, 0);
