@@ -355,7 +355,7 @@ mimeStateDash1(Mime *m, int ch)
 static int
 mimeStateBdyLF(Mime *m, int ch)
 {
-	if (ch == '-') {
+	if (m->is_multipart && ch == '-') {
 		/* First hyphen of boundary line? */
 		m->source_state = mimeStateDash1;
         } else if (ch == ASCII_LF) {
@@ -411,6 +411,8 @@ mimeStateBdy(Mime *m, int ch)
 		if (m->is_multipart) {
 			/* Look for MIME boundary line. */
 			m->source_state = mimeStateBdyLF;
+		} else {
+			(void) (*m->decode_state)(m, ASCII_LF);
 		}
 	} else {
 		(void) (*m->decode_state)(m, ch);

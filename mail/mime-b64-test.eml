@@ -1,0 +1,17 @@
+Date: Sat, 08 Mar 2008 10:50:38 +0100
+Message-ID: <47D2616E.2080401@snert.com>
+From: Anthony Howe <achowe@snert.com>
+To: achowe@fsg.com
+Subject: mime-multi-test.eml
+MIME-Version: 1.0
+Subject: simple base64 message
+Content-Type: text/plain
+Content-Transfer-Encoding: base64
+X-MD5-Encoded: 60d9e58f37f15a7a888778491066fa01
+X-MD5-Decoded: 26fba2d488e377651487251109b76125
+
+VGhyZWUgYmxhbmsgbGluZXMuCgoKClRoZXJlIGlzIGEgc3BhY2UgYWZ0ZXIgdGhlIC0tIGJlbG93
+LgotLQpBbnRob255IEMgSG93ZSAgICAgICAgICBTa3lwZTogU2lyV3VtcHVzICAgICAgICAgICAg
+ICAgICAgICBTbmVydFNvZnQKKzMzIDYgMTEgODkgNzMgNzggICAgICAgICBJQ1E6IDcxMTY1NjEg
+ICAgICAgICAgQmFycmljYWRlTVggJiBNaWx0ZXJzCmh0dHA6Ly93d3cuc25lcnQuY29tLyAgICAg
+ICAgICAgICAgICAgICAgICAgaHR0cDovL3d3dy5zbmVydHNvZnQuY29tLwo=

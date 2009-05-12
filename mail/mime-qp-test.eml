@@ -4,16 +4,18 @@ From: Anthony Howe <achowe@snert.com>
 To: achowe@fsg.com
 Subject: mime-multi-test.eml
 MIME-Version: 1.0
-Subject: simple plain text message
+Subject: simple quoted printable message
 Content-Type: text/plain
-X-MD5-Encoded: 0d64afa2946b7eb6ac6295b2e2547da7
+Content-Transfer-Encoding: quoted-printable
+X-MD5-Encoded: 4c4c0db48491ffec51c6f68e90cb43ef
 X-MD5-Decoded: 0d64afa2946b7eb6ac6295b2e2547da7
 
 Three blank lines.
 
 
 
-There is a space after the -- below.
+There is a space after=
+ the -- below.
 --
 Anthony C Howe          Skype: SirWumpus                    SnertSoft
 +33 6 11 89 73 78         ICQ: 7116561          BarricadeMX & Milters

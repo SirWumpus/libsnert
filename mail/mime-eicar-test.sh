@@ -14,10 +14,13 @@ function check_mime
 {
 	file=$1
 	echo "$ ./mime -l ${file} " >>${file}.out
-	num_parts=`./mime -l ${file} | tee -a ${file}.out | sed -n -e '$s/^0*//' -e '$s/://p' | tr -d '\015'`
+	num_parts=`./mime -l ${file} | tee -a ${file}.out | sed -n -e '$s/://p' | tr -d '\015'`
+	if test ${num_parts} -eq 0 ; then
+		num_parts=1
+	fi
 
 	i=0
-	while test $i -lt $num_parts ; do
+	while test $i -lt ${num_parts} ; do
 		encoded=`./mime -l ${file} | sed -n -e "/^${i}: X-MD5-Encoded:/s/^${i}: X-MD5-Encoded: //p" | tr -d '[:space:]'`
 		decoded=`./mime -l ${file} | sed -n -e "/^${i}: X-MD5-Decoded:/s/^${i}: X-MD5-Decoded: //p" | tr -d '[:space:]'`
 
@@ -46,13 +49,22 @@ function check_mime
 	return 0
 }
 
-echo "Checking mime-eicar-test.eml with CRLF newline..." | tee  mime-eicar-test.eml.out
-check_mime mime-eicar-test.eml
+echo "Checking mime-test.eml with CRLF newline..." | tee " mime-test.eml.out"
+check_mime "mime-test.eml"
 
-echo "Checking mime-eicar-test-lf.eml with LF newline..." | tee  mime-eicar-test-lf.eml.out
-check_mime mime-eicar-test-lf.eml
+echo "Checking mime-qp-test.eml with CRLF newline..." | tee  "mime-qp-test.eml.out"
+check_mime "mime-qp-test.eml"
 
-echo "Checking mime-multi-test.eml with CRLF newline and NO preamble text..." | tee  mime-eicar-test-lf.eml.out
-check_mime mime-multi-test.eml
+echo "Checking mime-b64-test.eml with CRLF newline..." | tee  "mime-b64-test.eml.out"
+check_mime "mime-b64-test.eml"
+
+echo "Checking mime-eicar-test.eml with CRLF newline..." | tee  "mime-eicar-test.eml.out"
+check_mime "mime-eicar-test.eml"
+
+echo "Checking mime-eicar-test-lf.eml with LF newline..." | tee  "mime-eicar-test-lf.eml.out"
+check_mime "mime-eicar-test-lf.eml"
+
+echo "Checking mime-multi-test.eml with CRLF newline and NO preamble text..." | tee  "mime-eicar-test-lf.eml.out"
+check_mime "mime-multi-test.eml"
 
 exit 0
