@@ -21,10 +21,14 @@ This is a multi-part message in MIME format.
 ------=__PartF0D8505D.0__=
 Content-Type: text/plain; charset=UTF-8; format=flowed
 Content-Transfer-Encoding: 7bit
-X-MD5-Encoded: 2e4832a9f82a2c335b0fb7689d7003ea
-X-MD5-Decoded: 2e4832a9f82a2c335b0fb7689d7003ea
+X-MD5-Encoded: 4c97bb4244b556f2354801dcec392aa4
+X-MD5-Decoded: 4c97bb4244b556f2354801dcec392aa4
+
+Three blank lines.
 
 
+
+There is a space after the -- below.
 -- 
 Anthony C Howe          Skype: SirWumpus                    SnertSoft
 +33 6 11 89 73 78         ICQ: 7116561          BarricadeMX & Milters
@@ -69,13 +73,16 @@ X5O=21P=25=40AP=5b4=5cPZX54=28P=5e=297CC=297=7d=24EICAR=
 ------=__PartF0D8505D.0__=
 Content-Type: text/plain; name="test1.txt"
 Content-Transfer-Encoding: quoted-printable
-X-MD5-Encoded: 02c3e0ff189b4b03c244a32806325337
-X-MD5-Decoded: 6113fd26588879dd259bdf5dba87b557
+X-MD5-Encoded: 6adbf4aa55642f43ff0a872bd7da9a8a
+X-MD5-Decoded: 72554813857c1537b149b687cf4e71bc
 
 A line of 60 hyphens:
 ----------------------------------------=
 --------------------
 Followed by some text.
+Three blank lines.
+
+
 
 --=20
 Your signature

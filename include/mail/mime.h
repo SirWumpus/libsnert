@@ -46,6 +46,7 @@ struct mime {
 	/* Private state. */
 	B64 b64;
 	int is_multipart;
+	int decode_state_cr;
 	int (*source_state)(struct mime *, int);
 	int (*decode_state)(struct mime *, int);
 

@@ -64,26 +64,43 @@ mimeDecodeFlush(Mime *m)
 	if (0 < m->decode.length) {
 		if (m->mime_decode_flush != NULL)
 			(*m->mime_decode_flush)(m);
-
-		*m->decode.buffer = '\0';
+#ifndef NDEBUG
+		(void) memset(m->decode.buffer, 0, sizeof (m->decode.buffer));
+#endif
 		m->decode.length = 0;
 	}
+}
+
+static void
+mimeDecodeAppend(Mime *m, int ch)
+{
+	if (m->mime_decoded_octet != NULL)
+		(*m->mime_decoded_octet)(m, ch);
+
+	m->mime_body_decoded_length++;
+	m->decode.buffer[m->decode.length++] = ch;
+
+	/* Flush the decode buffer on a line unit or when full. */
+	if (ch == ASCII_LF || sizeof (m->decode.buffer)-1 <= m->decode.length)
+		mimeDecodeFlush(m);
 }
 
 int
 mimeDecodeAdd(Mime *m, int ch)
 {
+	if (ch == ASCII_CR && !m->decode_state_cr) {
+		m->decode_state_cr = 1;
+		return ch;
+	}
+
 	if (ch != EOF) {
-		/* Flush the decode buffer when full. */
-		if (sizeof (m->decode.buffer)-1 <= m->decode.length)
-			mimeDecodeFlush(m);
+		if (m->decode_state_cr) {
+			mimeDecodeAppend(m, ASCII_CR);
+			m->decode_state_cr = 0;
+		}
 
-		if (m->mime_decoded_octet != NULL)
-			(*m->mime_decoded_octet)(m, ch);
-
-		m->mime_body_decoded_length++;
-		m->decode.buffer[m->decode.length++] = ch;
-		m->decode.buffer[m->decode.length  ] = '\0';
+		mimeDecodeAppend(m, ch);
+		m->decode.buffer[m->decode.length] = '\0';
 	}
 
 	return ch;
@@ -179,29 +196,17 @@ mimeStateQpEqual(Mime *m, int ch)
 	return 0;
 }
 
-static void
-mimeDecodeSource(Mime *m)
-{
-	if (m->source_state != mimeStateHdr) {
-		unsigned i;
-
-		for (i = 0; i < m->source.length; i++)
-			(void) (*m->decode_state)(m, m->source.buffer[i]);
-	}
-}
-
 void
 mimeSourceFlush(Mime *m)
 {
 	if (0 < m->source.length) {
-		mimeDecodeSource(m);
-
 		if (m->mime_source_flush != NULL) {
 			m->source.buffer[m->source.length] = '\0';
 			(*m->mime_source_flush)(m);
 		}
-
-		*m->source.buffer = '\0';
+#ifndef NDEBUG
+		(void) memset(m->source.buffer, 0, sizeof (m->source.buffer));
+#endif
 		m->source.length = 0;
 	}
 }
@@ -275,6 +280,7 @@ mimeStateBoundary(Mime *m, int ch)
 			/* Terminate decoding for this body part */
 			(void) (*m->decode_state)(m, EOF);
 			m->decode_state = mimeDecodeAdd;
+			m->decode_state_cr = 0;
 			mimeDecodeFlush(m);
 
 			/* Discard the boundary without flushing. */
@@ -287,12 +293,13 @@ mimeStateBoundary(Mime *m, int ch)
 			m->mime_part_number++;
 		} else {
 			/* Process the source stream before being flushed. */
+			m->decode_state_cr = 0;
 			m->source_state = mimeStateBdy;
-
 			for (i = 0; i < m->source.length; i++) {
-				(void) mimeStateBdy(m, m->source.buffer[i]);
+				(void) (*m->decode_state)(m, m->source.buffer[i]);
 			}
-			(void) mimeStateBdy(m, ch);
+			if (ch != ASCII_LF)
+				(void) (*m->decode_state)(m, ch);
 		}
 	}
 
@@ -317,6 +324,10 @@ mimeStateDash2(Mime *m, int ch)
 	 */
 	if (isspace(ch)) {
 		/* Not a MIME boundary. */
+		(void) (*m->decode_state)(m, ASCII_LF);
+		(void) (*m->decode_state)(m, '-');
+		(void) (*m->decode_state)(m, '-');
+		(void) (*m->decode_state)(m, ch);
 		m->source_state = mimeStateBdy;
 	} else {
 		m->source_state = mimeStateBoundary;
@@ -332,6 +343,9 @@ mimeStateDash1(Mime *m, int ch)
 		/* Second hyphen of boundary line? */
 		m->source_state = mimeStateDash2;
 	} else {
+		(void) (*m->decode_state)(m, ASCII_LF);
+		(void) (*m->decode_state)(m, '-');
+		(void) (*m->decode_state)(m, ch);
 		m->source_state = mimeStateBdy;
 	}
 
@@ -344,12 +358,28 @@ mimeStateBdyLF(Mime *m, int ch)
 	if (ch == '-') {
 		/* First hyphen of boundary line? */
 		m->source_state = mimeStateDash1;
-	} else if (ch == ASCII_LF) {
+        } else if (ch == ASCII_LF) {
 		/* We have a LF LF pair. MIME message with LF newlines?
 		 * Flush the first LF and keep the second LF.
 		 */
+		(void) (*m->decode_state)(m, ASCII_LF);
 		(void) mimeStateBdy(m, ASCII_LF);
 	} else {
+		/* Flush upto, but excluding the trailing CR. */
+		if (ch == ASCII_CR)
+			/* We have a LF CR sequence, eg. multiple blank lines. */
+			m->source.length--;
+
+		mimeSourceFlush(m);
+
+		/* Restore the newline, in case the MIME boundary
+		 * check fails to find a boundary line.
+		 */
+		if (ch == ASCII_CR)
+			m->source.buffer[m->source.length++] = ASCII_CR;
+
+		(void) (*m->decode_state)(m, ASCII_LF);
+		(void) (*m->decode_state)(m, ch);
 		m->source_state = mimeStateBdy;
 	}
 
@@ -382,6 +412,8 @@ mimeStateBdy(Mime *m, int ch)
 			/* Look for MIME boundary line. */
 			m->source_state = mimeStateBdyLF;
 		}
+	} else {
+		(void) (*m->decode_state)(m, ch);
 	}
 
 	return ch;
@@ -499,6 +531,7 @@ mimeReset(Mime *m)
 
 		/* Assume RFC 5322 message format starts with headers. */
 		mimeHeadersFirst(m, 1);
+		m->decode_state_cr = 0;
 		m->decode_state = mimeDecodeAdd;
 	}
 }
@@ -645,7 +678,7 @@ listHeaders(Mime *m)
 	|| 0 <= TextFind((char *) m->source.buffer, "Content-*", m->source.length, 1)
 	|| 0 <= TextFind((char *) m->source.buffer, "X-MD5-*", m->source.length, 1)
 	)
-		printf("%.3u: %s\r\n", m->mime_part_number, m->source.buffer);
+		printf("%u: %s\r\n", m->mime_part_number, m->source.buffer);
 }
 
 void
