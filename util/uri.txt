@@ -102,7 +102,11 @@ The following test cases
  Y  -  N  -	file:path/not/rooted
 
  Y  -  -  -	about:
-
+ 
+ Y  -  -  - 	email:
+ 
+ Y  -  -  - 	email:achowe@snert.com
+ 
 ----=_test_boundary
 Content-Type: text/html
 Content-Transfer-Encoding: quoted-printable
