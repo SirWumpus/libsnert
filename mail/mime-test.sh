@@ -6,6 +6,11 @@ if which md5 >/dev/null; then
 	MD5=`which md5`
 elif which md5sum >/dev/null; then
 	MD5=`which md5sum`
+#else
+#	cd ../util
+#	make md5
+#	cd -
+#	MD5='../util/md5'
 fi
 
 echo "MD5=${MD5}"
@@ -49,22 +54,22 @@ function check_mime
 	return 0
 }
 
-echo "Checking mime-test.eml with CRLF newline..." | tee " mime-test.eml.out"
-check_mime "mime-test.eml"
+echo "Checking mime-7bit-crlf.eml ..." | tee " mime-7bit-crlf.eml.out"
+check_mime "mime-7bit-crlf.eml"
 
-echo "Checking mime-qp-test.eml with CRLF newline..." | tee  "mime-qp-test.eml.out"
-check_mime "mime-qp-test.eml"
+echo "Checking mime-qp-crlf.eml ..." | tee  "mime-qp-crlf.eml.out"
+check_mime "mime-qp-crlf.eml"
 
-echo "Checking mime-b64-test.eml with CRLF newline..." | tee  "mime-b64-test.eml.out"
-check_mime "mime-b64-test.eml"
+echo "Checking mime-b64-crlf.eml ..." | tee  "mime-b64-crlf.eml.out"
+check_mime "mime-b64-crlf.eml"
 
-echo "Checking mime-eicar-test.eml with CRLF newline..." | tee  "mime-eicar-test.eml.out"
-check_mime "mime-eicar-test.eml"
+echo "Checking mime-gtube-crlf.eml ..." | tee  "mime-gtube-crlf.eml.out"
+check_mime "mime-gtube-crlf.eml"
 
-echo "Checking mime-eicar-test-lf.eml with LF newline..." | tee  "mime-eicar-test-lf.eml.out"
-check_mime "mime-eicar-test-lf.eml"
+echo "Checking mime-gtube-lf.eml ..." | tee  "mime-gtube-lf.eml.out"
+check_mime "mime-gtube-lf.eml"
 
-echo "Checking mime-multi-test.eml with CRLF newline and NO preamble text..." | tee  "mime-eicar-test-lf.eml.out"
-check_mime "mime-multi-test.eml"
+echo "Checking mime-multi-crlf.eml with NO preamble text ..." | tee  "mime-multi-crlf.eml.out"
+check_mime "mime-multi-crlf.eml"
 
 exit 0

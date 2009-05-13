@@ -55,6 +55,9 @@ is no set schedule for releases.
 	newline issues. Added mime-eicar-test.sh regression test that
 	checks both CRLF and LF newlines.
 
+   !	mime-eicar-*.eml: changed to use GTUBE test file which won't
+   	trigger AV scanners when emailing/downloading libsnert.
+
 --1.71.2--
 
    !	uri.c: fixed uri CLI when parsing a URL that uses & delimiters
