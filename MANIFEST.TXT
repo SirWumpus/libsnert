@@ -53,12 +53,13 @@ com/snert/src/lib/mail/siq.c
 com/snert/src/lib/mail/smdb.c
 com/snert/src/lib/mail/smdb-old.c
 com/snert/src/lib/mail/mime.c
-com/snert/src/lib/mail/mime-eicar-test.sh
-com/snert/src/lib/mail/mime-eicar-test.eml
-com/snert/src/lib/mail/mime-eicar-test-lf.eml
 com/snert/src/lib/mail/mime-test.eml
 com/snert/src/lib/mail/mime-qp-test.eml
 com/snert/src/lib/mail/mime-b64-test.eml
+com/snert/src/lib/mail/mime-eicar-test.sh
+com/snert/src/lib/mail/mime-eicar-test.eml
+com/snert/src/lib/mail/mime-eicar-test-lf.eml
+com/snert/src/lib/mail/mime-multi-test.eml
 com/snert/src/lib/mail/digestbl.c
 com/snert/src/lib/mail/mfReply.c
 com/snert/src/lib/mail/smf.c

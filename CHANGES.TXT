@@ -44,12 +44,29 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.71.3--
+
+  !!	mime.c/h: Fixes following the complete overhaul to maintain
+	backwards compatibility behaviour of mime_decoded_octet hook.
+	This was being done just before flushing the decode buffer, but
+	that caused problems in how the uri, milter-link, and smtpf
+	detected potential URI; they occasionally missed URI when there
+	was more than one in the decode buffer. Fixed several decode
+	newline issues. Added mime-eicar-test.sh regression test that
+	checks both CRLF and LF newlines.
+
 --1.71.2--
 
    !	uri.c: fixed uri CLI when parsing a URL that uses & delimiters
    	but no query string delimiter, eg.
 
    	http://dect.myspace.com/event.ng/Type=click&Redirect=http://pillenhaus.ch
+
+   !	dnsListIsNameListed: fixed test to limit matches to 127.0.0.0/8
+	or 0.0.0.0/8. Was testing the wrong value, which was in host
+	byte order instead of network byte order. isReservedIPv4 would
+	then convert the value to host byte order, thinking it was in
+	network order, which of course reversed it.
 
 --1.71.1--
 
