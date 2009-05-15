@@ -109,6 +109,8 @@ The following test cases
  
  Y  -  -  -	mailto:scam@uribl.com
  
+ Y  -  -  -	mailto:abuse@snert.com
+
 ----=_test_boundary
 Content-Type: text/html
 Content-Transfer-Encoding: quoted-printable

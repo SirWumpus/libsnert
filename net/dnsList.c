@@ -523,6 +523,20 @@ digestToString(unsigned char digest[16], char digest_string[33])
 	digest_string[32] = '\0';
 }
 
+static const char *mail_ignore_table[] = {
+ 	"abuse@*",
+ 	"contact@*",
+ 	"helpdesk@*",
+ 	"info@*",
+ 	"kontakt@*",
+ 	"sales@*",
+ 	"support@*",
+	"*master@*",
+	"bounce*@*",
+	"request*@*",
+	NULL
+};
+
 /**
  * @param dns_list
  *	A pointer to a DnsList.
@@ -549,10 +563,15 @@ dnsListQueryMail(DnsList *dns_list, PDQ *pdq, Vector mails_seen, const char *mai
 	md5_state_t md5;
 	char digest_string[33];
 	unsigned char digest[16];
-	const char *list_name = NULL;
+	const char *list_name = NULL, **item;
 
 	if (dns_list == NULL || mail == NULL || *mail == '\0')
 		return NULL;
+
+	for (item = mail_ignore_table; *item != NULL; item++) {
+		if (0 <= TextFind(mail, *item, -1, 1))
+			return NULL;
+	}
 
 	md5_init(&md5);
 	md5_append(&md5, (md5_byte_t *) mail, strlen(mail));

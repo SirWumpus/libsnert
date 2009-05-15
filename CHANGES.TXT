@@ -48,6 +48,10 @@ is no set schedule for releases.
 
    +	Add dnsListQueryMail for querying EMAIL BL.
 
+   +	uri.c, uri.txt, uri.txt.out: Add -m mail-bl option to uri tool.
+
+   !	uriParse2: when parsing a mail address, the schemeInfo was corrupt.
+
 --1.71.4--
 
    *    Do NOT upgrade SQLite to 3.6.14; it has broken configure script.
