@@ -422,6 +422,7 @@ dnsListQueryNs0(DnsList *dns_list, PDQ *pdq, Vector names_seen, int recurse, con
 				list_name = dnsListQueryNs0(dns_list, pdq, names_seen, recurse-1, rr->name.string.value);
 				break;
 			} else if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_NS) {
+				recurse = 0;
 				if ((list_name = dnsListQuery(dns_list, pdq, names_seen, 1, ((PDQ_PTR *) rr)->host.string.value)) != NULL)
 					break;
 			}
