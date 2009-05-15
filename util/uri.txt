@@ -103,7 +103,7 @@ The following test cases
 
  Y  -  -  -	about:
  
- Y  -  -  - 	email:
+ N  -  -  - 	email:
  
  Y  -  -  - 	email:achowe@snert.com
  

@@ -58,6 +58,16 @@ is no set schedule for releases.
    !	mime-eicar-*.eml: changed to use GTUBE test file which won't
    	trigger AV scanners when emailing/downloading libsnert.
 
+   !	uriParse2: added check to distinguish between schemes that can
+	have an empty value (about:) and those that require a value
+	(http://blah/). Requested by Alex Broens.
+
+   !	spanIP: fixed to take into account IPv6 address within square
+   	brackets, eg. [2001:0DB8::1234]
+
+   !	uri.txt.out: updated to account for the uriParse2 and spanIP
+   	fixes.
+
 --1.71.2--
 
    !	uri.c: fixed uri CLI when parsing a URL that uses & delimiters

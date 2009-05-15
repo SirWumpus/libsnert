@@ -498,8 +498,8 @@ uriParse(const char *u, int length)
 URI *
 uriParse2(const char *u, int length, int implicit_domain_min_dots)
 {
-	int span;
 	URI *uri;
+	int span, port;
 	struct mapping *t;
 	char *value, *mark;
 
@@ -655,7 +655,13 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	 * can look like schemes, only return success for schemes
 	 * we know.
 	 */
-	if (uri->scheme != NULL && uriGetSchemePort(uri) != -1)
+	if (uri->scheme != NULL
+
+	/* A scheme that can be empty has an unknown port 0 value,
+	 * while schemes that expect to be non-empty have a port
+	 * and need a host.
+	 */
+	&& ((port = uriGetSchemePort(uri)) == 0 || (0 < port && uri->host != NULL)))
 		return uri;
 error1:
 	free(uri);

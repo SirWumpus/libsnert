@@ -181,6 +181,9 @@ spanIP(const char *ip)
 	if (0 < TextInsensitiveStartsWith(ip, "IPv6:"))
 		return spanIPv6(ip + sizeof ("IPv6:") - 1);
 
+	if (*ip == '[' && (span = spanIPv6(ip+1)) && ip[1+span] == ']')
+		return span+2;
+
 	if (0 < (span = spanIPv6(ip)))
 		return span;
 

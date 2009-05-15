@@ -193,6 +193,7 @@ com/snert/src/lib/util/strnatcmp.c
 com/snert/src/lib/util/uri.c
 com/snert/src/lib/util/uriIsDomainBL.c
 com/snert/src/lib/util/uri.txt
+com/snert/src/lib/util/uri.txt.out
 com/snert/src/lib/util/option.c
 com/snert/src/lib/util/option.txt
 com/snert/src/lib/util/time62.c
