@@ -44,6 +44,24 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.71.4--
+
+   *    Do NOT upgrade SQLite to 3.6.14; it has broken configure script.
+
+   !	uriParse2: added check to distinguish between schemes that can
+	have an empty value (about:) and those that require a value
+	(http://blah/). Requested by Alex Broens.
+
+   !	spanIP: fixed to take into account IPv6 address within square
+   	brackets, eg. [2001:0DB8::1234]
+
+   !	uri.txt.out: updated to account for the uriParse2 and spanIP
+   	fixes.
+
+   !	dnsListQueryNs0: was recursing if both NS and an SOA was returned
+	with the initial NS lookup. This would incorrectly cause a 2nd
+	lookup on the SOA domain.
+
 --1.71.3--
 
   !!	mime.c/h: Fixes following the complete overhaul to maintain
@@ -57,16 +75,6 @@ is no set schedule for releases.
 
    !	mime-eicar-*.eml: changed to use GTUBE test file which won't
    	trigger AV scanners when emailing/downloading libsnert.
-
-   !	uriParse2: added check to distinguish between schemes that can
-	have an empty value (about:) and those that require a value
-	(http://blah/). Requested by Alex Broens.
-
-   !	spanIP: fixed to take into account IPv6 address within square
-   	brackets, eg. [2001:0DB8::1234]
-
-   !	uri.txt.out: updated to account for the uriParse2 and spanIP
-   	fixes.
 
 --1.71.2--
 
