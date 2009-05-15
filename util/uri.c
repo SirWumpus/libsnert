@@ -647,6 +647,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 
 		uri->host[span] = '\0';
 		uri->scheme = "mailto";
+		uri->schemeInfo = uri->uriDecoded;
 		snprintf(uri->uriDecoded, length+1, "%s%c%s", uri->userInfo, at_sign_delim, uri->host);
 	}
 
@@ -1172,12 +1173,13 @@ static int print_uri_parse;
 static char *ipBlOption;
 static char *nsBlOption;
 static char *uriBlOption;
+static char *mailBlOption;
 static Vector print_uri_ports;
 static long *uri_ports;
 
 static char usage[] =
-"usage: uri [-aflpqrsv][-A delim][-i ip-bl,...][-n ns-bl,...][-u uri-bl,...]\n"
-"           [-P ports][-t sec][-T sec][arg ...]\n"
+"usage: uri [-aflpqrsv][-A delim][-i ip-bl,...][-m mail-bl][-n ns-bl,...]\n"
+"           [-u uri-bl,...][-P ports][-t sec][-T sec][arg ...]\n"
 "\n"
 "-a\t\tcheck all (headers & body), otherwise assume body only\n"
 "-A delim\tan alternative delimiter to replace the at-sign (@)\n"
@@ -1186,6 +1188,8 @@ static char usage[] =
 "-i ip-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
 "-l\t\tcheck HTTP links are valid & find origin server\n"
+"-m mail-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
+"\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
 "-n ns-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
 "-p\t\tprint each URI parsed\n"
@@ -1233,7 +1237,9 @@ int check_soa;
 DnsList *ip_bl_list;
 DnsList *ns_bl_list;
 DnsList *uri_bl_list;
+DnsList *mail_bl_list;
 Vector ns_names_seen;
+Vector mail_names_seen;
 
 void
 process(URI *uri, const char *filename)
@@ -1304,6 +1310,13 @@ process(URI *uri, const char *filename)
 			if (filename != NULL)
 				printf("%s: ", filename);
 			printf("%s NS blacklisted %s\n", uri->host, list_name);
+			exit_code = EXIT_FAILURE;
+		}
+
+		if (uriGetSchemePort(uri) == 25 && (list_name = dnsListQueryMail(mail_bl_list, pdq, mail_names_seen, uri->uriDecoded)) != NULL) {
+			if (filename != NULL)
+				printf("%s: ", filename);
+			printf("%s mail blacklisted %s\n", uri->uriDecoded, list_name);
 			exit_code = EXIT_FAILURE;
 		}
 
@@ -1423,7 +1436,7 @@ main(int argc, char **argv)
 	URI *uri;
 	int i, ch;
 
-	while ((ch = getopt(argc, argv, "aA:Di:n:u:flmpP:qRsT:t:v")) != -1) {
+	while ((ch = getopt(argc, argv, "aA:Dm:i:n:u:flmpP:qRsT:t:v")) != -1) {
 		switch (ch) {
 		case 'a':
 			check_all = 1;
@@ -1439,6 +1452,9 @@ main(int argc, char **argv)
 			break;
 		case 'u':
 			uriBlOption = optarg;
+			break;
+		case 'm':
+			mailBlOption = optarg;
 			break;
 		case 'D':
 			check_subdomains = 1;
@@ -1508,9 +1524,12 @@ main(int argc, char **argv)
 
 	ns_names_seen = VectorCreate(10);
 	VectorSetDestroyEntry(ns_names_seen, free);
+	mail_names_seen = VectorCreate(10);
+	VectorSetDestroyEntry(mail_names_seen, free);
 	ip_bl_list = dnsListCreate(ipBlOption);
 	ns_bl_list = dnsListCreate(nsBlOption);
 	uri_bl_list = dnsListCreate(uriBlOption);
+	mail_bl_list = dnsListCreate(mailBlOption);
 
 	if (0 < VectorLength(print_uri_ports)) {
 		uri_ports = malloc(sizeof (long) * (VectorLength(print_uri_ports) + 1));
@@ -1539,7 +1558,9 @@ main(int argc, char **argv)
 		}
 	}
 
+	VectorDestroy(mail_names_seen);
 	VectorDestroy(ns_names_seen);
+	dnsListFree(mail_bl_list);
 	dnsListFree(uri_bl_list);
 	dnsListFree(ns_bl_list);
 	pdqClose(pdq);

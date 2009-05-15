@@ -22,6 +22,7 @@
 
 #include <com/snert/lib/sys/Time.h>
 #include <com/snert/lib/mail/tlds.h>
+#include <com/snert/lib/util/md5.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/net/dnsList.h>
 
@@ -507,6 +508,62 @@ dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
  */
 	return dnsListQueryNs0(dns_list, pdq, names_seen, 1, name);
 #endif
+}
+
+static void
+digestToString(unsigned char digest[16], char digest_string[33])
+{
+	int i;
+	static const char hex_digit[] = "0123456789abcdef";
+
+	for (i = 0; i < 16; i++) {
+		digest_string[i << 1] = hex_digit[(digest[i] >> 4) & 0x0F];
+		digest_string[(i << 1) + 1] = hex_digit[digest[i] & 0x0F];
+	}
+	digest_string[32] = '\0';
+}
+
+/**
+ * @param dns_list
+ *	A pointer to a DnsList.
+ *
+ * @param pdq
+ *	A pointer to PDQ structure to use for the query.
+ *
+ * @param names_seen
+ *	A pointer to vector of previously looked up mails. If mail
+ *	is present in this vector, then the query is skipped and
+ *	NULL immiediately returned. The query mail will be added
+ *	to this vector.	Specify NULL to skip this check.
+ *
+ * @param mail
+ *	A mail address is hashed then passed to dnsListQueryName.
+ *
+ * @return
+ *	A C string pointer to a list name in which name is a member.
+ *	Otherwise NULL if name was not found in a DNS list.
+ */
+const char *
+dnsListQueryMail(DnsList *dns_list, PDQ *pdq, Vector mails_seen, const char *mail)
+{
+	md5_state_t md5;
+	char digest_string[33];
+	unsigned char digest[16];
+	const char *list_name = NULL;
+
+	if (dns_list == NULL || mail == NULL || *mail == '\0')
+		return NULL;
+
+	md5_init(&md5);
+	md5_append(&md5, (md5_byte_t *) mail, strlen(mail));
+	md5_finish(&md5, (md5_byte_t *) digest);
+	digestToString(digest, digest_string);
+
+	list_name = dnsListQueryName(dns_list, pdq, mails_seen, digest_string);
+	if (list_name != NULL && 0 < debug)
+		syslog(LOG_DEBUG, "<%s> listed in %s", mail, list_name);
+
+	return list_name;
 }
 
 /***********************************************************************

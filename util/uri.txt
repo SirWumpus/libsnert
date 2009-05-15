@@ -107,6 +107,8 @@ The following test cases
  
  Y  -  -  - 	email:achowe@snert.com
  
+ Y  -  -  -	mailto:scam@uribl.com
+ 
 ----=_test_boundary
 Content-Type: text/html
 Content-Transfer-Encoding: quoted-printable
