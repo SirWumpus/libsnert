@@ -30,6 +30,9 @@ TextSensitiveStartsWith(const char *text, const char *prefix)
 {
 	const char *start = text;
 
+	if (text == NULL || prefix == NULL)
+		return -1;
+
 	for ( ; *prefix != '\0'; ++text, ++prefix) {
 		if (*text != *prefix)
 			return -1;

@@ -28,9 +28,11 @@
 void **
 VectorBase(Vector self)
 {
+	static const void **empty[] = { NULL };
+
 	if (self == NULL) {
 		errno = EFAULT;
-		return NULL;
+		return empty;
 	}
 
 	return (void *) self->_base;

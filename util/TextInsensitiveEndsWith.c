@@ -30,9 +30,13 @@
 long
 TextInsensitiveEndsWith(const char *text, const char *suffix)
 {
-	size_t length = strlen(suffix);
-	const char *etext = text + strlen(text);
-	const char *esuffix = suffix + length;
+	const char *etext, *esuffix;
+
+	if (text == NULL || suffix == NULL)
+		return -1;
+
+	etext = text + strlen(text);
+	esuffix = suffix + strlen(suffix);
 
 	while (suffix < esuffix) {
 		if (etext <= text)
