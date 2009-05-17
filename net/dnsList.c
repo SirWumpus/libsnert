@@ -64,10 +64,16 @@ dnsListSetDebug(int level)
 	debug = level;
 }
 
+void
+dnsListLogWhat(DnsListLogResult what)
+{
+	log_what = what & (DNS_LIST_LOG_HIT | DNS_LIST_LOG_MISS);
+}
+
 int
 dnsListLogOpen(const char *filename, DnsListLogResult what)
 {
-	log_what = what & (DNS_LIST_LOG_HIT | DNS_LIST_LOG_MISS);
+	dnsListLogWhat(what);
 	if ((log_file = fopen(filename, "a")) != NULL)
 		setvbuf(log_file, NULL, _IOLBF, 0);
 
@@ -93,6 +99,21 @@ dnsListLog(const char *id, const char *name, const char *list_name)
 			(void) fprintf(log_file, "%s %s %s \n", timestamp, id, name);
 		else if ((log_what & DNS_LIST_LOG_HIT) && list_name != NULL)
 			(void) fprintf(log_file, "%s %s %s %s\n", timestamp, id, name, list_name);
+	}
+}
+
+void
+dnsListLogSys(const char *id, const char *name, const char *list_name)
+{
+	char timestamp[40];
+
+	if (name != NULL) {
+		TimeStampAdd(timestamp, sizeof (timestamp));
+
+		if ((log_what & DNS_LIST_LOG_MISS) && list_name == NULL)
+			syslog(LOG_INFO, "%s %s %s \n", timestamp, id, name);
+		else if ((log_what & DNS_LIST_LOG_HIT) && list_name != NULL)
+			syslog(LOG_INFO, "%s %s %s %s\n", timestamp, id, name, list_name);
 	}
 }
 

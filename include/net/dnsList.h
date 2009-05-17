@@ -38,6 +38,8 @@ extern void dnsListSetDebug(int level);
  *
  */
 extern int dnsListLogOpen(const char *filename, DnsListLogResult what);
+extern void dnsListLogWhat(DnsListLogResult what);
+extern void dnsListLogSys(const char *token, const char *name, const char *list_name);
 extern void dnsListLog(const char *token, const char *name, const char *list_name);
 extern void dnsListLogClose(void);
 
