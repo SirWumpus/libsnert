@@ -41,6 +41,8 @@ extern int dnsListLogOpen(const char *filename, DnsListLogResult what);
 extern void dnsListLog(const char *token, const char *name, const char *list_name);
 extern void dnsListLogClose(void);
 
+extern const char *dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list);
+
 /**
  * @param _dns_list
  *	A DnsList structure to cleanup.

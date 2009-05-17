@@ -182,7 +182,7 @@ error0:
 	return NULL;
 }
 
-static const char *
+const char *
 dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 {
 	long i;
@@ -537,6 +537,36 @@ static const char *mail_ignore_table[] = {
 	NULL
 };
 
+static const char *free_mail_table[] = {
+	"gmail.*",
+	"googlemail.*",
+	"hotmail.*",
+	"yahoo.*",
+	"aol.*",
+	"aim.*",
+	"live.*",
+	"ymail.com",
+	"rocketmail.com",
+	"centrum.cz",
+	"centrum.sk",
+	"inmail24.com",
+	"libero.it",
+	"mail2world.com",
+	"msn.com",
+	"she.com",
+	"shuf.com",
+	"sify.com",
+	"terra.es",
+	"tiscali.it",
+	"ubbi.com",
+	"virgilio.it",
+	"voila.fr",
+	"walla.com",
+	"y7mail.com",
+	"yeah.net",
+	NULL
+};
+
 /**
  * @param dns_list
  *	A pointer to a DnsList.
@@ -563,13 +593,22 @@ dnsListQueryMail(DnsList *dns_list, PDQ *pdq, Vector mails_seen, const char *mai
 	md5_state_t md5;
 	char digest_string[33];
 	unsigned char digest[16];
-	const char *list_name = NULL, **item;
+	const char *list_name = NULL, **item, *domain;
 
 	if (dns_list == NULL || mail == NULL || *mail == '\0')
 		return NULL;
 
 	for (item = mail_ignore_table; *item != NULL; item++) {
 		if (0 <= TextFind(mail, *item, -1, 1))
+			return NULL;
+	}
+
+	if ((domain = strchr(mail, '@')) == NULL)
+		return NULL;
+	domain++;
+
+	for (item = free_mail_table; *item != NULL; item++) {
+		if (0 <= TextFind(domain, *item, -1, 1))
 			return NULL;
 	}
 
