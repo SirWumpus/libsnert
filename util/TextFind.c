@@ -193,6 +193,11 @@ TextFind(const char *hay, const char *pin, long hay_size, int caseless)
 	if (hay_size < 0)
 		hay_size = ~ (unsigned long) 0 >> 1;
 
+#ifdef OTHER
+	/* Wildcard all matches everything. */
+	if (pin[0] == '*' && pin[1] == '\0')
+		return 0;
+#endif
 	/*** Previous version of this function used a ``stop'' pointer
 	 *** variable, which in certain cases when hay_size = -1, could
 	 *** wrap around the memory space and end up being less than
@@ -209,8 +214,11 @@ TextFind(const char *hay, const char *pin, long hay_size, int caseless)
 			/* Pattern with trailing wild card matches the
 			 * remainder of the string.
 			 */
-			if (*pin == '\0')
+			if (*pin == '\0') {
+				if (offset < 0)
+					offset = (long) (hay - start);
 				return offset;
+			}
 
 #ifdef OFF
 			/* Allow *[...] */
@@ -315,6 +323,7 @@ entry test[] = {
 	{ "a c", 			"a?c", 		-1, 0 },
 	{ "ac", 			"a?c", 		-1, -1 },
 
+	{ "abc",			"*",		-1, 0 },
 	{ "abc",			"abc*",		-1, 0 },
 	{ "abc",			"abc***",	-1, 0 },
 	{ "abc blah",			"abc*",		-1, 0 },
@@ -446,7 +455,7 @@ main(int argc, char **argv)
 		for (size = 0; 0 < (length = fread(buffer, 1, sizeof (buffer)-1, fp)); size += length) {
 			buffer[length] = '\0';
 
-			for (offset = 0; ; offset++) {
+			for (offset = 0; offset < length; offset++) {
 				index = TextFind(buffer+offset, argv[optind], length-offset, ignore_case);
 				if (index < 0)
 					break;
