@@ -44,6 +44,16 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.71.6--
+
+   !	dnsListQueryMail changed to accept a list of domains for which
+   	to test against MAIL BLs, typically free mail services.
+
+   +	uri.c: added -M option for list of limited domains for which
+   	to test againts MAIL BLs given by -m. Default is "*".
+
+   !	TextFind: fixed bug when pattern is simply "*".
+
 --1.71.5--
 
    +	Add dnsListQueryMail for querying EMAIL BL.

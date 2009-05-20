@@ -177,6 +177,11 @@ extern const char *dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen
  * @param pdq
  *	A pointer to PDQ structure to use for the query.
  *
+ * @param domains
+ *	A list of domain glob-like patterns for which to test against dns_list,
+ *	typically free mail services. This reduces the load on public black lists.
+ *	Specify NULL to test all domains.
+ *
  * @param names_seen
  *	A pointer to vector of previously looked up mails. If mail
  *	is present in this vector, then the query is skipped and
@@ -190,7 +195,7 @@ extern const char *dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen
  *	A C string pointer to a list name in which name is a member.
  *	Otherwise NULL if name was not found in a DNS list.
  */
-extern const char *dnsListQueryMail(DnsList *dns_list, PDQ *pdq, Vector mails_seen, const char *mail);
+extern const char *dnsListQueryMail(DnsList *dns_list, PDQ *pdq, Vector domains, Vector mails_seen, const char *mail);
 
 /***********************************************************************
  *** dnsList Application Options

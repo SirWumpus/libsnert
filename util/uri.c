@@ -1177,9 +1177,41 @@ static char *mailBlOption;
 static Vector print_uri_ports;
 static long *uri_ports;
 
+static const char *mailBlDomains = "*";
+static Vector mail_bl_domains;
+
+#ifdef MAIL_BL_DOMAINS
+	 "gmail.*"
+	",googlemail.*"
+	",hotmail.*"
+	",yahoo.*"
+	",aol.*"
+	",aim.*"
+	",live.*"
+	",ymail.com"
+	",rocketmail.com"
+	",centrum.cz"
+	",centrum.sk"
+	",inmail24.com"
+	",libero.it"
+	",mail2world.com"
+	",msn.com"
+	",she.com"
+	",shuf.com"
+	",sify.com"
+	",terra.es"
+	",tiscali.it"
+	",ubbi.com"
+	",virgilio.it"
+	",voila.fr"
+	",walla.com"
+	",y7mail.com"
+	",yeah.net"
+#endif
+
 static char usage[] =
-"usage: uri [-aflpqrsv][-A delim][-i ip-bl,...][-m mail-bl][-n ns-bl,...]\n"
-"           [-u uri-bl,...][-P ports][-t sec][-T sec][arg ...]\n"
+"usage: uri [-aflpqrsv][-A delim][-i ip-bl,...][-m mail-bl][-M domain-pat,...]\n"
+"           [-n ns-bl,...][-u uri-bl,...][-P ports][-t sec][-T sec][arg ...]\n"
 "\n"
 "-a\t\tcheck all (headers & body), otherwise assume body only\n"
 "-A delim\tan alternative delimiter to replace the at-sign (@)\n"
@@ -1190,6 +1222,8 @@ static char usage[] =
 "-l\t\tcheck HTTP links are valid & find origin server\n"
 "-m mail-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
+"-M domain,...\tlist of domain glob-like patterns by which to limit\n"
+"\t\tchecking against mail-bl; default *\n"
 "-n ns-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
 "-p\t\tprint each URI parsed\n"
@@ -1313,7 +1347,7 @@ process(URI *uri, const char *filename)
 			exit_code = EXIT_FAILURE;
 		}
 
-		if (uriGetSchemePort(uri) == 25 && (list_name = dnsListQueryMail(mail_bl_list, pdq, mail_names_seen, uri->uriDecoded)) != NULL) {
+		if (uriGetSchemePort(uri) == 25 && (list_name = dnsListQueryMail(mail_bl_list, pdq, mail_bl_domains, mail_names_seen, uri->uriDecoded)) != NULL) {
 			if (filename != NULL)
 				printf("%s: ", filename);
 			printf("%s mail blacklisted %s\n", uri->uriDecoded, list_name);
@@ -1436,7 +1470,7 @@ main(int argc, char **argv)
 	URI *uri;
 	int i, ch;
 
-	while ((ch = getopt(argc, argv, "aA:Dm:i:n:u:flmpP:qRsT:t:v")) != -1) {
+	while ((ch = getopt(argc, argv, "aA:Dm:M:i:n:u:flmpP:qRsT:t:v")) != -1) {
 		switch (ch) {
 		case 'a':
 			check_all = 1;
@@ -1455,6 +1489,9 @@ main(int argc, char **argv)
 			break;
 		case 'm':
 			mailBlOption = optarg;
+			break;
+		case 'M':
+			mailBlDomains = optarg;
 			break;
 		case 'D':
 			check_subdomains = 1;
@@ -1530,6 +1567,7 @@ main(int argc, char **argv)
 	ns_bl_list = dnsListCreate(nsBlOption);
 	uri_bl_list = dnsListCreate(uriBlOption);
 	mail_bl_list = dnsListCreate(mailBlOption);
+	mail_bl_domains = TextSplit(mailBlDomains, ",", 0);
 
 	if (0 < VectorLength(print_uri_ports)) {
 		uri_ports = malloc(sizeof (long) * (VectorLength(print_uri_ports) + 1));

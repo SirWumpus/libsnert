@@ -558,42 +558,17 @@ static const char *mail_ignore_table[] = {
 	NULL
 };
 
-static const char *free_mail_table[] = {
-	"gmail.*",
-	"googlemail.*",
-	"hotmail.*",
-	"yahoo.*",
-	"aol.*",
-	"aim.*",
-	"live.*",
-	"ymail.com",
-	"rocketmail.com",
-	"centrum.cz",
-	"centrum.sk",
-	"inmail24.com",
-	"libero.it",
-	"mail2world.com",
-	"msn.com",
-	"she.com",
-	"shuf.com",
-	"sify.com",
-	"terra.es",
-	"tiscali.it",
-	"ubbi.com",
-	"virgilio.it",
-	"voila.fr",
-	"walla.com",
-	"y7mail.com",
-	"yeah.net",
-	NULL
-};
-
 /**
  * @param dns_list
  *	A pointer to a DnsList.
  *
  * @param pdq
  *	A pointer to PDQ structure to use for the query.
+ *
+ * @param limited_domains
+ *	A list of domain glob-like patterns for which to test against dns_list,
+ *	typically free mail services. This reduces the load on public black lists.
+ *	Specify NULL to test all domains.
  *
  * @param names_seen
  *	A pointer to vector of previously looked up mails. If mail
@@ -609,27 +584,32 @@ static const char *free_mail_table[] = {
  *	Otherwise NULL if name was not found in a DNS list.
  */
 const char *
-dnsListQueryMail(DnsList *dns_list, PDQ *pdq, Vector mails_seen, const char *mail)
+dnsListQueryMail(DnsList *dns_list, PDQ *pdq, Vector limited_domains, Vector mails_seen, const char *mail)
 {
 	md5_state_t md5;
 	char digest_string[33];
 	unsigned char digest[16];
-	const char *list_name = NULL, **item, *domain;
+	const char *list_name = NULL, **table, *domain;
 
 	if (dns_list == NULL || mail == NULL || *mail == '\0')
 		return NULL;
 
-	for (item = mail_ignore_table; *item != NULL; item++) {
-		if (0 <= TextFind(mail, *item, -1, 1))
+	for (table = mail_ignore_table; *table != NULL; table++) {
+		if (0 <= TextFind(mail, *table, -1, 1))
 			return NULL;
 	}
 
-	if ((domain = strchr(mail, '@')) == NULL)
-		return NULL;
-	domain++;
+	if (limited_domains != NULL) {
+		if ((domain = strchr(mail, '@')) == NULL)
+			return NULL;
+		domain++;
 
-	for (item = free_mail_table; *item != NULL; item++) {
-		if (0 <= TextFind(domain, *item, -1, 1))
+		for (table = (const char **) VectorBase(limited_domains); *table != NULL; table++) {
+			if (0 <= TextFind(domain, *table, -1, 1))
+				break;
+		}
+
+		if (*table == NULL)
 			return NULL;
 	}
 
