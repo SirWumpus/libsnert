@@ -28,11 +28,11 @@
 void **
 VectorBase(Vector self)
 {
-	static const void **empty[] = { NULL };
+	static const void *empty[] = { NULL };
 
 	if (self == NULL) {
 		errno = EFAULT;
-		return empty;
+		return (void **) empty;
 	}
 
 	return (void *) self->_base;
