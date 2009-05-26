@@ -433,6 +433,8 @@ extern int TextMatch(const char *haystack, const char *needle, long hay_size, in
  */
 extern long TextFind(const char *haystack, const char *needle, long hay_size, int caseless);
 
+extern long TextFindQuote(const char *string, char *buffer, size_t size);
+
 #ifdef  __cplusplus
 }
 #endif

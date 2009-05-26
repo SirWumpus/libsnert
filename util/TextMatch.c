@@ -167,6 +167,7 @@ entry test[] = {
 	{ "a c", 			"a\\?c",	-1, 0 },
 	{ "a*c", 			"a\\*c",	-1, 1 },
 	{ "a?c", 			"a\\?c",	-1, 1 },
+	{ "a[c", 			"a\\[c",	-1, 1 },
 	{ "abc blah def",		"abc\\*def",	-1, 0 },
 	{ "abc * def",			"abc*\\**def",	-1, 1 },
 
@@ -196,7 +197,7 @@ main(int argc, char **argv)
 	for (i = 0; test[i].haystack != NULL; i++) {
 		caseless = isupper(*test[i].haystack);
 		match = TextMatch(test[i].haystack, test[i].needle, test[i].size, caseless);
-		printf("%2d. %s match=%d size=%ld caseless=%d [%s] [%s]\n", i, match == test[i].expect ? "pass" : "FAIL", match, test[i].size, caseless, test[i].haystack, test[i].needle);
+		printf("%2d. %s match=%d size=%ld caseless=%d {%s} {%s}\n", i, match == test[i].expect ? "pass" : "FAIL", match, test[i].size, caseless, test[i].haystack, test[i].needle);
 	}
 
 	return 0;

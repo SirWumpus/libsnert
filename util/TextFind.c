@@ -112,6 +112,26 @@ result:
 	return pin;
 }
 
+long
+TextFindQuote(const char *string, char *buffer, size_t size)
+{
+	const char *start = buffer;
+
+	while (0 < size-- && *string != '\0') {
+		switch (*string) {
+		case '*': case '?': case '[': case '\\':
+			*buffer++ = '\\';
+			if (size == 0)
+				return buffer - start;
+			/*@fallthrough@*/
+		default:
+			*buffer++ = *string++;
+		}
+	}
+
+	return buffer - start;
+}
+
 /**
  * Find the first occurence of "needle" in "haystack".
  *
@@ -188,7 +208,7 @@ TextFind(const char *hay, const char *pin, long hay_size, int caseless)
 	const char *start;
 
 	if (hay == NULL || pin == NULL)
-		return 0;
+		return -1;
 
 	if (hay_size < 0)
 		hay_size = ~ (unsigned long) 0 >> 1;
@@ -264,10 +284,12 @@ TextFind(const char *hay, const char *pin, long hay_size, int caseless)
 			return -1;
 
 		/* Have we failed to match a backslash literal? */
-		else if (*pin == '\\' && *hay != *++pin)
-			return -1;
+		else if (*pin == '\\') {
+			if (*hay != *++pin)
+				return -1;
+		}
 
-		do {
+		else do {
 			if (*pin == '?')
 				break;
 
@@ -345,6 +367,7 @@ entry test[] = {
 	{ "a c", 			"a\\?c",	-1, -1 },
 	{ "a*c", 			"a\\*c",	-1, 0 },
 	{ "a?c", 			"a\\?c",	-1, 0 },
+	{ "a[c", 			"a\\[c",	-1, 0 },
 	{ "abc blah def",		"abc\\*def",	-1, -1 },
 	{ "abc * def",			"abc*\\**def",	-1, 0 },
 
