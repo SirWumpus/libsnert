@@ -42,6 +42,9 @@ extern void time62Encode(time_t when, char buffer[TIME62_BUFFER_SIZE]);
  */
 extern time_t time62Decode(const char time_encoding[TIME62_BUFFER_SIZE]);
 
+extern void time62EncodeTime(const struct tm *local, char buffer[TIME62_BUFFER_SIZE]);
+extern int time62DecodeTime(const char time_encoding[TIME62_BUFFER_SIZE], struct tm *decoded);
+
 #ifdef  __cplusplus
 }
 #endif
