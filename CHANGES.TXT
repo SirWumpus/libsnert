@@ -44,6 +44,14 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.72.0--
+
+   +	Added time62EncodeTime, time62DecodeTime.
+
+   +	Added TextFindQuote to quote TextFind's meta characters.
+
+   !	TextFind: fixed handling of backslash literal, in particular "\[".
+
 --1.71.6--
 
    !	dnsListQueryMail changed to accept a list of domains for which
