@@ -95,17 +95,17 @@ TokenSplit(const char *string, const char *delims, char ***pargv, int *pargc, in
 void
 TestTokenSplit(char *string, char *delims)
 {
-	int i, argc;
 	char **argv;
+	int i, argc, pad = 0;
 
 	printf("string=[%s] delims=[%s]\n", string, delims);
-	if (TokenSplit(string, delims, &argv, &argc, 2)) {
+	if (TokenSplit(string, delims, &argv, &argc, pad)) {
 		printf("error\n");
 		return;
 	}
 
 	printf("  length=%d ", argc);
-	for (i = 2; i < argc; i++) {
+	for (i = pad; i < argc; i++) {
 		printf("[%s]", argv[i] == NULL ? "" : argv[i]);
 	}
 
@@ -122,32 +122,38 @@ main(int argc, char **argv)
 	printf("\n--TokenSplit--\n");
 
 	/* Empty string and empty delimeters. */
-	TestTokenSplit("", "");			/* length=0 */
+	TestTokenSplit("", "");				/* length=0 */
 
 	/* Empty string. */
-	TestTokenSplit("", ",");		/* length=0 */
+	TestTokenSplit("", ",");			/* length=0 */
 
 	/* Empty delimiters. */
-	TestTokenSplit("a,b,c", "");		/* length=1 [a,b,c] */
+	TestTokenSplit("a,b,c", "");			/* length=1 [a,b,c] */
 
 	/* Assorted combinations of empty tokens. */
-	TestTokenSplit(",", ",");		/* length=0 */
-	TestTokenSplit("a,,", ",");		/* length=1 [a] */
-	TestTokenSplit(",b,", ",");		/* length=1 [b] */
-	TestTokenSplit(",,c", ",");		/* length=1 [c] */
-	TestTokenSplit("a,,c", ",");		/* length=2 [a][c] */
-	TestTokenSplit("a,b,c", ",");		/* length=3 [a][b][c] */
+	TestTokenSplit(",", ",");			/* length=0 */
+	TestTokenSplit("a,,", ",");			/* length=1 [a] */
+	TestTokenSplit(",b,", ",");			/* length=1 [b] */
+	TestTokenSplit(",,c", ",");			/* length=1 [c] */
+	TestTokenSplit("a,,c", ",");			/* length=2 [a][c] */
+	TestTokenSplit("a,b,c", ",");			/* length=3 [a][b][c] */
 
 	/* Quoting of tokens. */
-	TestTokenSplit("a,b\\,c", ",");		/* length=2 [a][b,c] */
-	TestTokenSplit("a,'b,c'", ",");		/* length=2 [a][b,c] */
-	TestTokenSplit("\"a,b\",c", ",");	/* length=2 [a,b][c] */
-	TestTokenSplit("a,'b,c'd,e", ",");	/* length=3 [a][b,cd][e] */
-	TestTokenSplit("a,'',e", ",");		/* length=3 [a][][e] */
-	TestTokenSplit("a,b''d,e", ",");	/* length=3 [a][bd][e] */
+	TestTokenSplit("a,b\\,c", ",");			/* length=2 [a][b,c] */
+	TestTokenSplit("a,'b,c'", ",");			/* length=2 [a][b,c] */
+	TestTokenSplit("\"a,b\",c", ",");		/* length=2 [a,b][c] */
+	TestTokenSplit("a,'b,c'd,e", ",");		/* length=3 [a][b,cd][e] */
+	TestTokenSplit("a,'',e", ",");			/* length=3 [a][][e] */
+	TestTokenSplit("a,b''d,e", ",");		/* length=3 [a][bd][e] */
 
-	/* Missing quote. */
-	TestTokenSplit("a,b'd,e", ",");		/* length=2 [a][bd,e] */
+	/* Double quote embedded within single quotes. */
+	TestTokenSplit("a,b'd\",e',f", ",");		/* length=3 [a][bd",e][f] */
+
+	/* Missing close quote. */
+	TestTokenSplit("a,b'd,e", ",");			/* length=2 [a][bd,e] */
+
+	/* Backslash literal quotes and missing close quote. */
+	TestTokenSplit("a,b\\'d\\\",e',f", ",");	/* length=3 [a][b'd"][e,f] */
 
 	printf("\n--DONE--\n");
 

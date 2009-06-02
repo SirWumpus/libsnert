@@ -96,7 +96,6 @@ TokenNext(const char *string, const char **stop, const char *delims, int returnE
 			continue;
 		case '\\':
 			escape = 1;
-			if (quote == 0) continue;
 			continue;
 		}
 
@@ -111,22 +110,23 @@ TokenNext(const char *string, const char **stop, const char *delims, int returnE
 	/* Copy token, removing quotes and backslashes. */
 	for (t = token; string < s; ++string) {
 		if (escape) {
-			if (quote == 0)
-				*t++ = (char) TextBackslash(*string);
-			else
-				*t++ = *string;
+			*t++ = (char) TextBackslash(*string);
 			escape = 0;
 			continue;
 		}
 
 		switch (*string) {
 		case '"': case '\'':
-			quote = *string == quote ? 0 : *string;
+			if (quote == 0)
+				quote = *s;
+			else if (*s == quote)
+				quote = 0;
+			else
+				*t++ = *string;
 			continue;
 		case '\\':
 			escape = 1;
-			if (quote == 0) continue;
-			break;
+			continue;
 		}
 
 		if (quote == 0 && strchr(delims, *string) != NULL)

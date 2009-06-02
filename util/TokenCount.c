@@ -9,7 +9,7 @@
 #include <com/snert/lib/util/Token.h>
 
 /***********************************************************************
- *** 
+ ***
  ***********************************************************************/
 
 /**
@@ -28,7 +28,7 @@
  * @param delims
  *	A set of delimiter characters. If NULL, then the default of set
  *	consists of space, tab, carriage-return, and line-feed (" \t\r\n").
- * 
+ *
  * @return
  *	The number of tokens contained in the string.
  *
@@ -38,30 +38,33 @@ int
 TokenCount(const char *string, const char *delims)
 {
 	int count, quote, escape;
-	
+
 	if (string == NULL)
 		return 0;
-		
+
 	if (delims == NULL)
 		delims = " \t\r\n";
 
 	quote = escape = 0;
-	
+
 	/* Find start of first token. */
 	string += strspn(string, delims);
-	count = *string != '\0';	
-	
+	count = *string != '\0';
+
 	for ( ; *string != '\0'; string++) {
 		if (escape) {
 			escape = 0;
 			continue;
 		}
-		
-		switch (*string) {			
-		case '"': case '\'':		
-			quote = *string == quote ? 0 : *string;
+
+		switch (*string) {
+		case '"': case '\'':
+			if (quote == 0)
+				quote = *string;
+			else if (*string == quote)
+				quote = 0;
 			continue;
-			
+
 		case '\\':
 			escape = 1;
 			continue;
@@ -74,6 +77,6 @@ TokenCount(const char *string, const char *delims)
 			}
 		}
 	}
-	
+
 	return count;
 }

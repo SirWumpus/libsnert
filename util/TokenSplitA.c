@@ -51,7 +51,7 @@ int
 TokenSplitA(char *string, const char *delims, char **argv, int size)
 {
 	char *s, *t;
-	int i, quote, escape;
+	int i, quote = 0, escape;
 
 	if (string == NULL || argv == NULL || size < 1)
 		return -1;
@@ -76,7 +76,12 @@ TokenSplitA(char *string, const char *delims, char **argv, int size)
 
 		switch (*s) {
 		case '"': case '\'':
-			quote = *s == quote ? 0 : *s;
+			if (quote == 0)
+				quote = *s;
+			else if (*s == quote)
+				quote = 0;
+			else
+				*t++ = *s;
 			continue;
 
 		case '\\':

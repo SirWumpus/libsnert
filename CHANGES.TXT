@@ -52,6 +52,12 @@ is no set schedule for releases.
 
    !	TextFind: fixed handling of backslash literal, in particular "\[".
 
+   !	TokenNext, TokenCount, TokenSplit, TokenSplitA: handling of single
+   	quote within double-quoted section eg. {foo"single'quote"bar} or
+   	visa versa was not correctly handled. Within the quoted section,
+   	the other quote should be treated as a literal. Though if backslash
+   	escape eg. {foo"single\'quote"bar} was no problem.
+
 --1.71.6--
 
    !	dnsListQueryMail changed to accept a list of domains for which
