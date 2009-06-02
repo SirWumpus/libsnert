@@ -150,6 +150,20 @@ extern int TokenSplitA(char *, const char *, char **, int);
  */
 extern int TokenCount(const char *, const char *);
 
+/**
+ * @param string
+ *	An unquoted string.
+ *
+ * @param delims
+ *	A set of characters to be backslash quoted. If NULL, then the
+ *	default of set consists of single and double quotes.
+ *
+ * @return
+ *	A pointer to an allocated quoted C string or NULL. It is the
+ *	caller's responsiblity to free() this string.
+ */
+extern char *TokenQuote(const char *, const char *);
+
 #ifdef  __cplusplus
 }
 #endif

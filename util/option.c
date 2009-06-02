@@ -136,13 +136,19 @@ optionPrintAssignment(const char *name, const char *value, int comment)
 {
 	int has_ws;
 	Vector list;
-	char *hash, **element;
+	char *hash, **element, *quoted;
 
-	if (name == NULL || value == NULL || (list = TextSplit(value, ";", 0)) == NULL)
+	if (name == NULL)
 		return;
 
+	if ((quoted = TokenQuote(value, "'\"")) == NULL)
+		return;
+
+ 	if ((list = TextSplit(quoted, ";", 0)) == NULL)
+ 		goto error0;
+
 	hash = comment ? "#" : "";
-	has_ws = value[strcspn(value, " \t")] != '\0';
+	has_ws = quoted[strcspn(quoted, " \t")] != '\0';
 
 	element = (char **) VectorBase(list);
 	printf(has_ws ? "%s%s=\"%s\"\n" : "%s%s=%s\n", hash, name, TextEmpty(*element));
@@ -154,6 +160,8 @@ optionPrintAssignment(const char *name, const char *value, int comment)
 	}
 
 	VectorDestroy(list);
+error0:
+	free(quoted);
 }
 
 /**
