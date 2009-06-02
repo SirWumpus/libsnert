@@ -118,8 +118,8 @@ TokenNext(const char *string, const char **stop, const char *delims, int returnE
 		switch (*string) {
 		case '"': case '\'':
 			if (quote == 0)
-				quote = *s;
-			else if (*s == quote)
+				quote = *string;
+			else if (*string == quote)
 				quote = 0;
 			else
 				*t++ = *string;

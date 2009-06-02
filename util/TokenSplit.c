@@ -155,6 +155,9 @@ main(int argc, char **argv)
 	/* Backslash literal quotes and missing close quote. */
 	TestTokenSplit("a,b\\'d\\\",e',f", ",");	/* length=3 [a][b'd"][e,f] */
 
+        TestTokenSplit("name=\"value's\"", ",");        /* length=1 [name=value's] */
+	TestTokenSplit("name=\"value's\"", "=,");        /* length=2 [name][value's] */
+
 	printf("\n--DONE--\n");
 
 	return 0;
