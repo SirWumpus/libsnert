@@ -38,15 +38,19 @@ extern "C" {
 #define __@platform@__		1
 #endif
 
-/* Sun defines __unix, but not __unix__ */
-#if defined(__unix) && !defined(__unix__)
-#define __unix__ 1
-#endif
-
 #undef LIBC_PATH
 #undef LIBPTHREAD_PATH
 
+/* Sun defines __unix, but not __unix__ */
+#if defined(__unix) && !defined(__unix__)
+#define __unix__		1
+#endif
+
 #if defined(__APPLE__) && defined(__Darwin__)
+#define __unix__		1
+#endif
+
+#if defined(_AIX) && !defined(__unix__)
 #define __unix__		1
 #endif
 
