@@ -35,7 +35,7 @@ VectorBase(Vector self)
 		return (void **) empty;
 	}
 
-	return (void *) self->_base;
+	return (void **) self->_base;
 }
 
 long

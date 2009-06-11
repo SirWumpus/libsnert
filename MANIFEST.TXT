@@ -174,6 +174,7 @@ com/snert/src/lib/util/TextEmpty.c
 com/snert/src/lib/util/TextHash.c
 com/snert/src/lib/util/TokenCount.c
 com/snert/src/lib/util/TokenNext.c
+com/snert/src/lib/util/TokenQuote.c
 com/snert/src/lib/util/TokenSplit.c
 com/snert/src/lib/util/TokenSplitA.c
 com/snert/src/lib/util/bs.c

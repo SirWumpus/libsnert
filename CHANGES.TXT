@@ -44,6 +44,21 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.72.1--
+
+  !!	TokenNext, TokenCount, TokenSplit, TokenSplitA: handling of single
+   	quote within double-quoted section eg. {foo"single'quote"bar} or
+   	visa versa was not correctly handled. Within the quoted section,
+   	the other quote should be treated as a literal. Though if backslash
+   	escape eg. {foo"single\'quote"bar} was no problem.
+
+   +	Added TokenQuote to backslash escape a set of delims.
+
+   !	option.c: Applied use of TokenQuote to escape single and double
+   	quotes when writing out usage value strings.
+
+   !	version.h.in.in: AIX C compiler doesn't enable the __unix__ macro.
+
 --1.72.0--
 
    +	Added time62EncodeTime, time62DecodeTime.
@@ -51,12 +66,6 @@ is no set schedule for releases.
    +	Added TextFindQuote to quote TextFind's meta characters.
 
    !	TextFind: fixed handling of backslash literal, in particular "\[".
-
-   !	TokenNext, TokenCount, TokenSplit, TokenSplitA: handling of single
-   	quote within double-quoted section eg. {foo"single'quote"bar} or
-   	visa versa was not correctly handled. Within the quoted section,
-   	the other quote should be treated as a literal. Though if backslash
-   	escape eg. {foo"single\'quote"bar} was no problem.
 
 --1.71.6--
 
