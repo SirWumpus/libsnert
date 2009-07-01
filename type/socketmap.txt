@@ -20,6 +20,10 @@
  * and $key, then send the command, followed by any arguments. Each is
  * a net string, which can contain binary data.
  *
+ * NOOP
+ *	> 0:,
+ *	< 0:,
+ *
  * GET
  *	> $length ":" $table_name ",3:GET,"
  *	> $length ":" $key ","
