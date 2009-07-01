@@ -77,6 +77,10 @@ extern int LogStderrV(int level, const char *fmt, va_list args);
 extern void LogFatal(const char *fmt, ...);
 
 #ifndef LOG_PID
+/***
+ *** Based on OpenBSD syslog.h and is same for Linux.
+ ***/
+
 /*
  * priorities/facilities are encoded into a single 32-bit quantity, where the
  * bottom 3 bits are the priority (0-7) and the top 28 bits are the facility
@@ -143,6 +147,13 @@ extern void LogFatal(const char *fmt, ...);
 # define LOG_FACMASK     0x03f8  /* mask to extract facility part */
                                 /* facility of pri */
 # define LOG_FAC(p)      (((p) & LOG_FACMASK) >> 3)
+#endif
+
+#if !defined(LOG_PRI)
+# define LOG_PRI(p)     	((p) & LOG_PRIMASK)
+#endif
+#if !defined(LOG_FAC)
+# define LOG_FAC(p)      	(((p) & LOG_FACMASK) >> 3)
 #endif
 
 /*

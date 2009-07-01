@@ -31,6 +31,7 @@
 #endif /* __MINGW32__ */
 
 #include <com/snert/lib/io/Log.h>
+#include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/net/server.h>
 #include <com/snert/lib/util/Text.h>
 
