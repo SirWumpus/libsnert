@@ -44,6 +44,14 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.72.2--
+
+   !	pid.c, server.c: Added missing header for SunOS. Reported by
+   	Dietmar Rieder.
+
+   !	Log.h: Juggled LOG_PRI and LOG_FAC macros which are not defined
+	under SunOS. Reported by Dietmar Rieder.
+
 --1.72.1--
 
   !!	TokenNext, TokenCount, TokenSplit, TokenSplitA: handling of single
