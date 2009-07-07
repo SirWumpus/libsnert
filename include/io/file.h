@@ -81,6 +81,13 @@ extern "C" {
  *** File Support Routines
  ***********************************************************************/
 
+/**
+ * @return
+ *	The number of open file descriptors; otherwise -1 and errno set
+ *	to ENOSYS if the necessary functionality is not implemented.
+ */
+extern int getOpenFileCount(void);
+
 extern int fileSetCloseOnExec(int fd, int flag);
 extern int fileSetPermsById(int fd, uid_t uid, gid_t gid, mode_t mode);
 extern int pathSetPermsById(const char *path, uid_t uid, gid_t gid, mode_t mode);
