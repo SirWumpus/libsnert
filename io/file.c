@@ -138,3 +138,29 @@ fileSetCloseOnExec(int fd, int flag)
 #endif
 }
 
+/**
+ * @return
+ *	The number of open file descriptors; otherwise -1 and errno set
+ *	to ENOSYS if the necessary functionality is not implemented.
+ */
+int
+getOpenFileCount(void)
+{
+#if defined(HAVE_GETDTABLESIZE) && defined(HAVE_ISATTY)
+	int fd, max_fd, count;
+
+	max_fd = getdtablesize();
+	for (count = 0, fd = 0; fd < max_fd; fd++) {
+		/* Is it a valid tty or a valid file descriptor
+		 * that doesn't point to a tty.
+		 */
+		if (isatty(fd) || errno != EBADF)
+			count++;
+	}
+
+	return count;
+#else
+	errno = ENOSYS;
+	return -1;
+#endif
+}
