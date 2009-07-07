@@ -1095,6 +1095,7 @@ serverOptions(int argc, char **argv)
 {
 	int ch;
 
+	optind = 1;
 	while ((ch = getopt(argc, argv, "dqvw:")) != -1) {
 		switch (ch) {
 		case 'd':

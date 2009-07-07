@@ -198,7 +198,33 @@ extern int sessionIsTerminated(Session *session);
 extern void serverStop(Server *server, int slow_quit);
 extern void serverFree(void *_server);
 
+/**
+ * Defined by the application and is called by Windows via ServiceMain()
+ * handler setup by winServiceStart(). Can be called by main() when
+ * starting in application console (non-daemon) mode.
+ *
+ * @return
+ *	Either EXIT_SUCCESS or EXIT_FAILURE.
+ */
+extern int serverMain(void);
 
+/**
+ * Defined by the application and is called by Windows via ServiceMain()
+ * handler setup by winServiceStart(). Can be called by main() when
+ * starting in application console (non-daemon) mode.
+ *
+ * @param argc
+ *	Number of string arguments in argv.
+ *
+ * @param argv
+ *	An array of pointers to C strings to command line arguments.
+ *	Argument 0 is the command / executable name. Array is NULL
+ *	terminated.
+ */
+extern void serverOptions(int argc, char **argv);
+
+/**
+ */
 extern void printVar(int columns, const char *name, const char *value);
 
 /*
