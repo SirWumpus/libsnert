@@ -80,6 +80,7 @@ extern int pthread_mutex_unlock(pthread_mutex_t *);
 extern int pthread_mutex_destroy(pthread_mutex_t *);
 
 # elif defined(HAVE_PTHREAD_H)
+#  include <limits.h>
 #  include <pthread.h>
 # endif /* HAVE_PTHREAD_H */
 
