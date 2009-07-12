@@ -52,16 +52,229 @@
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/sys/Time.h>
 
-#define MCC_GET		'g'
-#define MCC_PUT		'p'
-#define MCC_LIST	'l'
-#define MCC_REMOVE	'r'
+static int debug;
 
 /***********************************************************************
  ***
  ***********************************************************************/
 
-static int debug;
+void
+mccStringFree(void *_note)
+{
+	mcc_string *note = _note;
+
+	if (note != NULL) {
+		free(note->string);
+		free(note);
+	}
+}
+
+void
+mccStringReplace(mcc_string *note, const char *str)
+{
+	if (note != NULL) {
+		free(note->string);
+		note->string = strdup(str);
+	}
+}
+
+mcc_string *
+mccStringCreate(const char *str)
+{
+	mcc_string *note;
+
+	if ((note = calloc(1, sizeof (*note))) != NULL)
+		mccStringReplace(note, str);
+
+	return note;
+}
+
+mcc_string *
+mccNotesFind(mcc_string *notes, const char *str)
+{
+	for ( ; notes != NULL; notes = notes->next) {
+		if (strstr(notes->string, str) != NULL)
+			break;
+	}
+
+	return notes;
+}
+
+void
+mccNotesUpdate(mcc_context *mcc, const char *ip, const char *find, const char *text)
+{
+	mcc_string *note;
+	mcc_active_host *host;
+
+	host = mccFindActive(mcc, ip);
+	note = mccNotesFind(host->notes, find);
+
+	if (note == NULL) {
+		if ((note = mccStringCreate(text)) != NULL) {
+			note->next = host->notes;
+			host->notes = note;
+		}
+	} else {
+		mccStringReplace(note, text);
+	}
+}
+
+void
+mccNotesFree(mcc_string *notes)
+{
+	mcc_string *next;
+
+	for ( ; notes != NULL; notes = next) {
+		next = notes->next;
+		mccStringFree(notes);
+	}
+}
+
+/***********************************************************************
+ *** Active Host Hash Table
+ ***********************************************************************/
+
+/*
+ * D.J. Bernstien Hash version 2 (+ replaced by ^).
+ */
+static unsigned long
+djb_hash_index(const unsigned char *buffer, size_t size, size_t table_size)
+{
+	unsigned long hash = 5381;
+
+	while (0 < size--)
+		hash = ((hash << 5) + hash) ^ *buffer++;
+
+	return hash & (table_size-1);
+}
+
+mcc_active_host *
+mccFindActive(mcc_context *mcc, const char *ip)
+{
+	unsigned i;
+	size_t ip_len;
+	unsigned long hash;
+	mcc_active_host *entry, *oldest;
+
+	ip_len = strlen(ip);
+	hash = djb_hash_index(ip, ip_len, MCC_HASH_TABLE_SIZE);
+	oldest = &mcc->active[hash];
+
+	for (i = 0; i < MCC_MAX_LINEAR_PROBE; i++) {
+		entry = &mcc->active[(hash + i) & (MCC_HASH_TABLE_SIZE-1)];
+
+		if (entry->expires == 0)
+			oldest = entry;
+
+		if (strcmp(ip, entry->ip) == 0)
+			break;
+	}
+
+	/* If we didn't find the entry within the linear probe
+	 * distance, then overwrite the oldest hash entry. Note
+	 * that we take the risk of two or more IPs repeatedly
+	 * cancelling out each other's entry. Shit happens.
+	 */
+	if (MCC_MAX_LINEAR_PROBE <= i) {
+		entry = oldest;
+		entry->max_ppm = 0;
+		(void) TextCopy(entry->ip, sizeof (entry->ip), ip);
+		memset(entry->intervals, 0, sizeof (entry->intervals));
+		mccNotesFree(entry->notes);
+		entry->notes = NULL;
+	}
+
+	return entry;
+}
+
+unsigned long
+mccGetRate(mcc_interval *intervals, unsigned long ticks)
+{
+	int i;
+	mcc_interval *interval;
+	unsigned long count = 0;
+
+	/* Sum the counts within this window. */
+	interval = intervals;
+	for (i = 0; i < MCC_INTERVALS; i++) {
+		if (ticks - MCC_INTERVALS <= interval->ticks && interval->ticks <= ticks)
+			count += interval->count;
+		interval++;
+	}
+
+	return count;
+}
+
+unsigned long
+mccUpdateRate(mcc_interval *intervals, unsigned long ticks)
+{
+	mcc_interval *interval;
+
+	/* Update the current interval. */
+	interval = &intervals[ticks % MCC_INTERVALS];
+	if (interval->ticks != ticks) {
+		interval->ticks = ticks;
+		interval->count = 0;
+	}
+	interval->count++;
+
+	return mccGetRate(intervals, ticks);
+}
+
+void
+mccUpdateActive(mcc_handle *mcc, const char *ip, uint32_t *expires)
+{
+	unsigned long rate;
+	mcc_active_host *entry;
+
+	(void) pthread_mutex_lock(&mcc->mutex);
+
+	entry = mccFindActive(mcc, ip);
+	entry->expires = *expires;
+
+	rate = mccUpdateRate(entry->intervals, *touched / MCC_TICK);
+	if (entry->max_ppm < rate)
+		entry->max_ppm = rate;
+
+	if (0 < debug)
+		syslog(LOG_DEBUG, "multi/unicast cache active ip=%s ppm=%lu max-ppm=%lu", ip, rate, entry->max_ppm);
+
+	(void) pthread_mutex_unlock(&mcc->mutex);
+}
+
+Vector
+mccGetActive(mcc_handle *mcc)
+{
+	unsigned i;
+	Vector hosts;
+	mcc_active_host *entry;
+
+	if ((hosts = VectorCreate(10)) == NULL)
+		return NULL;
+
+	VectorSetDestroyEntry(hosts, free);
+
+	(void) pthread_mutex_lock(&mcc->mutex);
+
+	for (i = 0; i < sizeof (mcc->active) / sizeof (mcc_active_host); i++) {
+		if (mcc->active[i].touched == 0)
+			continue;
+
+		if ((entry = malloc(sizeof (*entry))) != NULL) {
+			*entry = mcc->active[i];
+			if (VectorAdd(hosts, entry))
+				free(entry);
+		}
+	}
+
+	(void) pthread_mutex_unlock(&mcc->mutex);
+
+	return hosts;
+}
+
+/***********************************************************************
+ ***
+ ***********************************************************************/
 
 void
 mccSetDebug(int level)
@@ -94,8 +307,14 @@ mccSetMulticastTTL(mcc_handle *mcc, int ttl)
 	return 0;
 }
 
-static int
-mcc_send(mcc_handle *mcc, mcc_row *row)
+int
+mccRegisterKey(mcc_context *mcc, mcc_key_hook *tag_hook)
+{
+	return VectorAdd(mcc->key_hooks, tag_hook);
+}
+
+int
+mccSend(mcc_handle *mcc, mcc_row *row, uint8_t command)
 {
 	int rc;
 	md5_state_t md5;
@@ -103,6 +322,10 @@ mcc_send(mcc_handle *mcc, mcc_row *row)
 
 	if (!mcc->multicast.is_running && !mcc->unicast.is_running)
 		return MCC_OK;
+
+	row->command = command;
+
+	mccUpdateActive(mcc, "127.0.0.1", &row->expires);
 
 	/* Covert some of the values to network byte order. */
 	row->hits = htonl(row->hits);
@@ -119,14 +342,14 @@ mcc_send(mcc_handle *mcc, mcc_row *row)
 
 	if (mcc->multicast.is_running) {
 		if (1 < debug)
-			syslog(LOG_DEBUG, "mcc_send multicast command=%c key={%." MCC_MAX_KEY_SIZE_S "s}", row->command, row->key_data);
+			syslog(LOG_DEBUG, "mccSend multicast command=%c key={%." MCC_MAX_KEY_SIZE_S "s}", row->command, row->key_data);
 		if (socketWriteTo(mcc->multicast.socket, (unsigned char *) row, sizeof (*row), mcc->multicast_ip) != sizeof (*row))
 			rc = MCC_ERROR;
 	}
 
 	if (mcc->unicast.is_running) {
 		if (1 < debug)
-			syslog(LOG_DEBUG, "mcc_send unicast command=%c key={%." MCC_MAX_KEY_SIZE_S "s}", row->command, row->key_data);
+			syslog(LOG_DEBUG, "mccSend unicast command=%c key={%." MCC_MAX_KEY_SIZE_S "s}", row->command, row->key_data);
 		for (unicast = mcc->unicast_ip; *unicast != NULL; unicast++) {
 			if (socketWriteTo(mcc->unicast.socket, (unsigned char *) row, sizeof (*row), *unicast) != sizeof (*row))
 				rc = MCC_ERROR;
@@ -341,11 +564,7 @@ mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 	while ((rc = sqlite3_step(sql_stmt)) == SQLITE_BUSY) {
 		if (0 < debug)
 			syslog(LOG_WARN, "sql=%s busy: %s", mcc->path, sql_stmt_text);
-#if defined(HAVE_PTHREAD_CREATE)
 		pthreadSleep(1, 0);
-#else
-		sleep(1);
-#endif
 	}
 
 	if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
@@ -373,7 +592,7 @@ mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 }
 
 int
-mcc_delete(mcc_handle *mcc, const unsigned char *key, unsigned length)
+mccDeleteKey(mcc_handle *mcc, const unsigned char *key, unsigned length)
 {
 	int rc;
 
@@ -382,18 +601,14 @@ mcc_delete(mcc_handle *mcc, const unsigned char *key, unsigned length)
 	if (mcc == NULL || key == NULL)
 		goto error0;
 
-#if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&mcc->mutex))
 		goto error0;
-#endif
 	if (sqlite3_bind_text(mcc->remove, 1, (const char *) key, length, SQLITE_STATIC) != SQLITE_OK)
 		goto error1;
 	if (mccSqlStep(mcc, mcc->remove, MCC_SQL_DELETE) == SQLITE_DONE)
 		rc = MCC_OK;
 error1:
-#if defined(HAVE_PTHREAD_CREATE)
 	(void) pthread_mutex_unlock(&mcc->mutex);
-#endif
 error0:
 	return rc;
 }
@@ -422,10 +637,9 @@ mccSetSync(mcc_handle *mcc, int level)
 	if (mcc == NULL || level < MCC_SYNC_OFF || MCC_SYNC_FULL < level)
 		goto error0;
 
-#if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&mcc->mutex))
 		goto error0;
-#endif
+
 	if (sqlite3_exec(mcc->db, synchronous_stmt[level], NULL, NULL, &error) != SQLITE_OK) {
 		syslog(LOG_ERR, "sql=%s error %s: %s", mcc->path, synchronous_stmt[level], error);
 		sqlite3_free(error);
@@ -434,9 +648,7 @@ mccSetSync(mcc_handle *mcc, int level)
 
 	rc = MCC_OK;
 error1:
-#if defined(HAVE_PTHREAD_CREATE)
 	(void) pthread_mutex_unlock(&mcc->mutex);
-#endif
 error0:
 	return rc;
 }
@@ -451,10 +663,9 @@ mccPutRowLocal(mcc_handle *mcc, mcc_row *row, int touch)
 	if (mcc == NULL || row == NULL)
 		goto error0;
 
-#if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&mcc->mutex))
 		goto error0;
-#endif
+
 	if (touch) {
 		row->hits++;
 		row->touched = time(NULL);
@@ -481,9 +692,7 @@ mccPutRowLocal(mcc_handle *mcc, mcc_row *row, int touch)
 	if (mccSqlStep(mcc, mcc->replace, MCC_SQL_REPLACE) == SQLITE_DONE)
 		rc = MCC_OK;
 error1:
-#if defined(HAVE_PTHREAD_CREATE)
 	(void) pthread_mutex_unlock(&mcc->mutex);
-#endif
 error0:
 	return rc;
 }
@@ -494,20 +703,21 @@ error0:
 static void *
 mcc_listener_thread(void *data)
 {
-	int rc;
 	md5_state_t md5;
 	mcc_handle *mcc;
 	SocketAddress from;
 	mcc_network *listener;
 	mcc_row new_row, old_row;
-	char ip[IPV6_STRING_LENGTH];
+	mcc_key_hook **hooks, *hook;
 	unsigned char our_digest[16];
+	char ip[IPV6_STRING_LENGTH], *listen_addr;
 
 	mcc = ((mcc_listener *) data)->mcc;
 	listener = ((mcc_listener *) data)->listener;
 	free(data);
 
-	syslog(LOG_INFO, "started multi/unicast listener port %d", socketAddressGetPort(&listener->socket->address));
+	listen_addr = socketAddressToString(&listener->socket->address);
+	syslog(LOG_INFO, "started multi/unicast listener %s", listen_addr);
 
 	for (listener->is_running = 1; listener->is_running; ) {
 		if (!socketHasInput(listener->socket, MCC_LISTENER_TIMEOUT)) {
@@ -528,15 +738,20 @@ mcc_listener_thread(void *data)
 		md5_append(&md5, (md5_byte_t *) mcc->secret, mcc->secret_length);
 		md5_finish(&md5, (md5_byte_t *) our_digest);
 
-		if (memcmp(our_digest, new_row.digest, sizeof (our_digest)) != 0) {
-			syslog(LOG_ERR, "multi/unicast cache digest error from [%s]", ip);
-			continue;
-		}
-
 		new_row.hits = ntohl(new_row.hits);
 		new_row.created = ntohl(new_row.created);
 		new_row.touched = ntohl(new_row.touched);
 		new_row.expires = ntohl(new_row.expires);
+
+		mccUpdateActive(mcc, ip, &new_row.expires);
+
+		if (memcmp(our_digest, new_row.digest, sizeof (our_digest)) != 0) {
+			syslog(LOG_ERR, "multi/unicast cache digest error from [%s]", ip);
+			mccNotesUpdate(mcc, ip, "md5=", "md5=N");
+			continue;
+		}
+
+		mccNotesUpdate(mcc, ip, "md5=", "md5=Y");
 
 		if (0 < debug) {
 			if (new_row.key_size < MCC_MAX_KEY_SIZE)
@@ -545,7 +760,7 @@ mcc_listener_thread(void *data)
 		}
 
 		switch (new_row.command) {
-		case MCC_PUT:
+		case MCC_CMD_PUT:
 			/* The multicast cache for efficiency only broadcasts
 			 * on put and fetches from the local cache on get.
 			 * There is no multicast query/get as this would
@@ -613,8 +828,7 @@ mcc_listener_thread(void *data)
 				if (old_row.created < new_row.created
 				|| (old_row.created == new_row.created && new_row.hits < old_row.hits)) {
 					(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
-					old_row.command = MCC_PUT;
-					if (mcc_send(mcc, &old_row) && 0 < debug) {
+					if (mccSend(mcc, &old_row, MCC_CMD_PUT) && 0 < debug) {
 						old_row.key_data[old_row.key_size] = '\0';
 						syslog(LOG_DEBUG, "multi/unicast broadcast correction key={%." MCC_MAX_KEY_SIZE_S "s}", old_row.key_data);
 					}
@@ -630,7 +844,7 @@ mcc_listener_thread(void *data)
 				continue;
 			}
 
-			if ((rc = mccPutRowLocal(mcc, &new_row, 0)) != MCC_OK) {
+			if (mccPutRowLocal(mcc, &new_row, 0) != MCC_OK) {
 				syslog(LOG_ERR, "multi/unicast put error key={%." MCC_MAX_KEY_SIZE_S "s}", new_row.key_data);
 				(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
 				continue;
@@ -638,7 +852,8 @@ mcc_listener_thread(void *data)
 
 			(void) mccSqlStep(mcc, mcc->commit, MCC_SQL_COMMIT);
 			break;
-		case MCC_REMOVE:
+
+		case MCC_CMD_REMOVE:
 			(void) mccSqlStep(mcc, mcc->begin, MCC_SQL_BEGIN);
 
 			if (mcc->hook.remote_remove != NULL
@@ -647,17 +862,35 @@ mcc_listener_thread(void *data)
 				continue;
 			}
 
-			if ((rc = mcc_delete(mcc, new_row.key_data, new_row.key_size)) != MCC_OK && 0 < debug)
-				syslog(LOG_DEBUG, "multi/unicast remove error key={%." MCC_MAX_KEY_SIZE_S "s}", new_row.key_data);
+			if (mccDeleteKey(mcc, new_row.key_data, new_row.key_size) != MCC_OK) {
+				syslog(LOG_ERR, "multi/unicast remove error key={%." MCC_MAX_KEY_SIZE_S "s}", new_row.key_data);
+				(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
+				continue;
+			}
 
 			(void) mccSqlStep(mcc, mcc->commit, MCC_SQL_COMMIT);
 			break;
+
+		case MCC_CMD_OTHER:
+			/* Look for a matching prefix. */
+			for (hooks = (mcc_key_hook **) VectorBase(mcc->key_hooks); *hooks != NULL; hooks++) {
+				hook = *hooks;
+
+				if (hook->prefix_length <= new_row.key_size
+				&& memcmp(new_row.key_data, hook->prefix, hook->prefix_length) == 0) {
+					(*hook->process)(mcc, hook, ip, &new_row);
+					break;
+				}
+			}
+			break;
+
 		default:
 			syslog(LOG_ERR, "multi/unicast packet [%s] unknown command=%c", ip, new_row.command);
 		}
 	}
 
-	syslog(LOG_INFO, "multi/unicast listener port=%d thread exit", socketAddressGetPort(&listener->socket->address));
+	syslog(LOG_INFO, "multi/unicast listener %s thread exit", listen_addr);
+	free(listen_addr);
 
 	return NULL;
 }
@@ -680,9 +913,8 @@ mccStopUnicast(mcc_handle *mcc)
 		socketShutdown(mcc->unicast.socket, SHUT_RDWR);
 
 		/* Wait for the thread to exit. */
-#ifdef NOT_SURE
 		(void) pthread_cancel(mcc->unicast.thread);
-#endif
+
 		if (0 < debug)
 			syslog(LOG_DEBUG, "waiting for unicast listener thread to terminate...");
 		(void) pthread_join(mcc->unicast.thread, &rv);
@@ -709,7 +941,6 @@ mccStopUnicast(mcc_handle *mcc)
 int
 mccStartUnicast(mcc_handle *mcc, const char **unicast_ips, int port)
 {
-#if defined(HAVE_PTHREAD_CREATE)
 	int i, count;
 	const char *this_host;
 	SocketAddress *address;
@@ -906,7 +1137,6 @@ mccStopMulticast(mcc_handle *mcc)
 int
 mccStartMulticast(mcc_handle *mcc, const char *multicast_ip, int port)
 {
-#if defined(HAVE_PTHREAD_CREATE)
 	int rc;
 	mcc_listener *thread_data;
 	SocketAddress *any_address;
@@ -998,7 +1228,6 @@ error2:
 error1:
 	free(thread_data);
 error0:
-#endif
 	return MCC_ERROR;
 }
 
@@ -1012,10 +1241,9 @@ mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *r
 	if (mcc == NULL || key == NULL || row == NULL || sizeof (row->key_data) <= length)
 		goto error0;
 
-#if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&mcc->mutex))
 		goto error0;
-#endif
+
 	if (sqlite3_bind_text(mcc->select_one, 1, (const char *) key, length, SQLITE_STATIC) != SQLITE_OK)
 		goto error1;
 
@@ -1048,9 +1276,7 @@ mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *r
 		(void) sqlite3_reset(mcc->select_one);
 	}
 error1:
-#if defined(HAVE_PTHREAD_CREATE)
 	(void) pthread_mutex_unlock(&mcc->mutex);
-#endif
 error0:
 	return rc;
 }
@@ -1067,26 +1293,23 @@ mccPutRow(mcc_handle *mcc, mcc_row *row)
 	int rc;
 
 	if ((rc = mccPutRowLocal(mcc, row, 1)) == MCC_OK) {
-		row->command = MCC_PUT;
-		(void) mcc_send(mcc, row);
+		(void) mccSend(mcc, row, MCC_CMD_PUT);
 	}
 
 	return rc;
 }
 
 int
-mccDeleteKey(mcc_handle *mcc, const unsigned char *key, unsigned length)
+mccDeleteRowLocal(mcc_handle *mcc, mcc_row *row)
 {
-	return mcc_delete(mcc, key, length);
+	return mccDeleteKey(mcc, row->key_data, row->key_size);
 }
 
 int
 mccDeleteRow(mcc_handle *mcc, mcc_row *row)
 {
-	row->command = MCC_REMOVE;
-	(void) mcc_send(mcc, row);
-
-	return mcc_delete(mcc, row->key_data, row->key_size);
+	(void) mccSend(mcc, row, MCC_CMD_REMOVE);
+	return mccDeleteRowLocal(mcc, row);
 }
 
 int
@@ -1099,10 +1322,9 @@ mccExpireRows(mcc_handle *mcc, time_t *when)
 	if (mcc == NULL || when == NULL)
 		goto error0;
 
-#if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&mcc->mutex))
 		goto error0;
-#endif
+
 	if (mccSqlStep(mcc, mcc->begin, MCC_SQL_BEGIN) != SQLITE_DONE)
 		goto error1;
 
@@ -1121,9 +1343,7 @@ mccExpireRows(mcc_handle *mcc, time_t *when)
 
 	(void) mccSqlStep(mcc, mcc->commit, MCC_SQL_COMMIT);
 error1:
-#if defined(HAVE_PTHREAD_CREATE)
 	(void) pthread_mutex_unlock(&mcc->mutex);
-#endif
 error0:
 	return rc;
 }
@@ -1138,16 +1358,13 @@ mccDeleteAll(mcc_handle *mcc)
 	if (mcc == NULL)
 		goto error0;
 
-#if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&mcc->mutex))
 		goto error0;
-#endif
+
 	if (mccSqlStep(mcc, mcc->truncate, MCC_SQL_TRUNCATE) == SQLITE_DONE)
 		rc = MCC_OK;
 
-#if defined(HAVE_PTHREAD_CREATE)
 	(void) pthread_mutex_unlock(&mcc->mutex);
-#endif
 error0:
 	return rc;
 }
@@ -1155,31 +1372,23 @@ error0:
 int
 mccSetSecret(mcc_handle *mcc, const char *secret)
 {
-	int rc;
 	char *copy;
 
-	rc = MCC_ERROR;
-
 	if (mcc == NULL)
-		goto error0;
+		return MCC_ERROR;
 
-	if ((copy = strdup(secret)) != NULL) {
-		rc = MCC_OK;
-#if defined(HAVE_PTHREAD_CREATE)
-		(void) pthread_mutex_lock(&mcc->mutex);
-#endif
-		free(mcc->secret);
-		mcc->secret = copy;
-		mcc->secret_length = strlen(copy);
-#if defined(HAVE_PTHREAD_CREATE)
-		(void) pthread_mutex_unlock(&mcc->mutex);
-#endif
-	}
-error0:
-	return rc;
+	if ((copy = strdup(secret)) == NULL)
+		return MCC_ERROR;
+
+	(void) pthread_mutex_lock(&mcc->mutex);
+	free(mcc->secret);
+	mcc->secret = copy;
+	mcc->secret_length = strlen(copy);
+	(void) pthread_mutex_unlock(&mcc->mutex);
+
+	return MCC_OK;
 }
 
-#if defined(HAVE_PTHREAD_CREATE)
 static void *
 mcc_expire_thread(void *data)
 {
@@ -1193,16 +1402,11 @@ mcc_expire_thread(void *data)
 			(void) mccExpireRows(mcc, &now);
 			mcc->gc_next = now + mcc->ttl;
 		}
-#if defined(HAVE_PTHREAD_CREATE)
 		pthreadSleep(mcc->gc_next - now, 0);
-#else
-		sleep(mcc->gc_next - now);
-#endif
 	}
 
 	return NULL;
 }
-#endif
 
 void
 mccStopGc(mcc_handle *mcc)
@@ -1218,15 +1422,13 @@ mccStopGc(mcc_handle *mcc)
 int
 mccStartGc(mcc_handle *mcc, unsigned ttl)
 {
+	int rc;
+	pthread_attr_t pthread_attr;
+
 	if (mcc == NULL)
 		return MCC_ERROR;
 
 	mcc->ttl = ttl;
-
-#if defined(HAVE_PTHREAD_CREATE)
-{
-	int rc;
-	pthread_attr_t pthread_attr;
 
 	if (ttl == 0 && mcc->gc_next != 0) {
 		mccStopGc(mcc);
@@ -1255,8 +1457,7 @@ error1:
 		mcc->ttl = 0;
 		return MCC_ERROR;
 	}
-}
-#endif
+
 	return MCC_OK;
 }
 
@@ -1287,6 +1488,26 @@ mccAtForkChild(mcc_handle *mcc)
 	mcc->unicast.socket = NULL;
 }
 
+static void
+mcc_key_hook_free(void *_hook)
+{
+	mcc_key_hook *hook = _hook;
+
+	if (hook != NULL) {
+		if (hook->cleanup != NULL)
+			(*hook->cleanup)(hook->data);
+	}
+}
+
+static void
+mcc_active_cleanup(mcc_active_host *table)
+{
+	int i;
+
+	for (i = 0; i < MCC_HASH_TABLE_SIZE; i++)
+		mccNotesFree(table[i].notes);
+}
+
 void
 mccDestroy(void *_mcc)
 {
@@ -1295,9 +1516,9 @@ mccDestroy(void *_mcc)
 	if (mcc != NULL) {
 		if (0 < debug)
 			syslog(LOG_DEBUG, "mccDestroy(%lx)", (long) mcc);
-#if defined(HAVE_PTHREAD_CREATE)
+
 		(void) pthread_mutex_trylock(&mcc->mutex);
-#endif
+
 		/* Stop these threads before releasing the rest. */
 		mccStopMulticast(mcc);
 		mccStopUnicast(mcc);
@@ -1307,10 +1528,12 @@ mccDestroy(void *_mcc)
 			mcc_sql_stmts_finalize(mcc);
 			sqlite3_close(mcc->db);
 		}
-#if defined(HAVE_PTHREAD_CREATE)
+
 		(void) pthread_mutex_unlock(&mcc->mutex);
 		(void) pthread_mutex_destroy(&mcc->mutex);
-#endif
+
+		mcc_active_cleanup(mcc->active);
+		VectorDestroy(mcc->key_hooks);
 		free(mcc->secret);
 		free(mcc);
 	}
@@ -1325,11 +1548,21 @@ mccCreate(const char *filepath, int flags, mcc_hooks *hooks)
 
 	length = strlen(filepath) + 1;
 	if ((mcc = calloc(1, sizeof (*mcc) + length)) == NULL) {
-		syslog(LOG_ERR, "multi/unicast cache memory error: %s (%d)", strerror(errno), errno);
+		syslog(LOG_ERR, "%s(%u): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
 		goto error0;
 	}
 
-	mccSetSecret(mcc, "");
+	if (mccSetSecret(mcc, "") == MCC_ERROR) {
+		syslog(LOG_ERR, "%s(%u): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
+		goto error1;
+	}
+
+	if ((mcc->key_hooks = VectorCreate(5)) == NULL) {
+		syslog(LOG_ERR, "%s(%u): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
+		goto error1;
+	}
+
+	VectorSetDestroyEntry(mcc->key_hooks, mcc_key_hook_free);
 
 	mcc->flags = flags;
 	mcc->path = (char *) &mcc[1];
@@ -1343,12 +1576,11 @@ mccCreate(const char *filepath, int flags, mcc_hooks *hooks)
 	if (hooks != NULL)
 		mcc->hook = *hooks;
 
-#if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_init(&mcc->mutex, NULL)) {
-		syslog(LOG_ERR, "multi/unicast cache mutex init error: %s (%d)", strerror(errno), errno);
+		syslog(LOG_ERR, "%s(%u): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
 		goto error1;
 	}
-#endif
+
 	if ((rc = sqlite3_open(mcc->path, &mcc->db)) != SQLITE_OK) {
 		syslog(LOG_ERR, "multi/unicast cache sql=%s open error: %s", mcc->path, sqlite3_errmsg(mcc->db));
 		goto error1;
@@ -1366,8 +1598,6 @@ error1:
 error0:
 	return NULL;
 }
-
-#endif /* HAVE_SQLITE3_H */
 
 #ifdef TEST
 # include <stdio.h>

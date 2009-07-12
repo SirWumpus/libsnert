@@ -17,6 +17,7 @@ extern "C" {
 #include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/sys/pthread.h>
+#include <com/snert/lib/type/Vector.h>
 
 #ifndef MCC_STACK_SIZE
 # define MCC_STACK_SIZE			(32 * 1024)
@@ -25,6 +26,18 @@ extern "C" {
 # undef MCC_STACK_SIZE
 # define MCC_STACK_SIZE		PTHREAD_STACK_MIN
 #endif
+
+/*
+ * Must be a power of two.
+ */
+#ifndef MCC_HASH_TABLE_SIZE
+#define MCC_HASH_TABLE_SIZE	256
+#endif
+
+#ifndef MCC_MAX_LINEAR_PROBE
+#define MCC_MAX_LINEAR_PROBE	16
+#endif
+
 
 #if HAVE_INTTYPES_H
 # include <inttypes.h>
@@ -44,17 +57,6 @@ extern "C" {
 #define MCC_OK					0
 #define MCC_ERROR				(-1)
 #define MCC_NOT_FOUND				(-2)
-
-#define MCC_PKT_DIGEST				0
-#define MCC_PKT_CREATED				16
-#define MCC_PKT_TOUCHED				20
-#define MCC_PKT_EXPIRES				24
-#define MCC_PKT_HITS				28
-#define MCC_PKT_COMMAND				32
-#define MCC_PKT_SPARE				33
-#define MCC_PKT_KEY_LENGTH			34
-#define MCC_PKT_VALUE_LENGTH			35
-#define MCC_PKT_KEY_DATA			36
 
 /*
  * The key size was derived from the need to be able to save long
@@ -80,14 +82,6 @@ extern "C" {
 
 #define MCC_MAX_VALUE_SIZE			92
 #define MCC_MAX_VALUE_SIZE_S			"91"
-
-#define MCC_ON_CORRUPT_EXIT			0
-#define MCC_ON_CORRUPT_RENAME			1
-#define MCC_ON_CORRUPT_REPLACE			2
-
-#define MCC_SYNC_OFF				0
-#define MCC_SYNC_NORMAL				1
-#define MCC_SYNC_FULL				2
 
 /*
  * A multicast cache packet cannot be more than 512 bytes.
@@ -164,6 +158,18 @@ typedef struct mcc mcc_context;
 typedef int (*mcc_hook)(mcc_context *, void *data);
 typedef int (*mcc_hook_row)(mcc_context *, void *data, mcc_row *old_row, mcc_row *new_row);
 
+typedef struct mcc_key_hook mcc_key_hook;
+typedef void (*mcc_key_process)(mcc_context *, mcc_key_hook *, const char *ip, mcc_row *row_received);
+typedef void (*mcc_key_cleanup)(void *data);
+
+struct mcc_key_hook {
+	void *data;
+	const char *prefix;
+	size_t prefix_length;
+	mcc_key_process process;
+	mcc_key_cleanup cleanup;
+};
+
 typedef struct {
 	void *data;
 	mcc_hook expire;		/* mccStartGc, mccExpireRows */
@@ -172,6 +178,28 @@ typedef struct {
 	mcc_hook_row remote_remove;	/* mcc_listener_thread */
 	mcc_hook_row remote_replace;	/* mcc_listener_thread */
 } mcc_hooks;
+
+#define MCC_WINDOW_SIZE		60				/* window in seconds */
+#define	MCC_INTERVALS		10				/* ticks per window */
+#define MCC_TICK		(MCC_WINDOW_SIZE/MCC_INTERVALS)	/* seconds per tick */
+
+typedef struct {
+	unsigned long ticks;
+	unsigned long count;
+} mcc_interval;
+
+typedef struct mcc_string {
+	struct mcc_string *next;
+	char *string;
+} mcc_string;
+
+typedef struct {
+	time_t touched;
+	unsigned long max_ppm;
+	char ip[IPV6_STRING_LENGTH];
+	mcc_interval intervals[MCC_INTERVALS];
+	mcc_string *notes;
+} mcc_active_host;
 
 struct mcc {
 	int flags;
@@ -195,11 +223,13 @@ struct mcc {
 	sqlite3_stmt *rollback;
 
 	mcc_hooks hook;
+	Vector key_hooks;
 #ifdef HAVE_PTHREAD_MUTEX_T
 	time_t gc_next;
 	pthread_t gc_thread;
 	pthread_mutex_t mutex;
 #endif
+	mcc_active_host active[MCC_HASH_TABLE_SIZE];
 };
 
 typedef struct {
@@ -207,32 +237,53 @@ typedef struct {
 	mcc_network *listener;
 } mcc_listener;
 
-#ifdef NOT_READY
-typedef struct mcc_status_t mcc_status;
+#define MCC_CMD_PUT		'p'
+#define MCC_CMD_REMOVE		'r'
+#define MCC_CMD_OTHER		'?'
 
-struct mcc_status_t {
-	mcc_status prev;
-	mcc_status next;
-	time_t last_packet;
-	SocketAddress *host;
-};
-#endif
+extern int mccSend(mcc_handle *mcc, mcc_row *row, uint8_t command);
+
+#define MCC_ON_CORRUPT_EXIT			0
+#define MCC_ON_CORRUPT_RENAME			1
+#define MCC_ON_CORRUPT_REPLACE			2
+
+extern void mccSetOnCorrupt(int level);
+
+#define MCC_SYNC_OFF				0
+#define MCC_SYNC_NORMAL				1
+#define MCC_SYNC_FULL				2
+
+extern int mccSetSync(mcc_handle *mcc, int level);
 
 extern void mccDestroy(void *mcc);
 extern void mccSetDebug(int level);
-extern void mccSetOnCorrupt(int level);
 extern mcc_handle *mccCreate(const char *path, int flags, mcc_hooks *hooks);
 extern int mccSetSecret(mcc_handle *mcc, const char *secret);
-extern int mccSetSync(mcc_handle *mcc, int level);
 extern int mccSetSyncByName(mcc_handle *mcc, const char *name);
 extern int mccGetRow(mcc_handle *mcc, mcc_row *row);
 extern int mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *row);
 extern int mccDeleteRow(mcc_handle *mcc, mcc_row *row);
+extern int mccDeleteRowLocal(mcc_handle *mcc, mcc_row *row);
 extern int mccDeleteKey(mcc_handle *mcc, const unsigned char *key, unsigned length);
 extern int mccPutRow(mcc_handle *mcc, mcc_row *row);
 extern int mccPutRowLocal(mcc_handle *mcc, mcc_row *row, int touch);
 extern int mccExpireRows(mcc_handle *mcc, time_t *when);
 extern int mccDeleteAll(mcc_handle *mcc);
+
+extern Vector mccGetActive(mcc_handle *mcc);
+extern mcc_active_host *mccFindActive(mcc_context *mcc, const char *ip);
+extern void mccUpdateActive(mcc_handle *mcc, const char *ip, uint32_t *touched);
+extern unsigned long mccGetRate(mcc_interval *intervals, unsigned long ticks);
+extern unsigned long mccUpdateRate(mcc_interval *intervals, unsigned long ticks);
+extern int mccRegisterKey(mcc_context *mcc, mcc_key_hook *tag_hook);
+
+extern void mccStringFree(void *_note);
+extern void mccStringReplace(mcc_string *note, const char *str);
+extern mcc_string *mccStringCreate(const char *str);
+extern mcc_string *mccNotesFind(mcc_string *notes, const char *substring);
+
+extern void mccNotesUpdate(mcc_context *mcc, const char *ip, const char *find, const char *text);
+extern void mccNotesFree(mcc_string *notes);
 
 extern int mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text);
 
