@@ -16,13 +16,6 @@
  ***********************************************************************/
 
 void
-timevalSet(struct timeval *acc, unsigned long us)
-{
-	acc->tv_sec = us / UNIT_MICRO;
-	acc->tv_usec = us % UNIT_MICRO;
-}
-
-void
 timevalSubtract(struct timeval *acc, struct timeval *b)
 {
 	if (acc->tv_usec < b->tv_usec) {

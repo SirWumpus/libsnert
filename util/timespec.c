@@ -16,13 +16,6 @@
  ***********************************************************************/
 
 void
-timespecSet(struct timespec *acc, unsigned long ns)
-{
-	acc->tv_sec = ns / UNIT_NANO;
-	acc->tv_nsec = ns % UNIT_NANO;
-}
-
-void
 timespecSubtract(struct timespec *acc, struct timespec *b)
 {
 	if (acc->tv_nsec < b->tv_nsec) {
@@ -47,3 +40,16 @@ timespecAdd(struct timespec *acc, struct timespec *b)
 		}
 	}
 }
+
+void
+timeSubtract(time_t *acc, time_t *b)
+{
+	*acc -= *b;
+}
+
+void
+timeAdd(time_t *acc, time_t *b)
+{
+	*acc += *b;
+}
+

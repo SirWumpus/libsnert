@@ -1,7 +1,7 @@
 /*
  * timer.h
  *
- * Copyright 2008 by Anthony Howe.  All rights reserved.
+ * Copyright 2008, 2009 by Anthony Howe.  All rights reserved.
  */
 
 #ifndef __com_snert_lib_util_timer_h__
@@ -26,6 +26,8 @@ extern "C" {
 #  include <time.h>
 # endif
 #endif
+
+#include <com/snert/lib/sys/pthread.h>
 
 /***********************************************************************
  *** Timer Macros
@@ -54,20 +56,25 @@ struct timespec {
 };
 #endif
 
-extern void timespecSet(struct timespec *acc, unsigned long ns);
 extern void timespecAdd(struct timespec *acc, struct timespec *b);
 extern void timespecSubtract(struct timespec *acc, struct timespec *b);
 
-extern void timevalSet(struct timeval *acc, unsigned long us);
 extern void timevalAdd(struct timeval *acc, struct timeval *b);
 extern void timevalSubtract(struct timeval *acc, struct timeval *b);
 
-#ifdef HAVE_CLOCK_GETTIME
+extern void timeAdd(time_t *acc, time_t *b);
+extern void timeSubtract(time_t *acc, time_t *b);
 
-# define TIMER_DECLARE(t)	struct timespec t, diff_ ## t
-# define TIMER_START(t)		clock_gettime(CLOCK_REALTIME, &(t))
-# define TIMER_DIFF(t)		clock_gettime(CLOCK_REALTIME, &(diff_ ## t)); \
-				timespecSubtract(&(diff_ ## t), &(t))
+#if defined(HAVE_CLOCK_GETTIME)
+/* 10^-9 (nano-second) resolution */
+
+# define CLOCK			struct timespec
+# define CLOCK_ADD(a, b)	timespecAdd(a, b)
+# define CLOCK_SUB(a, b)	timespecSubtract(a, b)
+# define CLOCK_GET(a)		clock_gettime(CLOCK_REALTIME, a)
+# define CLOCK_FMT		"%ld.%.9ld"
+# define CLOCK_FMT_DOT(a)	(long)(a).tv_sec, (a).tv_nsec
+# define CLOCK_FMT_PTR(a)	(long)(a)->tv_sec, (a)->tv_nsec
 
 # define TIMER_EQ_CONST(t,s,ns)	((t).tv_sec == (s) && (t).tv_nsec == (ns))
 # define TIMER_NE_CONST(t,s,ns)	!TIMER_EQ_CONST(t,s,ns)
@@ -76,15 +83,16 @@ extern void timevalSubtract(struct timeval *acc, struct timeval *b);
 # define TIMER_GE_CONST(t,s,ns)	((t).tv_sec >= (s) && (t).tv_nsec >= (ns))
 # define TIMER_LE_CONST(t,s,ns)	((t).tv_sec <= (s) && (t).tv_nsec <= (ns))
 
-# define TIMER_FORMAT		"%ld.%.9ld"
-# define TIMER_FORMAT_ARG(t)	(long)(t).tv_sec, (t).tv_nsec
+#elif defined(HAVE_GETTIMEOFDAY)
+/* 10^-6 (micro-second) resolution */
 
-#elif HAVE_GETTIMEOFDAY
-
-# define TIMER_DECLARE(t)	struct timeval t, diff_ ## t
-# define TIMER_START(t)		gettimeofday(&(t), NULL)
-# define TIMER_DIFF(t)		gettimeofday(&(diff_ ## t), NULL); \
-				timevalSubtract(&(diff_ ## t), &(t))
+# define CLOCK			struct timeval
+# define CLOCK_ADD(a, b)	timevalAdd(a, b)
+# define CLOCK_SUB(a, b)	timevalSubtract(a, b)
+# define CLOCK_GET(a)		gettimeofday(a, NULL)
+# define CLOCK_FMT		"%ld.%.6ld"
+# define CLOCK_FMT_DOT(a)	(long)(a).tv_sec, (a).tv_usec
+# define CLOCK_FMT_PTR(a)	(long)(a)->tv_sec, (a)->tv_usec
 
 # define TIMER_EQ_CONST(t,s,ns)	((t).tv_sec == (s) && (t).tv_usec == (ns))
 # define TIMER_NE_CONST(t,s,ns)	!TIMER_EQ_CONST(t,s,ns)
@@ -93,14 +101,16 @@ extern void timevalSubtract(struct timeval *acc, struct timeval *b);
 # define TIMER_GE_CONST(t,s,ns)	((t).tv_sec >= (s) && (t).tv_usec >= (ns))
 # define TIMER_LE_CONST(t,s,ns)	((t).tv_sec <= (s) && (t).tv_usec <= (ns))
 
-# define TIMER_FORMAT		"%ld.%.6ld"
-# define TIMER_FORMAT_ARG(t)	(long)(t).tv_sec, (t).tv_usec
-
 #else
+/* 1 second resolution */
 
-# define TIMER_DECLARE(t)	time_t t, diff_ ## t
-# define TIMER_START(t)		(void) time(&(t))
-# define TIMER_DIFF(t)		diff_ ## t = time(NULL)-(t)
+# define CLOCK			time_t
+# define CLOCK_ADD(a, b)	timeAdd(a, b)
+# define CLOCK_SUB(a, b)	timeSub(a, b)
+# define CLOCK_GET(a)		(void) time(a)
+# define CLOCK_FMT		"%ld"
+# define CLOCK_FMT_DOT(a)	(long)(a).tv_sec
+# define CLOCK_FMT_PTR(a)	(long)(a)->tv_sec
 
 # define TIMER_EQ_CONST(t,s,ns)	((t) == (s))
 # define TIMER_NE_CONST(t,s,ns)	!TIMER_EQ_CONST(t,s,ns)
@@ -109,10 +119,62 @@ extern void timevalSubtract(struct timeval *acc, struct timeval *b);
 # define TIMER_GE_CONST(t,s,ns)	((t) >= (s))
 # define TIMER_LE_CONST(t,s,ns)	((t) <= (s))
 
-# define TIMER_FORMAT		"%ld"
-# define TIMER_FORMAT_ARG(t)	(long) (t)
-
 #endif
+
+#define TIMER_DIFF_VAR(t)	diff_ ## t
+#define TIMER_DECLARE(t)	CLOCK t, TIMER_DIFF_VAR(t)
+#define TIMER_START(t)		CLOCK_GET(&(t))
+#define TIMER_DIFF(t)		CLOCK_GET(&(TIMER_DIFF_VAR(t))); \
+				CLOCK_SUB(&(TIMER_DIFF_VAR(t)), &(t))
+#define TIMER_FORMAT		CLOCK_FMT
+#define TIMER_FORMAT_ARG(t)	CLOCK_FMT_DOT(t)
+
+typedef struct timer Timer;
+typedef void (*TimerTask)(Timer *);
+
+struct timer {
+	pthread_t thread;
+#if defined(HAVE_PTHREAD_COND_TIMEDWAIT)
+	pthread_cond_t cv;
+	pthread_mutex_t mutex;
+#endif
+#ifdef __WIN32__
+	HANDLE cancel_event;
+#endif
+	CLOCK delay;
+	CLOCK period;
+	TimerTask task;
+};
+
+/**
+ * @param task
+ *	A call-back function to be executed when delay/period expire.
+ *
+ * @param delay
+ *	An initial delay in seconds before the first execution of the task.
+ *
+ * @param period
+ *	The interval in seconds between repeated executions of the task.
+ *
+ * @param stack_size
+ *	The stack size for the timer/task thread.
+ *
+ * @return
+ *	A pointer to a Timer structure.
+ */
+extern Timer *timerCreate(TimerTask task, CLOCK *delay, CLOCK *period, size_t stack_size);
+
+/**
+ * @param
+ *	A pointer to a Timer structure to cancel.
+ */
+extern void timerCancel(Timer *timer);
+
+/**
+ * @param
+ *	A pointer to a Timer structure to free.
+ */
+extern void timerFree(void *_timer);
 
 /***********************************************************************
  ***
