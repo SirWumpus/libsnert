@@ -163,7 +163,7 @@ mccFindActive(mcc_context *mcc, const char *ip)
 	for (i = 0; i < MCC_MAX_LINEAR_PROBE; i++) {
 		entry = &mcc->active[(hash + i) & (MCC_HASH_TABLE_SIZE-1)];
 
-		if (entry->expires == 0)
+		if (entry->touched == 0)
 			oldest = entry;
 
 		if (strcmp(ip, entry->ip) == 0)
@@ -222,7 +222,7 @@ mccUpdateRate(mcc_interval *intervals, unsigned long ticks)
 }
 
 void
-mccUpdateActive(mcc_handle *mcc, const char *ip, uint32_t *expires)
+mccUpdateActive(mcc_handle *mcc, const char *ip, uint32_t *touched)
 {
 	unsigned long rate;
 	mcc_active_host *entry;
@@ -230,7 +230,7 @@ mccUpdateActive(mcc_handle *mcc, const char *ip, uint32_t *expires)
 	(void) pthread_mutex_lock(&mcc->mutex);
 
 	entry = mccFindActive(mcc, ip);
-	entry->expires = *expires;
+	entry->touched = *touched;
 
 	rate = mccUpdateRate(entry->intervals, *touched / MCC_TICK);
 	if (entry->max_ppm < rate)
@@ -325,7 +325,7 @@ mccSend(mcc_handle *mcc, mcc_row *row, uint8_t command)
 
 	row->command = command;
 
-	mccUpdateActive(mcc, "127.0.0.1", &row->expires);
+	mccUpdateActive(mcc, "127.0.0.1", &row->touched);
 
 	/* Covert some of the values to network byte order. */
 	row->hits = htonl(row->hits);
