@@ -732,6 +732,8 @@ serverSetStackSize(Server *server, size_t stack_size)
 #if defined(HAVE_PTHREAD_ATTR_SETSTACKSIZE)
 	if (server == NULL)
 		return errno = EFAULT;
+	if (stack_size < PTHREAD_STACK_MIN)
+		stack_size = PTHREAD_STACK_MIN;
 	return pthread_attr_setstacksize(&server->thread_attr, stack_size);
 #else
 	return 0;
