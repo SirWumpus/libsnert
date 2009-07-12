@@ -10,7 +10,7 @@
 A = .@LIBEXT@
 O = .@OBJEXT@
 E = @EXEEXT@
-.SUFFIXES : .c $O $A
+.SUFFIXES : .c .i $O $A
 
 #
 # Paths for supporting headers and libraries.
@@ -59,6 +59,9 @@ LIB_RT = @HAVE_LIB_RT@
 $O$E :
 	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
 
+.c.i:
+	${CC} -E ${CFLAGS} $*.c >$*.i
+
 #######################################################################
 
 OBJS = \
@@ -71,11 +74,12 @@ OBJS = \
 	TextInsensitiveStartsWith$O TextSensitiveStartsWith$O TextHash$O TextDelim$O TextEmpty$O \
 	TextNull$O TextC$O setBitWord$O strlrcspn$O strlrspn$O strnatcmp$O bs$O Base64$O \
 	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O html$O \
-	uriIsDomainBL$O uri$O option$O time62$O timespec$O timeval$O
+	uriIsDomainBL$O uri$O option$O time62$O timespec$O timeval$O timer$O
 
 TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
        DebugMallocTest$E uri$E convertDate$E TextCopy$E TextTransliterate$E \
-       TextSensitiveEndsWith$E TextInsensitiveEndsWith$E TextMatch$E ProcTitle$E
+       TextSensitiveEndsWith$E TextInsensitiveEndsWith$E TextMatch$E ProcTitle$E \
+       timer$E
 
 CLI = b64$E md4$E md5$E htmlstrip$E
 
@@ -198,6 +202,9 @@ md5$E: md5.c
 
 time62$E : time62.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)time62$E time62.c
+
+timer$E : timer.c
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)timer$E timer.c $(LIBSNERT)
 
 htmlstrip$E : html.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)htmlstrip$E html.c $(LIBSNERT)

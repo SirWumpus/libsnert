@@ -198,6 +198,7 @@ com/snert/src/lib/util/uri.txt.out
 com/snert/src/lib/util/option.c
 com/snert/src/lib/util/option.txt
 com/snert/src/lib/util/time62.c
+com/snert/src/lib/util/timer.c
 com/snert/src/lib/util/timespec.c
 com/snert/src/lib/util/timeval.c
 com/snert/src/lib/include/autoconf.h
