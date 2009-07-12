@@ -1,7 +1,7 @@
 /*
  * pthread.c
  *
- * Copyright 2004, 2008 by Anthony Howe.  All rights reserved.
+ * Copyright 2004, 2009 by Anthony Howe.  All rights reserved.
  */
 
 #include <com/snert/lib/version.h>

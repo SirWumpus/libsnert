@@ -1,15 +1,15 @@
 /*
  * pthread.h
  *
- * Copyright 2004, 2005 by Anthony Howe.  All rights reserved.
+ * Copyright 2004, 2009 by Anthony Howe.  All rights reserved.
  */
 
 #ifndef __com_snert_lib_sys_pthread_h__
 #define __com_snert_lib_sys_pthread_h__	1
 
-#  ifdef __cplusplus
+# ifdef __cplusplus
 extern "C" {
-#  endif
+# endif
 
 # if defined(__WIN32__)
 #  include <windows.h>
@@ -64,6 +64,10 @@ typedef long pthread_mutexattr_t;
 #  ifndef HAVE_PTHREAD_MUTEX_UNLOCK
 #   define HAVE_PTHREAD_MUTEX_UNLOCK
 #  endif
+#  ifndef HAVE_PTHREAD_TESTCANCEL
+#   define HAVE_PTHREAD_TESTCANCEL
+#   define pthread_testcancel
+#  endif
 
 extern int pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
 extern int pthread_detach(pthread_t);
@@ -88,9 +92,9 @@ extern int pthread_mutex_destroy(pthread_mutex_t *);
 extern int pthreadMutexDestroy(pthread_mutex_t *);
 extern int pthreadSleep(unsigned seconds, unsigned nanoseconds);
 
-#  ifdef  __cplusplus
+# ifdef  __cplusplus
 }
-#  endif
+# endif
 
 #endif /* __com_snert_lib_sys_pthread_h__ */
 
