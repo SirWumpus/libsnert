@@ -27,7 +27,7 @@ static int thread_sleep_ready;
 static pthread_cond_t thread_sleep_cv;
 static pthread_mutex_t thread_sleep_mutex;
 
-#if defined(FILTER_CLI) && defined(HAVE_PTHREAD_ATFORK)
+#if defined(HAVE_PTHREAD_ATFORK)
 static void
 pthreadSleepAtForkChild(void)
 {
@@ -51,7 +51,7 @@ pthreadSleepInit(void)
 	if (pthread_mutex_init(&thread_sleep_mutex, NULL))
 		return 0;
 
-#if defined(FILTER_CLI) && defined(HAVE_PTHREAD_ATFORK)
+#if defined(HAVE_PTHREAD_ATFORK)
 	if (pthread_atfork(NULL, NULL, pthreadSleepAtForkChild))
 		return 0;
 #endif
@@ -77,8 +77,8 @@ pthreadSleep(unsigned seconds, unsigned nanoseconds)
 	abstime.tv_nsec += nanoseconds;
 	abstime.tv_sec += seconds;
 
-	if (1000000000 <= abstime.tv_nsec) {
-		abstime.tv_nsec -= 1000000000;
+	if (1000000000L <= abstime.tv_nsec) {
+		abstime.tv_nsec -= 1000000000L;
 		abstime.tv_sec++;
 	}
 
@@ -119,7 +119,12 @@ pthreadSleep(unsigned seconds, unsigned nanoseconds)
 	}
 }
 #else
-	sleep(seconds);
+{
+	unsigned unslept;
+
+	while (0 < (unslept = sleep(seconds)))
+		seconds = unslept;
+}
 #endif
 	return 0;
 }
