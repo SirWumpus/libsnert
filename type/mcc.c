@@ -743,7 +743,7 @@ mcc_listener_thread(void *data)
 		new_row.touched = ntohl(new_row.touched);
 		new_row.expires = ntohl(new_row.expires);
 
-		mccUpdateActive(mcc, ip, &new_row.expires);
+		mccUpdateActive(mcc, ip, &new_row.touched);
 
 		if (memcmp(our_digest, new_row.digest, sizeof (our_digest)) != 0) {
 			syslog(LOG_ERR, "multi/unicast cache digest error from [%s]", ip);
