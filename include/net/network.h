@@ -303,7 +303,7 @@ extern void networkSetLong(unsigned char *p, unsigned long n);
  * @return
  *	The length of the IP address string parsed.
  */
-extern int parseIPv6(const char *ip, unsigned char ipv6[16]);
+extern int parseIPv6(const char *ip, unsigned char ipv6[IPV6_BYTE_LENGTH]);
 
 /**
  * @param string
