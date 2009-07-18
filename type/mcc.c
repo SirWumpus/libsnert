@@ -1705,6 +1705,7 @@ main(int argc, char **argv)
 	static char buffer[1024];
 	mcc_row old_row, new_row;
 
+	rc = EXIT_FAILURE;
 	setvbuf(stdin, NULL, _IOLBF, 0);
 	setvbuf(stdout, NULL, _IOLBF, 0);
 	openlog("mcc", LOG_PID, LOG_USER);

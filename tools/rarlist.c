@@ -96,7 +96,9 @@ typedef struct {
 
 static uint8_t rar_marker[] = { 0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00 };
 
+#ifdef NOT_USED
 static uint8_t rar_end_marker[] = { 0xc4, 0x3d, 0x7b, 0x00, 0x40, 0x07, 0x00 };
+#endif
 
 static const char usage[] =
 "usage: rarlist file1.rar ... fileN.rar\n"
