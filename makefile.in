@@ -13,7 +13,7 @@ VERSION	= @PACKAGE_VERSION@
 A = .@LIBEXT@
 O = .@OBJEXT@
 E = @EXEEXT@
-.SUFFIXES : .c $O $A
+.SUFFIXES : .c .i $O $A
 
 #
 # Paths for supporting headers and libraries.
@@ -71,6 +71,9 @@ LIBSNERT_SQLITE3_VERSION = @LIBSNERT_SQLITE3_VERSION@
 $O$E :
 	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
 
+.c.i:
+	${CC} -E ${CFLAGS} $*.c >$*.i
+
 #######################################################################
 
 OBJS = LibSnert$O
@@ -89,7 +92,7 @@ title :
 	@echo
 
 build: title add-lib
-	@for i in $(SUBDIRS); do ( cd $$i; ${MAKE} ${MAKEFLAGS} $@ ); done
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
 	@echo '==> building CLI test / tool variants'
@@ -107,7 +110,7 @@ build: title add-lib
 	@echo
 
 debug: title add-lib
-	@for i in $(SUBDIRS); do ( cd $$i; ${MAKE} ${MAKEFLAGS} $@ ); done
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
 	@echo '==> building CLI test / tool variants'
@@ -126,7 +129,7 @@ debug: title add-lib
 
 lint: title
 	-splint -D_REENTRANT -I$(SNERT_INCDIR) *.c
-	@for i in $(SUBDIRS); do cd $$i; ${MAKE} ${MAKEFLAGS} $@ ; done
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
 	@echo Build ${BUILD} DONE
@@ -175,7 +178,7 @@ clean: title
 	-rm -rf autom4te.cache configure.lineno version.h.in
 	-rm -f *.o *.obj *.tds *.stackdump core *.core core.*
 	cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}; ${MAKE} ${MAKEFLAGS} $@
-	@for i in $(SUBDIRS); do ( cd $$i; ${MAKE} ${MAKEFLAGS} $@ ); done
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
 	@echo Clean DONE
@@ -191,7 +194,7 @@ distclean: title
 	    rm -rf ${LIBSNERT_SQLITE3_DIR}/bin ${LIBSNERT_SQLITE3_DIR}/include ${LIBSNERT_SQLITE3_DIR}/lib ; \
 	fi
 	cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}; ${MAKE} ${MAKEFLAGS} $@
-	@for i in $(SUBDIRS); do ( cd $$i; ${MAKE} ${MAKEFLAGS} $@ ); done
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
 	@echo Distribution Clean DONE
