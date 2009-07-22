@@ -394,9 +394,14 @@ main(int argc, char **argv)
 
 		if test ${isDebian:-no} = 'yes' -a ${bdb_found:-no} = 'no'; then
 			# Fetch headers matching library.
-			apt-get install -y libdb${bdb_version}-dev
-			count=`expr $count + 1`
-			echo 'retrying after development package update...'
+			AC_MSG_NOTICE([getting package libdb${bdb_version}-dev...])
+			AS_IF([apt-get install -y libdb${bdb_version}-dev],[
+				AC_MSG_NOTICE([getting package libdb${bdb_version}-dev... done])
+				count=`expr $count + 1`
+				AC_MSG_NOTICE([retrying after development package install...])
+			],[
+				AC_MSG_NOTICE([getting package libdb${bdb_version}-dev... FAILED])
+			])
 		fi
 
 		count=`expr $count - 1`
