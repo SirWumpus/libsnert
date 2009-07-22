@@ -10,7 +10,7 @@
 A = .@LIBEXT@
 O = .@OBJEXT@
 E = @EXEEXT@
-.SUFFIXES : .txt .c $O $A
+.SUFFIXES : .txt .c .i $O $A
 
 #
 # Paths for supporting headers and libraries.
@@ -63,6 +63,9 @@ LIB_IPHLPAPI	= @HAVE_LIB_IPHLPAPI@
 #%$E : %$O
 $O$E :
 	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
+
+.c.i:
+	${CC} -E ${CFLAGS} $*.c >$*.i
 
 #######################################################################
 
