@@ -157,7 +157,7 @@ mccFindActive(mcc_context *mcc, const char *ip)
 	mcc_active_host *entry, *oldest;
 
 	ip_len = strlen(ip);
-	hash = djb_hash_index(ip, ip_len, MCC_HASH_TABLE_SIZE);
+	hash = djb_hash_index((const unsigned char *) ip, ip_len, MCC_HASH_TABLE_SIZE);
 	oldest = &mcc->active[hash];
 
 	for (i = 0; i < MCC_MAX_LINEAR_PROBE; i++) {
@@ -1034,67 +1034,8 @@ error2:
 error1:
 	free(thread_data);
 error0:
-#endif
 	return MCC_ERROR;
 }
-
-#if !defined(ENABLE_PDQ)
-
-#include <com/snert/lib/io/Dns.h>
-
-int
-mccStartUnicastDomain(mcc_handle *mcc, const char *mx_domain, int port)
-{
-	int rc;
-	long i;
-	DnsEntry *mx;
-	const char *error;
-	Vector mxlist, iplist;
-	char host_name[DOMAIN_STRING_LENGTH], host_ip[IPV6_STRING_LENGTH];
-
-	rc = MCC_ERROR;
-
-	if (DnsGet2(DNS_TYPE_MX, 1, mx_domain, &mxlist, &error) != DNS_RCODE_OK) {
-		syslog(LOG_ERR, "unicast domain=%s error: %s", mx_domain, error);
-		goto error0;
-	}
-
-	if ((iplist = VectorCreate(VectorLength(mxlist))) == NULL) {
-		syslog(LOG_ERR, "unicast domain=%s error: %s (%d)", mx_domain, strerror(errno), errno);
-		goto error1;
-	}
-
-	VectorSetDestroyEntry(iplist, FreeStub);
-
-	networkGetMyDetails(host_name, host_ip);
-
-	for (i = 0; i < VectorLength(mxlist); i++) {
-		if ((mx = VectorGet(mxlist, i)) == NULL)
-			continue;
-
-		/* Don't unicast to localhost. */
-		if (mx->address_string == NULL || *mx->address_string == '\0' || isReservedIPv6(mx->address, IS_IP_LOCAL))
-			continue;
-
-		/* Don't unicast to ourself. */
-		if (strcmp(mx->address_string, host_ip) == 0)
-			continue;
-
-		/* Everything else should be fine, including LAN IP addresses. */
-		if (0 < debug)
-			syslog(LOG_DEBUG, "unicast domain=%s MX %d %s [%s]", mx_domain, mx->preference, (char *) mx->value, mx->address_string);
-		(void) VectorAdd(iplist, mx->address_string);
-	}
-
-	rc = mccStartUnicast(mcc, (const char **) VectorBase(iplist), port);
-
-	VectorDestroy(iplist);
-error1:
-	VectorDestroy(mxlist);
-error0:
-	return rc;
-}
-#endif
 
 void
 mccStopMulticast(mcc_handle *mcc)
@@ -1601,7 +1542,6 @@ error0:
 
 #ifdef TEST
 # include <stdio.h>
-# ifdef HAVE_SQLITE3_H
 /***********************************************************************
  *** mcc CLI
  ***********************************************************************/
@@ -1614,23 +1554,13 @@ error0:
 # include <com/snert/lib/util/Text.h>
 # include <com/snert/lib/util/getopt.h>
 
-#ifdef ENABLE_PDQ
 static const char usage_opt[] = "g:m:M:s:t:vu:U:";
-#else
-static const char usage_opt[] = "d:g:m:M:s:t:vu:U:";
-#endif
 
 static char usage[] =
 "usage: mcc [-v]"
-#ifndef ENABLE_PDQ
-"[-d mxdomain]"
-#endif
 "[-g seconds][-m ip[:port]][-s secret][-t seconds]\n"
 "           [-u list][-U port] database.sq3\n"
 "\n"
-#ifndef ENABLE_PDQ
-"-d mxdomain\tuse MX list of domain in place of -u\n"
-#endif
 "-g seconds\tGC thread interval\n"
 "-m ip[:port]\tthe multicast IP group & port number\n"
 "-M port\t\tmulticast listener port (default 6920)\n"
@@ -1660,9 +1590,6 @@ static char *secret;
 static char *group;
 
 static Vector unicast_list = NULL;
-#ifndef ENABLE_PDQ
-static char *unicast_domain = NULL;
-#endif
 static long unicast_listener_port = MCC_UNICAST_PORT;
 static long multicast_listener_port = MCC_MULTICAST_PORT;
 
@@ -1712,11 +1639,6 @@ main(int argc, char **argv)
 
 	while ((ch = getopt(argc, argv, usage_opt)) != -1) {
 		switch (ch) {
-#ifndef ENABLE_PDQ
-		case 'd':
-			unicast_domain = optarg;
-			break;
-#endif
 		case 'g':
 			gc_ttl = (unsigned) strtol(optarg, NULL, 10);
 			break;
@@ -1786,11 +1708,6 @@ main(int argc, char **argv)
 	if (group != NULL && mccStartMulticast(mcc, group, multicast_listener_port) == MCC_ERROR)
 		goto error0;
 
-#ifndef ENABLE_PDQ
-	if (unicast_domain != NULL && mccStartUnicastDomain(mcc, unicast_domain, unicast_listener_port) == MCC_ERROR)
-		goto error0;
-	else
-#endif
 	if (unicast_list != NULL && mccStartUnicast(mcc, (const char **) VectorBase(unicast_list), unicast_listener_port) == MCC_ERROR)
 		goto error0;
 
@@ -1905,8 +1822,9 @@ error0:
 
 	return rc;
 }
+#endif /* TEST */
 
-# else
+#elif !defined(HAVE_SQLITE3_H) && defined(TEST)
 
 int
 main(int argc, char **argv)
@@ -1915,9 +1833,7 @@ main(int argc, char **argv)
 	return EXIT_FAILURE;
 }
 
-# endif /* HAVE_SQLITE3_H */
-
-#endif /* TEST */
+#endif /* !defined(HAVE_SQLITE3_H) && defined(TEST) */
 
 /***********************************************************************
  *** END
