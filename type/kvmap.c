@@ -24,7 +24,7 @@
  ***
  ***********************************************************************/
 
-static char usage[] =
+static const char usage[] =
 "usage: kvmap [-ablLuU] map <textfile\n"
 "usage: kvmap  -d      map >textfile\n"
 "\n"
