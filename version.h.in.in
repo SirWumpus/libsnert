@@ -58,6 +58,9 @@ extern "C" {
 
 #undef NDEBUG
 
+#define _REENTRANT	1
+#define _THERAD_SAFE	1
+
 /*
  * Intended for debugging in combination with valgrind, which often
  * reports "...points to uninitialised byte(s)" when part of a buffer
@@ -122,7 +125,15 @@ extern VersionInfo LibSnert;
  * GLIBC does not enable all the POSIX standard prototypes by default.
  * Turning this on breaks other things.
  */
-# define _XOPEN_SOURCE		500
+# define _XOPEN_SOURCE		600
+#endif
+
+#if defined(__GNUC__)
+/* Cause problems with respect to conflicts between inline and static
+ * replacement functions. This marco also appears to cause problems
+ * with SuSE RPM builds.
+ */
+#undef _FORTIFY_SOURCE
 #endif
 
 /*
