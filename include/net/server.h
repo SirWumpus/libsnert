@@ -57,6 +57,8 @@ extern "C" {
  ***
  ***********************************************************************/
 
+#undef OLD_THREAD_MODEL
+
 #ifndef SERVER_STACK_SIZE
 # define SERVER_STACK_SIZE		(64 * 1024)
 # if SERVER_STACK_SIZE < PTHREAD_STACK_MIN
@@ -110,8 +112,42 @@ extern "C" {
 
 typedef struct server Server;
 typedef struct server_session Session;
+typedef struct server_list ServerList;
 typedef int (*ServerHook)(Server *server);
 typedef int (*SessionHook)(Session *session);
+typedef int (*ServerListHook)(ServerList *list);
+
+typedef struct {
+	ServerListHook list_empty;
+} ServerListHooks;
+
+typedef struct server_queue_data {
+	struct server_queue_data *prev;
+	struct server_queue_data *next;
+	void *data;
+} ServerListData;
+
+struct server_list {
+	/* Private state. */
+	unsigned length;
+	ServerListData *tail;
+	ServerListData *head;
+	pthread_mutex_t mutex;
+	pthread_cond_t cv;
+
+	/* Public */
+	ServerListHooks	hook;
+};
+
+typedef struct {
+	unsigned id;
+	Server *server;
+	pthread_t thread;
+#ifdef __WIN32__
+	HANDLE kill_event;
+#endif
+	ServerListData *node;
+} ServerWorker;
 
 typedef struct {
 	unsigned level;
@@ -130,12 +166,18 @@ typedef struct {
 } ServerOptions;
 
 typedef struct {
+#ifdef OLD_THREAD_MODEL
 	ServerHook server_connect;	/* serverCheckThreadPool, connections_mutex locked */
 	ServerHook server_disconnect;	/* sessionFinish, connections_mutex locked */
+#endif
 	SessionHook session_create;	/* sessionCreate */
+#ifdef OLD_THREAD_MODEL
 	SessionHook session_accept;	/* sessionAccept, accept_mutex locked */
+#endif
 	SessionHook session_process;	/* serverChild */
+#ifdef OLD_THREAD_MODEL
 	SessionHook session_finish;	/* serverChild */
+#endif
 	SessionHook session_free;	/* sessionFree */
 } ServerHooks;
 
@@ -150,7 +192,7 @@ struct server_session {
 	Session *next;
 	ServerInterface *iface;
 	pthread_t thread;
-#ifdef __WIN32__
+#if defined(__WIN32__)
 	HANDLE kill_event;
 #endif
 	/* Public data. */
@@ -166,19 +208,27 @@ struct server_session {
 
 struct server {
 	/* Private state. */
-	Session *head;
-
 	Vector interfaces;		/* Vector of ServerInterface pointers. */
 	SOCKET *interfaces_fd;		/* Used for timeouts */
 	SOCKET *interfaces_ready;	/* Used for timeouts */
 
 	volatile int running;
+
+#ifdef OLD_THREAD_MODEL
+	Session *head;
+
 	volatile unsigned threads;
 	volatile unsigned connections;
-
-	pthread_attr_t thread_attr;
 	pthread_mutex_t accept_mutex;
 	pthread_mutex_t connections_mutex;
+#else
+	ServerList workers;		/* Active worker threads. */
+	ServerList workers_idle;	/* Pool of worker threads to process sessions. */
+	ServerList sessions_queued;	/* Client sessions queued by accept thread. */
+	pthread_t accept_thread;
+#endif
+	pthread_attr_t thread_attr;
+
 #ifdef HAVE_PTHREAD_COND_INIT
 	pthread_cond_t slow_quit_cv;
 	pthread_mutex_t slow_quit_mutex;
@@ -246,6 +296,14 @@ typedef struct {
 extern int serverSignalsInit(ServerSignals *signals, const char *name);
 extern int serverSignalsLoop(ServerSignals *signals);
 extern void serverSignalsFini(ServerSignals *signals);
+
+extern int serverListInit(ServerList *list);
+extern void serverListFini(ServerList *list);
+extern void *serverListRemove(ServerList *list, ServerListData *node);
+extern ServerListData *serverListEnqueue(ServerList *list, void *data);
+extern void *serverListDequeue(ServerList *list);
+extern unsigned serverListLength(ServerList *list);
+extern int serverListIsEmpty(ServerList *list);
 
 /***********************************************************************
  ***
