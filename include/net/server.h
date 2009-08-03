@@ -57,8 +57,6 @@ extern "C" {
  ***
  ***********************************************************************/
 
-#undef OLD_THREAD_MODEL
-
 #ifndef SERVER_STACK_SIZE
 # define SERVER_STACK_SIZE		(64 * 1024)
 # if SERVER_STACK_SIZE < PTHREAD_STACK_MIN
@@ -166,18 +164,8 @@ typedef struct {
 } ServerOptions;
 
 typedef struct {
-#ifdef OLD_THREAD_MODEL
-	ServerHook server_connect;	/* serverCheckThreadPool, connections_mutex locked */
-	ServerHook server_disconnect;	/* sessionFinish, connections_mutex locked */
-#endif
 	SessionHook session_create;	/* sessionCreate */
-#ifdef OLD_THREAD_MODEL
-	SessionHook session_accept;	/* sessionAccept, accept_mutex locked */
-#endif
 	SessionHook session_process;	/* serverChild */
-#ifdef OLD_THREAD_MODEL
-	SessionHook session_finish;	/* serverChild */
-#endif
 	SessionHook session_free;	/* sessionFree */
 } ServerHooks;
 
@@ -214,19 +202,10 @@ struct server {
 
 	volatile int running;
 
-#ifdef OLD_THREAD_MODEL
-	Session *head;
-
-	volatile unsigned threads;
-	volatile unsigned connections;
-	pthread_mutex_t accept_mutex;
-	pthread_mutex_t connections_mutex;
-#else
 	ServerList workers;		/* Active worker threads. */
 	ServerList workers_idle;	/* Pool of worker threads to process sessions. */
 	ServerList sessions_queued;	/* Client sessions queued by accept thread. */
 	pthread_t accept_thread;
-#endif
 	pthread_attr_t thread_attr;
 
 #ifdef HAVE_PTHREAD_COND_INIT
