@@ -116,7 +116,7 @@ extern VersionInfo LibSnert;
  */
 #undef SHARED_MEMORY_API
 
-#undef ENABLE_PDQ
+#define ENABLE_PDQ
 #undef ENABLE_PDQ_FD_PER_NS
 #undef ENABLE_ACCESS_TAGLESS
 
