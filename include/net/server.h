@@ -164,9 +164,10 @@ typedef struct {
 } ServerOptions;
 
 typedef struct {
-	SessionHook session_create;	/* sessionCreate */
-	SessionHook session_process;	/* serverChild */
-	SessionHook session_free;	/* sessionFree */
+	SessionHook session_create;	/* serverAccept, sessionCreate	*/
+	SessionHook session_accept;	/* serverAccept, sessionAccept	*/
+	SessionHook session_process;	/* serverWorker			*/
+	SessionHook session_free;	/* serverWorker, sessionFree	*/
 } ServerHooks;
 
 typedef struct {

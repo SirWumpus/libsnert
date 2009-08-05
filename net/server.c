@@ -253,27 +253,6 @@ serverListFini(ServerList *list)
 int
 serverSignalsInit(ServerSignals *signals, const char *name)
 {
-#ifdef SIGPIPE
-# ifdef HAVE_SIGACTION
-{
-	struct sigaction signal_ignore;
-
-	signal_ignore.sa_flags = 0;
-	signal_ignore.sa_handler = SIG_IGN;
-	(void) sigemptyset(&signal_ignore.sa_mask);
-
-	if (sigaction(SIGPIPE, &signal_ignore, NULL)) {
-		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
-		return -1;
-	}
-}
-# else
-	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
-		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
-		return -1;
-	}
-# endif
-#endif
         (void) sigemptyset(&signals->signal_set);
 # ifdef SIGHUP
         (void) sigaddset(&signals->signal_set, SIGHUP);
@@ -283,6 +262,9 @@ serverSignalsInit(ServerSignals *signals, const char *name)
 # endif
 # ifdef SIGQUIT
 	(void) sigaddset(&signals->signal_set, SIGQUIT);
+# endif
+# ifdef SIGPIPE
+	(void) sigaddset(&signals->signal_set, SIGPIPE);
 # endif
 # ifdef SIGTERM
 	(void) sigaddset(&signals->signal_set, SIGTERM);
@@ -310,21 +292,6 @@ serverSignalsInit(ServerSignals *signals, const char *name)
 void
 serverSignalsFini(ServerSignals *signals)
 {
-#ifdef SIGPIPE
-# ifdef HAVE_SIGACTION
-{
-	struct sigaction signal_default;
-
-	signal_default.sa_flags = 0;
-	signal_default.sa_handler = SIG_DFL;
-	(void) sigemptyset(&signal_default.sa_mask);
-
-	(void) sigaction(SIGPIPE, &signal_default, NULL);
-}
-# else
-	(void) signal(SIGPIPE, SIG_DFL);
-# endif
-#endif
 	(void) pthread_sigmask(SIG_UNBLOCK, &signals->signal_set, NULL);
 }
 
@@ -363,6 +330,9 @@ serverSignalsLoop(ServerSignals *signals)
 # endif
 # ifdef SIGUSR2
 		case SIGUSR2:
+# endif
+# ifdef SIGPIPE
+		case SIGPIPE:
 # endif
 			syslog(LOG_INFO, "signal %d ignored", signal);
 			break;
@@ -569,6 +539,13 @@ sessionAccept(Session *session)
 
 	/* We have the session ID now and start logging with it. */
 	VALGRIND_PRINTF("session %s\n", session->id);
+
+	if (session->server->hook.session_accept != NULL
+	&& (*session->server->hook.session_accept)(session)) {
+		socketClose(session->client);
+		session->client = NULL;
+		session->iface = NULL;
+	}
 }
 
 static void
@@ -576,6 +553,9 @@ sessionStart(Session *session)
 {
 	socklen_t slen;
 	SocketAddress saddr;
+
+	if (session->client == NULL)
+		return;
 
 #ifdef DISABLE_NAGLE
 	(void) socketSetNagle(session->client, 0);
@@ -615,9 +595,11 @@ sessionStart(Session *session)
 static void
 sessionFinish(Session *session)
 {
-	socketClose(session->client);
-	session->client = NULL;
-	session->iface = NULL;
+	if (session->client != NULL) {
+		socketClose(session->client);
+		session->client = NULL;
+		session->iface = NULL;
+	}
 
 	if (session->server->debug.level) {
 		VALGRIND_PRINTF("sessionFinish\n");
@@ -665,6 +647,10 @@ sessionFree(void *_session)
 		 */
 		if (session->client != NULL)
 			sessionFinish(session);
+
+		if (session->server->hook.session_free != NULL)
+			(void) (*session->server->hook.session_free)(session);
+
 #if defined(HAVE_PTHREAD_COND_INIT)
 		(void) pthread_cond_signal(&session->server->slow_quit_cv);
 #endif
