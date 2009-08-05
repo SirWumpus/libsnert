@@ -44,6 +44,30 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+
+--1.72.5--
+
+   !	aclocal.m4: SNERT_BERKELEY_DB fixes to avoid infinite loop when the
+   	library is configured by non-root user that cannot do apt-get.
+
+   !	version.h.in.in: undefine _FORTIFY_SOURCE which appears to posse
+   	problems on SuSE RPM builds and possible issues related to inline
+   	function conflicts on Ubuntu.
+
+   !	makefile.in: fixed so that it actually stops on a compiler error
+   	instead of proceeding with other directories.
+
+  !!	smdb.c/h: Overhauled the SMDB routines in order to distinguih
+   	between not found and an error condition. In the case of an error
+   	condition, return SMDB_ACCESS_TEMPFAIL. Requested by Steve
+   	Freegard for smtpf.
+
+   !	version.h.in.in: Added SETJMP, LONGJMP, SIGSETJMP, SIGLONGJMP
+	portability wrappers.
+
+   !	server.c/h: Updated Server API threading mode to use a single
+   	accept thread, session queue, and pool of worker threads.
+
 --1.72.4--
 
    +	mcc.c/h: Added tracking of recent cache host activity in a memory
