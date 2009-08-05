@@ -628,6 +628,20 @@ typedef int socklen_t;
 #undef HAVE_SIGSETJMP
 #undef HAVE_SIGLONGJMP
 
+#ifdef HAVE_SIGJMP_BUF
+# define JMP_BUF		sigjmp_buf
+# define SETJMP(e)		sigsetjmp(e, 0)
+# define LONGJMP(e,v)		siglongjmp(e, v)
+# define SIGSETJMP(e,f)		sigsetjmp(e, f)
+# define SIGLONGJMP(e,v)	siglongjmp(e, v)
+#else
+# define JMP_BUF		jmp_buf
+# define SETJMP(e)		setjmp(e)
+# define LONGJMP(e, v)		longjmp(e, v)
+# define SIGSETJMP(e,f)		setjmp(e)
+# define SIGLONGJMP(e, v)	longjmp(e, v)
+#endif
+
 /*
  * Headers
  */
