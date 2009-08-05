@@ -31,10 +31,12 @@ extern "C" {
 #define KVM_MODE_DB_STAT		4
 #define KVM_MODE_KEY_HAS_NUL		8
 
-#define KVM_OK				0
-#define KVM_ERROR			(-1)
-#define KVM_NOT_FOUND			(-2)
-#define KVM_NOT_IMPLEMETED		(-3)
+typedef enum {
+	KVM_OK				= 0,
+	KVM_ERROR			= (-1),
+	KVM_NOT_FOUND			= (-2),
+	KVM_NOT_IMPLEMETED		= (-3),
+} kvm_result;
 
 typedef struct {
 	unsigned long size;

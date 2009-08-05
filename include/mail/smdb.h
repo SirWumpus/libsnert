@@ -18,20 +18,6 @@ extern "C" {
  ***********************************************************************/
 
 /*@+charintliteral@*/
-#define SMDB_ACCESS_NOT_FOUND	'_'	/* No key/value found */
-#define SMDB_ACCESS_UNKNOWN	'?'	/* Key found with unknown value */
-#define SMDB_ACCESS_OK		'O'	/* OK		O.    		*/
-#define SMDB_ACCESS_DISCARD	'D'	/* DISCARD	D...... 	*/
-#define SMDB_ACCESS_ERROR	'R'	/* ERROR	.R...  		*/
-#define SMDB_ACCESS_FRIEND	'F'	/* FRIEND	F..... 		*/
-#define SMDB_ACCESS_HATER	'H'	/* HATER	H....  		*/
-#define SMDB_ACCESS_RELAY	'L'	/* RELAY	..L..  		*/
-#define SMDB_ACCESS_REJECT	'J'	/* REJECT	..J... 		*/
-#define SMDB_ACCESS_SKIP	'K'	/* SKIP		.K..    	= DUNNO postfix 2.3 */
-#define SMDB_ACCESS_SUBJECT	'U'	/* SUBJECT	.U.....		*/
-#define SMDB_ACCESS_VERIFY	'V'	/* VERIFY	V..... 		*/
-#define SMDB_ACCESS_ENCR	'N'	/* ENCR		.N..    	*/
-#define SMDB_ACCESS_TEMPFAIL	'P'	/* TEMPFAIL	...P....	*/
 
 #define SMDB_COMBO_TAG_DELIM	":"
 
@@ -46,18 +32,68 @@ extern "C" {
 #include <com/snert/lib/type/kvm.h>
 #include <com/snert/lib/util/option.h>
 
+/***********************************************************************
+ ***
+ ***********************************************************************/
+
 typedef struct kvm smdb;
+
+typedef enum {
+	SMDB_OK			= KVM_OK,
+	SMDB_ERROR		= KVM_ERROR,
+	SMDB_NOT_FOUND		= KVM_NOT_FOUND,
+	SMDB_NOT_IMPLEMETED	= KVM_NOT_IMPLEMETED,
+} smdb_result;
+
+typedef enum {
+	SMDB_ACCESS_NOT_FOUND	= '_',	/* No key/value found */
+	SMDB_ACCESS_UNKNOWN	= '?',	/* Key found with unknown value */
+	SMDB_ACCESS_OK		= 'O',	/* OK		O.    		*/
+	SMDB_ACCESS_DISCARD	= 'D',	/* DISCARD	D...... 	*/
+	SMDB_ACCESS_FRIEND	= 'F',	/* FRIEND	F..... 		*/
+	SMDB_ACCESS_HATER	= 'H',	/* HATER	H....  		*/
+	SMDB_ACCESS_VERIFY	= 'V',	/* VERIFY	V..... 		*/
+
+	SMDB_ACCESS_RELAY	= 'L',	/* RELAY	..L..  		*/
+	SMDB_ACCESS_REJECT	= 'J',	/* REJECT	..J... 		*/
+
+	SMDB_ACCESS_SKIP	= 'K',	/* SKIP		.K..    	= DUNNO postfix 2.3 */
+	SMDB_ACCESS_SUBJECT	= 'U',	/* SUBJECT	.U.....		*/
+
+	SMDB_ACCESS_ERROR	= 'R',	/* ERROR	.R...  		*/
+	SMDB_ACCESS_ENCR	= 'N',	/* ENCR		.N..    	*/
+
+	/* smtpf word. */
+	SMDB_ACCESS_TEMPFAIL	= 'M',	/* TEMPFAIL	..M.....	*/
+
+#ifdef SMTPF_WORDS
+/* Might be defined one day. Currently returned as SMDB_ACCESS_UNKNOWN
+ * and left to the application to change the value.
+ */
+	SMDB_ACCESS_TRAP	= 'A',	/* TRAP		..A.		*/
+	SMDB_ACCESS_TAG		= 'G',	/* TAG		..G		*/
+	SMDB_ACCESS_SAVE	= 'V',	/* SAVE		..V.		*/
+	SMDB_ACCESS_NEXT	= 'X',	/* NEXT		..X.		*/
+	SMDB_ACCESS_IREJECT	= 'I',	/* IREJECT	I.....		*/
+#endif
+} smdb_code;
+
+/***********************************************************************
+ ***
+ ***********************************************************************/
 
 extern smdb *smdbAccess;
 extern smdb *smdbVuser;
 
 extern smdb *smdbOpen(const char *dbfile, int rdonly);
-extern char *smdbGetValue(smdb *sm, const char *key);
+extern smdb_result smdbFetchValue(smdb *sm, const char *key, char **value);
+extern char *smdbGetValue(smdb *sm, const char *key);	/* DEPRECATED, use smdbFetchValue */
 extern void smdbSetKeyHasNul(smdb *sm, int flag);
 
 /* To be removed... */
 #define SMDB_DEBUG_ALL			1
 #define smdbSetDebugMask		smdbSetDebug
+
 
 /* ...and replace by */
 extern void smdbSetDebug(int flag);
@@ -77,7 +113,7 @@ extern void smdbClose(void *sm);
  *	SMDB_ACCESS_OK
  *	SMDB_ACCESS_REJECT
  */
-extern int smdbAccessIsOk(int status);
+extern smdb_code smdbAccessIsOk(smdb_code status);
 
 /*
  * @param value
@@ -86,7 +122,7 @@ extern int smdbAccessIsOk(int status);
  * @return
  *	An SMDB_ACCESS_* code.
  */
-extern int smdbAccessCode(const char *value);
+extern smdb_code smdbAccessCode(const char *value);
 
 /*
  * Lookup
@@ -134,7 +170,7 @@ extern int smdbAccessCode(const char *value);
  * @return
  *	An SMDB_ACCESS_* code.
  */
-extern int smdbAccessIp(smdb *sm, const char *tag, const char *ip, char **keyp, char **valuep);
+extern smdb_code smdbAccessIp(smdb *sm, const char *tag, const char *ip, char **keyp, char **valuep);
 
 /*
  * Lookup
@@ -172,7 +208,7 @@ extern int smdbAccessIp(smdb *sm, const char *tag, const char *ip, char **keyp, 
  * @return
  *	An SMDB_ACCESS_* code.
  */
-extern int smdbAccessDomain(smdb *sm, const char *tag, const char *domain, char **keyp, char **valuep);
+extern smdb_code smdbAccessDomain(smdb *sm, const char *tag, const char *domain, char **keyp, char **valuep);
 
 /*
  * Lookup
@@ -210,7 +246,7 @@ extern int smdbAccessDomain(smdb *sm, const char *tag, const char *domain, char 
  * @return
  *	An SMDB_ACCESS_* code.
  */
-extern int smdbAccessMail(smdb *sm, const char *tag, const char *mail, char **keyp, char **valuep);
+extern smdb_code smdbAccessMail(smdb *sm, const char *tag, const char *mail, char **keyp, char **valuep);
 
 /*
  * @param sm
@@ -248,7 +284,7 @@ extern int smdbAccessMail(smdb *sm, const char *tag, const char *mail, char **ke
  * @return
  *	An SMDB_ACCESS_* code.
  */
-extern int smdbIpMail(smdb *sm, const char *tag1, const char *key1, const char *tag2, const char *key2, char **keyp, char **valuep);
+extern smdb_code smdbIpMail(smdb *sm, const char *tag1, const char *key1, const char *tag2, const char *key2, char **keyp, char **valuep);
 
 /*
  * @param sm
@@ -283,7 +319,7 @@ extern int smdbIpMail(smdb *sm, const char *tag1, const char *key1, const char *
  * @return
  *	An SMDB_ACCESS_* code.
  */
-extern int smdbDomainMail(smdb *sm, const char *tag1, const char *key1, const char *tag2, const char *key2, char **keyp, char **valuep);
+extern smdb_code smdbDomainMail(smdb *sm, const char *tag1, const char *key1, const char *tag2, const char *key2, char **keyp, char **valuep);
 
 /*
  * @param sm
@@ -318,7 +354,7 @@ extern int smdbDomainMail(smdb *sm, const char *tag1, const char *key1, const ch
  * @return
  *	An SMDB_ACCESS_* code.
  */
-extern int smdbMailMail(smdb *sm, const char *tag1, const char *key1, const char *tag2, const char *key2, char **keyp, char **valuep);
+extern smdb_code smdbMailMail(smdb *sm, const char *tag1, const char *key1, const char *tag2, const char *key2, char **keyp, char **valuep);
 
 #ifdef  __cplusplus
 }

@@ -3,11 +3,10 @@
  *
  * Key-Value Map
  *
- * Copyright 2002, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2002, 2009 by Anthony Howe. All rights reserved.
  */
 
 #define _VERSION		"0.3"
-#define RECONNECT_TIMEOUT	10000
 
 /***********************************************************************
  *** No configuration below this point.
@@ -1875,11 +1874,10 @@ error0:
 int
 kvm_check_socket(kvm *self)
 {
-	if (self->_kvm == NULL
-	&& socketOpenClient(self->_location + sizeof ("socketmap" KVM_DELIM_S)-1, KVM_PORT, RECONNECT_TIMEOUT, NULL, (Socket2 **) &self->_kvm))
-		return KVM_ERROR;
+	if (self->_kvm != NULL)
+		return 0;
 
-	return KVM_OK;
+	return socketOpenClient(self->_location + sizeof ("socketmap" KVM_DELIM_S)-1, KVM_PORT, SOCKET_CONNECT_TIMEOUT, NULL, (Socket2 **) &self->_kvm);
 }
 
 static int
@@ -1901,11 +1899,8 @@ kvm_fetch_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
 #endif
-	if (kvm_check_socket(self)) {
-		value->size = sizeof ("PERM reopen error")-1;
-		value->data = (unsigned char *) strdup("PERM reopen error");
+	if (kvm_check_socket(self))
 		goto error1;
-	}
 
 	name_length = strlen(self->_table);
 	query_length = name_length + 1 + key->size;
@@ -1964,6 +1959,7 @@ error2:
 	if (rc == KVM_ERROR) {
 		socketClose(self->_kvm);
 		self->_kvm = NULL;
+		errno = 0;
 	}
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
@@ -2020,6 +2016,7 @@ error2:
 	if (rc == KVM_ERROR) {
 		socketClose(self->_kvm);
 		self->_kvm = NULL;
+		errno = 0;
 	}
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
@@ -2065,6 +2062,7 @@ error2:
 	if (rc == KVM_ERROR) {
 		socketClose(self->_kvm);
 		self->_kvm = NULL;
+		errno = 0;
 	}
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
@@ -2112,6 +2110,7 @@ error2:
 	if (rc == KVM_ERROR) {
 		socketClose(self->_kvm);
 		self->_kvm = NULL;
+		errno = 0;
 	}
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
@@ -2197,6 +2196,7 @@ error2:
 	if (rc == KVM_ERROR) {
 		socketClose(self->_kvm);
 		self->_kvm = NULL;
+		errno = 0;
 	}
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
@@ -2214,6 +2214,7 @@ kvm_close_socket(kvm *self)
 	if (self != NULL) {
 		socketClose(self->_kvm);
 		kvmClose(self);
+		errno = 0;
 	}
 }
 

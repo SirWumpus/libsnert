@@ -203,13 +203,17 @@ reduceMail(size_t prefix, kvm_data *key)
 	return prefix < key->size;
 }
 
-static int
+static smdb_result
 singleKey(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *key1, int (*reduceKey)(size_t prefix, kvm_data *key))
 {
 	char *str;
 	kvm_data k, v;
-	int rc = -1, ret, span, plus_sign;
+	smdb_result rc;
+	int span, plus_sign;
 	size_t tag1_len, key1_len, str_len;
+
+	*valuep = NULL;
+	rc = SMDB_ERROR;
 
 #ifndef TEST
 	if (sm == NULL || key1 == NULL)
@@ -275,14 +279,15 @@ singleKey(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *ke
 #else
 		memset(&v, 0, sizeof (v));
 
-		ret = sm->fetch(sm, &k, &v);
+		rc = (smdb_result) sm->fetch(sm, &k, &v);
 		if (0 < smdbOptDebug.value)
 			syslog(LOG_DEBUG, "map=\"%s\" key=%lu:\"%s\" value=\"%s\"", sm->_table, k.size, k.data, TextEmpty((char *) v.data));
-		if (ret == KVM_OK) {
+		if (rc == SMDB_ERROR)
+			break;
+		if (rc == SMDB_OK) {
 			if (keyp != NULL)
 				*keyp = strdup((char *) k.data);
 			*valuep = (char *) v.data;
-			rc = 0;
 			break;
 		}
 		free(v.data);
@@ -291,16 +296,21 @@ singleKey(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *ke
 
 	free(str);
 error0:
+	if (rc == SMDB_ERROR)
+		*valuep = strdup("TEMPFAIL");
 	return rc;
 }
 
-static int
+static smdb_result
 doubleKey(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *key1,  int (*reduce1)(size_t, kvm_data *), const char *tag2, const char *key2,  int (*reduce2)(size_t, kvm_data *))
 {
 	char *str;
 	kvm_data k;
-	int rc = -1;
+	smdb_result rc;
 	size_t tag1_len, key1_len, tag2_len, str_len;
+
+	*valuep = NULL;
+	rc = SMDB_ERROR;
 
 #ifndef TEST
 	if (sm == NULL || key1 == NULL || key2 == NULL)
@@ -341,10 +351,8 @@ doubleKey(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *ke
 		memcpy(k.data + k.size, tag2, tag2_len + 1);
 		k.size += tag2_len;
 
-		if (!singleKey(sm, keyp, valuep, (char *) k.data, key2, reduce2)) {
-			rc = 0;
+		if ((rc = singleKey(sm, keyp, valuep, (char *) k.data, key2, reduce2)) != SMDB_NOT_FOUND)
 			break;
-		}
 
 		/* Remove :tag2: before reducing tag1:key1. */
 		k.size -= tag2_len;
@@ -353,16 +361,18 @@ doubleKey(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *ke
 
 	free(str);
 error0:
+	if (rc == SMDB_ERROR && *valuep == NULL)
+		*valuep = strdup("TEMPFAIL");
 	return rc;
 }
 
-static int
+static smdb_code
 singleKeyGetCode(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *key1,  int (*reduce1)(size_t, kvm_data *))
 {
-	int code;
 	char *value;
+	smdb_code code;
 
-	if (singleKey(sm, keyp, &value, tag1, key1, reduce1) == -1)
+	if (singleKey(sm, keyp, &value, tag1, key1, reduce1) == SMDB_NOT_FOUND)
 		return SMDB_ACCESS_NOT_FOUND;
 
 	code = smdbAccessCode(value);
@@ -374,13 +384,13 @@ singleKeyGetCode(smdb *sm, char **keyp, char **valuep, const char *tag1, const c
 	return code;
 }
 
-static int
+static smdb_code
 doubleKeyGetCode(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *key1,  int (*reduce1)(size_t, kvm_data *), const char *tag2, const char *key2,  int (*reduce2)(size_t, kvm_data *))
 {
-	int code;
 	char *value;
+	smdb_code code;
 
-	if (doubleKey(sm, keyp, &value, tag1, key1, reduce1, tag2, key2, reduce2) == -1)
+	if (doubleKey(sm, keyp, &value, tag1, key1, reduce1, tag2, key2, reduce2) == SMDB_NOT_FOUND)
 		return SMDB_ACCESS_NOT_FOUND;
 
 	code = smdbAccessCode(value);
@@ -487,7 +497,7 @@ error0:
  * @return
  *	An SMDB_ACCESS_* code.
  */
-int
+smdb_code
 smdbAccessCode(const char *value)
 {
 	long xyz;
@@ -531,13 +541,18 @@ smdbAccessCode(const char *value)
 		}
 		break;
 
+	/* Because of smtpf defines TAG and TRAP, we cannot
+	 * return 'T'. One day the smdb_code will have to
+	 * be based on numerics instead of single letter
+	 * mneumonics.
+	 */
 	case 'T':
 		if (value[1] == '\0' || value[2] == '\0')
 			break;
 
 		switch (toupper(value[2])) {
 		case SMDB_ACCESS_TEMPFAIL:
-			return toupper(value[3]);
+			return toupper(value[2]);
 		}
 		break;
 	}
@@ -553,8 +568,8 @@ smdbAccessCode(const char *value)
  * Return one of SMDB_ACCESS_UNKNOWN, SMDB_ACCESS_OK, or SMDB_ACCESS_REJECT
  * generalised from a specific SMDB_ACCESS_* code.
  */
-int
-smdbAccessIsOk(int status)
+smdb_code
+smdbAccessIsOk(smdb_code status)
 {
 	switch (status) {
 	case SMDB_ACCESS_OK:
@@ -600,36 +615,50 @@ smdbAccessIsOk(int status)
 	return SMDB_ACCESS_UNKNOWN;
 }
 
-char *
-smdbGetValue(smdb *sm, const char *key)
+smdb_result
+smdbFetchValue(smdb *sm, const char *key, char **value)
 {
-	int rc;
 	kvm_data k, v;
+	smdb_result rc;
 
-	if (sm == NULL)
-		return NULL;
+	if (key == NULL)
+		return SMDB_NOT_FOUND;
 
-	k.data = (unsigned char *) key;
+	if (sm == NULL || value == NULL)
+		return SMDB_ERROR;
+
 	k.size = strlen(key);
-
+	k.data = (unsigned char *) key;
 	memset(&v, 0, sizeof (v));
 
-	if ((rc = sm->fetch(sm, &k, &v)) != KVM_OK) {
+	if ((rc = (smdb_result) sm->fetch(sm, &k, &v)) == SMDB_OK) {
+		*value = (char *) v.data;
+	} else {
+		*value = rc == SMDB_ERROR ? strdup("TEMPFAIL") : NULL;
 		free(v.data);
-		v.data = NULL;
 	}
 
 	if (0 < smdbOptDebug.value)
-		syslog(LOG_DEBUG, "map=\"%s\" key=%lu:\"%s\" value=\"%s\" rc=%d", sm->_table, k.size, key, TextEmpty((char *) v.data), rc);
+		syslog(LOG_DEBUG, "map=\"%s\" key=%lu:\"%s\" value=\"%s\" rc=%d", sm->_table, k.size, key, TextEmpty(*value), rc);
 
-	return (char *) v.data;
+	return rc;
 }
 
-int
+char *
+smdbGetValue(smdb *sm, const char *key)
+{
+	char *value;
+
+	(void) smdbFetchValue(sm, key, &value);
+
+	return  value;
+}
+
+smdb_code
 smdbGetValueCode(smdb *sm, const char *key, char **valuep)
 {
-	int code;
 	char *value;
+	smdb_code code;
 
 	if ((value = smdbGetValue(sm, key)) == NULL)
 		return SMDB_ACCESS_NOT_FOUND;
@@ -689,7 +718,7 @@ smdbGetValueCode(smdb *sm, const char *key, char **valuep)
  * @return
  *	An SMDB_ACCESS_* code.
  */
-int
+smdb_code
 smdbAccessIp(smdb *sm, const char *tag, const char *key, char **keyp, char **valuep)
 {
 	return singleKeyGetCode(sm, keyp, valuep, tag, key, reduceIp);
@@ -731,7 +760,7 @@ smdbAccessIp(smdb *sm, const char *tag, const char *key, char **keyp, char **val
  * @return
  *	An SMDB_ACCESS_* code.
  */
-int
+smdb_code
 smdbAccessDomain(smdb *sm, const char *tag, const char *key, char **keyp, char **valuep)
 {
 	return singleKeyGetCode(sm, keyp, valuep, tag, key, reduceDomain);
@@ -773,7 +802,7 @@ smdbAccessDomain(smdb *sm, const char *tag, const char *key, char **keyp, char *
  * @return
  *	An SMDB_ACCESS_* code.
  */
-int
+smdb_code
 smdbAccessMail(smdb *sm, const char *tag, const char *key, char **keyp, char **valuep)
 {
 	return singleKeyGetCode(sm, keyp, valuep, tag, key, reduceMail);
@@ -857,7 +886,7 @@ smdbAccessMail(smdb *sm, const char *tag, const char *key, char **keyp, char **v
  * @return
  *	An SMDB_ACCESS_* code.
  */
-int
+smdb_code
 smdbIpMail(smdb *sm, const char *tag1, const char *key1, const char *tag2, const char *key2, char **keyp, char **valuep)
 {
 	return doubleKeyGetCode(sm, keyp, valuep, tag1, key1, reduceIp, tag2, key2, reduceMail);
@@ -938,7 +967,7 @@ smdbIpMail(smdb *sm, const char *tag1, const char *key1, const char *tag2, const
  * @return
  *	An SMDB_ACCESS_* code.
  */
-int
+smdb_code
 smdbDomainMail(smdb *sm, const char *tag1, const char *key1, const char *tag2, const char *key2, char **keyp, char **valuep)
 {
 	return doubleKeyGetCode(sm, keyp, valuep, tag1, key1, reduceDomain, tag2, key2, reduceMail);
@@ -1009,11 +1038,11 @@ smdbDomainMail(smdb *sm, const char *tag1, const char *key1, const char *tag2, c
  * @return
  *	An SMDB_ACCESS_* code.
  */
-int
+smdb_code
 smdbMailMail(smdb *sm, const char *tag1, const char *key1, const char *tag2, const char *key2, char **keyp, char **valuep)
 {
 	char *str;
-	int rc = SMDB_ACCESS_NOT_FOUND, span;
+	smdb_code rc = SMDB_ACCESS_NOT_FOUND, span;
 	size_t tag1_len, key1_len, tag2_len, str_len;
 
 	if (tag1 == NULL || key1 == NULL
