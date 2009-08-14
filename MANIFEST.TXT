@@ -310,6 +310,7 @@ com/snert/src/lib/tools/poppassd-pam.c
 com/snert/src/lib/tools/range.c
 com/snert/src/lib/tools/rawls.c
 com/snert/src/lib/tools/rawrm.c
+com/snert/src/lib/tools/rsleep.c
 com/snert/src/lib/tools/sendform.c
 com/snert/src/lib/tools/sendform.cfg
 com/snert/src/lib/tools/sendform.example

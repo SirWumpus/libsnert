@@ -70,7 +70,7 @@ $O$E :
 ORIGINAL	= ansi$E flip$E popin$E uue$E show$E range$E sqlargs$E \
 		  counter$E sendform$E nph-download.cgi here-i-am$E \
 		  where-are-you$E mimepart$E clamstream$E ixhash$E \
-		  ziplist$E rarlist$E taglengths$E
+		  ziplist$E rarlist$E taglengths$E rsleep$E
 MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E echod$E
 DAEMONS 	= filed zoned
 UNIX 		= mailgroup
@@ -165,6 +165,9 @@ ixhash$E : ixhash.c
 
 range$E : range.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)range$E range.c ${LIBS_PREFIX}
+
+rsleep$E : rsleep.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)rsleep$E rsleep.c $(LIBSNERT) ${LIBS_PREFIX}
 
 nph-download.cgi: nph-download.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)nph-download.cgi nph-download.c ${LIBS_PREFIX}
