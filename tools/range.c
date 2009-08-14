@@ -1,7 +1,7 @@
 /*
  * range.c
  *
- * Flip line termination characters.
+ * Display a list of numbers.
  *
  * Copyright 1994, 2003 by Anthony Howe.  All rights reserved.
  */
@@ -22,15 +22,15 @@ int
 main(int argc, char **argv)
 {
 	long a, b;
-	
+
 	if (argc != 3) {
 		fprintf(stderr, usage);
 		return 2;
 	}
-	
+
 	a = strtol(argv[1], NULL, 10);
 	b = strtol(argv[2], NULL, 10);
-	
+
 	if (b < a) {
 		fprintf(stderr, usage);
 		return 2;
@@ -38,6 +38,6 @@ main(int argc, char **argv)
 
 	for ( ; a <= b; a++)
 		printf("%ld\n", a);
-		
+
 	return 0;
 }
