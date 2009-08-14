@@ -44,6 +44,20 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.72.6--
+
+   !	Rename Session to ServerSession to avoid name space conflicts
+	with application code (eg. smtpf).
+
+   !	Rename ServerListData to ServerListNode; node is commonly used
+   	when discussing elements in list and tree theory and code.
+
+  !!	server.c: several fixes to the API and worker active/idle list
+  	management issues that caused a server to crash, hang, and/or
+  	heap corruption.
+
+   +	Added tools/rsleep.c scripting tool.
+
 
 --1.72.5--
 
