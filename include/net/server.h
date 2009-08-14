@@ -109,27 +109,30 @@ extern "C" {
  ***********************************************************************/
 
 typedef struct server Server;
-typedef struct server_session Session;
 typedef struct server_list ServerList;
+typedef struct server_worker ServerWorker;
+typedef struct server_session ServerSession;
+
 typedef int (*ServerHook)(Server *server);
-typedef int (*SessionHook)(Session *session);
 typedef int (*ServerListHook)(ServerList *list);
+typedef int (*ServerWorkerHook)(ServerWorker *worker);
+typedef int (*ServerSessionHook)(ServerSession *session);
 
 typedef struct {
 	ServerListHook list_empty;
 } ServerListHooks;
 
-typedef struct server_queue_data {
-	struct server_queue_data *prev;
-	struct server_queue_data *next;
+typedef struct server_list_node {
+	struct server_list_node *prev;
+	struct server_list_node *next;
 	void *data;
-} ServerListData;
+} ServerListNode;
 
 struct server_list {
 	/* Private state. */
 	unsigned length;
-	ServerListData *tail;
-	ServerListData *head;
+	ServerListNode *tail;
+	ServerListNode *head;
 	pthread_mutex_t mutex;
 	pthread_cond_t cv;
 
@@ -137,15 +140,19 @@ struct server_list {
 	ServerListHooks	hook;
 };
 
-typedef struct {
+struct server_worker {
+	/* Private */
 	unsigned id;
-	Server *server;
 	pthread_t thread;
 #ifdef __WIN32__
 	HANDLE kill_event;
 #endif
-	ServerListData *node;
-} ServerWorker;
+	/* Public */
+	void *data;
+	Server *server;
+	ServerListNode *node;
+	ServerSession *session;
+};
 
 typedef struct {
 	unsigned level;
@@ -153,21 +160,23 @@ typedef struct {
 } ServerDebug;
 
 typedef struct {
-	const char *interfaces;		/* semi-colon separated list of IP addresses */
+	const char *interfaces;			/* semi-colon separated list of IP addresses (copy) */
 	unsigned min_threads;
 	unsigned max_threads;
-	unsigned new_threads;
-	unsigned queue_size;		/* server socket queue size */
-	unsigned accept_to;		/* accept timeout */
-	unsigned read_to;		/* read timeout */
-	unsigned port;			/* default port, if not specified in interfaces */
+	unsigned new_threads;			/* aka spare_threads */
+	unsigned queue_size;			/* server socket queue size */
+	unsigned accept_to;			/* accept timeout */
+	unsigned read_to;			/* read timeout */
+	unsigned port;				/* default port, if not specified in interfaces */
 } ServerOptions;
 
 typedef struct {
-	SessionHook session_create;	/* serverAccept, sessionCreate	*/
-	SessionHook session_accept;	/* serverAccept, sessionAccept	*/
-	SessionHook session_process;	/* serverWorker			*/
-	SessionHook session_free;	/* serverWorker, sessionFree	*/
+	ServerWorkerHook worker_create;		/* serverAccept, serverWorkerCreate */
+	ServerWorkerHook worker_free;		/* serverWorker, serverWorkerFree */
+	ServerSessionHook session_create;	/* serverAccept, sessionCreate	*/
+	ServerSessionHook session_accept;	/* serverAccept, sessionAccept	*/
+	ServerSessionHook session_process;	/* serverWorker			*/
+	ServerSessionHook session_free;		/* serverWorker, sessionFree	*/
 } ServerHooks;
 
 typedef struct {
@@ -177,8 +186,6 @@ typedef struct {
 
 struct server_session {
 	/* Private state. */
-	Session *prev;
-	Session *next;
 	ServerInterface *iface;
 	pthread_t thread;
 #if defined(__WIN32__)
@@ -186,13 +193,15 @@ struct server_session {
 #endif
 	/* Public data. */
 	void *data;			/* Application specific session data. */
-	char id[20];			/* Session ID suitable for logging. */
+	unsigned id;			/* Session ID of session */
+	char id_log[20];		/* Session ID suitable for logging. */
 	time_t start;			/* Time session was started. */
 	Server *server;
 	Socket2 *client;
-	char address[IPV6_STRING_LENGTH];
+	ServerWorker *worker;
 	unsigned char ipv6[IPV6_BYTE_LENGTH];
-	char if_addr[IPV6_STRING_LENGTH+8];
+	char address[SOCKET_ADDRESS_STRING_SIZE];
+	char if_addr[SOCKET_ADDRESS_STRING_SIZE];
 };
 
 struct server {
@@ -222,11 +231,15 @@ struct server {
 };
 
 extern Server *serverCreate(const char *address_list, unsigned default_port);
+extern void serverFree(void *_server);
+
+extern int serverInit(Server *server, const char *address_list, unsigned default_port);
+extern void serverFini(Server *server);
+
 extern int serverSetStackSize(Server *server, size_t stack_size);
 extern int serverStart(Server *server);
-extern int sessionIsTerminated(Session *session);
+extern int sessionIsTerminated(ServerSession *session);
 extern void serverStop(Server *server, int slow_quit);
-extern void serverFree(void *_server);
 
 /**
  * Defined by the application and is called by Windows via ServiceMain()
@@ -279,8 +292,8 @@ extern void serverSignalsFini(ServerSignals *signals);
 
 extern int serverListInit(ServerList *list);
 extern void serverListFini(ServerList *list);
-extern void *serverListRemove(ServerList *list, ServerListData *node);
-extern ServerListData *serverListEnqueue(ServerList *list, void *data);
+extern void *serverListRemove(ServerList *list, ServerListNode *node);
+extern ServerListNode *serverListEnqueue(ServerList *list, void *data);
 extern void *serverListDequeue(ServerList *list);
 extern unsigned serverListLength(ServerList *list);
 extern int serverListIsEmpty(ServerList *list);

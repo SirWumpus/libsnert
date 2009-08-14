@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #if defined(HAVE_FCNTL_H)
 # include <fcntl.h>
@@ -47,6 +48,7 @@
 static const char log_oom[] = "out of memory %s(%d)";
 static const char log_init[] = "init error %s(%d): %s (%d)";
 static const char log_internal[] = "internal error %s(%d): %s (%d)";
+static const char log_buffer[] = "buffer overflow %s(%d)";
 
 /***********************************************************************
  *** Support Routines
@@ -82,43 +84,61 @@ printVar(int columns, const char *name, const char *value)
 	}
 }
 
-static ServerListData *
-serverListAppend(ServerList *list, void *data)
+static void
+serverListInsertAfter(ServerList *list, ServerListNode *node, ServerListNode *new_node)
 {
-	ServerListData *element;
-
-	if ((element = malloc(sizeof (*element))) == NULL) {
-		syslog(LOG_ERR, log_oom, SERVER_FILE_LINENO);
-		return NULL;
-	}
-
-	element->data = data;
-	element->next = NULL;
-
-	if (list->head == NULL) {
-		list->head = element;
-		element->prev = NULL;
+	if (node != NULL) {
+		new_node->prev = node;
+		new_node->next = node->next;
+		if (node->next == NULL)
+			list->tail = new_node;
+		else
+			node->next->prev = new_node;
+		node->next = new_node;
+		list->length++;
+	} else if (list->tail == NULL) {
+		new_node->prev = new_node->next = NULL;
+		list->head = list->tail = new_node;
+		list->length++;
 	} else {
-		element->prev = list->tail;
-		list->tail->next = element;
+		serverListInsertAfter(list, list->tail, new_node);
 	}
-
-	list->tail = element;
-	list->length++;
-
-	return element;
 }
 
+#ifdef NOT_USED
+static void
+serverListInsertBefore(ServerList *list, ServerListNode *node, ServerListNode *new_node)
+{
+	if (node != NULL) {
+		new_node->prev = node->prev;
+		new_node->next = node;
+		if (node->prev == NULL)
+			list->head = new_node;
+		else
+			node->prev->next = new_node;
+		node->prev = new_node;
+		list->length++;
+	} else if (list->head == NULL) {
+		new_node->prev = new_node->next = NULL;
+		list->head = list->tail = new_node;
+		list->length++;
+	} else {
+		serverListInsertBefore(list, list->head, new_node)
+	}
+
+}
+#endif
+
 static void *
-serverListDelete(ServerList *list, ServerListData *element)
+serverListDelete(ServerList *list, ServerListNode *node)
 {
 	void *data = NULL;
-	ServerListData *prev, *next;
+	ServerListNode *prev, *next;
 
-	if (element != NULL) {
-		data = element->data;
-		prev = element->prev;
-		next = element->next;
+	if (node != NULL) {
+		data = node->data;
+		prev = node->prev;
+		next = node->next;
 
 		if (prev == NULL)
 			list->head = next;
@@ -131,7 +151,7 @@ serverListDelete(ServerList *list, ServerListData *element)
 			next->prev = prev;
 
 		list->length--;
-		free(element);
+		free(node);
 
 		if (list->length == 0 && list->hook.list_empty != NULL)
 			(*list->hook.list_empty)(list);
@@ -141,7 +161,7 @@ serverListDelete(ServerList *list, ServerListData *element)
 }
 
 void *
-serverListRemove(ServerList *list, ServerListData *node)
+serverListRemove(ServerList *list, ServerListNode *node)
 {
 	void *data;
 
@@ -172,18 +192,21 @@ serverListIsEmpty(ServerList *list)
 	return serverListLength(list) == 0;
 }
 
-ServerListData *
+ServerListNode *
 serverListEnqueue(ServerList *list, void *data)
 {
-	ServerListData *element;
+	ServerListNode *new_node = NULL;
 
-	if (!pthread_mutex_lock(&list->mutex)) {
-		if ((element = serverListAppend(list, data)) != NULL)
+	if (data != NULL && !pthread_mutex_lock(&list->mutex)) {
+		if ((new_node = calloc(1, sizeof (*new_node))) != NULL) {
+			new_node->data = data;
+			serverListInsertAfter(list, list->tail, new_node);
 			(void) pthread_cond_signal(&list->cv);
+		}
 		(void) pthread_mutex_unlock(&list->mutex);
 	}
 
-	return element;
+	return new_node;
 }
 
 void *
@@ -208,6 +231,8 @@ serverListDequeue(ServerList *list)
 int
 serverListInit(ServerList *list)
 {
+	memset(list, 0, sizeof (*list));
+
 	if (pthread_cond_init(&list->cv, NULL)) {
 		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
 		return -1;
@@ -218,16 +243,13 @@ serverListInit(ServerList *list)
 		return -1;
 	}
 
-	list->tail = NULL;
-	list->head = NULL;
-
 	return 0;
 }
 
 void
 serverListFini(ServerList *list)
 {
-	ServerListData *element, *next;
+	ServerListNode *element, *next;
 
 	for (element = list->head; element != NULL; element = next) {
 		next = element->next;
@@ -240,7 +262,7 @@ serverListFini(ServerList *list)
 }
 
 /***********************************************************************
- ***
+ *** Unix Signal Handling
  ***********************************************************************/
 
 #ifdef __unix__
@@ -344,7 +366,7 @@ serverSignalsLoop(ServerSignals *signals)
 #endif /* __unix__ */
 
 /***********************************************************************
- ***
+ *** Windows Signal Handling
  ***********************************************************************/
 
 #ifdef __WIN32__
@@ -498,11 +520,11 @@ error0:
 }
 
 /***********************************************************************
- *** Session
+ *** ServerSession API
  ***********************************************************************/
 
 int
-sessionIsTerminated(Session *session)
+sessionIsTerminated(ServerSession *session)
 {
 #ifdef __WIN32__
 	return WaitForSingleObject(session->kill_event, 0) == WAIT_OBJECT_0;
@@ -512,44 +534,26 @@ sessionIsTerminated(Session *session)
 #endif
 }
 
-static void
-sessionAccept(Session *session)
+static int
+sessionAccept(ServerSession *session)
 {
-	static unsigned short counter = 0;
-
-	/* Counter ID zero is reserved for server thread identification. */
-	if (++counter == 0)
-		counter = 1;
-
-	/* The session-id is a message-id with cc=00, is composed of
-	 *
-	 *	ymd HMS ppppp sssss cc
-	 *
-	 * Since the value of sssss can roll over very quuickly on
-	 * some systems, incorporating timestamp and process info
-	 * in the session-id should facilitate log searches.
-	 */
-	session->start = time(NULL);
-	time62Encode(session->start, session->id);
-	snprintf(
-		session->id+TIME62_BUFFER_SIZE,
-		sizeof (session->id)-TIME62_BUFFER_SIZE,
-		"%05u%05u00", getpid(), counter
-	);
-
-	/* We have the session ID now and start logging with it. */
-	VALGRIND_PRINTF("session %s\n", session->id);
+	if (0 < session->server->debug.level)
+		syslog(LOG_DEBUG, "server-id=%u session-id=%u accept", session->server->id, session->id);
+	VALGRIND_PRINTF("server-id=%u session-id=%u accept", session->server->id, session->id);
 
 	if (session->server->hook.session_accept != NULL
 	&& (*session->server->hook.session_accept)(session)) {
 		socketClose(session->client);
 		session->client = NULL;
 		session->iface = NULL;
+		return -1;
 	}
+
+	return 0;
 }
 
 static void
-sessionStart(Session *session)
+sessionStart(ServerSession *session)
 {
 	socklen_t slen;
 	SocketAddress saddr;
@@ -593,35 +597,63 @@ sessionStart(Session *session)
 }
 
 static void
-sessionFinish(Session *session)
+sessionFinish(ServerSession *session)
 {
 	if (session->client != NULL) {
 		socketClose(session->client);
 		session->client = NULL;
 		session->iface = NULL;
 	}
-
-	if (session->server->debug.level) {
-		VALGRIND_PRINTF("sessionFinish\n");
-		VALGRIND_DO_LEAK_CHECK;
-	}
 }
 
-Session *
+static ServerSession *
 sessionCreate(Server *server)
 {
-	Session *session;
+	int length;
+	ServerSession *session;
+	static unsigned short counter = 0;
 
 	if ((session = malloc(sizeof (*session))) == NULL) {
 		syslog(LOG_ERR, log_oom, SERVER_FILE_LINENO);
 		goto error0;
 	}
 
+#ifndef NDEBUG
+	memset(session, 0, sizeof (*session));
+#endif
+	session->data = NULL;
 	session->client = NULL;
 	session->server = server;
 
-	if (serverListEnqueue(&server->sessions_queued, session) == NULL)
+	/* Counter ID zero is reserved for server thread identification. */
+	if (++counter == 0)
+		counter = 1;
+
+	/* The session-id is a message-id with cc=00, is composed of
+	 *
+	 *	ymd HMS ppppp sssss cc
+	 *
+	 * Since the value of sssss can roll over very quuickly on
+	 * some systems, incorporating timestamp and process info
+	 * in the session-id should facilitate log searches.
+	 */
+	session->id = counter;
+	session->start = time(NULL);
+	time62Encode(session->start, session->id_log);
+	length = snprintf(
+		session->id_log+TIME62_BUFFER_SIZE,
+		sizeof (session->id_log)-TIME62_BUFFER_SIZE,
+		"%05u%05u00", getpid(), counter
+	);
+
+	if (sizeof (session->id_log)-TIME62_BUFFER_SIZE <= length) {
+		syslog(LOG_ERR, log_buffer, SERVER_FILE_LINENO);
 		goto error1;
+	}
+
+	if (0 < session->server->debug.level)
+		syslog(LOG_DEBUG, "server-id=%u session-id=%u create", session->server->id, session->id);
+	VALGRIND_PRINTF("server-id=%u session-id=%u create", session->server->id, session->id);
 
 	if (server->hook.session_create != NULL
 	&& (*server->hook.session_create)(session)) {
@@ -636,37 +668,31 @@ error0:
 	return NULL;
 }
 
-void
+static void
 sessionFree(void *_session)
 {
-	Session *session = _session;
+	ServerSession *session = _session;
 
 	if (session != NULL) {
-		/* In case we are called because of pthread_cancel(),
-		 * be sure to cleanup the current connection too.
-		 */
-		if (session->client != NULL)
-			sessionFinish(session);
-
 		if (session->server->hook.session_free != NULL)
 			(void) (*session->server->hook.session_free)(session);
 
 #if defined(HAVE_PTHREAD_COND_INIT)
+		(void) pthread_mutex_lock(&session->server->slow_quit_mutex);
 		(void) pthread_cond_signal(&session->server->slow_quit_cv);
+		(void) pthread_mutex_unlock(&session->server->slow_quit_mutex);
 #endif
 		free(session);
 	}
 }
 
 /***********************************************************************
- *** Server
+ *** Server API
  ***********************************************************************/
 
 void
-serverFree(void *_server)
+serverFini(Server *server)
 {
-	Server *server = (Server *) _server;
-
 	if (server != NULL) {
 #if defined(HAVE_PTHREAD_COND_INIT)
 		(void) pthread_mutex_destroy(&server->slow_quit_mutex);
@@ -683,25 +709,18 @@ serverFree(void *_server)
 		VectorDestroy(server->interfaces);
 		free(server->interfaces_ready);
 		free(server->interfaces_fd);
-		free(server);
 	}
 }
 
-Server *
-serverCreate(const char *interfaces, unsigned default_port)
+int
+serverInit(Server *server, const char *interfaces, unsigned default_port)
 {
 	long i;
 	Vector list;
-	Server *server;
 	static unsigned count = 0;
 
-	if (interfaces == NULL)
+	if (server == NULL || interfaces == NULL)
 		goto error0;
-
-	if ((server = calloc(1, sizeof (*server))) == NULL) {
-		syslog(LOG_ERR, log_oom, SERVER_FILE_LINENO);
-		goto error0;
-	}
 
 	if ((server->option.interfaces = strdup(interfaces)) == NULL) {
 		syslog(LOG_ERR, log_oom, SERVER_FILE_LINENO);
@@ -816,13 +835,37 @@ configuration adjusted to silence the warning in future.
 
 	VectorDestroy(list);
 
-	return server;
+	return 0;
 error2:
 	VectorDestroy(list);
 error1:
-	serverFree(server);
+	serverFini(server);
 error0:
-	return NULL;
+	return -1;
+}
+
+void
+serverFree(void *_server)
+{
+	if (_server != NULL) {
+		serverFini(_server);
+		free(_server);
+	}
+}
+
+Server *
+serverCreate(const char *interfaces, unsigned default_port)
+{
+	Server *server;
+
+	if ((server = calloc(1, sizeof (*server))) == NULL) {
+		syslog(LOG_ERR, log_oom, SERVER_FILE_LINENO);
+	} else if (serverInit(server, interfaces, default_port)) {
+		free(server);
+		server = NULL;
+	}
+
+	return server;
 }
 
 int
@@ -863,12 +906,15 @@ serverWorkerFree(void *_worker)
 	ServerWorker *worker = (ServerWorker *) _worker;
 
 	if (worker != NULL) {
+		/* Free thread persistent data. */
+		if (worker->server->hook.worker_create != NULL)
+			(void) (*worker->server->hook.worker_free)(worker);
+
 		if (0 < worker->server->debug.level)
-			syslog(LOG_DEBUG, "server-id=%d worker-id=%id stopped", worker->server->id, worker->id);
+			syslog(LOG_DEBUG, "server-id=%d worker-id=%u stop", worker->server->id, worker->id);
 #ifdef __WIN32__
 		CloseHandle(session->kill_event);
 #endif
-		(void) pthread_cancel(worker->thread);
 		free(worker);
 	}
 }
@@ -876,21 +922,37 @@ serverWorkerFree(void *_worker)
 static void *
 serverWorker(void *_worker)
 {
+	unsigned sess_id;
 	Server *server;
-	Session *session;
+	ServerSession *session;
 	ServerWorker *worker = (ServerWorker *) _worker;
+	unsigned active, idle, queued;
 
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_push(serverWorkerFree, worker);
 #endif
 	server = worker->server;
 
+	if (0 < server->debug.level)
+		syslog(LOG_DEBUG, "server-id=%u worker-id=%u running", server->id, worker->id);
+
+	worker->node = serverListEnqueue(&server->workers_idle, worker);
+
 	while (server->running) {
 		session = serverListDequeue(&server->sessions_queued);
 
+		sess_id = session->id;
+		if (0 < server->debug.level)
+			syslog(LOG_DEBUG, "server-id=%u worker-id=%u session-id=%u process", server->id, worker->id, sess_id);
+		VALGRIND_PRINTF("server-id=%u worker-id=%u session-id=%u process", server->id, worker->id, sess_id);
+
 		/* Keep track of active worker threads. */
-		(void) serverListRemove(&server->workers_idle, worker->node);
+		_worker = serverListRemove(&server->workers_idle, worker->node);
+		assert(worker == _worker);
 		worker->node = serverListEnqueue(&server->workers, worker);
+
+		worker->session = session;
+		session->worker = worker;
 
 		if (session != NULL && session->client != NULL) {
 			sessionStart(session);
@@ -899,11 +961,33 @@ serverWorker(void *_worker)
 			sessionFinish(session);
 		}
 
+		sessionFree(session);
+
+		/* Do we have too many threads? */
+		active = serverListLength(&server->workers) - 1;
+		idle = serverListLength(&server->workers_idle) + 1;
+		queued = serverListLength(&server->sessions_queued);
+
+                _worker = serverListRemove(&server->workers, worker->node);
+                assert(worker == _worker);
+
+                if (0 < server->debug.level)
+                        syslog(LOG_DEBUG, "active=%u idle=%u queued=%u", active, idle, queued);
+
+		if (server->option.min_threads < active && queued + server->option.new_threads < idle) {
+			if (0 < server->debug.level)
+				syslog(LOG_DEBUG, "server-id=%u worker-id=%u exit; active=%u idle=%u queued=%u", server->id, worker->id, active, idle, queued);
+			break;
+		}
+
 		/* Keep track of idle worker threads. */
-		(void) serverListRemove(&server->workers, worker->node);
 		worker->node = serverListEnqueue(&server->workers_idle, worker);
 
-		sessionFree(session);
+		if (0 < server->debug.level)
+			syslog(LOG_DEBUG, "server-id=%u worker-id=%u session-id=%u done", server->id, worker->id, sess_id);
+		VALGRIND_PRINTF("server-id=%u worker-id=%u session-id=%u done", server->id, worker->id, sess_id);
+		if (1 < server->debug.valgrind)
+			VALGRIND_DO_LEAK_CHECK;
 	}
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_pop(1);
@@ -919,75 +1003,70 @@ serverWorkerCreate(Server *server)
 	ServerWorker *worker;
 	static unsigned short counter = 0;
 
-	if ((worker = calloc(1, sizeof (*worker))) != NULL) {
-		/* Counter ID zero is reserved for server thread identification. */
-		if (++counter == 0)
-			counter = 1;
+	if ((worker = calloc(1, sizeof (*worker))) == NULL)
+		goto error0;
 
-		worker->id = counter;
-		worker->server = server;
+	/* Counter ID zero is reserved for server thread identification. */
+	if (++counter == 0)
+		counter = 1;
+
+	worker->id = counter;
+	worker->server = server;
 #ifdef __WIN32__
-		worker->kill_event = CreateEvent(NULL, 0, 0, NULL);
+	worker->kill_event = CreateEvent(NULL, 0, 0, NULL);
 #endif
-		if (pthread_create(&worker->thread, &server->thread_attr, serverWorker, worker)) {
-			syslog(LOG_ERR, log_internal, SERVER_FILE_LINENO, strerror(errno), errno);
-			free(worker);
-			return NULL;
-		}
-
-		pthread_detach(worker->thread);
-
-		if (0 < server->debug.level)
-			syslog(LOG_DEBUG, "server-id=%d worker-id=%id started", server->id, worker->id);
+	/* Create thread persistent data. */
+	if (server->hook.worker_create != NULL
+	&& (*server->hook.worker_create)(worker)) {
+		syslog(LOG_ERR, log_internal, SERVER_FILE_LINENO, strerror(errno), errno);
+		goto error1;
 	}
+
+	if (pthread_create(&worker->thread, &server->thread_attr, serverWorker, worker)) {
+		syslog(LOG_ERR, log_internal, SERVER_FILE_LINENO, strerror(errno), errno);
+		goto error1;
+	}
+
+	pthread_detach(worker->thread);
+
+	if (0 < server->debug.level)
+		syslog(LOG_DEBUG, "server-id=%u worker-id=%u start", server->id, worker->id);
 
 	return worker;
-}
-
-static void
-serverWorkerPoolCheck(Server *server)
-{
-	ServerWorker *worker;
-	unsigned active, idle, queued;
-
-	active = serverListLength(&server->workers);
-	idle = serverListLength(&server->workers_idle);
-	queued = serverListLength(&server->sessions_queued);
-
-	/* Do we have too many threads? */
-	if (server->option.min_threads < (active + idle) && queued < idle + server->option.new_threads) {
-		worker = serverListDequeue(&server->workers_idle);
-#ifdef __unix__
-		(void) pthread_cancel(worker->thread);
-#endif
-#ifdef __WIN32__
-		SetEvent(worker->kill_event);
-#endif
-	}
-
-	/* Do we have too few threads? */
-	else if (idle < queued && (active + idle) < server->option.max_threads) {
-		worker = serverWorkerCreate(server);
-		worker->node = serverListEnqueue(&server->workers_idle, worker);
-	}
+error1:
+	serverWorkerFree(worker);
+error0:
+	return NULL;
 }
 
 static void *
 serverAccept(void *_server)
 {
 	int i;
-	Session *session;
+	ServerSession *session;
 	Server *server = (Server *) _server;
+	unsigned active, idle, queued;
+
+	if (0 < server->debug.level)
+		syslog(LOG_DEBUG, "server-id=%u running", server->id);
 
 	while (server->running) {
 		if (socketTimeouts(server->interfaces_fd, server->interfaces_ready, server->interfaces->_length, server->option.accept_to, 1)) {
 			for (i = 0; i < server->interfaces->_length; i++) {
 				if (server->interfaces_fd[i] == server->interfaces_ready[i]) {
 					if ((session = sessionCreate(server)) != NULL) {
-						session->iface = VectorGet(server->interfaces, i);
+						session->iface = (ServerInterface *) VectorGet(server->interfaces, i);
 						session->client = socketAccept(session->iface->socket);
-						sessionAccept(session);
-						serverWorkerPoolCheck(server);
+						(void) sessionAccept(session);
+						(void) serverListEnqueue(&server->sessions_queued, session);
+
+						/* Do we have too few threads? */
+						active = serverListLength(&server->workers);
+						idle = serverListLength(&server->workers_idle);
+						queued = serverListLength(&server->sessions_queued);
+
+						if (idle < queued && (active + idle) < server->option.max_threads)
+							(void) serverWorkerCreate(server);
 					}
 				}
 			}
@@ -1000,28 +1079,21 @@ serverAccept(void *_server)
 int
 serverStart(Server *server)
 {
-	pthread_t thread;
-
 	if (server == NULL)
 		return -1;
 
-	if (1 < server->debug.valgrind) {
-		VALGRIND_PRINTF("serverInit\n");
-		VALGRIND_DO_LEAK_CHECK;
-	}
-
-	/* Start our first server thread to start handling requests. */
 	if (0 < server->debug.level)
-		syslog(LOG_DEBUG, "server-id=%d accept thread", server->id);
+		syslog(LOG_DEBUG, "server-id=%u start", server->id);
+	VALGRIND_PRINTF("server-id=%u\n start", server->id);
 
 	server->running = 1;
 
-	if (pthread_create(&thread, &server->thread_attr, serverAccept, server)) {
+	if (pthread_create(&server->accept_thread, &server->thread_attr, serverAccept, server)) {
 		syslog(LOG_ERR, log_internal, SERVER_FILE_LINENO, strerror(errno), errno);
 		return -1;
 	}
 
-	pthread_detach(thread);
+	pthread_detach(server->accept_thread);
 
 	return 0;
 }
@@ -1030,7 +1102,10 @@ void
 serverStop(Server *server, int slow_quit)
 {
 	unsigned workers;
-	ServerListData *node;
+	ServerListNode *node;
+
+	if (0 < server->debug.level)
+		syslog(LOG_DEBUG, "server-id=%u stop", server->id);
 
 	if (server == NULL)
 		return;
@@ -1097,12 +1172,15 @@ serverStop(Server *server, int slow_quit)
 #define DISCARD_PORT		9
 #define DAYTIME_PORT		13
 #define CHARGEN_PORT		19
+#define SMTP_PORT		25
 
 int debug;
 int server_quit;
 int daemon_mode = 1;
 char *windows_service;
 ServerSignals signals;
+int min_threads = SERVER_MIN_THREADS;
+int max_threads = SERVER_MAX_THREADS;
 
 #undef syslog
 
@@ -1120,58 +1198,62 @@ syslog(int level, const char *fmt, ...)
 }
 
 int
-reportAccept(Session *session)
+reportAccept(ServerSession *session)
 {
-	syslog(LOG_INFO, "%s start interface=[%s] client=[%s]", session->id, session->if_addr, session->address);
+	syslog(LOG_INFO, "%s start interface=[%s] client=[%s]", session->id_log, session->if_addr, session->address);
 	return 0;
 }
 
 int
-reportFinish(Session *session)
+reportFinish(ServerSession *session)
 {
-	syslog(LOG_INFO, "%s end interface=[%s] client=[%s]", session->id, session->if_addr, session->address);
+	syslog(LOG_INFO, "%s end interface=[%s] client=[%s]", session->id_log, session->if_addr, session->address);
 	return 0;
 }
 
 int
-echoProcess(Session *session)
+echoProcess(ServerSession *session)
 {
 	long length;
-	unsigned char buffer[256];
+	char buffer[256];
 
 	reportAccept(session);
 
-	while (0 < (length = socketReadLine2(session->client, buffer, sizeof (buffer), 1))) {
+	while (socketHasInput(session->client, session->server->option.read_to)) {
+		if ((length = socketReadLine2(session->client, buffer, sizeof (buffer), 1)) <= 0)
+			break;
 		if (sessionIsTerminated(session))
 			break;
-		syslog(LOG_INFO, "%s > %ld:%s", session->id, length, buffer);
-		if (socketWrite(session->client, buffer, length) != length)
+		syslog(LOG_INFO, "%s > %ld:%s", session->id_log, length, buffer);
+		if (socketWrite(session->client, (unsigned char *) buffer, length) != length)
 			break;
-		syslog(LOG_INFO, "%s < %ld:%s", session->id, length, buffer);
+		syslog(LOG_INFO, "%s < %ld:%s", session->id_log, length, buffer);
 	}
 
 	return reportFinish(session);
 }
 
 int
-discardProcess(Session *session)
+discardProcess(ServerSession *session)
 {
 	long length;
-	unsigned char buffer[256];
+	char buffer[256];
 
 	reportAccept(session);
 
-	while (0 < (length = socketReadLine2(session->client, buffer, sizeof (buffer), 1))) {
+	while (socketHasInput(session->client, session->server->option.read_to)) {
+		if ((length = socketReadLine2(session->client, buffer, sizeof (buffer), 1)) <= 0)
+			break;
 		if (sessionIsTerminated(session))
 			break;
-		syslog(LOG_INFO, "%s > %ld:%s", session->id, length, buffer);
+		syslog(LOG_INFO, "%s > %ld:%s", session->id_log, length, buffer);
 	}
 
 	return reportFinish(session);
 }
 
 int
-daytimeProcess(Session *session)
+daytimeProcess(ServerSession *session)
 {
 	int length;
 	time_t now;
@@ -1184,14 +1266,14 @@ daytimeProcess(Session *session)
 	(void) localtime_r(&now, &local);
 	length = getRFC2821DateTime(&local, stamp, sizeof (stamp));
 
-	(void) socketWrite(session->client, stamp, length);
-	syslog(LOG_INFO, "%s < %d:%s", session->id, length, stamp);
+	(void) socketWrite(session->client, (unsigned char *) stamp, length);
+	syslog(LOG_INFO, "%s < %d:%s", session->id_log, length, stamp);
 
 	return reportFinish(session);
 }
 
 int
-chargenProcess(Session *session)
+chargenProcess(ServerSession *session)
 {
 	unsigned offset;
 	unsigned char printable[] =
@@ -1203,8 +1285,42 @@ chargenProcess(Session *session)
 	for (offset = 0; !sessionIsTerminated(session); offset = (offset+1) % 95) {
 		if (socketWrite(session->client, printable+offset, 72) != 72)
 			break;
-		if (socketWrite(session->client, "\r\n", 2) != 2)
+		if (socketWrite(session->client, (unsigned char *) "\r\n", 2) != 2)
 			break;
+	}
+
+	return reportFinish(session);
+}
+
+int
+smtpProcess(ServerSession *session)
+{
+	long length;
+	char buffer[512];
+
+	reportAccept(session);
+
+	socketWrite(session->client, (unsigned char *) "421 server down for maintenance\r\n", sizeof ("421 server down for maintenance\r\n")-1);
+	syslog(LOG_INFO, "%s < %lu:%s", session->id_log, sizeof ("421 server down for maintenance\r\n")-1, "421 server down for maintenance\r\n");
+
+	while (socketHasInput(session->client, session->server->option.read_to)) {
+		if ((length = socketReadLine2(session->client, buffer, sizeof (buffer), 1)) <= 0)
+			break;
+		if (sessionIsTerminated(session)) {
+			syslog(LOG_INFO, "%s terminated", session->id_log);
+			break;
+		}
+
+		syslog(LOG_INFO, "%s > %lu:%s", session->id_log, length, buffer);
+
+		if (0 < TextInsensitiveStartsWith(buffer, "QUIT")) {
+			socketWrite(session->client, (unsigned char *) "221 closing connection\r\n", sizeof ("221 closing connection\r\n")-1);
+			syslog(LOG_INFO, "%s < %lu:%s", session->id_log, sizeof ("221 closing connection\r\n")-1, "221 closing connection\r\n");
+			break;
+		}
+
+		socketWrite(session->client, (unsigned char *) "421 server down for maintenance\r\n", sizeof ("421 server down for maintenance\r\n")-1);
+		syslog(LOG_INFO, "%s < %lu:%s", session->id_log, sizeof ("421 server down for maintenance\r\n")-1, "421 server down for maintenance\r\n");
 	}
 
 	return reportFinish(session);
@@ -1216,8 +1332,16 @@ serverOptions(int argc, char **argv)
 	int ch;
 
 	optind = 1;
-	while ((ch = getopt(argc, argv, "dqvw:")) != -1) {
+	while ((ch = getopt(argc, argv, "dm:M:qvw:")) != -1) {
 		switch (ch) {
+		case 'm':
+			min_threads = strtol(optarg, NULL, 10);
+			break;
+
+		case 'M':
+			max_threads = strtol(optarg, NULL, 10);
+			break;
+
 		case 'd':
 			daemon_mode = 0;
 			break;
@@ -1238,7 +1362,7 @@ serverOptions(int argc, char **argv)
 			/*@fallthrough@*/
 
 		default:
-			fprintf(stderr, "usage: " _NAME " [-dqv][-w add|remove]\n");
+			fprintf(stderr, "usage: " _NAME " [-dqv][-m min][-M max][-w add|remove]\n");
 			exit(EX_USAGE);
 		}
 	}
@@ -1246,7 +1370,7 @@ serverOptions(int argc, char **argv)
 
 typedef struct {
 	Server *server;
-	int (*process)(Session *);
+	ServerSessionHook process;
 	const char *host;
 	int port;
 } ServerHandler;
@@ -1264,6 +1388,9 @@ ServerHandler services[] = {
 #ifdef CHARGEN_PORT
 	{ NULL, chargenProcess, "[::0]:" QUOTE(CHARGEN_PORT) "; 0.0.0.0:" QUOTE(CHARGEN_PORT), CHARGEN_PORT },
 #endif
+#ifdef SMTP_PORT
+	{ NULL, smtpProcess, "[::0]:" QUOTE(SMTP_PORT) "; 0.0.0.0:" QUOTE(SMTP_PORT), SMTP_PORT },
+#endif
 	{ NULL, NULL, NULL, 0 }
 };
 
@@ -1279,6 +1406,8 @@ serverMain(void)
 		if ((service->server = serverCreate(service->host, service->port)) == NULL)
 			goto error0;
 
+		service->server->option.min_threads = min_threads;
+		service->server->option.max_threads = max_threads;
 		service->server->debug.level = debug;
 		service->server->hook.session_process = service->process;
 		serverSetStackSize(service->server, SERVER_STACK_SIZE);
