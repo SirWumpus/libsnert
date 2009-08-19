@@ -166,7 +166,8 @@ serverListRemove(ServerList *list, ServerListNode *node)
 	void *data;
 
 	if (!pthread_mutex_lock(&list->mutex)) {
-		data = serverListDelete(list, node);
+		if ((data = serverListDelete(list, node)) != NULL)
+			(void) pthread_cond_signal(&list->cv_less);
 		(void) pthread_mutex_unlock(&list->mutex);
 	}
 
@@ -201,7 +202,7 @@ serverListEnqueue(ServerList *list, void *data)
 		if ((new_node = calloc(1, sizeof (*new_node))) != NULL) {
 			new_node->data = data;
 			serverListInsertAfter(list, list->tail, new_node);
-			(void) pthread_cond_signal(&list->cv);
+			(void) pthread_cond_signal(&list->cv_more);
 		}
 		(void) pthread_mutex_unlock(&list->mutex);
 	}
@@ -217,11 +218,12 @@ serverListDequeue(ServerList *list)
 	if (!pthread_mutex_lock(&list->mutex)) {
 		/* Wait until the list has an element. */
 		while (list->head == NULL) {
-			if (pthread_cond_wait(&list->cv, &list->mutex))
+			if (pthread_cond_wait(&list->cv_more, &list->mutex))
 				break;
 		}
 
-		data = serverListDelete(list, list->head);
+		if ((data = serverListDelete(list, list->head)) != NULL)
+			(void) pthread_cond_signal(&list->cv_less);
 		(void) pthread_mutex_unlock(&list->mutex);
 	}
 
@@ -233,7 +235,12 @@ serverListInit(ServerList *list)
 {
 	memset(list, 0, sizeof (*list));
 
-	if (pthread_cond_init(&list->cv, NULL)) {
+	if (pthread_cond_init(&list->cv_more, NULL)) {
+		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
+		return -1;
+	}
+
+	if (pthread_cond_init(&list->cv_less, NULL)) {
 		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
 		return -1;
 	}
@@ -257,7 +264,8 @@ serverListFini(ServerList *list)
 	}
 
 	(void) pthreadMutexDestroy(&list->mutex);
-	(void) pthread_cond_destroy(&list->cv);
+	(void) pthread_cond_destroy(&list->cv_less);
+	(void) pthread_cond_destroy(&list->cv_more);
 
 }
 
@@ -677,11 +685,6 @@ sessionFree(void *_session)
 		if (session->server->hook.session_free != NULL)
 			(void) (*session->server->hook.session_free)(session);
 
-#if defined(HAVE_PTHREAD_COND_INIT)
-		(void) pthread_mutex_lock(&session->server->slow_quit_mutex);
-		(void) pthread_cond_signal(&session->server->slow_quit_cv);
-		(void) pthread_mutex_unlock(&session->server->slow_quit_mutex);
-#endif
 		free(session);
 	}
 }
@@ -694,15 +697,10 @@ void
 serverFini(Server *server)
 {
 	if (server != NULL) {
-#if defined(HAVE_PTHREAD_COND_INIT)
-		(void) pthread_mutex_destroy(&server->slow_quit_mutex);
-		(void) pthread_cond_destroy(&server->slow_quit_cv);
-#endif
 #if defined(HAVE_PTHREAD_ATTR_INIT)
 		(void) pthread_attr_destroy(&server->thread_attr);
 #endif
 		serverListFini(&server->sessions_queued);
-		serverListFini(&server->workers_idle);
 		serverListFini(&server->workers);
 
 		free((char *) server->option.interfaces);
@@ -732,11 +730,6 @@ serverInit(Server *server, const char *interfaces, unsigned default_port)
 		goto error1;
 	}
 
-	if (serverListInit(&server->workers_idle)) {
-		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
-		goto error1;
-	}
-
 	if (serverListInit(&server->sessions_queued)) {
 		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
 		goto error1;
@@ -750,16 +743,6 @@ serverInit(Server *server, const char *interfaces, unsigned default_port)
 # if defined(HAVE_PTHREAD_ATTR_SETSCOPE)
 	(void) pthread_attr_setscope(&server->thread_attr, PTHREAD_SCOPE_SYSTEM);
 # endif
-#endif
-#if defined(HAVE_PTHREAD_COND_INIT)
-	if (pthread_cond_init(&server->slow_quit_cv, NULL)) {
-		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
-		goto error1;
-	}
-	if (pthread_mutex_init(&server->slow_quit_mutex, NULL)) {
-		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
-		goto error1;
-	}
 #endif
 	server->option.min_threads = SERVER_MIN_THREADS;
 	server->option.max_threads = SERVER_MAX_THREADS;
@@ -896,7 +879,6 @@ void
 serverAtForkChild(Server *server)
 {
 	serverListFini(&server->sessions_queued);
-	serverListFini(&server->workers_idle);
 	serverListFini(&server->workers);
 }
 
@@ -906,10 +888,14 @@ serverWorkerFree(void *_worker)
 	ServerWorker *worker = (ServerWorker *) _worker;
 
 	if (worker != NULL) {
-		/* Free thread persistent data. */
+		/* Free thread persistent application data. */
 		if (worker->server->hook.worker_create != NULL)
 			(void) (*worker->server->hook.worker_free)(worker);
 
+		_worker = serverListRemove(&worker->server->workers, worker->node);
+#ifndef NDEDUG
+		if (_worker != NULL) assert(worker == _worker);
+#endif
 		if (0 < worker->server->debug.level)
 			syslog(LOG_DEBUG, "server-id=%d worker-id=%u stop", worker->server->id, worker->id);
 #ifdef __WIN32__
@@ -926,7 +912,7 @@ serverWorker(void *_worker)
 	Server *server;
 	ServerSession *session;
 	ServerWorker *worker = (ServerWorker *) _worker;
-	unsigned active, idle, queued;
+	unsigned threads, active, idle, queued;
 
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_push(serverWorkerFree, worker);
@@ -935,8 +921,6 @@ serverWorker(void *_worker)
 
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u worker-id=%u running", server->id, worker->id);
-
-	worker->node = serverListEnqueue(&server->workers_idle, worker);
 
 	while (server->running) {
 		session = serverListDequeue(&server->sessions_queued);
@@ -947,9 +931,9 @@ serverWorker(void *_worker)
 		VALGRIND_PRINTF("server-id=%u worker-id=%u session-id=%u process", server->id, worker->id, sess_id);
 
 		/* Keep track of active worker threads. */
-		_worker = serverListRemove(&server->workers_idle, worker->node);
-		assert(worker == _worker);
-		worker->node = serverListEnqueue(&server->workers, worker);
+		(void) pthread_mutex_lock(&server->workers.mutex);
+		server->workers_active++;
+		(void) pthread_mutex_unlock(&server->workers.mutex);
 
 		worker->session = session;
 		session->worker = worker;
@@ -962,26 +946,24 @@ serverWorker(void *_worker)
 		}
 
 		sessionFree(session);
+		worker->session = NULL;
 
 		/* Do we have too many threads? */
-		active = serverListLength(&server->workers) - 1;
-		idle = serverListLength(&server->workers_idle) + 1;
+		(void) pthread_mutex_lock(&server->workers.mutex);
+		active = --server->workers_active;
+		threads = server->workers.length;
+		idle = threads - active;
+		(void) pthread_mutex_unlock(&server->workers.mutex);
 		queued = serverListLength(&server->sessions_queued);
 
-                _worker = serverListRemove(&server->workers, worker->node);
-                assert(worker == _worker);
-
                 if (0 < server->debug.level)
-                        syslog(LOG_DEBUG, "active=%u idle=%u queued=%u", active, idle, queued);
+                        syslog(LOG_DEBUG, "server-id=%u active=%u idle=%u queued=%u", server->id, active, idle, queued);
 
-		if (server->option.min_threads < active && queued + server->option.new_threads < idle) {
+		if (server->option.min_threads < threads && queued + server->option.new_threads < idle) {
 			if (0 < server->debug.level)
 				syslog(LOG_DEBUG, "server-id=%u worker-id=%u exit; active=%u idle=%u queued=%u", server->id, worker->id, active, idle, queued);
 			break;
 		}
-
-		/* Keep track of idle worker threads. */
-		worker->node = serverListEnqueue(&server->workers_idle, worker);
 
 		if (0 < server->debug.level)
 			syslog(LOG_DEBUG, "server-id=%u worker-id=%u session-id=%u done", server->id, worker->id, sess_id);
@@ -1015,6 +997,8 @@ serverWorkerCreate(Server *server)
 #ifdef __WIN32__
 	worker->kill_event = CreateEvent(NULL, 0, 0, NULL);
 #endif
+	worker->node = serverListEnqueue(&server->workers, worker);
+
 	/* Create thread persistent data. */
 	if (server->hook.worker_create != NULL
 	&& (*server->hook.worker_create)(worker)) {
@@ -1027,10 +1011,10 @@ serverWorkerCreate(Server *server)
 		goto error1;
 	}
 
-	pthread_detach(worker->thread);
-
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u worker-id=%u start", server->id, worker->id);
+
+	pthread_detach(worker->thread);
 
 	return worker;
 error1:
@@ -1045,7 +1029,7 @@ serverAccept(void *_server)
 	int i;
 	ServerSession *session;
 	Server *server = (Server *) _server;
-	unsigned active, idle, queued;
+	unsigned threads, active, idle, queued;
 
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u running", server->id);
@@ -1061,11 +1045,14 @@ serverAccept(void *_server)
 						(void) serverListEnqueue(&server->sessions_queued, session);
 
 						/* Do we have too few threads? */
-						active = serverListLength(&server->workers);
-						idle = serverListLength(&server->workers_idle);
+						(void) pthread_mutex_lock(&server->workers.mutex);
+						threads = server->workers.length;
+						active = server->workers_active;
+						idle = threads - active;
+						(void) pthread_mutex_unlock(&server->workers.mutex);
 						queued = serverListLength(&server->sessions_queued);
 
-						if (idle < queued && (active + idle) < server->option.max_threads)
+						if (idle < queued && threads < server->option.max_threads)
 							(void) serverWorkerCreate(server);
 					}
 				}
@@ -1101,11 +1088,10 @@ serverStart(Server *server)
 void
 serverStop(Server *server, int slow_quit)
 {
-	unsigned workers;
 	ServerListNode *node;
 
 	if (0 < server->debug.level)
-		syslog(LOG_DEBUG, "server-id=%u stop", server->id);
+		syslog(LOG_DEBUG, "server-id=%u stopping...", server->id);
 
 	if (server == NULL)
 		return;
@@ -1124,18 +1110,21 @@ serverStop(Server *server, int slow_quit)
 #endif
 	(void) pthread_join(server->accept_thread, NULL);
 
-#if defined(HAVE_PTHREAD_COND_INIT)
-	if (slow_quit && pthread_mutex_lock(&server->slow_quit_mutex) == 0) {
-		/* Wait for all the workers to finish. */
-		while (0 < (workers = serverListLength(&server->workers))) {
-			syslog(LOG_INFO, "server-id=%u slow quit cn=%u", server->id, workers);
-			if (pthread_cond_wait(&server->slow_quit_cv, &server->slow_quit_mutex))
+	if (0 < server->debug.level)
+		syslog(LOG_DEBUG, "server-id=%u accept stopped", server->id);
+
+	if (slow_quit && !pthread_mutex_lock(&server->workers.mutex)) {
+		/* Wait for all the active workers to finish. */
+		while (0 < server->workers_active) {
+			syslog(LOG_INFO, "server-id=%u slow quit active=%u", server->id, server->workers_active);
+			if (pthread_cond_wait(&server->workers.cv_less, &server->workers.mutex))
 				break;
 		}
-		(void) pthread_mutex_unlock(&server->slow_quit_mutex);
+		(void) pthread_mutex_unlock(&server->workers.mutex);
 	}
-#endif
-	/* Stop the worker threads. */
+
+	/* Stop the remaining worker threads. */
+	(void) pthread_mutex_lock(&server->workers.mutex);
 	for (node = server->workers.head; node != NULL; node = node->next) {
 #ifdef __unix__
 		(void) pthread_cancel(((ServerWorker *) node->data)->thread);
@@ -1144,16 +1133,10 @@ serverStop(Server *server, int slow_quit)
 		SetEvent(((ServerWorker *) node->data)->kill_event);
 #endif
 	}
+	(void) pthread_mutex_unlock(&server->workers.mutex);
 
-	/* Stop the idle worker threads. */
-	for (node = server->workers_idle.head; node != NULL; node = node->next) {
-#ifdef __unix__
-		(void) pthread_cancel(((ServerWorker *) node->data)->thread);
-#endif
-#ifdef __WIN32__
-		SetEvent(((ServerWorker *) node->data)->kill_event);
-#endif
-	}
+	if (0 < server->debug.level)
+		syslog(LOG_DEBUG, "server-id=%u all stopped", server->id);
 }
 
 #ifdef TEST
@@ -1301,7 +1284,7 @@ smtpProcess(ServerSession *session)
 	reportAccept(session);
 
 	socketWrite(session->client, (unsigned char *) "421 server down for maintenance\r\n", sizeof ("421 server down for maintenance\r\n")-1);
-	syslog(LOG_INFO, "%s < %lu:%s", session->id_log, sizeof ("421 server down for maintenance\r\n")-1, "421 server down for maintenance\r\n");
+	syslog(LOG_INFO, "%s < %lu:%s", session->id_log, (unsigned long) sizeof ("421 server down for maintenance\r\n")-1, "421 server down for maintenance\r\n");
 
 	while (socketHasInput(session->client, session->server->option.read_to)) {
 		if ((length = socketReadLine2(session->client, buffer, sizeof (buffer), 1)) <= 0)
@@ -1315,12 +1298,12 @@ smtpProcess(ServerSession *session)
 
 		if (0 < TextInsensitiveStartsWith(buffer, "QUIT")) {
 			socketWrite(session->client, (unsigned char *) "221 closing connection\r\n", sizeof ("221 closing connection\r\n")-1);
-			syslog(LOG_INFO, "%s < %lu:%s", session->id_log, sizeof ("221 closing connection\r\n")-1, "221 closing connection\r\n");
+			syslog(LOG_INFO, "%s < %lu:%s", session->id_log, (unsigned long) sizeof ("221 closing connection\r\n")-1, "221 closing connection\r\n");
 			break;
 		}
 
 		socketWrite(session->client, (unsigned char *) "421 server down for maintenance\r\n", sizeof ("421 server down for maintenance\r\n")-1);
-		syslog(LOG_INFO, "%s < %lu:%s", session->id_log, sizeof ("421 server down for maintenance\r\n")-1, "421 server down for maintenance\r\n");
+		syslog(LOG_INFO, "%s < %lu:%s", session->id_log, (unsigned long) sizeof ("421 server down for maintenance\r\n")-1, "421 server down for maintenance\r\n");
 	}
 
 	return reportFinish(session);

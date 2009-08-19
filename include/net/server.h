@@ -134,7 +134,8 @@ struct server_list {
 	ServerListNode *tail;
 	ServerListNode *head;
 	pthread_mutex_t mutex;
-	pthread_cond_t cv;
+	pthread_cond_t cv_more;
+	pthread_cond_t cv_less;
 
 	/* Public */
 	ServerListHooks	hook;
@@ -212,16 +213,13 @@ struct server {
 
 	volatile int running;
 
-	ServerList workers;		/* Active worker threads. */
-	ServerList workers_idle;	/* Pool of worker threads to process sessions. */
+	ServerList workers;		/* All worker threads. */
+	unsigned workers_active;	/* workers.mutex used to control access. */
+
 	ServerList sessions_queued;	/* Client sessions queued by accept thread. */
 	pthread_t accept_thread;
 	pthread_attr_t thread_attr;
 
-#ifdef HAVE_PTHREAD_COND_INIT
-	pthread_cond_t slow_quit_cv;
-	pthread_mutex_t slow_quit_mutex;
-#endif
 	/* Public data. */
 	void *data;			/* Application specific server data. */
 	unsigned id;
