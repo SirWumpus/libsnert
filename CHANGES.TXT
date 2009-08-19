@@ -44,6 +44,21 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.72.7--
+
+   !	SMDB_ACCESS_TEMPFAIL can return a "TEMPFAIL" value, but if a key
+	is also requested to be returned then something has to be
+	returned too; something like "tag1:invalid" or
+	"tag1:invalid:tag2:invalid".
+
+   +	Added alt_malloc and alt_calloc for valgrind related debugging.
+
+   !	server.c/h: Replaced workers & workers_idle list in favour of a
+	single list of all workers and a counter of active workers.
+	Added conditional variable to monitor for removal of a node from
+	a list. Completely overhauled "slow quit" code.
+
+
 --1.72.6--
 
    !	Rename Session to ServerSession to avoid name space conflicts

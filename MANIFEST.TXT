@@ -103,6 +103,7 @@ com/snert/src/lib/sys/Time.c
 com/snert/src/lib/sys/TimeStamp.c
 com/snert/src/lib/sys/gmtime_r.c
 com/snert/src/lib/sys/makefile.in
+com/snert/src/lib/sys/malloc.c
 com/snert/src/lib/sys/process.c
 com/snert/src/lib/sys/pthread.c
 com/snert/src/lib/sys/pthreadSleep.c
