@@ -203,6 +203,29 @@ reduceMail(size_t prefix, kvm_data *key)
 	return prefix < key->size;
 }
 
+char *
+tagInvalid(const char *tag1, const char *tag2)
+{
+	char *str;
+	long length;
+	size_t tag1_len, tag2_len = 0;
+
+	tag1_len = strlen(tag1) + sizeof ("invalid");
+	tag2_len = tag2 == NULL ? 0 : (strlen(tag2) + sizeof ("invalid"));
+
+	if ((str = malloc(tag1_len + tag2_len)) != NULL) {
+		length = TextCopy(str, tag1_len, tag1);
+		length += TextCopy(str+length, tag1_len-length, "invalid");
+
+		if (tag2 != NULL) {
+			length += TextCopy(str+length, tag1_len+tag2_len-length, tag2);
+			length += TextCopy(str+length, tag1_len+tag2_len-length, "invalid");
+		}
+	}
+
+	return str;
+}
+
 static smdb_result
 singleKey(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *key1, int (*reduceKey)(size_t prefix, kvm_data *key))
 {
@@ -213,6 +236,8 @@ singleKey(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *ke
 	size_t tag1_len, key1_len, str_len;
 
 	*valuep = NULL;
+	if (keyp != NULL)
+		*keyp = NULL;
 	rc = SMDB_ERROR;
 
 #ifndef TEST
@@ -296,8 +321,11 @@ singleKey(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *ke
 
 	free(str);
 error0:
-	if (rc == SMDB_ERROR)
+	if (rc == SMDB_ERROR) {
+		if (keyp != NULL)
+			*keyp = tagInvalid(tag1, NULL);
 		*valuep = strdup("TEMPFAIL");
+	}
 	return rc;
 }
 
@@ -310,6 +338,8 @@ doubleKey(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *ke
 	size_t tag1_len, key1_len, tag2_len, str_len;
 
 	*valuep = NULL;
+	if (keyp != NULL)
+		*keyp = NULL;
 	rc = SMDB_ERROR;
 
 #ifndef TEST
@@ -361,8 +391,11 @@ doubleKey(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *ke
 
 	free(str);
 error0:
-	if (rc == SMDB_ERROR && *valuep == NULL)
+	if (rc == SMDB_ERROR && *valuep == NULL) {
+		if (keyp != NULL)
+			*keyp = tagInvalid(tag1, tag2);
 		*valuep = strdup("TEMPFAIL");
+	}
 	return rc;
 }
 
