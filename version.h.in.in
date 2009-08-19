@@ -61,18 +61,6 @@ extern "C" {
 #define _REENTRANT	1
 #define _THERAD_SAFE	1
 
-/*
- * Intended for debugging in combination with valgrind, which often
- * reports "...points to uninitialised byte(s)" when part of a buffer
- * remains unused. Should only be used once you are sure that what
- * valgrind is reporting can be safely ignored.
- */
-#ifdef NDEBUG
-# define MEMSET(p, b, s)
-#else
-# define MEMSET(p, b, s)	memset((p),(b),(s))
-#endif
-
 typedef struct {
 	int major;
 	int minor;
@@ -784,6 +772,52 @@ typedef int socklen_t;
 
 #define QUOTE(x)	QUOTE_THIS(x)
 #define QUOTE_THIS(x)	#x
+
+/***********************************************************************
+ ***
+ ***********************************************************************/
+
+/*
+ * Intended for debugging in combination with valgrind, which often
+ * reports "...points to uninitialised byte(s)" when part of a buffer
+ * remains unused. Should only be disabled once you are sure that what
+ * valgrind is reporting can be safely ignored.
+ */
+#ifdef NDEBUG
+# define MEMSET(p, b, s)
+# define MALLOC(s)		malloc(s)
+# define CALLOC(n,s)		calloc((n),(s))
+#else
+# define MEMSET(p, b, s)	memset((p),(b),(s))
+# define MALLOC(s)		alt_malloc((s), 0, 0)
+# define CALLOC(n,s)		alt_calloc((n),(s), 0)
+#endif
+
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SIZE_T)
+# include <sys/types.h>
+#endif
+
+/**
+ * Alternative malloc intended for debugging, in particular
+ * with Valgrind, which reports certain classes of errors
+ * about uninitialised data. Sometimes production code calls
+ * for malloc() while debug code wants calloc() like behaviour.
+ *
+ * @param size
+ *	The size in bytes of the area to allocate.
+ *
+ * @param fill_byte
+ *	A byte value to be used to fill in the allocated area.
+ *	with. Specify -1 to ignore.
+ *
+ * @param flags
+ *	A bit-wise OR of assort ALT_MALLOC_ flags.
+ */
+extern void *alt_malloc(size_t size, int fill_byte, unsigned flags);
+
+extern void *alt_calloc(size_t num_elements, size_t element_size, unsigned flags);
+
+#define ALT_MALLOC_ABORT	0x0001
 
 /***********************************************************************
  ***

@@ -61,7 +61,7 @@ $O$E :
 
 OBJS =	Mutex$O Shared$O Thread$O gmtime_r$O Time$O TimeStamp$O \
 	kill$O sleep$O pid$O rlimits$O process$O pthread$O pthreadSleep$O \
-	sys$O winService$O
+	sys$O winService$O malloc$O
 
 .MAIN : build
 
