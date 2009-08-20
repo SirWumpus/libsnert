@@ -145,6 +145,7 @@ struct server_worker {
 	/* Private */
 	unsigned id;
 	pthread_t thread;
+	volatile int running;
 #ifdef __WIN32__
 	HANDLE kill_event;
 #endif
@@ -236,7 +237,8 @@ extern void serverFini(Server *server);
 
 extern int serverSetStackSize(Server *server, size_t stack_size);
 extern int serverStart(Server *server);
-extern int sessionIsTerminated(ServerSession *session);
+extern int serverWorkerIsTerminated(ServerWorker *worker);
+extern int serverSessionIsTerminated(ServerSession *session);
 extern void serverStop(Server *server, int slow_quit);
 
 /**

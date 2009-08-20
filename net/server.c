@@ -137,6 +137,7 @@ serverListDelete(ServerList *list, ServerListNode *node)
 
 	if (node != NULL) {
 		data = node->data;
+		node->data = NULL;
 		prev = node->prev;
 		next = node->next;
 
@@ -163,7 +164,7 @@ serverListDelete(ServerList *list, ServerListNode *node)
 void *
 serverListRemove(ServerList *list, ServerListNode *node)
 {
-	void *data;
+	void *data = NULL;
 
 	if (!pthread_mutex_lock(&list->mutex)) {
 		if ((data = serverListDelete(list, node)) != NULL)
@@ -532,12 +533,11 @@ error0:
  ***********************************************************************/
 
 int
-sessionIsTerminated(ServerSession *session)
+serverSessionIsTerminated(ServerSession *session)
 {
 #ifdef __WIN32__
 	return WaitForSingleObject(session->kill_event, 0) == WAIT_OBJECT_0;
 #else
-	pthread_testcancel();
 	return 0;
 #endif
 }
@@ -626,12 +626,14 @@ sessionCreate(Server *server)
 		goto error0;
 	}
 
-#ifndef NDEBUG
-	memset(session, 0, sizeof (*session));
-#endif
+	MEMSET(session, 0, sizeof (*session));
+
 	session->data = NULL;
 	session->client = NULL;
 	session->server = server;
+#ifdef __WIN32__
+	session->kill_event = CreateEvent(NULL, 0, 0, NULL);
+#endif
 
 	/* Counter ID zero is reserved for server thread identification. */
 	if (++counter == 0)
@@ -685,6 +687,9 @@ sessionFree(void *_session)
 		if (session->server->hook.session_free != NULL)
 			(void) (*session->server->hook.session_free)(session);
 
+#ifdef __WIN32__
+		CloseHandle(session->kill_event);
+#endif
 		free(session);
 	}
 }
@@ -882,6 +887,16 @@ serverAtForkChild(Server *server)
 	serverListFini(&server->workers);
 }
 
+int
+serverWorkerIsTerminated(ServerWorker *worker)
+{
+#ifdef __WIN32__
+	return WaitForSingleObject(worker->kill_event, 0) == WAIT_OBJECT_0;
+#else
+	return !worker->running;
+#endif
+}
+
 static void
 serverWorkerFree(void *_worker)
 {
@@ -892,14 +907,15 @@ serverWorkerFree(void *_worker)
 		if (worker->server->hook.worker_create != NULL)
 			(void) (*worker->server->hook.worker_free)(worker);
 
-		_worker = serverListRemove(&worker->server->workers, worker->node);
-#ifndef NDEDUG
-		if (_worker != NULL) assert(worker == _worker);
-#endif
+		if (worker->node != NULL) {
+			assert(worker->node->data == worker);
+			serverListRemove(&worker->server->workers, worker->node);
+		}
+
 		if (0 < worker->server->debug.level)
 			syslog(LOG_DEBUG, "server-id=%d worker-id=%u stop", worker->server->id, worker->id);
 #ifdef __WIN32__
-		CloseHandle(session->kill_event);
+		CloseHandle(worker->kill_event);
 #endif
 		free(worker);
 	}
@@ -922,13 +938,18 @@ serverWorker(void *_worker)
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u worker-id=%u running", server->id, worker->id);
 
-	while (server->running) {
+	for (worker->running = 1; server->running && worker->running; ) {
 		session = serverListDequeue(&server->sessions_queued);
+
+		if (serverWorkerIsTerminated(worker)) {
+			sessionFree(session);
+			break;
+		}
 
 		sess_id = session->id;
 		if (0 < server->debug.level)
-			syslog(LOG_DEBUG, "server-id=%u worker-id=%u session-id=%u process", server->id, worker->id, sess_id);
-		VALGRIND_PRINTF("server-id=%u worker-id=%u session-id=%u process", server->id, worker->id, sess_id);
+			syslog(LOG_DEBUG, "server-id=%u worker-id=%u session-id=%u dequeued", server->id, worker->id, sess_id);
+		VALGRIND_PRINTF("server-id=%u worker-id=%u session-id=%u dequeued", server->id, worker->id, sess_id);
 
 		/* Keep track of active worker threads. */
 		(void) pthread_mutex_lock(&server->workers.mutex);
@@ -1052,6 +1073,9 @@ serverAccept(void *_server)
 						(void) pthread_mutex_unlock(&server->workers.mutex);
 						queued = serverListLength(&server->sessions_queued);
 
+						if (0 < server->debug.level)
+							syslog(LOG_DEBUG, "server-id=%u session-id=%u enqueued; active=%u idle=%u queued=%u", server->id, session->id, active, idle, queued);
+
 						if (idle < queued && threads < server->option.max_threads)
 							(void) serverWorkerCreate(server);
 					}
@@ -1089,6 +1113,7 @@ void
 serverStop(Server *server, int slow_quit)
 {
 	ServerListNode *node;
+	ServerWorker *worker;
 
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u stopping...", server->id);
@@ -1123,16 +1148,25 @@ serverStop(Server *server, int slow_quit)
 		(void) pthread_mutex_unlock(&server->workers.mutex);
 	}
 
-	/* Stop the remaining worker threads. */
+	/* Signal the remaining worker threads to stop. */
 	(void) pthread_mutex_lock(&server->workers.mutex);
 	for (node = server->workers.head; node != NULL; node = node->next) {
-#ifdef __unix__
-		(void) pthread_cancel(((ServerWorker *) node->data)->thread);
-#endif
+		worker = node->data;
+		worker->running = 0;
 #ifdef __WIN32__
-		SetEvent(((ServerWorker *) node->data)->kill_event);
+		SetEvent(worker->kill_event);
+#endif
+#ifdef __unix__
+		(void) pthread_cancel(worker->thread);
 #endif
 	}
+#ifdef HMM
+	/* Wait for all the workers to terminate. */
+	while (server->workers.head != NULL) {
+		if (pthread_cond_wait(&server->workers.cv_less, &server->workers.mutex))
+			break;
+	}
+#endif
 	(void) pthread_mutex_unlock(&server->workers.mutex);
 
 	if (0 < server->debug.level)
@@ -1205,7 +1239,7 @@ echoProcess(ServerSession *session)
 	while (socketHasInput(session->client, session->server->option.read_to)) {
 		if ((length = socketReadLine2(session->client, buffer, sizeof (buffer), 1)) <= 0)
 			break;
-		if (sessionIsTerminated(session))
+		if (serverSessionIsTerminated(session))
 			break;
 		syslog(LOG_INFO, "%s > %ld:%s", session->id_log, length, buffer);
 		if (socketWrite(session->client, (unsigned char *) buffer, length) != length)
@@ -1227,7 +1261,7 @@ discardProcess(ServerSession *session)
 	while (socketHasInput(session->client, session->server->option.read_to)) {
 		if ((length = socketReadLine2(session->client, buffer, sizeof (buffer), 1)) <= 0)
 			break;
-		if (sessionIsTerminated(session))
+		if (serverSessionIsTerminated(session))
 			break;
 		syslog(LOG_INFO, "%s > %ld:%s", session->id_log, length, buffer);
 	}
@@ -1265,7 +1299,7 @@ chargenProcess(ServerSession *session)
 
 	reportAccept(session);
 
-	for (offset = 0; !sessionIsTerminated(session); offset = (offset+1) % 95) {
+	for (offset = 0; !serverSessionIsTerminated(session); offset = (offset+1) % 95) {
 		if (socketWrite(session->client, printable+offset, 72) != 72)
 			break;
 		if (socketWrite(session->client, (unsigned char *) "\r\n", 2) != 2)
@@ -1289,7 +1323,7 @@ smtpProcess(ServerSession *session)
 	while (socketHasInput(session->client, session->server->option.read_to)) {
 		if ((length = socketReadLine2(session->client, buffer, sizeof (buffer), 1)) <= 0)
 			break;
-		if (sessionIsTerminated(session)) {
+		if (serverSessionIsTerminated(session)) {
 			syslog(LOG_INFO, "%s terminated", session->id_log);
 			break;
 		}
