@@ -145,6 +145,7 @@ struct server_worker {
 	/* Private */
 	unsigned id;
 	pthread_t thread;
+	ServerListNode node;
 	volatile int running;
 #ifdef __WIN32__
 	HANDLE kill_event;
@@ -152,7 +153,6 @@ struct server_worker {
 	/* Public */
 	void *data;
 	Server *server;
-	ServerListNode *node;
 	ServerSession *session;
 };
 
@@ -188,8 +188,9 @@ typedef struct {
 
 struct server_session {
 	/* Private state. */
-	ServerInterface *iface;
 	pthread_t thread;
+	ServerListNode node;
+	ServerInterface *iface;
 #if defined(__WIN32__)
 	HANDLE kill_event;
 #endif
@@ -292,9 +293,9 @@ extern void serverSignalsFini(ServerSignals *signals);
 
 extern int serverListInit(ServerList *list);
 extern void serverListFini(ServerList *list);
-extern void *serverListRemove(ServerList *list, ServerListNode *node);
-extern ServerListNode *serverListEnqueue(ServerList *list, void *data);
-extern void *serverListDequeue(ServerList *list);
+extern void serverListRemove(ServerList *list, ServerListNode *node);
+extern void serverListEnqueue(ServerList *list, ServerListNode *node);
+extern ServerListNode *serverListDequeue(ServerList *list);
 extern unsigned serverListLength(ServerList *list);
 extern int serverListIsEmpty(ServerList *list);
 

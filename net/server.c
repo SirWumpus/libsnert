@@ -129,15 +129,12 @@ serverListInsertBefore(ServerList *list, ServerListNode *node, ServerListNode *n
 }
 #endif
 
-static void *
+static void
 serverListDelete(ServerList *list, ServerListNode *node)
 {
-	void *data = NULL;
 	ServerListNode *prev, *next;
 
 	if (node != NULL) {
-		data = node->data;
-		node->data = NULL;
 		prev = node->prev;
 		next = node->next;
 
@@ -151,28 +148,52 @@ serverListDelete(ServerList *list, ServerListNode *node)
 		else
 			next->prev = prev;
 
+		node->prev = node->next = NULL;
 		list->length--;
-		free(node);
 
 		if (list->length == 0 && list->hook.list_empty != NULL)
 			(*list->hook.list_empty)(list);
 	}
-
-	return data;
 }
 
-void *
+void
 serverListRemove(ServerList *list, ServerListNode *node)
 {
-	void *data = NULL;
+	if (!pthread_mutex_lock(&list->mutex)) {
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &list->mutex);
+#endif
+		serverListDelete(list, node);
+		(void) pthread_cond_signal(&list->cv_less);
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_pop(1);
+#else
+		(void) pthread_mutex_unlock(&list->mutex);
+#endif
+	}
+}
+
+void
+serverListRemoveAll(ServerList *list, void (*free_fn)(void *))
+{
+	ServerListNode *node, *next;
 
 	if (!pthread_mutex_lock(&list->mutex)) {
-		if ((data = serverListDelete(list, node)) != NULL)
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &list->mutex);
+#endif
+		for (node = list->head; node != NULL; node = next) {
+			next = node->next;
+			serverListDelete(list, node);
 			(void) pthread_cond_signal(&list->cv_less);
+			(*free_fn)(node->data);
+		}
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_pop(1);
+#else
 		(void) pthread_mutex_unlock(&list->mutex);
+#endif
 	}
-
-	return data;
 }
 
 unsigned
@@ -181,8 +202,15 @@ serverListLength(ServerList *list)
 	unsigned length = 0;
 
 	if (!pthread_mutex_lock(&list->mutex)) {
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &list->mutex);
+#endif
 		length = list->length;
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_pop(1);
+#else
 		(void) pthread_mutex_unlock(&list->mutex);
+#endif
 	}
 
 	return length;
@@ -194,41 +222,49 @@ serverListIsEmpty(ServerList *list)
 	return serverListLength(list) == 0;
 }
 
-ServerListNode *
-serverListEnqueue(ServerList *list, void *data)
+void
+serverListEnqueue(ServerList *list, ServerListNode *node)
 {
-	ServerListNode *new_node = NULL;
-
-	if (data != NULL && !pthread_mutex_lock(&list->mutex)) {
-		if ((new_node = calloc(1, sizeof (*new_node))) != NULL) {
-			new_node->data = data;
-			serverListInsertAfter(list, list->tail, new_node);
-			(void) pthread_cond_signal(&list->cv_more);
-		}
+	if (node != NULL && !pthread_mutex_lock(&list->mutex)) {
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &list->mutex);
+#endif
+		serverListInsertAfter(list, list->tail, node);
+		(void) pthread_cond_signal(&list->cv_more);
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_pop(1);
+#else
 		(void) pthread_mutex_unlock(&list->mutex);
+#endif
 	}
-
-	return new_node;
 }
 
-void *
+ServerListNode *
 serverListDequeue(ServerList *list)
 {
-	void *data = NULL;
+	ServerListNode *node = NULL;
 
 	if (!pthread_mutex_lock(&list->mutex)) {
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &list->mutex);
+#endif
 		/* Wait until the list has an element. */
 		while (list->head == NULL) {
 			if (pthread_cond_wait(&list->cv_more, &list->mutex))
 				break;
 		}
 
-		if ((data = serverListDelete(list, list->head)) != NULL)
-			(void) pthread_cond_signal(&list->cv_less);
+		node = list->head;
+		serverListDelete(list, node);
+		(void) pthread_cond_signal(&list->cv_less);
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_pop(1);
+#else
 		(void) pthread_mutex_unlock(&list->mutex);
+#endif
 	}
 
-	return data;
+	return node;
 }
 
 int
@@ -257,13 +293,6 @@ serverListInit(ServerList *list)
 void
 serverListFini(ServerList *list)
 {
-	ServerListNode *element, *next;
-
-	for (element = list->head; element != NULL; element = next) {
-		next = element->next;
-		free(element);
-	}
-
 	(void) pthreadMutexDestroy(&list->mutex);
 	(void) pthread_cond_destroy(&list->cv_less);
 	(void) pthread_cond_destroy(&list->cv_more);
@@ -631,6 +660,8 @@ sessionCreate(Server *server)
 	session->data = NULL;
 	session->client = NULL;
 	session->server = server;
+	session->node.data = session;
+	session->node.prev = session->node.next = NULL;
 #ifdef __WIN32__
 	session->kill_event = CreateEvent(NULL, 0, 0, NULL);
 #endif
@@ -687,6 +718,8 @@ sessionFree(void *_session)
 		if (session->server->hook.session_free != NULL)
 			(void) (*session->server->hook.session_free)(session);
 
+		if (session->client != NULL)
+			sessionFinish(session);
 #ifdef __WIN32__
 		CloseHandle(session->kill_event);
 #endif
@@ -698,6 +731,8 @@ sessionFree(void *_session)
  *** Server API
  ***********************************************************************/
 
+static void serverWorkerFree(void *_worker);
+
 void
 serverFini(Server *server)
 {
@@ -705,7 +740,10 @@ serverFini(Server *server)
 #if defined(HAVE_PTHREAD_ATTR_INIT)
 		(void) pthread_attr_destroy(&server->thread_attr);
 #endif
+		serverListRemoveAll(&server->sessions_queued, sessionFree);
 		serverListFini(&server->sessions_queued);
+
+		serverListRemoveAll(&server->workers, serverWorkerFree);
 		serverListFini(&server->workers);
 
 		free((char *) server->option.interfaces);
@@ -898,6 +936,12 @@ serverWorkerIsTerminated(ServerWorker *worker)
 }
 
 static void
+serverWorkerRemove(void *_worker)
+{
+	serverListRemove(&((ServerWorker *) _worker)->server->workers, &((ServerWorker *) _worker)->node);
+}
+
+static void
 serverWorkerFree(void *_worker)
 {
 	ServerWorker *worker = (ServerWorker *) _worker;
@@ -906,11 +950,6 @@ serverWorkerFree(void *_worker)
 		/* Free thread persistent application data. */
 		if (worker->server->hook.worker_create != NULL)
 			(void) (*worker->server->hook.worker_free)(worker);
-
-		if (worker->node != NULL) {
-			assert(worker->node->data == worker);
-			serverListRemove(&worker->server->workers, worker->node);
-		}
 
 		if (0 < worker->server->debug.level)
 			syslog(LOG_DEBUG, "server-id=%d worker-id=%u stop", worker->server->id, worker->id);
@@ -932,6 +971,7 @@ serverWorker(void *_worker)
 
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_push(serverWorkerFree, worker);
+	pthread_cleanup_push(serverWorkerRemove, worker);
 #endif
 	server = worker->server;
 
@@ -939,7 +979,7 @@ serverWorker(void *_worker)
 		syslog(LOG_DEBUG, "server-id=%u worker-id=%u running", server->id, worker->id);
 
 	for (worker->running = 1; server->running && worker->running; ) {
-		session = serverListDequeue(&server->sessions_queued);
+		session = serverListDequeue(&server->sessions_queued)->data;
 
 		if (serverWorkerIsTerminated(worker)) {
 			sessionFree(session);
@@ -994,7 +1034,9 @@ serverWorker(void *_worker)
 	}
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_pop(1);
+	pthread_cleanup_pop(1);
 #else
+	serverWorkerRemove(worker);
 	serverWorkerFree(worker);
 #endif
 	return NULL;
@@ -1015,10 +1057,11 @@ serverWorkerCreate(Server *server)
 
 	worker->id = counter;
 	worker->server = server;
+	worker->node.data = worker;
 #ifdef __WIN32__
 	worker->kill_event = CreateEvent(NULL, 0, 0, NULL);
 #endif
-	worker->node = serverListEnqueue(&server->workers, worker);
+	serverListEnqueue(&server->workers, &worker->node);
 
 	/* Create thread persistent data. */
 	if (server->hook.worker_create != NULL
@@ -1039,6 +1082,7 @@ serverWorkerCreate(Server *server)
 
 	return worker;
 error1:
+	serverWorkerRemove(worker);
 	serverWorkerFree(worker);
 error0:
 	return NULL;
@@ -1063,7 +1107,7 @@ serverAccept(void *_server)
 						session->iface = (ServerInterface *) VectorGet(server->interfaces, i);
 						session->client = socketAccept(session->iface->socket);
 						(void) sessionAccept(session);
-						(void) serverListEnqueue(&server->sessions_queued, session);
+						serverListEnqueue(&server->sessions_queued, &session->node);
 
 						/* Do we have too few threads? */
 						(void) pthread_mutex_lock(&server->workers.mutex);
@@ -1160,8 +1204,7 @@ serverStop(Server *server, int slow_quit)
 		(void) pthread_cancel(worker->thread);
 #endif
 	}
-#ifdef HMM
-	/* Wait for all the workers to terminate. */
+#ifdef HMMM
 	while (server->workers.head != NULL) {
 		if (pthread_cond_wait(&server->workers.cv_less, &server->workers.mutex))
 			break;
@@ -1170,7 +1213,7 @@ serverStop(Server *server, int slow_quit)
 	(void) pthread_mutex_unlock(&server->workers.mutex);
 
 	if (0 < server->debug.level)
-		syslog(LOG_DEBUG, "server-id=%u all stopped", server->id);
+		syslog(LOG_DEBUG, "server-id=%u all stop", server->id);
 }
 
 #ifdef TEST
@@ -1198,6 +1241,7 @@ char *windows_service;
 ServerSignals signals;
 int min_threads = SERVER_MIN_THREADS;
 int max_threads = SERVER_MAX_THREADS;
+int spare_threads = SERVER_NEW_THREADS;
 
 #undef syslog
 
@@ -1349,7 +1393,7 @@ serverOptions(int argc, char **argv)
 	int ch;
 
 	optind = 1;
-	while ((ch = getopt(argc, argv, "dm:M:qvw:")) != -1) {
+	while ((ch = getopt(argc, argv, "dm:M:qs:vw:")) != -1) {
 		switch (ch) {
 		case 'm':
 			min_threads = strtol(optarg, NULL, 10);
@@ -1357,6 +1401,10 @@ serverOptions(int argc, char **argv)
 
 		case 'M':
 			max_threads = strtol(optarg, NULL, 10);
+			break;
+
+		case 's':
+			spare_threads = strtol(optarg, NULL, 10);
 			break;
 
 		case 'd':
@@ -1379,7 +1427,7 @@ serverOptions(int argc, char **argv)
 			/*@fallthrough@*/
 
 		default:
-			fprintf(stderr, "usage: " _NAME " [-dqv][-m min][-M max][-w add|remove]\n");
+			fprintf(stderr, "usage: " _NAME " [-dqv][-m min][-M max][-s spare][-w add|remove]\n");
 			exit(EX_USAGE);
 		}
 	}
@@ -1423,6 +1471,7 @@ serverMain(void)
 		if ((service->server = serverCreate(service->host, service->port)) == NULL)
 			goto error0;
 
+		service->server->option.new_threads = spare_threads;
 		service->server->option.min_threads = min_threads;
 		service->server->option.max_threads = max_threads;
 		service->server->debug.level = debug;
@@ -1463,6 +1512,8 @@ error1:
 		serverFree(service->server);
 	}
 error0:
+	syslog(LOG_INFO, "signal %d, terminated", signal);
+
 	return rc;
 }
 
