@@ -43,7 +43,9 @@ timerThread(void *_data)
 	pthread_cleanup_push(timerFree, timer);
 #endif
 	(void) pthread_mutex_lock(&timer->mutex);
-
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &timer->mutex);
+#endif
 	/* Set initial delay. */
 	timerSetAbstime(&abstime, &timer->delay);
 
@@ -67,8 +69,11 @@ timerThread(void *_data)
 		/* Set end of next iteration. */
 		timerSetAbstime(&abstime, &period);
 	}
-
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+	pthread_cleanup_pop(1);
+#else
 	(void) pthread_mutex_unlock(&timer->mutex);
+#endif
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_pop(1);
 #else
