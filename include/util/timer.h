@@ -104,10 +104,15 @@ extern void timeSubtract(time_t *acc, time_t *b);
 #else
 /* 1 second resolution */
 
-# define CLOCK			time_t
+struct timesec {
+	time_t	tv_sec;
+	long	tv_ignored;
+};
+
+# define CLOCK			struct timesec
 # define CLOCK_ADD(a, b)	timeAdd(a, b)
 # define CLOCK_SUB(a, b)	timeSub(a, b)
-# define CLOCK_GET(a)		(void) time(a)
+# define CLOCK_GET(a)		(void) time(&(a).tv_sec)
 # define CLOCK_FMT		"%ld"
 # define CLOCK_FMT_DOT(a)	(long)(a).tv_sec
 # define CLOCK_FMT_PTR(a)	(long)(a)->tv_sec
@@ -163,12 +168,6 @@ struct timer {
  *	A pointer to a Timer structure.
  */
 extern Timer *timerCreate(TimerTask task, CLOCK *delay, CLOCK *period, size_t stack_size);
-
-/**
- * @param
- *	A pointer to a Timer structure to cancel.
- */
-extern void timerCancel(Timer *timer);
 
 /**
  * @param

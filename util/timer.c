@@ -12,6 +12,7 @@
 
 #include <errno.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef HAVE_UNISTD_H
 # include <unistd.h>
@@ -24,9 +25,10 @@
  ***********************************************************************/
 
 #if defined(HAVE_PTHREAD_COND_TIMEDWAIT)
-static void
+void
 timerSetAbstime(CLOCK *abstime, CLOCK *delay)
 {
+	MEMSET(abstime, 0, sizeof (*abstime));
 	CLOCK_GET(abstime);
 	CLOCK_ADD(abstime, delay);
 }
@@ -39,13 +41,10 @@ timerThread(void *_data)
 	TIMER_DECLARE(period);
 	Timer *timer = (Timer *) _data;
 
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-	pthread_cleanup_push(timerFree, timer);
-#endif
 	(void) pthread_mutex_lock(&timer->mutex);
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+# ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &timer->mutex);
-#endif
+# endif
 	/* Set initial delay. */
 	timerSetAbstime(&abstime, &timer->delay);
 
@@ -69,20 +68,15 @@ timerThread(void *_data)
 		/* Set end of next iteration. */
 		timerSetAbstime(&abstime, &period);
 	}
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+# ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_pop(1);
-#else
+# else
 	(void) pthread_mutex_unlock(&timer->mutex);
-#endif
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-	pthread_cleanup_pop(1);
-#else
-	timerFree(timer);
-#endif
+# endif
 	return NULL;
 }
 
-#else
+#else /* defined(HAVE_PTHREAD_COND_TIMEDWAIT) */
 
 static int
 timerIsCanceled(Timer *timer)
@@ -100,9 +94,6 @@ timerThread(void *_data)
 	TIMER_DECLARE(period);
 	Timer *timer = (Timer *) _data;
 
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-	pthread_cleanup_push(timerFree, timer);
-#endif
 #if defined(HAVE_STRUCT_TIMESPEC)
 	pthreadSleep(timer->delay.tv_sec, timer->delay.tv_nsec);
 #elif defined(HAVE_STRUCT_TIMEVAL)
@@ -143,14 +134,9 @@ timerThread(void *_data)
 #endif
 	} while (TIMER_NE_CONST(timer->period, 0, 0));
 
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-	pthread_cleanup_pop(1);
-#else
-	timerFree(timer);
-#endif
 	return NULL;
 }
-#endif
+#endif /* defined(HAVE_PTHREAD_COND_TIMEDWAIT) */
 
 
 /**
@@ -232,26 +218,9 @@ error0:
 	return NULL;
 }
 
-void
-timerCancel(Timer *timer)
-{
-	timer->task = NULL;
-	CLOCK_SUB(&timer->period, &timer->period);
-#ifdef __unix__
-# if defined(HAVE_PTHREAD_COND_TIMEDWAIT)
-	(void) pthread_cond_signal(&timer->cv);
-# else
-	(void) pthread_cancel(timer->thread);
-# endif
-#endif
-#ifdef __WIN32__
-	SetEvent(timer->cancel_event);
-#endif
-}
-
 /**
  * @param
- *	A pointer to a Timer structure to free.
+ *	A pointer to a Timer structure to cancel and free.
  */
 void
 timerFree(void *_timer)
@@ -259,10 +228,31 @@ timerFree(void *_timer)
 	Timer *timer = (Timer *) _timer;
 
 	if (timer != NULL) {
+		timer->task = NULL;
+		CLOCK_SUB(&timer->period, &timer->period);
+#ifdef __unix__
+		(void) pthread_mutex_lock(&timer->mutex);
+# ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &timer->mutex);
+# endif
+# if defined(HAVE_PTHREAD_COND_TIMEDWAIT)
+		(void) pthread_cond_signal(&timer->cv);
+# else
+		(void) pthread_cancel(timer->thread);
+# endif
+# ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_pop(1);
+# else
+		(void) pthread_mutex_unlock(&timer->mutex);
+# endif
+#endif
+#ifdef __WIN32__
+		SetEvent(timer->cancel_event);
+#endif
 		(void) pthread_join(timer->thread, NULL);
 #if defined(HAVE_PTHREAD_COND_TIMEDWAIT)
-		(void) pthreadMutexDestroy(&timer->mutex);
 		(void) pthread_cond_destroy(&timer->cv);
+		(void) pthreadMutexDestroy(&timer->mutex);
 #endif
 #ifdef __WIN32__
 		CloseHandle(timer->cancel_event);
@@ -296,7 +286,7 @@ int
 main(int argc, char **argv)
 {
 	Timer *timer;
-	CLOCK period = { 1 };
+	CLOCK period = { 1, 0 };
 
 	counter = 10;
 	if (1 < argc)
@@ -306,9 +296,7 @@ main(int argc, char **argv)
 		return 1;
 
 	sleep(6);
-	timerCancel(timer);
-
-	(void) pthread_join(timer->thread, NULL);
+	timerFree(timer);
 
 	return 0;
 }
