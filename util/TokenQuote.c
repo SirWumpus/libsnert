@@ -45,7 +45,7 @@ TokenQuote(const char *string, const char *delims)
 	length += s - string;
 
 	if ((quoted = malloc(length+1)) != NULL) {
-		for (s = quoted; *string != '\0'; *string++) {
+		for (s = quoted; *string != '\0'; string++) {
 			if (strchr(delims, *string) != NULL)
 				*s++ = '\\';
 			*s++ = *string;
