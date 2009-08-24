@@ -569,6 +569,10 @@ mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 {
 	int rc;
 
+#ifdef HAVE_PTHREAD_SETCANCELSTATE
+	int old_state;
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old_state);
+#endif
 	/* Using the newer sqlite_prepare_v2() interface means that
 	 * sqlite3_step() will return more detailed error codes. See
 	 * sqlite3_step() API reference.
@@ -599,6 +603,9 @@ mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 		 */
 		(void) sqlite3_reset(sql_stmt);
 	}
+#ifdef HAVE_PTHREAD_SETCANCELSTATE
+	pthread_setcancelstate(old_state, NULL);
+#endif
 
 	return rc;
 }
@@ -651,7 +658,9 @@ mccSetSync(mcc_handle *mcc, int level)
 {
 	int rc;
 	char *error;
-
+#ifdef HAVE_PTHREAD_SETCANCELSTATE
+	int old_state;
+#endif
 	rc = MCC_ERROR;
 
 	if (mcc == NULL || level < MCC_SYNC_OFF || MCC_SYNC_FULL < level)
@@ -662,6 +671,9 @@ mccSetSync(mcc_handle *mcc, int level)
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &mcc->mutex);
 #endif
+#ifdef HAVE_PTHREAD_SETCANCELSTATE
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old_state);
+#endif
 	if (sqlite3_exec(mcc->db, synchronous_stmt[level], NULL, NULL, &error) != SQLITE_OK) {
 		syslog(LOG_ERR, "sql=%s error %s: %s", mcc->path, synchronous_stmt[level], error);
 		sqlite3_free(error);
@@ -670,6 +682,9 @@ mccSetSync(mcc_handle *mcc, int level)
 
 	rc = MCC_OK;
 error1:
+#ifdef HAVE_PTHREAD_SETCANCELSTATE
+	pthread_setcancelstate(old_state, NULL);
+#endif
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	;
 	pthread_cleanup_pop(1);
@@ -1519,23 +1534,36 @@ mccDestroy(void *_mcc)
 			syslog(LOG_DEBUG, "mccDestroy(%lx)", (long) mcc);
 
 		(void) pthread_mutex_trylock(&mcc->mutex);
-
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &mcc->mutex);
+#endif
 		/* Stop these threads before releasing the rest. */
 		mccStopMulticast(mcc);
 		mccStopUnicast(mcc);
 		mccStopGc(mcc);
 
 		if (mcc->db != NULL) {
+#ifdef HAVE_PTHREAD_SETCANCELSTATE
+			int old_state;
+			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old_state);
+#endif
 			mcc_sql_stmts_finalize(mcc);
 			sqlite3_close(mcc->db);
+#ifdef HAVE_PTHREAD_SETCANCELSTATE
+			pthread_setcancelstate(old_state, NULL);
+#endif
 		}
-
-		(void) pthread_mutex_unlock(&mcc->mutex);
-		(void) pthread_mutex_destroy(&mcc->mutex);
 
 		mcc_active_cleanup(mcc->active);
 		VectorDestroy(mcc->key_hooks);
 		free(mcc->secret);
+
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_pop(1);
+#else
+		(void) pthread_mutex_unlock(&mcc->mutex);
+#endif
+		(void) pthread_mutex_destroy(&mcc->mutex);
 		free(mcc);
 	}
 }
