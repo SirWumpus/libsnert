@@ -340,6 +340,9 @@ kvm_get_hash(kvm *self, kvm_data *key, kvm_data *value)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	if (kvm_fetch_hash(self, key, &v) == KVM_NOT_FOUND) {
 		rc = KVM_NOT_FOUND;
@@ -363,7 +366,12 @@ kvm_get_hash(kvm *self, kvm_data *key, kvm_data *value)
 	rc = KVM_OK;
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	;
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -384,6 +392,9 @@ kvm_put_hash(kvm *self, kvm_data *key, kvm_data *value)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	hash = hash_index(key->data, key->size);
 	entry = ((kvm_hash_table *) self->_kvm)->table[hash];
@@ -426,7 +437,12 @@ kvm_put_hash(kvm *self, kvm_data *key, kvm_data *value)
 	rc = KVM_OK;
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	;
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -447,6 +463,9 @@ kvm_remove_hash(kvm *self, kvm_data *key)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	hash = hash_index(key->data, key->size);
 	entry = ((kvm_hash_table *) self->_kvm)->table[hash];
@@ -464,7 +483,12 @@ kvm_remove_hash(kvm *self, kvm_data *key)
 	rc = KVM_NOT_FOUND;
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	;
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -518,6 +542,9 @@ kvm_walk_hash(kvm *self, int (*func)(kvm_data *, kvm_data *, void *), void *data
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	table = ((kvm_hash_table *) self->_kvm)->table;
 
@@ -540,7 +567,11 @@ error1:
 	rc = KVM_OK;
 
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 error0:
 #endif
 	return rc;
@@ -571,11 +602,18 @@ kvm_truncate_hash(kvm *self)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	(void) kvm_truncate2_hash(self);
 
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 error0:
 #endif
 	return KVM_OK;
@@ -808,6 +846,9 @@ kvm_sync_file(kvm *self)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	if (!(self->_mode & KVM_MODE_READ_ONLY) && (fp = fopen(file->path, "w")) != NULL) {
 		table = ((kvm_hash_table *) file->hash->_kvm)->table;
@@ -833,7 +874,11 @@ error1:
 	}
 
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 error0:
 #endif
 	;
@@ -856,6 +901,9 @@ kvm_truncate_file(kvm *self)
 #if defined(HAVE_PTHREAD_CREATE)
 		if (pthread_mutex_lock(&self->_mutex))
 			goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+		pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 #if defined(HAVE_TRUNCATE)
 		if (truncate(((kvm_file *) self->_kvm)->path, 0))
@@ -876,7 +924,11 @@ kvm_truncate_file(kvm *self)
 # error "Require ftruncate() or truncate() equivalent."
 #endif
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+		pthread_cleanup_pop(1);
+# else
 		(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 error0:
 #endif
 		;
@@ -1037,11 +1089,11 @@ kvm_lock_db(kvm *self, int mode)
 	mode = mode == 0 ? LOCK_SH : LOCK_EX;
 
 #if defined(HAVE_PTHREAD_CREATE)
-	/* Lock the mutex to prevent more than one thread from
-	 * accessing the database.
-	 */
-	if (pthread_mutex_lock(&self->_mutex))
-		return -1;
+		if (pthread_mutex_lock(&self->_mutex))
+			return -1;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+		pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	/* Lock the database to prevent other process from
 	 * modifying the database.
@@ -1058,7 +1110,11 @@ kvm_lock_db(kvm *self, int mode)
 
 		if (errno != 0) {
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+			pthread_cleanup_pop(1);
+# else
 			(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 			return -1;
 		}
@@ -1883,6 +1939,7 @@ kvm_check_socket(kvm *self)
 static int
 kvm_fetch_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 {
+	long timeout;
 	size_t name_length;
 	int i, rc, number_length;
 	unsigned char number[20];
@@ -1898,6 +1955,9 @@ kvm_fetch_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	if (kvm_check_socket(self))
 		goto error1;
@@ -1905,6 +1965,8 @@ kvm_fetch_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 	name_length = strlen(self->_table);
 	query_length = name_length + 1 + key->size;
 	number_length = snprintf((char *) number, sizeof (number), "%lu:", query_length);
+
+	timeout = socketGetTimeout(self->_kvm);
 
 	if (socketWrite(self->_kvm, number, number_length) != number_length)
 		goto error2;
@@ -1918,7 +1980,7 @@ kvm_fetch_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 		goto error2;
 
 	for (i = 0; i < sizeof (number)-1; i++) {
-		if (socketRead(self->_kvm, number + i, 1) != 1)
+		if (!socketHasInput(self->_kvm, timeout) || socketRead(self->_kvm, number + i, 1) != 1)
 			goto error2;
 		if (number[i] == ':')
 			break;
@@ -1929,7 +1991,7 @@ kvm_fetch_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 		goto error2;
 
 	/* Try to read leading "OK ". */
-	if (socketRead(self->_kvm, value->data, 3) != 3)
+	if (!socketHasInput(self->_kvm, timeout) || socketRead(self->_kvm, value->data, 3) != 3)
 		goto error2;
 
 	if (*value->data == 'O') {
@@ -1943,7 +2005,7 @@ kvm_fetch_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 		i = 3;
 	}
 
-	if (socketRead(self->_kvm, value->data+i, value->size-i+1) != value->size-i+1)
+	if (!socketHasInput(self->_kvm, timeout) || socketRead(self->_kvm, value->data+i, value->size-i+1) != value->size-i+1)
 		goto error2;
 
 	if (value->data[value->size] != ',')
@@ -1963,7 +2025,12 @@ error2:
 	}
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	;
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -1983,6 +2050,9 @@ kvm_get_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	if (kvm_check_socket(self))
 		goto error1;
@@ -2020,7 +2090,12 @@ error2:
 	}
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	;
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -2040,6 +2115,9 @@ kvm_put_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	if (kvm_check_socket(self))
 		goto error1;
@@ -2066,7 +2144,12 @@ error2:
 	}
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	;
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -2084,8 +2167,11 @@ kvm_remove_socket(struct kvm *self, kvm_data *key)
 		goto error0;
 
 #if defined(HAVE_PTHREAD_CREATE)
-	if (pthread_mutex_lock(&self->_mutex) && errno != EDEADLK)
+	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	if (kvm_check_socket(self))
 		goto error1;
@@ -2114,7 +2200,12 @@ error2:
 	}
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	;
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -2148,6 +2239,9 @@ kvm_walk_socket(kvm *self, int (*func)(kvm_data *, kvm_data *, void *), void *da
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	if (kvm_check_socket(self))
 		goto error1;
@@ -2200,7 +2294,12 @@ error2:
 	}
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	;
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -2774,6 +2873,9 @@ kvm_get_sql(kvm *self, kvm_data *key, kvm_data *value)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 #ifdef USE_TEXT_COLUMNS
 	if (sqlite3_bind_text(sql->select_one, 1, (const char *) key->data, key->size, SQLITE_STATIC) != SQLITE_OK)
@@ -2801,7 +2903,12 @@ kvm_get_sql(kvm *self, kvm_data *key, kvm_data *value)
 	}
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	;
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -2823,6 +2930,9 @@ kvm_put_sql(kvm *self, kvm_data *key, kvm_data *value)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 #ifdef USE_TEXT_COLUMNS
 	if (sqlite3_bind_text(sql->replace, 1, (const char *) key->data, key->size, SQLITE_TRANSIENT) != SQLITE_OK)
@@ -2842,7 +2952,12 @@ kvm_put_sql(kvm *self, kvm_data *key, kvm_data *value)
 		rc = KVM_OK;
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	;
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -2864,6 +2979,9 @@ kvm_remove_sql(kvm *self, kvm_data *key)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 #ifdef USE_TEXT_COLUMNS
 	if (sqlite3_bind_text(sql->remove, 1, (const char *) key->data, key->size, SQLITE_STATIC) != SQLITE_OK)
@@ -2876,7 +2994,12 @@ kvm_remove_sql(kvm *self, kvm_data *key)
 		rc = KVM_OK;
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	;
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -2898,11 +3021,18 @@ kvm_truncate_sql(kvm *self)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	if (kvm_sql_step(sql, sql->truncate, KVM_SQL_TRUNCATE) == SQLITE_DONE)
 		rc = KVM_OK;
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -2924,11 +3054,18 @@ kvm_begin_sql(kvm *self)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	if (kvm_sql_step(sql, sql->begin, KVM_SQL_BEGIN) == SQLITE_DONE)
 		rc = KVM_OK;
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -2950,11 +3087,18 @@ kvm_commit_sql(kvm *self)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	if (kvm_sql_step(sql, sql->commit, KVM_SQL_COMMIT) == SQLITE_DONE)
 		rc = KVM_OK;
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -2976,11 +3120,18 @@ kvm_rollback_sql(kvm *self)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	if (kvm_sql_step(sql, sql->rollback, KVM_SQL_ROLLBACK) == SQLITE_DONE)
 		rc = KVM_OK;
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -3003,6 +3154,9 @@ kvm_walk_sql(kvm *self, int (*func)(kvm_data *, kvm_data *, void *), void *data)
 #if defined(HAVE_PTHREAD_CREATE)
 	if (pthread_mutex_lock(&self->_mutex))
 		goto error0;
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+# endif
 #endif
 	do {
 		switch (ret = kvm_sql_step(sql, sql->select_all, KVM_SQL_SELECT_ALL)) {
@@ -3038,7 +3192,12 @@ kvm_walk_sql(kvm *self, int (*func)(kvm_data *, kvm_data *, void *), void *data)
 	} while (ret == SQLITE_ROW);
 error1:
 #if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	;
+	pthread_cleanup_pop(1);
+# else
 	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
 #endif
 error0:
 	return rc;
@@ -3199,20 +3358,6 @@ kvmDebug(int level)
 {
 	debug = level;
 }
-
-#ifdef NOT_YET
-int
-kvmLock(struct kvm *self)
-{
-	return pthread_mutex_lock(&self->_mutex);
-}
-
-int
-kvmUnlock(struct kvm *self)
-{
-	return pthread_mutex_unlock(&self->_mutex);
-}
-#endif
 
 /**
  * @param table_name
