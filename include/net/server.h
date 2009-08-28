@@ -196,8 +196,8 @@ struct server_session {
 #endif
 	/* Public data. */
 	void *data;			/* Application specific session data. */
-	unsigned id;			/* Session ID of session */
 	char id_log[20];		/* Session ID suitable for logging. */
+	unsigned short id;		/* Session ID of session */
 	time_t start;			/* Time session was started. */
 	Server *server;
 	Socket2 *client;

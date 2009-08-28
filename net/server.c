@@ -186,7 +186,8 @@ serverListRemoveAll(ServerList *list, void (*free_fn)(void *))
 			next = node->next;
 			serverListDelete(list, node);
 			(void) pthread_cond_signal(&list->cv_less);
-			(*free_fn)(node->data);
+			if (free_fn != NULL)
+				(*free_fn)(node->data);
 		}
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 		pthread_cleanup_pop(1);
@@ -293,10 +294,9 @@ serverListInit(ServerList *list)
 void
 serverListFini(ServerList *list)
 {
-	(void) pthreadMutexDestroy(&list->mutex);
 	(void) pthread_cond_destroy(&list->cv_less);
 	(void) pthread_cond_destroy(&list->cv_more);
-
+	(void) pthreadMutexDestroy(&list->mutex);
 }
 
 /***********************************************************************
@@ -561,6 +561,8 @@ error0:
  *** ServerSession API
  ***********************************************************************/
 
+static unsigned short session_counter = 0;
+
 int
 serverSessionIsTerminated(ServerSession *session)
 {
@@ -575,8 +577,8 @@ static int
 sessionAccept(ServerSession *session)
 {
 	if (0 < session->server->debug.level)
-		syslog(LOG_DEBUG, "server-id=%u session-id=%u accept", session->server->id, session->id);
-	VALGRIND_PRINTF("server-id=%u session-id=%u accept", session->server->id, session->id);
+		syslog(LOG_DEBUG, "%s server-id=%u session-id=%u accept", session->id_log, session->server->id, session->id);
+	VALGRIND_PRINTF("%s server-id=%u session-id=%u accept", session->id_log, session->server->id, session->id);
 
 	if (session->server->hook.session_accept != NULL
 	&& (*session->server->hook.session_accept)(session)) {
@@ -648,7 +650,6 @@ sessionCreate(Server *server)
 {
 	int length;
 	ServerSession *session;
-	static unsigned short counter = 0;
 
 	if ((session = malloc(sizeof (*session))) == NULL) {
 		syslog(LOG_ERR, log_oom, SERVER_FILE_LINENO);
@@ -667,8 +668,8 @@ sessionCreate(Server *server)
 #endif
 
 	/* Counter ID zero is reserved for server thread identification. */
-	if (++counter == 0)
-		counter = 1;
+	if (++session_counter == 0)
+		session_counter = 1;
 
 	/* The session-id is a message-id with cc=00, is composed of
 	 *
@@ -678,13 +679,13 @@ sessionCreate(Server *server)
 	 * some systems, incorporating timestamp and process info
 	 * in the session-id should facilitate log searches.
 	 */
-	session->id = counter;
+	session->id = session_counter;
 	session->start = time(NULL);
 	time62Encode(session->start, session->id_log);
 	length = snprintf(
 		session->id_log+TIME62_BUFFER_SIZE,
 		sizeof (session->id_log)-TIME62_BUFFER_SIZE,
-		"%05u%05u00", getpid(), counter
+		"%05u%05u00", getpid(), session_counter
 	);
 
 	if (sizeof (session->id_log)-TIME62_BUFFER_SIZE <= length) {
@@ -693,8 +694,8 @@ sessionCreate(Server *server)
 	}
 
 	if (0 < session->server->debug.level)
-		syslog(LOG_DEBUG, "server-id=%u session-id=%u create", session->server->id, session->id);
-	VALGRIND_PRINTF("server-id=%u session-id=%u create", session->server->id, session->id);
+		syslog(LOG_DEBUG, "%s server-id=%u session-id=%u create", session->id_log, session->server->id, session->id);
+	VALGRIND_PRINTF("%s server-id=%u session-id=%u create", session->id_log, session->server->id, session->id);
 
 	if (server->hook.session_create != NULL
 	&& (*server->hook.session_create)(session)) {
@@ -925,6 +926,8 @@ serverAtForkChild(Server *server)
 	serverListFini(&server->workers);
 }
 
+static unsigned worker_counter = 0;
+
 int
 serverWorkerIsTerminated(ServerWorker *worker)
 {
@@ -951,11 +954,14 @@ serverWorkerFree(void *_worker)
 		if (worker->server->hook.worker_create != NULL)
 			(void) (*worker->server->hook.worker_free)(worker);
 
-		if (0 < worker->server->debug.level)
-			syslog(LOG_DEBUG, "server-id=%d worker-id=%u stop", worker->server->id, worker->id);
+		if (0 < worker->server->debug.level) {
+			syslog(LOG_DEBUG, "server-id=%d worker-id=%u stop (%lx)", worker->server->id, worker->id, (unsigned long) _worker);
+			assert(0 < worker->id);
+		}
 #ifdef __WIN32__
 		CloseHandle(worker->kill_event);
 #endif
+		MEMSET(worker, 0, sizeof (worker));
 		free(worker);
 	}
 }
@@ -976,7 +982,7 @@ serverWorker(void *_worker)
 	server = worker->server;
 
 	if (0 < server->debug.level)
-		syslog(LOG_DEBUG, "server-id=%u worker-id=%u running", server->id, worker->id);
+		syslog(LOG_DEBUG, "server-id=%u worker-id=%u running (%lx)", server->id, worker->id, (unsigned long) worker);
 
 	for (worker->running = 1; server->running && worker->running; ) {
 		session = serverListDequeue(&server->sessions_queued)->data;
@@ -988,8 +994,8 @@ serverWorker(void *_worker)
 
 		sess_id = session->id;
 		if (0 < server->debug.level)
-			syslog(LOG_DEBUG, "server-id=%u worker-id=%u session-id=%u dequeued", server->id, worker->id, sess_id);
-		VALGRIND_PRINTF("server-id=%u worker-id=%u session-id=%u dequeued", server->id, worker->id, sess_id);
+			syslog(LOG_DEBUG, "%s server-id=%u worker-id=%u session-id=%u dequeued", session->id_log, server->id, worker->id, sess_id);
+		VALGRIND_PRINTF("%s server-id=%u worker-id=%u session-id=%u dequeued", session->id_log, server->id, worker->id, sess_id);
 
 		/* Keep track of active worker threads. */
 		(void) pthread_mutex_lock(&server->workers.mutex);
@@ -1046,16 +1052,15 @@ static ServerWorker *
 serverWorkerCreate(Server *server)
 {
 	ServerWorker *worker;
-	static unsigned short counter = 0;
 
 	if ((worker = calloc(1, sizeof (*worker))) == NULL)
 		goto error0;
 
 	/* Counter ID zero is reserved for server thread identification. */
-	if (++counter == 0)
-		counter = 1;
+	if (++worker_counter == 0)
+		worker_counter = 1;
 
-	worker->id = counter;
+	worker->id = worker_counter;
 	worker->server = server;
 	worker->node.data = worker;
 #ifdef __WIN32__
@@ -1075,10 +1080,10 @@ serverWorkerCreate(Server *server)
 		goto error1;
 	}
 
+	(void) pthread_detach(worker->thread);
+
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u worker-id=%u start", server->id, worker->id);
-
-	pthread_detach(worker->thread);
 
 	return worker;
 error1:
@@ -1101,6 +1106,7 @@ serverAccept(void *_server)
 
 	while (server->running) {
 		if (socketTimeouts(server->interfaces_fd, server->interfaces_ready, server->interfaces->_length, server->option.accept_to, 1)) {
+			pthread_testcancel();
 			for (i = 0; i < server->interfaces->_length; i++) {
 				if (server->interfaces_fd[i] == server->interfaces_ready[i]) {
 					if ((session = sessionCreate(server)) != NULL) {
@@ -1118,10 +1124,12 @@ serverAccept(void *_server)
 						queued = serverListLength(&server->sessions_queued);
 
 						if (0 < server->debug.level)
-							syslog(LOG_DEBUG, "server-id=%u session-id=%u enqueued; active=%u idle=%u queued=%u", server->id, session->id, active, idle, queued);
+							syslog(LOG_DEBUG, "%s server-id=%u session-id=%u enqueued; active=%u idle=%u queued=%u", session->id_log, server->id, session->id, active, idle, queued);
 
-						if (idle < queued && threads < server->option.max_threads)
+						if (idle < queued && threads < server->option.max_threads) {
+							pthread_testcancel();
 							(void) serverWorkerCreate(server);
+						}
 					}
 				}
 			}
@@ -1135,7 +1143,7 @@ int
 serverStart(Server *server)
 {
 	if (server == NULL)
-		return -1;
+		return EFAULT;
 
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u start", server->id);
@@ -1148,9 +1156,7 @@ serverStart(Server *server)
 		return -1;
 	}
 
-	pthread_detach(server->accept_thread);
-
-	return 0;
+	return pthread_detach(server->accept_thread);
 }
 
 void
@@ -1194,6 +1200,12 @@ serverStop(Server *server, int slow_quit)
 
 	/* Signal the remaining worker threads to stop. */
 	(void) pthread_mutex_lock(&server->workers.mutex);
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+	pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &server->workers.mutex);
+#endif
+	if (0 < server->debug.level)
+		syslog(LOG_INFO, "server-id=%u th=%u cancel", server->id, server->workers.length);
+
 	for (node = server->workers.head; node != NULL; node = node->next) {
 		worker = node->data;
 		worker->running = 0;
@@ -1203,15 +1215,20 @@ serverStop(Server *server, int slow_quit)
 #ifdef __unix__
 		(void) pthread_cancel(worker->thread);
 #endif
+		if (0 < server->debug.level)
+			syslog(LOG_DEBUG, "server-id=%u worker-id=%u cancel (%lx, %lu)", server->id, worker->id, (unsigned long) worker, (unsigned long) worker->thread);
 	}
-#ifdef HMMM
+
+	/* Poor man's pthread_join. Wait for the list to empty. */
 	while (server->workers.head != NULL) {
 		if (pthread_cond_wait(&server->workers.cv_less, &server->workers.mutex))
 			break;
 	}
-#endif
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+	pthread_cleanup_pop(1);
+#else
 	(void) pthread_mutex_unlock(&server->workers.mutex);
-
+#endif
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u all stop", server->id);
 }
