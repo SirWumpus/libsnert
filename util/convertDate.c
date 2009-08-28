@@ -28,6 +28,9 @@
 # endif
 #endif
 
+#include <com/snert/lib/util/Text.h>
+#include <com/snert/lib/util/convertDate.h>
+
 static const int dayOfYear[] = {
 	0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
 };
@@ -275,7 +278,7 @@ convertTimeZone(const char *zone_string, long *zone_value, const char **stop)
 	if (zone_string == next) {
 		zone = 0;
 		for (tz = tzList; tz->zone != (const char *) 0; tz++) {
-			if (strncmp(zone_string, tz->zone, tz->length) == 0) {
+			if (TextInsensitiveCompareN(zone_string, tz->zone, tz->length) == 0) {
 				if (isalpha(zone_string[tz->length]))
 					return -1;
 
@@ -502,10 +505,13 @@ convertFromCtime(const char *dmy_string, long *day, long *month, long *year, lon
  *
  * This conforms:	Sun, 21 Sep 2003 22:04:27 +0200
  *
- * Obsolete form:	Sun, 21 Sep 03 11:30:38 GMT
+ * Obsolete form:	Sun, 21 Sep 03 11:30:38 GMT	(named zone)
  *
- * These do NOT:	Mon Sep 22 01:39:09 2003 -0000	(ctime() + zone)
- *			Mon,22 Sep 2003 20:02:33 PM	(AM/PM not zones)
+ * Bad, but supported:	Mon Sep 22 01:39:09 2003 -0000	(ctime() + zone)
+ *
+ * Not supported:	Mon, 22 Sep 2003 20:02:33 PM	(AM/PM not zones)
+ *
+ * Not supported:	Mon 22 Sep 20:02:33 CDT 2003	(year & zone out of order)
  *
  * The following formats are supported:
  *
