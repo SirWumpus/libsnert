@@ -102,7 +102,7 @@ build: title add-lib
 	cd mail; ${MAKE} ${MAKEFLAGS} mime$E digestbl$E siq$E smtp2$E spf$E
 	cd io;   ${MAKE} ${MAKEFLAGS} Dns$E
 	cd net;  ${MAKE} ${MAKEFLAGS} pdq$E server$E geturl$E
-	cd util; ${MAKE} ${MAKEFLAGS} b64$E md4$E md5$E htmlstrip$E uri$E
+	cd util; ${MAKE} ${MAKEFLAGS} b64$E convertDate$E md4$E md5$E htmlstrip$E uri$E
 	@echo
 	@echo '***************************************************************'
 	@echo Build ${BUILD} DONE
