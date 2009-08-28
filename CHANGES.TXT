@@ -46,6 +46,8 @@ is no set schedule for releases.
 
 --1.72.7--
 
+   !    Upgraded SQLite to 3.6.17
+
    !	SMDB_ACCESS_TEMPFAIL can return a "TEMPFAIL" value, but if a key
 	is also requested to be returned then something has to be
 	returned too; something like "tag1:invalid" or
@@ -58,6 +60,27 @@ is no set schedule for releases.
 	Added conditional variable to monitor for removal of a node from
 	a list. Completely overhauled "slow quit" code.
 
+  !!	server.c/h: Server API updates to fix some stability issues
+  	related to shutdown.
+
+	Changed SerevrSession and ServerWorker structures to integreate
+	ServerListNode instead of allocating memory and using cross
+	links point back to one another. Eliminates malloc/free of nodes
+	and potential race conditions in updating cross link pointers.
+
+	Add -s option (spare threads) to the server CLI test tool.
+
+  !!	server.c, mcc.c, timer.c: Fixed potential deadlock caused when a
+	pthread_cancel is issued while a thread is blocked waiting
+	(pthread_cond_wait) on a conditional variable with a mutex
+	locked. Added pthread_cleanup_push / pop wrappers to release a
+	locked mutex after a cancellation point.
+
+   !	timer.c/h: merged timerCancel into timerFree. It doesn't make
+   	sense to have a cancel function, when you can't restart a timer
+   	thread once cancelled.
+
+   !	convertDate: Perform case insenitive comparision of time zone names.
 
 --1.72.6--
 
