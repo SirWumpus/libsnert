@@ -103,6 +103,17 @@ httpSend(HttpRequest *request)
 		}
 	}
 
+	if (request->accept_language != NULL) {
+		(void) BufAddString(req, "Accept-Language: ");
+		(void) BufAddString(req, request->accept_language);
+		(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
+
+		if (0 < httpDebug) {
+			syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
+			offset = BufLength(req);
+		}
+	}
+
 	if (request->credentials != NULL) {
 		(void) BufAddString(req, "Authorization: ");
 		(void) BufAddString(req, request->credentials);
@@ -121,6 +132,18 @@ httpSend(HttpRequest *request)
 
 		(void) BufAddString(req, "If-Modified-Since: ");
 		(void) BufAddBytes(req, (unsigned char *) stamp, length);
+		(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
+
+		if (0 < httpDebug) {
+			syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
+			offset = BufLength(req);
+		}
+	}
+
+	if (request->content_length != NULL) {
+		(void) snprintf(stamp, sizeof (stamp), "%lu", request->content_length);
+		(void) BufAddString(req, "Content-Length: ");
+		(void) BufAddString(req, stamp);
 		(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
 		if (0 < httpDebug) {
@@ -148,7 +171,7 @@ httpSend(HttpRequest *request)
 
 	if (request->post_buffer != NULL) {
 		if (0 < httpDebug)
-			syslog(LOG_DEBUG, "> %lu:%s", (unsigned long) request->post_size, request->post_buffer);
+			syslog(LOG_DEBUG, "> (%lu bytes sent)", (unsigned long) request->post_size);
 
 		if (socketWrite(socket, request->post_buffer, request->post_size) != request->post_size)
 			goto error2;
@@ -189,7 +212,7 @@ httpReadLine(Socket2 *socket, Buf *buf)
 	return offset;
 }
 
-static char *
+char *
 httpGetHeader(Buf *buf, const char *hdr_pat, size_t hdr_len)
 {
 	long offset;

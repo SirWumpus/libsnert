@@ -87,8 +87,10 @@ typedef struct {
 	const char *from;
 	const char *method;
 	const char *credentials;
+	const char *accept_language;
 	time_t if_modified_since;	/* GMT seconds since epoch. */
-	unsigned char *post_buffer;
+	size_t content_length;		/* Non-zero, supply Content-Length: */
+	unsigned char *post_buffer;	/* Non-NULL write POST data. */
 	size_t post_size;
 } HttpRequest;
 
@@ -114,6 +116,7 @@ extern void httpResponseFree(HttpResponse *);
 
 extern Socket2 *httpSend(HttpRequest *);
 extern HttpCode httpRead(Socket2 *, HttpResponse *);
+extern char *httpGetHeader(Buf *buf, const char *hdr_pat, size_t hdr_len);
 
 extern HttpCode httpDoGet(const char *url, time_t modified_since, HttpResponse *response);
 extern HttpCode httpDoHead(const char *url, time_t modified_since, HttpResponse *response);
