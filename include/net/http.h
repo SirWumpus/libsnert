@@ -82,6 +82,7 @@ typedef enum {
 } HttpCode;
 
 typedef struct {
+	int debug;
 	URI *url;
 	long timeout;
 	const char *from;
@@ -95,6 +96,7 @@ typedef struct {
 } HttpRequest;
 
 typedef struct {
+	int debug;
 	HttpCode result;
 	Buf *content;			/* If NULL, Buf * will be created. */
 	time_t date;			/* Ignore if zero; else GMT seconds since epoch. */
@@ -114,8 +116,8 @@ extern void httpSetDebug(int level);
 extern void httpResponseInit(HttpResponse *);
 extern void httpResponseFree(HttpResponse *);
 
-extern Socket2 *httpSend(HttpRequest *);
-extern HttpCode httpRead(Socket2 *, HttpResponse *);
+extern Socket2 *httpSend(HttpRequest *, const char *id_log);
+extern HttpCode httpRead(Socket2 *, HttpResponse *, const char *id_log);
 extern char *httpGetHeader(Buf *buf, const char *hdr_pat, size_t hdr_len);
 
 extern HttpCode httpDoGet(const char *url, time_t modified_since, HttpResponse *response);

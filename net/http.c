@@ -15,6 +15,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(HAVE_UNISTD_H)
+# include <unistd.h>
+#endif
 #if defined(HAVE_SYSLOG_H) && ! defined(__MINGW32__)
 # include <syslog.h>
 #endif
@@ -22,6 +25,7 @@
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/net/http.h>
 #include <com/snert/lib/util/Text.h>
+#include <com/snert/lib/util/time62.h>
 #include <com/snert/lib/util/convertDate.h>
 
 /***********************************************************************
@@ -29,6 +33,7 @@
  ***********************************************************************/
 
 static int httpDebug;
+static unsigned short http_counter;
 
 void
 httpSetDebug(int level)
@@ -39,7 +44,9 @@ httpSetDebug(int level)
 void
 httpResponseInit(HttpResponse *response)
 {
+
 	memset(response, 0, sizeof (*response));
+	response->debug = httpDebug;
 }
 
 void
@@ -53,7 +60,7 @@ httpResponseFree(HttpResponse *response)
 }
 
 Socket2 *
-httpSend(HttpRequest *request)
+httpSend(HttpRequest *request, const char *id_log)
 {
 	Buf *req;
 	struct tm gmt;
@@ -73,8 +80,8 @@ httpSend(HttpRequest *request)
 	(void) BufAddString(req, request->url->path);
 	(void) BufAddString(req, " HTTP/1.0\r\n");
 
-	if (0 < httpDebug) {
-		syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
+	if (0 < request->debug) {
+		syslog(LOG_DEBUG, "%s > %lu:%s", id_log, BufLength(req)-offset, BufBytes(req)+offset);
 		offset = BufLength(req);
 	}
 
@@ -87,8 +94,8 @@ httpSend(HttpRequest *request)
 	}
 	(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
-	if (0 < httpDebug) {
-		syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
+	if (0 < request->debug) {
+		syslog(LOG_DEBUG, "%s > %lu:%s", id_log, BufLength(req)-offset, BufBytes(req)+offset);
 		offset = BufLength(req);
 	}
 
@@ -97,8 +104,8 @@ httpSend(HttpRequest *request)
 		(void) BufAddString(req, request->from);
 		(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
-		if (0 < httpDebug) {
-			syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
+		if (0 < request->debug) {
+			syslog(LOG_DEBUG, "%s > %lu:%s", id_log, BufLength(req)-offset, BufBytes(req)+offset);
 			offset = BufLength(req);
 		}
 	}
@@ -108,8 +115,8 @@ httpSend(HttpRequest *request)
 		(void) BufAddString(req, request->accept_language);
 		(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
-		if (0 < httpDebug) {
-			syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
+		if (0 < request->debug) {
+			syslog(LOG_DEBUG, "%s > %lu:%s", id_log, BufLength(req)-offset, BufBytes(req)+offset);
 			offset = BufLength(req);
 		}
 	}
@@ -119,8 +126,8 @@ httpSend(HttpRequest *request)
 		(void) BufAddString(req, request->credentials);
 		(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
-		if (0 < httpDebug) {
-			syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
+		if (0 < request->debug) {
+			syslog(LOG_DEBUG, "%s > %lu:%s", id_log, BufLength(req)-offset, BufBytes(req)+offset);
 			offset = BufLength(req);
 		}
 	}
@@ -134,20 +141,20 @@ httpSend(HttpRequest *request)
 		(void) BufAddBytes(req, (unsigned char *) stamp, length);
 		(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
-		if (0 < httpDebug) {
-			syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
+		if (0 < request->debug) {
+			syslog(LOG_DEBUG, "%s > %lu:%s", id_log, BufLength(req)-offset, BufBytes(req)+offset);
 			offset = BufLength(req);
 		}
 	}
 
-	if (request->content_length != NULL) {
-		(void) snprintf(stamp, sizeof (stamp), "%lu", request->content_length);
+	if (0 < request->content_length) {
+		(void) snprintf(stamp, sizeof (stamp), "%lu", (unsigned long) request->content_length);
 		(void) BufAddString(req, "Content-Length: ");
 		(void) BufAddString(req, stamp);
 		(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
-		if (0 < httpDebug) {
-			syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
+		if (0 < request->debug) {
+			syslog(LOG_DEBUG, "%s > %lu:%s", id_log, BufLength(req)-offset, BufBytes(req)+offset);
 			offset = BufLength(req);
 		}
 	}
@@ -155,13 +162,13 @@ httpSend(HttpRequest *request)
 	/* End of headers. */
 	(void) BufAddBytes(req, (unsigned char *) "\r\n", sizeof ("\r\n")-1);
 
-	if (0 < httpDebug) {
-		syslog(LOG_DEBUG, "> %lu:%s", BufLength(req)-offset, BufBytes(req)+offset);
+	if (0 < request->debug) {
+		syslog(LOG_DEBUG, "%s > %lu:%s", id_log, BufLength(req)-offset, BufBytes(req)+offset);
 		offset = BufLength(req);
 	}
 
 	/* Open connection to web server. */
-	if (socketOpenClient(request->url->host, HTTP_PORT, request->timeout, NULL, &socket) == SOCKET_ERROR)
+	if (socketOpenClient(request->url->host, uriGetSchemePort(request->url), request->timeout, NULL, &socket) == SOCKET_ERROR)
 		goto error1;
 
 	socketSetTimeout(socket, request->timeout);
@@ -170,8 +177,8 @@ httpSend(HttpRequest *request)
 		goto error2;
 
 	if (request->post_buffer != NULL) {
-		if (0 < httpDebug)
-			syslog(LOG_DEBUG, "> (%lu bytes sent)", (unsigned long) request->post_size);
+		if (0 < request->debug)
+			syslog(LOG_DEBUG, "%s > (%lu bytes sent)", id_log, (unsigned long) request->post_size);
 
 		if (socketWrite(socket, request->post_buffer, request->post_size) != request->post_size)
 			goto error2;
@@ -189,7 +196,7 @@ error0:
 }
 
 static long
-httpReadLine(Socket2 *socket, Buf *buf)
+httpReadLine(Socket2 *socket, Buf *buf, const char *id_log)
 {
 	long length;
 	size_t offset;
@@ -202,8 +209,8 @@ httpReadLine(Socket2 *socket, Buf *buf)
 		if (length < 0)
 			return length;
 
-		if (0 < httpDebug)
-			syslog(LOG_DEBUG, "< %ld:%s", length, line);
+		if (id_log != NULL)
+			syslog(LOG_DEBUG, "%s < %ld:%s", id_log, length, line);
 
 		if (BufAddBytes(buf, line, length))
 			return SOCKET_ERROR;
@@ -233,7 +240,7 @@ httpGetHeader(Buf *buf, const char *hdr_pat, size_t hdr_len)
 }
 
 HttpCode
-httpRead(Socket2 *socket, HttpResponse *response)
+httpRead(Socket2 *socket, HttpResponse *response, const char *id_log)
 {
 	Buf *buf;
 	char *string;
@@ -255,7 +262,7 @@ httpRead(Socket2 *socket, HttpResponse *response)
 	BufSetLength(buf, 0);
 
 	do {
-		if ((offset = httpReadLine(socket, buf)) < 0)
+		if ((offset = httpReadLine(socket, buf, id_log)) < 0)
 			goto error1;
 	} while (buf->length - offset != 2 || buf->bytes[offset] != '\r' || buf->bytes[offset+1] != '\n');
 
@@ -264,53 +271,63 @@ httpRead(Socket2 *socket, HttpResponse *response)
 		goto error1;
 	response->result = code;
 
-	if (0 < httpDebug)
-		syslog(LOG_DEBUG, "http-code=%d", code);
-
+#ifdef REMOVE
+	if (0 < response->debug)
+		syslog(LOG_DEBUG, "%s http-code=%d", id_log, code);
+#endif
 	response->expires = 0;
 	response->last_modified = 0;
 	response->content_length = 0;
 	response->content_type = httpGetHeader(buf, "*Content-Type:*", sizeof ("Content-Type:")-1);
 	response->content_encoding = httpGetHeader(buf, "*Content-Encoding:*", sizeof ("Content-Encoding:")-1);
 
-	if (httpDebug && response->content_type != NULL)
-		syslog(LOG_DEBUG, "content-type=%s", response->content_type);
-	if (httpDebug && response->content_encoding != NULL)
-		syslog(LOG_DEBUG, "content-encoding=%s", response->content_encoding);
-
+#ifdef REMOVE
+	if (0 < response->debug && response->content_type != NULL)
+		syslog(LOG_DEBUG, "%s content-type=%s", id_log, response->content_type);
+	if (0 < response->debug && response->content_encoding != NULL)
+		syslog(LOG_DEBUG, "%s content-encoding=%s", id_log, response->content_encoding);
+#endif
 	if ((string = httpGetHeader(buf, "*Content-Length:*", sizeof ("Content-Length:")-1)) != NULL) {
 		response->content_length = strtol(string, NULL, 10);
-		if (0 < httpDebug)
-			syslog(LOG_DEBUG, "content-length=%s", string);
+#ifdef REMOVE
+		if (0 < response->debug)
+			syslog(LOG_DEBUG, "%s content-length=%s", id_log, string);
+#endif
 		free(string);
 	}
 
 	if ((string = httpGetHeader(buf, "*Last-Modified:*", sizeof ("Last-Modified:")-1)) != NULL) {
 		/* NOTE that this is in GMT. */
 		(void) convertDate(string, &response->last_modified, NULL);
-		if (0 < httpDebug)
-			syslog(LOG_DEBUG, "last-modified=%s", string);
+#ifdef REMOVE
+		if (0 < response->debug)
+			syslog(LOG_DEBUG, "%s last-modified=%s", id_log, string);
+#endif
 		free(string);
 	}
 
 	if ((string = httpGetHeader(buf, "*Expires:*", sizeof ("Expires:")-1)) != NULL) {
 		/* NOTE that this is in GMT. */
 		(void) convertDate(string, &response->expires, NULL);
-		if (0 < httpDebug)
-			syslog(LOG_DEBUG, "expires=%s", string);
+#ifdef REMOVE
+		if (0 < response->debug)
+			syslog(LOG_DEBUG, "%s expires=%s", id_log, string);
+#endif
 		free(string);
 	}
 
 	if ((string = httpGetHeader(buf, "*Date:*", sizeof ("Date:")-1)) != NULL) {
 		/* NOTE that this is in GMT. */
 		(void) convertDate(string, &response->date, NULL);
-		if (0 < httpDebug)
-			syslog(LOG_DEBUG, "date=%s", string);
+#ifdef REMOVE
+		if (0 < response->debug)
+			syslog(LOG_DEBUG, "%s date=%s", id_log, string);
+#endif
 		free(string);
 	}
 
 	/* Read body content. */
-	while (0 < httpReadLine(socket, buf))
+	while (0 < httpReadLine(socket, buf, id_log))
 		;
 error1:
 	socketClose(socket);
@@ -321,6 +338,9 @@ error0:
 HttpCode
 httpDo(const char *method, const char *url, time_t modified_since, unsigned char *post, size_t size, HttpResponse *response)
 {
+	int length;
+	time_t now;
+	char id_log[20];
 	Socket2 *socket;
 	HttpRequest request;
 
@@ -329,16 +349,28 @@ httpDo(const char *method, const char *url, time_t modified_since, unsigned char
 	if ((request.url = uriParse(url, -1)) == NULL)
 		return HTTP_INTERNAL;
 
+	if (++http_counter == 0)
+		http_counter = 1;
+
+	now = time(NULL);
+	time62Encode(now, id_log);
+	length = snprintf(
+		id_log+TIME62_BUFFER_SIZE,
+		sizeof (id_log)-TIME62_BUFFER_SIZE,
+		"%05u%05u00", getpid(), http_counter
+	);
+
+	request.debug = httpDebug;
 	request.method = method;
 	request.timeout = HTTP_TIMEOUT_MS;
 	request.if_modified_since = modified_since;
 	request.post_buffer = post;
 	request.post_size = size;
 
-	socket = httpSend(&request);
+	socket = httpSend(&request, id_log);
 	free(request.url);
 
-	return httpRead(socket, response);
+	return httpRead(socket, response, id_log);
 }
 
 HttpCode
