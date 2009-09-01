@@ -44,6 +44,11 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.72.8--
+
+   !	http.c/h: Added accept_language and content_length request fields
+   	to HTTP API.
+
 --1.72.7--
 
    !    Upgraded SQLite to 3.6.17
