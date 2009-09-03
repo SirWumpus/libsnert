@@ -88,6 +88,10 @@ extern int pthread_mutex_destroy(pthread_mutex_t *);
 #  include <pthread.h>
 # endif /* HAVE_PTHREAD_H */
 
+# ifndef PTHREAD_STACK_MIN
+#  define PTHREAD_STACK_MIN		16384
+# endif
+
 /* Non-POSIX using pthread functions. */
 extern int pthreadMutexDestroy(pthread_mutex_t *);
 extern int pthreadSleep(unsigned seconds, unsigned nanoseconds);

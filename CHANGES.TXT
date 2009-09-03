@@ -44,6 +44,11 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.72.9--
+
+   !	pthreads.h: Solaris doesn't define PTHREAD_STACKSIZE_MIN in their pthread.h
+	contrary to SUS.
+
 --1.72.8--
 
    !	http.c/h: Added accept_language and content_length request fields
