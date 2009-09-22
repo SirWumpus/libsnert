@@ -369,6 +369,7 @@ serverSignalsLoop(ServerSignals *signals)
 		case SIGINT:
 		case SIGTERM:		/* Immediate termination */
 		case SIGQUIT:		/* Slow quit, wait for sessions to complete. */
+			syslog(LOG_INFO, "signal %d received", signal);
 			running = 0;
 			break;
 
