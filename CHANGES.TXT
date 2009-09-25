@@ -44,6 +44,15 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.72.10--
+
+   !	serverSignalsLoop: added log message of received signal number.
+
+   !	kvm_lock_db: the call to pthread_cleanup_pop was misplaced such
+ 	that on Linux machine, which use macros to define pthread_cleanup_push
+ 	and pthread_cleanup_pop, compiler errors were generated. Reported by
+ 	Alex Broens, Lloyd Keel.
+
 --1.72.9--
 
    !	pthreads.h: Solaris doesn't define PTHREAD_STACKSIZE_MIN in their pthread.h
