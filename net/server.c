@@ -369,11 +369,11 @@ serverSignalsLoop(ServerSignals *signals)
 		case SIGINT:
 		case SIGTERM:		/* Immediate termination */
 		case SIGQUIT:		/* Slow quit, wait for sessions to complete. */
-			syslog(LOG_INFO, "signal %d received", signal);
 			running = 0;
 			break;
-
+# ifdef SIGHUP
 		case SIGHUP:
+# endif
 # ifdef SIGALRM
 		case SIGALRM:
 # endif
@@ -399,6 +399,8 @@ serverSignalsLoop(ServerSignals *signals)
 			break;
 		}
 	}
+
+	syslog(LOG_INFO, "signal %d received", signal);
 
 	return signal;
 }
