@@ -1089,10 +1089,10 @@ kvm_lock_db(kvm *self, int mode)
 	mode = mode == 0 ? LOCK_SH : LOCK_EX;
 
 #if defined(HAVE_PTHREAD_CREATE)
-		if (pthread_mutex_lock(&self->_mutex))
-			return -1;
+	if (pthread_mutex_lock(&self->_mutex))
+		return -1;
 # if defined(HAVE_PTHREAD_CLEANUP_PUSH)
-		pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
+	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
 # endif
 #endif
 	/* Lock the database to prevent other process from
@@ -1102,25 +1102,22 @@ kvm_lock_db(kvm *self, int mode)
 	 * earlier, then we have to ignore this lock, since
 	 * there is no replacement lock file descriptor yet.
 	 */
+	errno = 0;
 	if (((kvm_db *) self->_kvm)->lockfd != -1) {
 		/* Wait until we get the file lock. */
-		do
+		do {
 			errno = 0;
-		while (flock(((kvm_db *) self->_kvm)->lockfd, mode) && errno == EINTR);
-
-		if (errno != 0) {
-#if defined(HAVE_PTHREAD_CREATE)
-# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
-			pthread_cleanup_pop(1);
-# else
-			(void) pthread_mutex_unlock(&self->_mutex);
-# endif
-#endif
-			return -1;
-		}
+		} while (flock(((kvm_db *) self->_kvm)->lockfd, mode) && errno == EINTR);
 	}
 
-	return 0;
+#if defined(HAVE_PTHREAD_CREATE)
+# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+	pthread_cleanup_pop(1);
+# else
+	(void) pthread_mutex_unlock(&self->_mutex);
+# endif
+#endif
+	return -(errno != 0);
 }
 
 static int
