@@ -93,6 +93,10 @@ extern "C" {
 #define SERVER_LINE_WRAP		72
 #endif
 
+#ifndef SERVER_STOP_TIMEOUT
+#define SERVER_STOP_TIMEOUT		10
+#endif
+
 #define SERVER_FILE_LINENO		__FILE__, __LINE__
 
 #if defined(__MINGW32__)
@@ -103,6 +107,10 @@ extern "C" {
 #  define SIGKILL			9
 # endif
 #endif /* __MINGW32__ */
+
+#ifndef ENABLE_KEEPALIVE
+#define ENABLE_KEEPALIVE		1
+#endif
 
 /***********************************************************************
  ***

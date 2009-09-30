@@ -35,6 +35,7 @@
 #include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/net/server.h>
 #include <com/snert/lib/util/Text.h>
+#include <com/snert/lib/util/timer.h>
 
 #ifdef __WIN32__
 # include <windows.h>
@@ -1162,6 +1163,16 @@ serverStart(Server *server)
 	return pthread_detach(server->accept_thread);
 }
 
+#if defined(HAVE_CLOCK_GETTIME) && defined(HAVE_PTHREAD_COND_TIMEDWAIT)
+static void
+timerSetAbstime(struct timespec *abstime, struct timespec *delay)
+{
+	MEMSET(abstime, 0, sizeof (*abstime));
+	CLOCK_GET(abstime);
+	CLOCK_ADD(abstime, delay);
+}
+#endif
+
 void
 serverStop(Server *server, int slow_quit)
 {
@@ -1223,10 +1234,27 @@ serverStop(Server *server, int slow_quit)
 	}
 
 	/* Poor man's pthread_join. Wait for the list to empty. */
+#if defined(HAVE_CLOCK_GETTIME) && defined(HAVE_PTHREAD_COND_TIMEDWAIT)
+{
+	CLOCK max_wait, max_delay = { SERVER_STOP_TIMEOUT, 0 };
+
+	timerSetAbstime(&max_wait, &max_delay);
 	while (server->workers.head != NULL) {
+		if (0 < server->debug.level)
+			syslog(LOG_DEBUG, "server-id=%u workers-remaining=%u", server->id, server->workers.length);
+
+		if (pthread_cond_timedwait(&server->workers.cv_less, &server->workers.mutex, &max_wait))
+			break;
+	}
+}
+#else
+	while (server->workers.head != NULL) {
+		if (0 < server->debug.level)
+			syslog(LOG_DEBUG, "server-id=%u workers-remaining=%u", server->id, server->workers.length);
 		if (pthread_cond_wait(&server->workers.cv_less, &server->workers.mutex))
 			break;
 	}
+#endif
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_pop(1);
 #else
