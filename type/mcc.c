@@ -802,7 +802,7 @@ mcc_listener_thread(void *data)
 
 		mccNotesUpdate(mcc, ip, "md5=", "md5=Y");
 
-		if (0 < debug) {
+		if (1 < debug) {
 			if (new_row.key_size < MCC_MAX_KEY_SIZE)
 				new_row.key_data[new_row.key_size] = '\0';
 			syslog(LOG_DEBUG, "multi/unicast cache packet [%s] command=%c key={%." MCC_MAX_KEY_SIZE_S "s}", ip, new_row.command, new_row.key_data);
