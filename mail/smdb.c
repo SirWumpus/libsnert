@@ -654,11 +654,11 @@ smdbFetchValue(smdb *sm, const char *key, char **value)
 	kvm_data k, v;
 	smdb_result rc;
 
-	if (key == NULL)
-		return SMDB_NOT_FOUND;
-
 	if (sm == NULL || value == NULL)
 		return SMDB_ERROR;
+
+	if (key == NULL)
+		return SMDB_NOT_FOUND;
 
 	k.size = strlen(key);
 	k.data = (unsigned char *) key;
@@ -667,7 +667,7 @@ smdbFetchValue(smdb *sm, const char *key, char **value)
 	if ((rc = (smdb_result) sm->fetch(sm, &k, &v)) == SMDB_OK) {
 		*value = (char *) v.data;
 	} else {
-		*value = rc == SMDB_ERROR ? strdup("TEMPFAIL") : NULL;
+		*value = NULL;
 		free(v.data);
 	}
 
@@ -680,11 +680,11 @@ smdbFetchValue(smdb *sm, const char *key, char **value)
 char *
 smdbGetValue(smdb *sm, const char *key)
 {
-	char *value;
+	char *value = NULL;
 
 	(void) smdbFetchValue(sm, key, &value);
 
-	return  value;
+	return value;
 }
 
 smdb_code
