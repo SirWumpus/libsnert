@@ -44,6 +44,27 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+
+--1.72.12--
+
+   !	Fixed bug in smdbGetValue that could return an undefined pointer
+	instead of NULL in the event of an error. Also smdbFetchValue should
+	not return an allocated "TEMPFAIL" string for an SMDB_ERROR; its the
+	application's responsiblity to handle SMDB_ERROR, not the library.
+
+   !	mcc_listener_thread: raised debug log level for received packet
+   	log lines.
+
+--1.72.11--
+
+   !	serverStop: more debug logging in the worker thread join loop.
+
+   !	serverStop: added an overall timeout (10s) for waiting on worker
+	threads to complete.
+
+   !	server.h: defined ENABLE_KEEPALIVE so that sessionStart sets
+	socket keepalive on the client socket.
+
 --1.72.10--
 
    !	serverSignalsLoop: added log message of received signal number.
