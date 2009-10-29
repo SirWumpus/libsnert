@@ -940,7 +940,9 @@ mcc_listener_thread(void *data)
 
 	syslog(LOG_INFO, "multi/unicast listener %s thread exit", listen_addr);
 	free(listen_addr);
-
+#ifdef __WIN32__
+	pthread_exit(NULL);
+#endif
 	return NULL;
 }
 
@@ -1421,6 +1423,9 @@ mcc_expire_thread(void *data)
 		pthreadSleep(mcc->gc_next - now, 0);
 	}
 
+#ifdef __WIN32__
+	pthread_exit(NULL);
+#endif
 	return NULL;
 }
 

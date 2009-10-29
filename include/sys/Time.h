@@ -41,6 +41,14 @@
 #define UNIT_NANO 	1000000000L
 #endif
 
+#if defined(__MINGW32__) && !defined(WIN32_STRUCT_TIMESPEC)
+# define WIN32_STRUCT_TIMESPEC
+struct timespec {
+	time_t  tv_sec;   /* Seconds */
+	long    tv_nsec;  /* Nanoseconds */
+};
+#endif
+
 /*
  * Redefined version of "struct timespec". See POSIX.1.
  */

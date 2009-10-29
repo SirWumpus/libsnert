@@ -25,20 +25,24 @@
  ***********************************************************************/
 
 #if defined(HAVE_PTHREAD_COND_TIMEDWAIT)
-void
-timerSetAbstime(CLOCK *abstime, CLOCK *delay)
+static CLOCK time_zero = { 0, 0 };
+
+static void
+timerSetAbstime(struct timespec *abstime, struct timespec *delay)
 {
-	MEMSET(abstime, 0, sizeof (*abstime));
-	CLOCK_GET(abstime);
-	CLOCK_ADD(abstime, delay);
+	CLOCK now;
+
+	CLOCK_GET(&now);
+	CLOCK_SET_TIMESPEC(abstime, &now);
+	timespecAdd(abstime, delay);
 }
 
 static void *
 timerThread(void *_data)
 {
 	int error;
-	CLOCK abstime;
 	TIMER_DECLARE(period);
+	struct timespec abstime, delay;
 	Timer *timer = (Timer *) _data;
 
 	(void) pthread_mutex_lock(&timer->mutex);
@@ -46,7 +50,11 @@ timerThread(void *_data)
 	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &timer->mutex);
 # endif
 	/* Set initial delay. */
-	timerSetAbstime(&abstime, &timer->delay);
+	delay = *(struct timespec *) &timer->period;
+#if !defined(HAVE_CLOCK_GETTIME) && defined(HAVE_GETTIMEOFDAY)
+	delay.tv_nsec *= 1000;
+#endif
+	timerSetAbstime(&abstime, &delay);
 
 	while ((error = pthread_cond_timedwait(&timer->cv, &timer->mutex, &abstime)) != 0) {
 		if (error != ETIMEDOUT || timer->task == NULL)
@@ -55,7 +63,7 @@ timerThread(void *_data)
 		TIMER_START(period);
 		(*timer->task)(timer);
 		pthread_testcancel();
-		if (timer->period.tv_sec == 0 && timer->period.tv_nsec == 0)
+		if (memcmp(&timer->period, &time_zero, sizeof (time_zero)) == 0)
 			break;
 
 		/* Compute execution time of task. */
@@ -64,15 +72,20 @@ timerThread(void *_data)
 		/* Compute remainder of period. */
 		period = timer->period;
 		CLOCK_SUB(&period, &TIMER_DIFF_VAR(period));
-
+#if !defined(HAVE_CLOCK_GETTIME) && defined(HAVE_GETTIMEOFDAY)
+		period.tv_usec *= 1000;
+#endif
 		/* Set end of next iteration. */
-		timerSetAbstime(&abstime, &period);
+		timerSetAbstime(&abstime, (struct timespec *) &period);
 	}
 # ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_pop(1);
 # else
 	(void) pthread_mutex_unlock(&timer->mutex);
 # endif
+#ifdef __WIN32__
+	pthread_exit(NULL);
+#endif
 	return NULL;
 }
 

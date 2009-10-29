@@ -33,9 +33,11 @@
 
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/io/socket2.h>
+#include <com/snert/lib/sys/pid.h>
 #include <com/snert/lib/net/server.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/timer.h>
+#include <com/snert/lib/type/queue.h>
 
 #ifdef __WIN32__
 # include <windows.h>
@@ -413,7 +415,7 @@ serverSignalsLoop(ServerSignals *signals)
 
 #ifdef __WIN32__
 
-# ifdef ENABLE_OPTION_QUIT
+# ifdef ENABLE_SECURITY_DESCRIPTOR
 /* Cygwin/Mingw do not define ConvertStringSecurityDescriptorToSecurityDescriptor().
  * This would allow for ./smtpf -quit by an admin. user. The current alternative is
  * to use the Windows service console or "net start smtp" and "net stop smtpf".
@@ -443,26 +445,34 @@ int
 serverSignalsInit(ServerSignals *signals, const char *name)
 {
 	int length;
-	char quit_event_name[128];
+	char event_name[SIGNAL_LENGTH][128];
 
-	length = snprintf(quit_event_name, sizeof (quit_event_name), "Global\\%s-quit", name);
-	if (sizeof (quit_event_name) <= length)
+	length = snprintf(event_name[SIGNAL_QUIT], sizeof (event_name[SIGNAL_QUIT]), "Global\\%ld-QUIT", GetCurrentProcessId());
+	if (sizeof (event_name[SIGNAL_QUIT]) <= length)
 		return -1;
 
-# ifdef ENABLE_OPTION_QUIT
+	length = snprintf(event_name[SIGNAL_TERM], sizeof (event_name[SIGNAL_TERM]), "Global\\%ld-TERM", GetCurrentProcessId());
+	if (sizeof (event_name[SIGNAL_TERM]) <= length)
+		return -1;
+
+# ifdef ENABLE_SECURITY_DESCRIPTOR
+{
 	SECURITY_ATTRIBUTES sa;
 
 	sa.bInheritHandle = 0;
 	sa.nLength = sizeof (sa);
 
 	if (createMyDACL(&sa)) {
-		signals->signal_thread_event = CreateEvent(&sa, 0, 0, quit_event_name);
+		signals->signal_event[SIGNAL_QUIT] = CreateEvent(&sa, 0, 0, event_name[SIGNAL_QUIT]);
+		signals->signal_event[SIGNAL_TERM] = CreateEvent(&sa, 0, 0, event_name[SIGNAL_TERM]);
 		LocalFree(sa.lpSecurityDescriptor);
 	}
+}
 # else
-	signals->signal_thread_event = CreateEvent(NULL, 0, 0, quit_event_name);
+	signals->signal_event[SIGNAL_QUIT] = CreateEvent(NULL, 0, 0, event_name[SIGNAL_QUIT]);
+	signals->signal_event[SIGNAL_TERM] = CreateEvent(NULL, 0, 0, event_name[SIGNAL_TERM]);
 # endif
-	if (signals->signal_thread_event == NULL) {
+	if (signals->signal_event[SIGNAL_QUIT] == NULL || signals->signal_event[SIGNAL_TERM] == NULL) {
 		return -1;
 	}
 
@@ -472,16 +482,28 @@ serverSignalsInit(ServerSignals *signals, const char *name)
 void
 serverSignalsFini(ServerSignals *signals)
 {
-	CloseHandle(signals->signal_thread_event);
+	ServerSignal i;
+
+	for (i = 0; i < SIGNAL_LENGTH; i++) {
+		if (signals->signal_event[i] != NULL)
+			CloseHandle(signals->signal_event[i]);
+	}
 }
 
 int
 serverSignalsLoop(ServerSignals *signals)
 {
-	while (WaitForSingleObject(signals->signal_thread_event, INFINITE) != WAIT_OBJECT_0)
-		;
+	int signal;
 
-	return SIGTERM;
+	switch (WaitForMultipleObjects(SIGNAL_LENGTH, signals->signal_event, 0, INFINITE)) {
+	case WAIT_OBJECT_0 + SIGNAL_QUIT: signal = SIGQUIT; break;
+	case WAIT_OBJECT_0 + SIGNAL_TERM: signal = SIGTERM; break;
+	default: signal = SIGABRT; break;
+	}
+
+	syslog(LOG_INFO, "signal %d received", signal);
+
+	return signal;
 }
 #endif /* __WIN32__ */
 
@@ -1049,6 +1071,9 @@ serverWorker(void *_worker)
 	serverWorkerRemove(worker);
 	serverWorkerFree(worker);
 #endif
+#ifdef __WIN32__
+	pthread_exit(NULL);
+#endif
 	return NULL;
 }
 
@@ -1140,6 +1165,9 @@ serverAccept(void *_server)
 		}
 	}
 
+#ifdef __WIN32__
+	pthread_exit(NULL);
+#endif
 	return NULL;
 }
 
@@ -1275,7 +1303,11 @@ serverStop(Server *server, int slow_quit)
 #include <com/snert/lib/util/getopt.h>
 
 #define _NAME			"server"
-#define PID_FILE		"/var/run/" _NAME ".pid"
+#ifdef __WIN32__
+# define PID_FILE		"./" _NAME ".pid"
+#else
+# define PID_FILE		"/var/run/" _NAME ".pid"
+#endif
 #define ECHO_PORT		7
 #define DISCARD_PORT		9
 #define DAYTIME_PORT		13
@@ -1287,9 +1319,28 @@ int server_quit;
 int daemon_mode = 1;
 char *windows_service;
 ServerSignals signals;
+char *pid_file = PID_FILE;
 int min_threads = SERVER_MIN_THREADS;
 int max_threads = SERVER_MAX_THREADS;
 int spare_threads = SERVER_NEW_THREADS;
+
+static const char usage_msg[] =
+"usage: " _NAME " [-dqv][-m min][-M max][-P pidfile][-s spare][-w add|remove]\n"
+"\n"
+"-d\t\tdisable daemon; run in foreground\n"
+"-m min\t\tmin. number of worker threads\n"
+"-M max\t\tmax. number of worker threads\n"
+"-P pidfile\twere the PID file lives, default " PID_FILE "\n"
+"-q\t\t-q slow quit, -qq fast quit, -qqq restart, -qqqq restart-if\n"
+"-s spare\tnumber of spare worker threads to maintain\n"
+"-v\t\tverbose debugging\n"
+"-w arg\t\tadd or remove Windows service\n"
+"\n"
+"Server API test tool; enables multiple threaded RFC servers: Echo, Discard,\n"
+"Daytime, and Chargen for testing the server API threading model and design.\n"
+"\n"
+LIBSNERT_COPYRIGHT "\n"
+;
 
 #undef syslog
 
@@ -1328,6 +1379,7 @@ echoProcess(ServerSession *session)
 
 	reportAccept(session);
 
+	syslog(LOG_INFO, "%s echo", session->id_log);
 	while (socketHasInput(session->client, session->server->option.read_to)) {
 		if ((length = socketReadLine2(session->client, buffer, sizeof (buffer), 1)) <= 0)
 			break;
@@ -1350,6 +1402,7 @@ discardProcess(ServerSession *session)
 
 	reportAccept(session);
 
+	syslog(LOG_INFO, "%s discard", session->id_log);
 	while (socketHasInput(session->client, session->server->option.read_to)) {
 		if ((length = socketReadLine2(session->client, buffer, sizeof (buffer), 1)) <= 0)
 			break;
@@ -1371,11 +1424,13 @@ daytimeProcess(ServerSession *session)
 
 	reportAccept(session);
 
+	syslog(LOG_INFO, "%s daytime", session->id_log);
 	(void) time(&now);
 	(void) localtime_r(&now, &local);
 	length = getRFC2821DateTime(&local, stamp, sizeof (stamp));
-
 	(void) socketWrite(session->client, (unsigned char *) stamp, length);
+	(void) socketWrite(session->client, (unsigned char *) "\r\n", 2);
+
 	syslog(LOG_INFO, "%s < %d:%s", session->id_log, length, stamp);
 
 	return reportFinish(session);
@@ -1391,6 +1446,7 @@ chargenProcess(ServerSession *session)
 
 	reportAccept(session);
 
+	syslog(LOG_INFO, "%s chargen", session->id_log);
 	for (offset = 0; !serverSessionIsTerminated(session); offset = (offset+1) % 95) {
 		if (socketWrite(session->client, printable+offset, 72) != 72)
 			break;
@@ -1409,6 +1465,7 @@ smtpProcess(ServerSession *session)
 
 	reportAccept(session);
 
+	syslog(LOG_INFO, "%s smtp", session->id_log);
 	socketWrite(session->client, (unsigned char *) "421 server down for maintenance\r\n", sizeof ("421 server down for maintenance\r\n")-1);
 	syslog(LOG_INFO, "%s < %lu:%s", session->id_log, (unsigned long) sizeof ("421 server down for maintenance\r\n")-1, "421 server down for maintenance\r\n");
 
@@ -1441,7 +1498,7 @@ serverOptions(int argc, char **argv)
 	int ch;
 
 	optind = 1;
-	while ((ch = getopt(argc, argv, "dm:M:qs:vw:")) != -1) {
+	while ((ch = getopt(argc, argv, "dm:M:P:qs:vw:")) != -1) {
 		switch (ch) {
 		case 'm':
 			min_threads = strtol(optarg, NULL, 10);
@@ -1467,6 +1524,10 @@ serverOptions(int argc, char **argv)
 			debug++;
 			break;
 
+		case 'P':
+			pid_file = optarg;
+			break;
+
 		case 'w':
 			if (strcmp(optarg, "add") == 0 || strcmp(optarg, "remove") == 0) {
 				windows_service = optarg;
@@ -1475,7 +1536,7 @@ serverOptions(int argc, char **argv)
 			/*@fallthrough@*/
 
 		default:
-			fprintf(stderr, "usage: " _NAME " [-dqv][-m min][-M max][-s spare][-w add|remove]\n");
+			fprintf(stderr, usage_msg);
 			exit(EX_USAGE);
 		}
 	}
@@ -1514,6 +1575,9 @@ serverMain(void)
 	ServerHandler *service;
 
 	rc = EXIT_FAILURE;
+
+	if (pthreadInit())
+		goto error0;
 
 	for (service = services; service->process != NULL; service++) {
 		if ((service->server = serverCreate(service->host, service->port)) == NULL)
@@ -1559,6 +1623,8 @@ error1:
 	for (service = services; service->process != NULL; service++) {
 		serverFree(service->server);
 	}
+
+	pthreadFini();
 error0:
 	syslog(LOG_INFO, "signal %d, terminated", signal);
 
@@ -1579,7 +1645,7 @@ error0:
 void
 atExitCleanUp(void)
 {
-	(void) unlink(PID_FILE);
+	(void) unlink(pid_file);
 	closelog();
 }
 
@@ -1592,18 +1658,18 @@ main(int argc, char **argv)
 	switch (server_quit) {
 	case 1:
 		/* Slow quit	-q */
-		exit(pidKill(PID_FILE, SIGQUIT) != 0);
+		exit(pidKill(pid_file, SIGQUIT) != 0);
 
 	case 2:
 		/* Quit now	-q -q */
-		exit(pidKill(PID_FILE, SIGTERM) != 0);
+		exit(pidKill(pid_file, SIGTERM) != 0);
 
 	case 3:
 	case 4:
 		/* Restart	-q -q -q
 		 * Restart-If	-q -q -q -q
 		 */
-		if (pidKill(PID_FILE, SIGTERM) && 3 < server_quit) {
+		if (pidKill(pid_file, SIGTERM) && 3 < server_quit) {
 			fprintf(stderr, "no previous instance running: %s (%d)\n", strerror(errno), errno);
 			return EXIT_FAILURE;
 		}
@@ -1636,12 +1702,12 @@ main(int argc, char **argv)
 			return EX_SOFTWARE;
 		}
 
-		if (pidSave(PID_FILE)) {
+		if (pidSave(pid_file)) {
 			syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
 			return EX_SOFTWARE;
 		}
 
-		if ((pid_fd = pidLock(PID_FILE)) < 0) {
+		if ((pid_fd = pidLock(pid_file)) < 0) {
 			syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
 			return EX_SOFTWARE;
 		}
@@ -1749,8 +1815,6 @@ freeThreadData(void)
  *** Windows Service
  ***********************************************************************/
 
-#define QUIT_EVENT_NAME		"Global\\" _NAME "-quit"
-
 int
 main(int argc, char **argv)
 {
@@ -1759,16 +1823,28 @@ main(int argc, char **argv)
 
 	serverOptions(argc, argv);
 
-	if (server_quit) {
-		HANDLE signal_quit = OpenEvent(EVENT_MODIFY_STATE , 0, QUIT_EVENT_NAME);
+	if (0 < server_quit) {
+		pid_t pid;
+		int length;
+		HANDLE signal_quit;
+		char event_name[128];
+
+		pid = pidLoad(pid_file);
+		length = snprintf(event_name, sizeof (event_name), "Global\\%ld-%s", (long) pid, server_quit == 1 ? "QUIT" : "TERM");
+		if (sizeof (event_name) <= length) {
+			ReportLog(EVENTLOG_ERROR_TYPE, "service %s pid file name too long", _NAME);
+			return EX_SOFTWARE;
+		}
+
+		signal_quit = OpenEvent(EVENT_MODIFY_STATE , 0, event_name);
 		if (signal_quit == NULL) {
 			ReportLog(EVENTLOG_ERROR_TYPE, "service %s quit error: %s (%d)", _NAME, strerror(errno), errno);
-			exit(EX_OSERR);
+			return EX_OSERR;
 		}
 
 		SetEvent(signal_quit);
 		CloseHandle(signal_quit);
-		exit(EXIT_SUCCESS);
+		return EXIT_SUCCESS;
 	}
 
 	if (windows_service != NULL) {
@@ -1779,8 +1855,21 @@ main(int argc, char **argv)
 		return EXIT_SUCCESS;
 	}
 
+	openlog(_NAME, LOG_PID|LOG_NDELAY, LOG_USER);
+
 	if (daemon_mode) {
+		if (pidSave(pid_file)) {
+			syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
+			return EX_SOFTWARE;
+		}
+
+		if (pidLock(pid_file) < 0) {
+			syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
+			return EX_SOFTWARE;
+		}
+
 		winServiceSetSignals(&signals);
+
 		if (winServiceStart(_NAME, argc, argv) < 0) {
 			ReportLog(EVENTLOG_ERROR_TYPE, "service %s start error: %s (%d)", _NAME, strerror(errno), errno);
 			return EX_OSERR;

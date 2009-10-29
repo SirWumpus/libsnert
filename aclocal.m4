@@ -1511,11 +1511,14 @@ AC_DEFUN(SNERT_BUILD_THREADED_SQLITE3,[
 		dnl Assume the most recent .tar.gz is the most current version.
 		tarfile=`ls -t1 sqlite*tar.gz | head -n 1`
 		dir=`basename $tarfile .tar.gz`
+
+		is_amalgamation=false
+		AS_IF([expr ${dir} : 'sqlite-amalgamation-.*'],[is_amalgamation=true; i=`echo ${dir} | sed -e 's/amalgamation-//'`; dir=${i}])
+
 		AC_SUBST(LIBSNERT_SQLITE3_VERSION, ${dir})
 
 		echo "sqlite directory... $with_sqlite3"
 		echo "libsnert supplied version..." ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}
-
 		AC_MSG_CHECKING([for previously built threaded SQLite3])
 		if test -f "$with_sqlite3/include/sqlite3.h"; then
 			AC_MSG_RESULT([yes])
@@ -1540,15 +1543,15 @@ AC_DEFUN(SNERT_BUILD_THREADED_SQLITE3,[
 			if test ! -f config.status ; then
 				echo
 				echo 'Configuring threaded SQLite3...'
-				sqlite3_configure_options="--prefix=$with_sqlite3 --disable-amalgamation --disable-tcl --without-tcl --enable-threadsafe"
 
-				if test ${enable_debug:-no} = 'yes' ; then
-					sqlite3_configure_options="${sqlite3_configure_options} --enable-debug"
-				fi
-
-				if test ${platform} != 'Darwin' ; then
-					sqlite3_configure_options="${sqlite3_configure_options} --enable-static --disable-shared"
-				fi
+				sqlite3_configure_options="--prefix=$with_sqlite3 --enable-threadsafe"
+				AS_IF([$is_amalgamation],
+					[sqlite3_configure_options="${sqlite3_configure_options} --disable-dynamic-extensions"],
+					[sqlite3_configure_options="${sqlite3_configure_options} --disable-amalgamation --disable-tcl --without-tcl"
+					 AS_IF([test ${enable_debug:-no} = 'yes'],[sqlite3_configure_options="${sqlite3_configure_options} --enable-debug"])
+					]
+				)
+				AS_IF([test ${platform} != 'Darwin'],[sqlite3_configure_options="${sqlite3_configure_options} --enable-static --disable-shared"])
 
 				case $platform in
 				FreeBSD)

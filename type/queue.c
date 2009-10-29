@@ -10,127 +10,276 @@
 
 #include <com/snert/lib/version.h>
 
-#ifndef __WIN32__
-/* Needs porting to windows for conditional variables. */
-
 #include <stdlib.h>
 
 #include <com/snert/lib/type/queue.h>
 #include <com/snert/lib/util/Text.h>
 
 /***********************************************************************
- ***
+ *** Low-level list manipulation; not mutex protected.
  ***********************************************************************/
 
+/*** TODO place in new class. ***/
+
 void
-queueItemFree(QueueItem *item)
+listItemFree(ListItem *item)
 {
 	if (item->free != NULL)
 		(*item->free)(item);
 }
 
 void
-queueFini(void *_queue)
+listFini(void *_list)
 {
-	QueueItem *item, *next;
-	Queue *queue = (Queue *) _queue;
+	ListItem *item, *next;
+	List *list = (List *) _list;
 
-	for (item = queue->head; item != NULL; item = next) {
+	for (item = list->head; item != NULL; item = next) {
 		next = item->next;
-		queueItemFree(item);
+		listItemFree(item);
 	}
-
-	(void) pthread_mutex_destroy(&queue->mutex);
-	(void) pthread_cond_destroy(&queue->cv);
 }
 
-int
-queueInit(Queue *queue)
+void
+listInit(List *list)
 {
-	if (pthread_cond_init(&queue->cv, NULL))
-		return -1;
-
-	if (pthread_mutex_init(&queue->mutex, NULL))
-		return -1;
-
-	queue->free = queueFini;
-	queue->tail = NULL;
-	queue->head = NULL;
-
-	return 0;
+	memset(list, 0, sizeof (*list));
+	list->free = listFini;
 }
 
-static void
-queueEnqueue(Queue *queue, QueueItem *item)
+void
+listInsertAfter(List *list, ListItem *node, ListItem *new_node)
 {
-	item->next = NULL;
-
-	if (queue->head == NULL) {
-		queue->head = item;
-		item->prev = NULL;
+	if (node != NULL) {
+		new_node->prev = node;
+		new_node->next = node->next;
+		if (node->next == NULL)
+			list->tail = new_node;
+		else
+			node->next->prev = new_node;
+		node->next = new_node;
+		list->length++;
+	} else if (list->tail == NULL) {
+		new_node->prev = new_node->next = NULL;
+		list->head = list->tail = new_node;
+		list->length++;
 	} else {
-		item->prev = queue->tail;
-		queue->tail->next = item;
+		listInsertAfter(list, list->tail, new_node);
 	}
-
-	queue->tail = item;
 }
 
-static void
-queueDequeue(Queue *queue, QueueItem *item)
+void
+listInsertBefore(List *list, ListItem *node, ListItem *new_node)
 {
-	QueueItem *prev, *next;
+	if (node != NULL) {
+		new_node->prev = node->prev;
+		new_node->next = node;
+		if (node->prev == NULL)
+			list->head = new_node;
+		else
+			node->prev->next = new_node;
+		node->prev = new_node;
+		list->length++;
+	} else if (list->head == NULL) {
+		new_node->prev = new_node->next = NULL;
+		list->head = list->tail = new_node;
+		list->length++;
+	} else {
+		listInsertBefore(list, list->head, new_node);
+	}
+
+}
+
+void
+listDelete(List *list, ListItem *item)
+{
+	ListItem *prev, *next;
 
 	if (item != NULL) {
 		prev = item->prev;
 		next = item->next;
 
 		if (prev == NULL)
-			queue->head = next;
+			list->head = next;
 		else
 			prev->next = next;
 
 		if (next == NULL)
-			queue->tail = prev;
+			list->tail = prev;
 		else
 			next->prev = prev;
+
+		item->prev = item->next = NULL;
+		list->length--;
 	}
 }
 
+ListItem *
+listFind(List *list, ListFindFn find_fn, void *key)
+{
+	ListItem *node;
+
+	for (node = list->head; node != NULL; node = node->next) {
+		if ((*find_fn)(node, key))
+			break;
+	}
+
+	return node;
+}
+
+/***********************************************************************
+ ***
+ ***********************************************************************/
+
+void
+queueFini(void *_queue)
+{
+	Queue *queue = (Queue *) _queue;
+
+	listFini(&queue->list);
+
+	(void) pthread_cond_destroy(&queue->cv_less);
+	(void) pthread_cond_destroy(&queue->cv_more);
+	(void) pthreadMutexDestroy(&queue->mutex);
+}
+
 int
-queueAppend(Queue *queue, QueueItem *item)
+queueInit(Queue *queue)
+{
+	listInit(&queue->list);
+
+	queue->list.free = queueFini;
+
+	if (pthread_cond_init(&queue->cv_more, NULL))
+		goto error0;
+
+	if (pthread_cond_init(&queue->cv_less, NULL))
+		goto error1;
+
+	if (pthread_mutex_init(&queue->mutex, NULL))
+		goto error2;
+
+	return 0;
+error2:
+	(void) pthread_cond_destroy(&queue->cv_less);
+error1:
+	(void) pthread_cond_destroy(&queue->cv_more);
+error0:
+	return -1;
+}
+
+size_t
+queueLength(Queue *queue)
+{
+	unsigned length = 0;
+
+	if (!pthread_mutex_lock(&queue->mutex)) {
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &queue->mutex);
+#endif
+		length = queue->list.length;
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_pop(1);
+#else
+		(void) pthread_mutex_unlock(&queue->mutex);
+#endif
+	}
+
+	return length;
+}
+
+int
+queueIsEmpty(Queue *queue)
+{
+	return queueLength(queue) == 0;
+}
+
+int
+queueEnqueue(Queue *queue, ListItem *item)
 {
 	if (pthread_mutex_lock(&queue->mutex))
 		return -1;
-
-	queueEnqueue(queue, item);
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+	pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &queue->mutex);
+#endif
+	listInsertAfter(&queue->list, queue->list.tail, item);
+	pthread_cond_signal(&queue->cv_more);
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+	pthread_cleanup_pop(1);
+#else
 	(void) pthread_mutex_unlock(&queue->mutex);
-	pthread_cond_signal(&queue->cv);
-
+#endif
 	return 0;
 }
 
-QueueItem *
-queueRemove(Queue *queue)
+ListItem *
+queueDequeue(Queue *queue)
 {
-	QueueItem *item = NULL;
+	ListItem *item = NULL;
 
 	if (!pthread_mutex_lock(&queue->mutex)) {
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &queue->mutex);
+#endif
 		/* Wait until the queue has an item to process. */
-		while (queue->head == NULL) {
-			if (pthread_cond_wait(&queue->cv, &queue->mutex))
+		while (queue->list.head == NULL) {
+			if (pthread_cond_wait(&queue->cv_more, &queue->mutex))
 				break;
 		}
 
-		if (queue->head != NULL) {
-			item = queue->head;
-			queueDequeue(queue, item);
-		}
-
+		item = queue->list.head;
+		listDelete(&queue->list, item);
+		pthread_cond_signal(&queue->cv_less);
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_pop(1);
+#else
 		(void) pthread_mutex_unlock(&queue->mutex);
+#endif
 	}
 
 	return item;
 }
 
-#endif /* __WIN32__ */
+void
+queueRemove(Queue *queue, ListItem *node)
+{
+	if (!pthread_mutex_lock(&queue->mutex)) {
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &queue->mutex);
+#endif
+		listDelete(&queue->list, node);
+		if (node->free != NULL)
+			(*node->free)(node->data);
+		(void) pthread_cond_signal(&queue->cv_less);
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_pop(1);
+#else
+		(void) pthread_mutex_unlock(&queue->mutex);
+#endif
+	}
+}
+
+void
+queueRemoveAll(Queue *queue)
+{
+	ListItem *node, *next;
+
+	if (!pthread_mutex_lock(&queue->mutex)) {
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &queue->mutex);
+#endif
+		for (node = queue->list.head; node != NULL; node = next) {
+			next = node->next;
+			listDelete(&queue->list, node);
+			if (node->free != NULL)
+				(*node->free)(node->data);
+			(void) pthread_cond_signal(&queue->cv_less);
+		}
+#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+		pthread_cleanup_pop(1);
+#else
+		(void) pthread_mutex_unlock(&queue->mutex);
+#endif
+	}
+}
+

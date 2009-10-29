@@ -177,8 +177,8 @@ clean: title
 	-rm -f $(LIB) $(BAK) td32.TR2
 	-rm -rf autom4te.cache configure.lineno version.h.in
 	-rm -f *.o *.obj *.tds *.stackdump core *.core core.*
-	cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}; ${MAKE} ${MAKEFLAGS} $@
 	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} $@ && cd .. ; done
+	cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}; ${MAKE} ${MAKEFLAGS} $@
 	@echo
 	@echo '***************************************************************'
 	@echo Clean DONE

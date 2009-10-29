@@ -286,12 +286,20 @@ extern void serverAtForkPrepare(Server *server);
 extern void serverAtForkParent(Server *server);
 extern void serverAtForkChild(Server *server);
 
+#ifdef __WIN32__
+typedef enum {
+	SIGNAL_QUIT = 0,
+	SIGNAL_TERM = 1,
+	SIGNAL_LENGTH = 2
+} ServerSignal;
+#endif
+
 typedef struct {
 #ifdef __unix__
 	sigset_t signal_set;
 #endif
 #ifdef __WIN32__
-	HANDLE signal_thread_event;
+	HANDLE signal_event[SIGNAL_LENGTH];
 #endif
 } ServerSignals;
 

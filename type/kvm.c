@@ -2659,6 +2659,9 @@ error2:
 error1:
 	free(addr);
 error0:
+#ifdef __WIN32__
+	pthread_exit(NULL);
+#endif
 	return NULL;
 }
 
@@ -3690,6 +3693,9 @@ process(void *data)
 
 	socketClose(client);
 
+#ifdef __WIN32__
+	pthread_exit(NULL);
+#endif
 	return NULL;
 }
 

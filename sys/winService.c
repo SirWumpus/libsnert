@@ -126,7 +126,7 @@ HandlerRoutine(DWORD ctrl)
 	switch (ctrl) {
 	case CTRL_SHUTDOWN_EVENT:
 		if (serviceSignals != NULL)
-			SetEvent(serviceSignals->signal_thread_event);
+			SetEvent(serviceSignals->signal_event[SIGNAL_TERM]);
 		break;
 
 	case CTRL_LOGOFF_EVENT:
@@ -136,7 +136,7 @@ HandlerRoutine(DWORD ctrl)
 	case CTRL_BREAK_EVENT:
 	case CTRL_CLOSE_EVENT:
 		if (serviceSignals != NULL) {
-			SetEvent(serviceSignals->signal_thread_event);
+			SetEvent(serviceSignals->signal_event[ctrl == CTRL_BREAK_EVENT ? SIGNAL_QUIT : SIGNAL_TERM]);
 			return TRUE;
 		}
 	}
@@ -162,7 +162,7 @@ serviceControl(DWORD code, DWORD eventType, LPVOID eventData, LPVOID userData)
 		 * finished.
 		 */
 		if (serviceSignals != NULL)
-			SetEvent(serviceSignals->signal_thread_event);
+			SetEvent(serviceSignals->signal_event[SIGNAL_TERM]);
 
 		status.dwCheckPoint = 0;
 		status.dwWaitHint = 2000;

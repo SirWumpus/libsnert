@@ -45,6 +45,36 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
 
+--1.73.0--
+
+   !	sys/pthread.c/h: added Windows portability functions for:
+
+		pthread_cond_init
+		pthread_cond_signal
+		pthread_cond_broadcast
+		pthread_cond_wait
+		pthread_cond_timedwait
+		pthread_cond_destroy
+
+		pthread_attr_init
+		pthread_attr_destroy
+		pthread_attr_getstacksize
+		pthread_attr_setstacksize
+
+		pthread_cleanup_push
+		pthread_cleanup_pop
+		pthread_cancel,
+		pthread_testcancel
+
+   !	Several changes related to Windows.
+
+  !!	aclocal.m4: fixed SNERT_BUILD_THREADED_SQLITE3 to support SQLite
+  	built from the amalgamation. sqlite.org no longer supports building
+  	from the full source package without requiring TCL; they recommend
+  	the amalgamation for those who do not want to install TCL.
+
+   !    Upgraded SQLite to 3.6.19
+
 --1.72.12--
 
    !	Fixed bug in smdbGetValue that could return an undefined pointer
