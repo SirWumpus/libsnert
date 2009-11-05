@@ -1579,9 +1579,12 @@ serverMain(void)
 	if (pthreadInit())
 		goto error0;
 
+	if (serverSignalsInit(&signals, _NAME))
+		goto error1;
+
 	for (service = services; service->process != NULL; service++) {
 		if ((service->server = serverCreate(service->host, service->port)) == NULL)
-			goto error0;
+			goto error2;
 
 		service->server->option.new_threads = spare_threads;
 		service->server->option.min_threads = min_threads;
@@ -1590,9 +1593,6 @@ serverMain(void)
 		service->server->hook.session_process = service->process;
 		serverSetStackSize(service->server, SERVER_STACK_SIZE);
 	}
-
-	if (serverSignalsInit(&signals, _NAME))
-		goto error1;
 
 #if defined(__OpenBSD__) || defined(__FreeBSD__)
 	(void) processDumpCore(2);
@@ -1605,12 +1605,12 @@ serverMain(void)
 
 	for (service = services; service->process != NULL; service++) {
 		if (serverStart(service->server))
-			goto error2;
+			goto error3;
 	}
 
 	syslog(LOG_INFO, "ready");
 	signal = serverSignalsLoop(&signals);
-
+error3:
 	for (service = services; service->process != NULL; service++) {
 		serverStop(service->server, signal == SIGQUIT);
 	}
@@ -1618,12 +1618,12 @@ serverMain(void)
 	syslog(LOG_INFO, "signal %d, terminating process", signal);
 	rc = EXIT_SUCCESS;
 error2:
-	serverSignalsFini(&signals);
-error1:
 	for (service = services; service->process != NULL; service++) {
 		serverFree(service->server);
 	}
 
+	serverSignalsFini(&signals);
+error1:
 	pthreadFini();
 error0:
 	syslog(LOG_INFO, "signal %d, terminated", signal);
