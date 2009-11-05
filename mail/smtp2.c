@@ -546,6 +546,9 @@ smtp2Open(const char *host, unsigned connect_ms, unsigned command_ms, int flags)
 	SMTP2 *smtp;
 
 	if ((smtp = smtp2Create(connect_ms, command_ms, flags)) != NULL) {
+		if (host == NULL || *host == '\0')
+			host = "127.0.0.1";
+
 		if (smtp2Connect(smtp, host) != SMTP_OK || (smtp->domain = strdup(host)) == NULL) {
 			smtp2Close(smtp);
 			smtp = NULL;
