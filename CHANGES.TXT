@@ -75,6 +75,10 @@ is no set schedule for releases.
 
    !    Upgraded SQLite to 3.6.19
 
+   !	serverMain: moved serverSignalsInit ahead of serverCreate/serverInit
+   	calls in the test example. This does not affect the test example,
+   	but those who mimic this examples layout, ie. smtpf.
+
 --1.72.12--
 
    !	Fixed bug in smdbGetValue that could return an undefined pointer
