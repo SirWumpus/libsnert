@@ -224,6 +224,10 @@ typedef unsigned long time_t;
 /*
  * POSIX Signals
  */
+#ifdef __SUNOS__
+/* Required before #include <signal.h> */
+# define _POSIX_PTHREAD_SEMANTICS
+#endif
 #undef HAVE_SIGNAL_H
 #undef HAVE_SIGSET_T
 #undef HAVE_STRUCT_SIGALTSTACK
