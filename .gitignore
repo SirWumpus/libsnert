@@ -46,6 +46,7 @@ mail/tlds-alpha-by-domain.c
 mail/two-level-tlds.c
 net/findIP
 net/formatIP
+net/geturl
 net/ipinclient
 net/pdq
 net/server
@@ -85,3 +86,7 @@ util/b64
 util/htmlstrip
 util/md4
 util/md5
+util/time62
+util/convertDate
+util/TextFind
+util/uri-samples/*
