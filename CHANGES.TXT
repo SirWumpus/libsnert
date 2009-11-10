@@ -44,6 +44,13 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.73.1--
+
+   !    Upgraded SQLite to 3.6.20
+
+   !	Solaris: several missing instances of #define _POSIX_PTHREAD_SEMANTICS
+   	when including signal.h. Updated version.h to define this globally.
+   	Reported by Randy Jones.
 
 --1.73.0--
 
