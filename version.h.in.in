@@ -224,7 +224,7 @@ typedef unsigned long time_t;
 /*
  * POSIX Signals
  */
-#ifdef __SUNOS__
+#ifdef __sun__
 /* Required before #include <signal.h> */
 # define _POSIX_PTHREAD_SEMANTICS
 #endif
@@ -579,7 +579,7 @@ typedef unsigned long time_t;
 #undef HAVE_STRUCT_SOCKADDR_UN_SUN_LEN
 
 #ifndef HAVE_SOCKLEN_T
-# ifdef __SUNOS__
+# ifdef __sun__
 typedef size_t socklen_t;
 # endif
 # ifdef __APPLE__

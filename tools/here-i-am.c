@@ -237,7 +237,7 @@ pthread_mutex_destroy(pthread_mutex_t *handle)
 
 typedef int SOCKET;
 
-#ifdef __SUNOS__
+#ifdef __sun__
 typedef size_t socklen_t;
 #endif
 
