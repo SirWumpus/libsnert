@@ -44,6 +44,28 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+
+--1.73.2--
+
+   !	dnsList.c: fix uninitialised variable in dnsListQueryNs0
+
+   !	makefile.in: replace ${MAKEFLAGS} with historical ${MFLAGS},
+	since GNU make behaves differently from BSD make with respect to
+	${MAKEFLAGS}. POSIX ${MAKEFLAGS} allows for two different
+	formats, one of them drops the leading hyphen from single letter
+	options, which is is unsuitable for the recursive idiom:
+
+   		${MAKE} ${MAKEFLAGS} $@
+
+   	However, the historical internal variable ${MFLAGS} behaves as
+	expected:
+
+   		${MAKE} ${MFLAGS} $@
+
+   !	SNERT_OPTION_ENABLE_64BIT: modified to use uname -m to detect
+   	between 32 and 64 bit x86 processors when --enable-64bit not
+   	specified. Helps people who forget.
+
 --1.73.1--
 
    !    Upgraded SQLite to 3.6.20
