@@ -92,17 +92,17 @@ title :
 	@echo
 
 build: title add-lib
-	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} $@ && cd .. ; done
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
 	@echo '==> building CLI test / tool variants'
 	@echo '***************************************************************'
 	@echo
-	cd type; ${MAKE} ${MAKEFLAGS} kvmap$E kvmc$E kvmd$E mcc$E
-	cd mail; ${MAKE} ${MAKEFLAGS} mime$E digestbl$E siq$E smtp2$E spf$E
-	cd io;   ${MAKE} ${MAKEFLAGS} Dns$E
-	cd net;  ${MAKE} ${MAKEFLAGS} pdq$E server$E geturl$E
-	cd util; ${MAKE} ${MAKEFLAGS} b64$E convertDate$E md4$E md5$E htmlstrip$E uri$E
+	cd type; ${MAKE} ${MFLAGS} kvmap$E kvmc$E kvmd$E mcc$E
+	cd mail; ${MAKE} ${MFLAGS} mime$E digestbl$E siq$E smtp2$E spf$E
+	cd io;   ${MAKE} ${MFLAGS} Dns$E
+	cd net;  ${MAKE} ${MFLAGS} pdq$E server$E geturl$E
+	cd util; ${MAKE} ${MFLAGS} b64$E convertDate$E md4$E md5$E htmlstrip$E uri$E
 	@echo
 	@echo '***************************************************************'
 	@echo Build ${BUILD} DONE
@@ -110,17 +110,17 @@ build: title add-lib
 	@echo
 
 debug: title add-lib
-	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} $@ && cd .. ; done
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
 	@echo '==> building CLI test / tool variants'
 	@echo '***************************************************************'
 	@echo
-	cd type; ${MAKE} ${MAKEFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' kvmap$E kvmc$E kvmd$E mcc$E
-	cd mail; ${MAKE} ${MAKEFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' siq$E smtp2$E spf$E
-	cd io;   ${MAKE} ${MAKEFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' Dns$E
-	cd net;  ${MAKE} ${MAKEFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' pdq$E
-	cd util; ${MAKE} ${MAKEFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' uri$E
+	cd type; ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' kvmap$E kvmc$E kvmd$E mcc$E
+	cd mail; ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' siq$E smtp2$E spf$E
+	cd io;   ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' Dns$E
+	cd net;  ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' pdq$E
+	cd util; ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' uri$E
 	@echo
 	@echo '***************************************************************'
 	@echo Build ${BUILD} DONE
@@ -129,7 +129,7 @@ debug: title add-lib
 
 lint: title
 	-splint -D_REENTRANT -I$(SNERT_INCDIR) *.c
-	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} $@ && cd .. ; done
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
 	@echo Build ${BUILD} DONE
@@ -177,8 +177,8 @@ clean: title
 	-rm -f $(LIB) $(BAK) td32.TR2
 	-rm -rf autom4te.cache configure.lineno version.h.in
 	-rm -f *.o *.obj *.tds *.stackdump core *.core core.*
-	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} $@ && cd .. ; done
-	cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}; ${MAKE} ${MAKEFLAGS} $@
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
+	cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}; ${MAKE} ${MFLAGS} $@
 	@echo
 	@echo '***************************************************************'
 	@echo Clean DONE
@@ -193,8 +193,8 @@ distclean: title
 	if test -e ${LIBSNERT_SQLITE3_DIR}/include/sqlite3.h; then \
 	    rm -rf ${LIBSNERT_SQLITE3_DIR}/bin ${LIBSNERT_SQLITE3_DIR}/include ${LIBSNERT_SQLITE3_DIR}/lib ; \
 	fi
-	cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}; ${MAKE} ${MAKEFLAGS} $@
-	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} $@ && cd .. ; done
+	cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}; ${MAKE} ${MFLAGS} $@
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
 	@echo Distribution Clean DONE
