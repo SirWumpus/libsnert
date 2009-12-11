@@ -717,6 +717,17 @@ AC_DEFUN(SNERT_OPTION_ENABLE_64BIT,[
 		[
 			CFLAGS="-m64 ${CFLAGS}"
 			LDFLAGS="-m64 ${LDFLAGS}"
+		],[
+			case `uname -m` in
+			x86_64)
+				CFLAGS="-m64 ${CFLAGS}"
+				LDFLAGS="-m64 ${LDFLAGS}"
+				;;
+			i386)
+				CFLAGS="-m32 ${CFLAGS}"
+				LDFLAGS="-m32 ${LDFLAGS}"
+				;;
+			esac
 		]
 	)
 ])
