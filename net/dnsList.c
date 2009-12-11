@@ -1,7 +1,7 @@
 /**
  * dnsList.c
  *
- * Copyright 2008 by Anthony Howe. All rights reserved.
+ * Copyright 2008, 2009 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -49,6 +49,8 @@ static const char usage_dns_list_log_what[] =
 ;
 
 Option optDnsListLogWhat = { "dns-list-log-what", "", usage_dns_list_log_what };
+
+const char *dnsListNsInvalid = "ns.invalid.";
 
 /***********************************************************************
  ***
@@ -161,6 +163,75 @@ dnsListCreate(const char *string)
 	if ((list = malloc(sizeof (*list))) == NULL)
 		goto error0;
 
+#ifdef STRUCTURED_FIELDS
+/*
+$option="$suffix1;$suffix2;..."
+
+$suffix is either
+
+	$suffix/$mask    (currently available)
+
+or
+	$suffix:$code1/$action,$code2/$action,...
+
+	/$action is optional and assumes /REJECT is default
+
+
+eg1
+
+uri-bl="multi.surbl.org:127.0.0.2/REJECT,127.0.0.4/CONTENT; black.uribl.com"
+
+
+eg2
+
+uri-bl="multi.surbl.org:127.0.0.2/REJECT,127.0.0.4/CONTENT;
+black.uribl.com/0xffff08"
+*/
+{
+	int span;
+	DnsListCode *code;
+	DnsListSuffix *suffix;
+	char **array, *suffix_end, *slash;
+
+
+	if ((array = TextSplit(string, ";", 0)) == NULL)
+		goto error1;
+
+	for (array = (char **) VectorBase(array); *array != NULL; array++) {
+		if ((suffix = calloc(1, sizeof (*suffix))) == NULL)
+			goto error1;
+
+		span = strcspn(*array, ":/");
+
+		if ((*array)[span] == '\0') {
+			suffix->mask = (unsigned long) ~0L;
+		} else if ((*array)[span] == ':') {
+			(*array)[span++] = '\0';
+			suffix->mask = (unsigned long) strtol(*array + span, NULL, 0);
+			if ((suffix->suffix = strdup(*array)) == NULL)
+				goto error1;
+		} else {
+			(*array)[span++] = '\0';
+			if ((suffix->codes = TextSplit(*array + span, ",", 0)) == NULL)
+				goto error1;
+
+			for (codes = suffix->codes; *codes != NULL; codes++) {
+				if ((code = malloc(sizeof (*code))) == NULL)
+					goto error1;
+				if ((slash = strchr(*codes, '/')) == NULL)
+					goto error1;
+				*slash++ = '\0';
+				if (parseIPv6(*codes, code->code) == 0)
+					goto error1;
+				if ((code->action = strdup(slash)) == NULL)
+					goto error1;
+				if (VectorReplace(suffix->codes, suffix))
+					goto error1;
+			}
+		}
+	}
+}
+#else
 	if ((list->suffixes = TextSplit(string, " ,;", 0)) == NULL)
 		goto error1;
 
@@ -195,7 +266,7 @@ dnsListCreate(const char *string)
 			*slash = '\0';
 		}
 	}
-
+#endif
 	return list;
 error1:
 	dnsListFree(list);
@@ -432,6 +503,7 @@ dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 static const char *
 dnsListQueryNs0(DnsList *dns_list, PDQ *pdq, Vector names_seen, int recurse, const char *name)
 {
+	int missing_ns = 1;
 	PDQ_rr *rr, *ns_list;
 	const char *list_name = NULL;
 
@@ -442,9 +514,11 @@ dnsListQueryNs0(DnsList *dns_list, PDQ *pdq, Vector names_seen, int recurse, con
 		for (rr = ns_list; rr != NULL; rr = rr->next) {
 			if (0 < recurse && rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_SOA) {
 				list_name = dnsListQueryNs0(dns_list, pdq, names_seen, recurse-1, rr->name.string.value);
+				missing_ns = 0;
 				break;
 			} else if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_NS) {
 				recurse = 0;
+				missing_ns = 0;
 				if ((list_name = dnsListQuery(dns_list, pdq, names_seen, 1, ((PDQ_PTR *) rr)->host.string.value)) != NULL)
 					break;
 			}
@@ -452,6 +526,9 @@ dnsListQueryNs0(DnsList *dns_list, PDQ *pdq, Vector names_seen, int recurse, con
 
 		pdqFree(ns_list);
 	}
+
+	if (missing_ns && list_name == NULL)
+		list_name = dnsListNsInvalid;
 
 	return list_name;
 }

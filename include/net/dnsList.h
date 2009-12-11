@@ -16,7 +16,20 @@ extern "C" {
  ***********************************************************************/
 
 #include <com/snert/lib/net/pdq.h>
+#include <com/snert/lib/net/network.h>
 #include <com/snert/lib/type/Vector.h>
+
+typedef struct dns_list_code {
+	struct dns_list_code *next;
+	unsigned char code[IPV6_BYTE_LENGTH];
+	char *action;
+} DnsListCode;
+
+typedef struct dns_list_suffix {
+	char *suffix;
+	Vector codes;
+	unsigned long mask;
+} DnsListSuffix;
 
 typedef struct {
 	Vector suffixes;
@@ -146,6 +159,11 @@ extern const char *dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, 
  *	Otherwise NULL if name was not found in a DNS list.
  */
 extern const char *dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name);
+
+/**
+ * Psuedo list name returned when no NS or SOA records are found.
+ */
+extern const char *dnsListNsInvalid;
 
 /**
  * @param dns_list
