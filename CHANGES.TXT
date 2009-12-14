@@ -66,6 +66,9 @@ is no set schedule for releases.
    	between 32 and 64 bit x86 processors when --enable-64bit not
    	specified. Helps people who forget.
 
+   !	smdbAccessCode: Postfix "DUNNO" action was not correctly identified.
+
+
 --1.73.1--
 
    !    Upgraded SQLite to 3.6.20

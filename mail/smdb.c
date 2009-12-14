@@ -542,7 +542,7 @@ smdbAccessCode(const char *value)
 	switch (toupper(value[0])) {
 	case SMDB_ACCESS_DISCARD:
 		/* Postfix 2.3 DUNNO same as Sendmail SKIP */
-		if (toupper(value[2]) == 'U')
+		if (toupper(value[1]) == 'U')
 			return SMDB_ACCESS_SKIP;
 		/*@fallthrough@*/
 
