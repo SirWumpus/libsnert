@@ -47,6 +47,8 @@ is no set schedule for releases.
 
 --1.73.2--
 
+   !    Upgraded SQLite to 3.6.21
+
    !	dnsList.c: fix uninitialised variable in dnsListQueryNs0
 
    !	makefile.in: replace ${MAKEFLAGS} with historical ${MFLAGS},
