@@ -719,7 +719,7 @@ AC_DEFUN(SNERT_OPTION_ENABLE_64BIT,[
 			LDFLAGS="-m64 ${LDFLAGS}"
 		],[
 			case `uname -m` in
-			x86_64)
+			x86_64|amd64)
 				CFLAGS="-m64 ${CFLAGS}"
 				LDFLAGS="-m64 ${LDFLAGS}"
 				;;
