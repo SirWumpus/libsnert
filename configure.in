@@ -7,7 +7,7 @@ AC_INIT(LibSnert, 1.73, [Anthony Howe <achowe@snert.com>])
 dnl The autoconf version I learned to deal with.
 AC_PREREQ(2.59)
 
-SNERT_INIT(LIBSNERT, [Copyright 1996, 2009 by Anthony Howe. All rights reserved.])
+SNERT_INIT(LIBSNERT, [Copyright 1996, 2010 by Anthony Howe. All rights reserved.])
 
 AC_DEFINE_UNQUOTED(LIBSNERT_UNAME, [["${platform}"]])
 

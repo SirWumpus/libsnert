@@ -1,7 +1,7 @@
 dnl
 dnl aclocal.m4
 dnl
-dnl Copyright 2002, 2006 by Anthony Howe.  All rights reserved.
+dnl Copyright 2002, 2010 by Anthony Howe.  All rights reserved.
 dnl
 
 dnl AC_LANG(C)
