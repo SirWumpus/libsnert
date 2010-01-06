@@ -163,8 +163,8 @@ static tzEntry tzList[] = {
 	{ "SWT",	sizeof ("SWT")-1,	+100 }, 	/* Swedish Winter Time */
 	{ "WETDST",	sizeof ("WETDST")-1,	+100 }, 	/* Western European Daylight-Saving Time */
 	{ "GMT",	sizeof ("GMT")-1,	+0000 }, 	/* Greenwich Mean Time */
-	{ "UT",		sizeof ("UT")-1,	+0000 }, 	/* Universal Time */
 	{ "UTC",	sizeof ("UTC")-1,	+0000 }, 	/* Universal Coordinated Time */
+	{ "UT",		sizeof ("UT")-1,	+0000 }, 	/* Universal Time */
 	{ "ZULU",	sizeof ("ZULU")-1,	+0000 }, 	/* Same as UTC */
 	{ "WET",	sizeof ("WET")-1,	+0000 }, 	/* Western European Time */
 	{ "WAT",	sizeof ("WAT")-1,	-100 }, 	/* West Africa Time */
