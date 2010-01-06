@@ -718,6 +718,7 @@ AC_DEFUN(SNERT_OPTION_ENABLE_64BIT,[
 			CFLAGS="-m64 ${CFLAGS}"
 			LDFLAGS="-m64 ${LDFLAGS}"
 		],[
+			dnl Option not specified, then choose based on CPU.
 			case `uname -m` in
 			x86_64|amd64)
 				CFLAGS="-m64 ${CFLAGS}"
@@ -986,12 +987,19 @@ dnl
 dnl SNERT_OPTION_ENABLE_FCNTL_LOCKS
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_FCNTL_LOCKS,[
-	AC_ARG_ENABLE(
-		fcntl-locks, [AC_HELP_STRING([--enable-fcntl-locks],[use fcntl() file locking instead of flock()])],
+	AC_ARG_ENABLE(fcntl-locks,
+		[AC_HELP_STRING([--enable-fcntl-locks],[use fcntl() file locking instead of flock()])],
 		[
-			AC_DEFINE_UNQUOTED(ENABLE_ALT_FLOCK)
+		],[
+			dnl Option not specified, choose based on OS.
+			case "$platform" in
+			Linux)
+				enable_fcntl_locks='yes'
+				;;
+			esac
 		]
 	)
+	AS_IF([test ${enable_fcntl_locks:-'no'} = 'yes'],[AC_DEFINE_UNQUOTED(ENABLE_ALT_FLOCK)])
 	AC_SUBST(enable_alt_flock)
 ])
 
