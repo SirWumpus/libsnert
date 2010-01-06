@@ -45,6 +45,18 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
 
+--1.73.3--
+
+   !    Upgraded SQLite to 3.6.22
+
+   !	convertDate.c: invert order of UT / UTC comparision in tzList
+   	table for UTC / UT. Otherwise UTC fails to match correctly.
+   	Reported by Todd Lyons.
+
+   !	SNERT_OPTION_ENABLE_FCNTL_LOCKS: modified to test $platform when
+	the option is not specified in order select fcntl locks based on
+	the OS.
+
 --1.73.2--
 
    !    Upgraded SQLite to 3.6.21
