@@ -20,8 +20,10 @@ extern long MailSpanIPv6(const char *ip);
 extern long MailSpanAddressLiteral(const char *s);
 extern long MailSpanDomainName(const char *s, int minimumDots);
 extern long MailSpanLocalPart(const char *s);
+extern long MailSpanMailbox(const char *s);
 extern long MailSpanAtDomainList(const char *s);
 extern long MailSpanPath(const char *s);
+
 
 /*@=exportlocal@*/
 
