@@ -173,7 +173,7 @@ TextFindQuote(const char *string, char *buffer, size_t size)
  *
  *	"*abc*def*"	find "abc", then find "def"
  *
- *	"a[]]c"		exact match for "a]c"
+ *	"a[]]c"		exact match for "a]c", same as "a]c"
  *
  *	"[abc]"		match a single "a", "b", or "c".
  *

@@ -1,7 +1,7 @@
 /*
  * TextMatch.c
  *
- * Copyright 2005, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2005, 2010 by Anthony Howe. All rights reserved.
  */
 
 #include <com/snert/lib/version.h>
@@ -17,15 +17,34 @@
  ***********************************************************************/
 
 /**
- * Match or find the first occurence of "needle" in "haystack".
+ * Find the first occurence of "needle" in "haystack".
  *
  * @param haystack
  *	A C string to search.
  *
  * @param needle
- *	The C string pattern to match. An astrisk (*) acts as wildcard,
+ *	The C string pattern to find. An astrisk (*) acts as wildcard,
  *	scanning over zero or more bytes. A question-mark (?) matches
- *	any single character.
+ *	any single character; a space ( ) will match any single white
+ *	space character.
+ *
+ *	A left square bracket ([) starts a character class that ends
+ * 	with a right square bracket (]) and matches one character
+ *	from the class. If the first character of the class is a carat
+ *	(^), then the remainder of character class is negated. If the
+ *	first character (after a carat if any) is a right square bracket,
+ *	then the right square bracket is a literal and loses any special
+ *	meaning. If the first character (after a carat and/or right
+ *	square bracket) is a hypen (-), then the hyphen is a literal
+ *	and loses any special meaning. A range expression expressed as
+ *	a start character followed by a hyphen followed by an end
+ *	character matches a character in character-set order between
+ *	start and end characters inclusive.
+ *
+ * 	A backslash follow by any character treats that character as
+ *	a literal (it loses any special meaning).
+ *
+ *	(If you need more than that, think about using regex(3) instead.)
  *
  *	"abc"		exact match for "abc"
  *
@@ -38,6 +57,24 @@
  *
  *	"*abc*def*"	find "abc", then find "def"
  *
+ *	"a[]]c"		exact match for "a]c"
+ *
+ *	"[abc]"		match a single "a", "b", or "c".
+ *
+ *	"[^abc]"	match a single charcater except "a", "b", or "c".
+ *
+ *	"[a-z]"		match a single character "a" through "z" (assumes ASCII)
+ *
+ *	"[0-9]"		match a single digit "0" through "9" (assumes ASCII)
+ *
+ *	"[-ac]"		match a single charcater "-", "a", or "c".
+ *
+ *	"[]-ac]		match a single charcater "]", "-", "a", or "c".
+ *
+ *	"[^-ac]"	match a single charcater except "-", "a", or "c".
+ *
+ *	"[^]-ac]	match a single charcater execpt "]", "-", "a", or "c".
+ *
  * @param hay_size
  *	How much of haystack to search or -1 for the maximum size or
  *	until a null byte is found.
@@ -46,81 +83,12 @@
  *	Set true for case insensitive matching.
  *
  * @return
- *	True if a match was found.
+ *	Offset into haystack or -1 if not found.
  */
 int
 TextMatch(const char *hay, const char *pin, long hay_size, int caseless)
 {
-#ifdef ORIGINAL_VERSION
-/* Remove this once I'm a happy chappy. */
-	const char *start;
-
-	if (hay == NULL || pin == NULL)
-		return 0;
-
-	if (hay_size < 0)
-		hay_size = ~ (unsigned long) 0 >> 1;
-
-	start = hay;
-
-	/*** Previous version of this function used a ``stop'' pointer
-	 *** variable, which in certain cases when hay_size = -1, could
-	 *** wrap around the memory space and end up being less than
-	 *** the hay pointer when compared. Now we decrement hay_size
-	 *** instead to avoid this bug.
-	 ***/
-
-	for ( ; *pin != '\0'; hay++, pin++, hay_size--) {
-		if (*pin == '*') {
-			/* Skip redundant astrisks. */
-			while (*++pin == '*')
-				;
-
-			/* Pattern with trailing wild card matches the
-			 * remainder of the string.
-			 */
-			if (*pin == '\0')
-				return 1;
-
-			/* Search string for start of pattern substring.
-			 * This is recusive and the depth is limited to
-			 * the number of distinct '*' characters in the
-			 * pattern.
-			 */
-			for ( ; 0 < hay_size && *hay != '\0'; hay++, hay_size--) {
-				if (TextMatch(hay, pin, hay_size, caseless))
-					return 1;
-			}
-
-			/* We reached the end of the string without
-			 * matching the pattern substring.
-			 */
-			return 0;
-		}
-
-		/* End of string, but not end of pattern? */
-		else if (hay_size <= 0 || *hay == '\0')
-			return 0;
-
-		/* Have we failed to match a backslash literal? */
-		else if (*pin == '\\' && *hay != *++pin)
-			return 0;
-
-		/* Have we failed to match literals? */
-		else if (*pin != '?') {
-			if (caseless && tolower(*hay) != tolower(*pin))
-				return 0;
-
-			if (!caseless && *hay != *pin)
-				return 0;
-		}
-	}
-
-	/* Have we stop at the end of the pin AND the hay? */
-	return hay_size == 0 || *hay == '\0';
-#else
 	return 0 <= TextFind(hay, pin, hay_size, caseless);
-#endif
 }
 
 #ifdef TEST
