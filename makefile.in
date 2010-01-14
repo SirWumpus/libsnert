@@ -229,7 +229,7 @@ config.status: configure
 	./config.status
 
 list:
-	tar -ztf $(TGZ)
+	tar -tvzf $(TGZ)
 
 tar: configure
 	echo '${VERSION}.'`cat BUILD_ID.TXT` >VERSION.TXT
