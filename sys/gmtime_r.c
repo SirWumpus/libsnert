@@ -13,20 +13,16 @@
 struct tm *
 gmtime_r(const time_t *clock, struct tm *gmt)
 {
-	struct tm *result;
-# if defined(HAVE_PTHREAD_MUTEX_INIT)
+	struct tm *result = NULL;
 	static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-	if (pthread_mutex_lock(&mutex))
-		return NULL;
-# endif
+	PTHREAD_MUTEX_LOCK(&mutex);
 	if ((result = gmtime(clock)) != NULL) {
 		*gmt = *result;
 		result = gmt;
 	}
-# if defined(HAVE_PTHREAD_MUTEX_INIT)
-	(void) pthread_mutex_unlock(&mutex);
-# endif
+	PTHREAD_MUTEX_UNLOCK(&mutex);
+
 	return result;
 }
 #endif
@@ -36,20 +32,16 @@ gmtime_r(const time_t *clock, struct tm *gmt)
 struct tm *
 localtime_r(const time_t *clock, struct tm *local)
 {
-	struct tm *result;
-# if defined(HAVE_PTHREAD_MUTEX_INIT)
+	struct tm *result = NULL;
 	static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-	if (pthread_mutex_lock(&mutex))
-		return NULL;
-# endif
+	PTHREAD_MUTEX_LOCK(&mutex);
 	if ((result = localtime(clock)) != NULL) {
 		*local = *result;
 		result = local;
 	}
-# if defined(HAVE_PTHREAD_MUTEX_INIT)
-	(void) pthread_mutex_unlock(&mutex);
-# endif
+	PTHREAD_MUTEX_UNLOCK(&mutex);
+
 	return result;
 }
 #endif
@@ -59,20 +51,16 @@ localtime_r(const time_t *clock, struct tm *local)
 char *
 ctime_r(const time_t *clock, char *buf)
 {
-	char *result;
-# if defined(HAVE_PTHREAD_MUTEX_INIT)
+	char *result = NULL;
 	static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-	if (pthread_mutex_lock(&mutex))
-		return NULL;
-# endif
+	PTHREAD_MUTEX_LOCK(&mutex);
 	if ((result = ctime(clock)) != NULL) {
 		TextCopy(buf, 26, result);
 		result = buf;
 	}
-# if defined(HAVE_PTHREAD_MUTEX_INIT)
-	(void) pthread_mutex_unlock(&mutex);
-# endif
+	PTHREAD_MUTEX_UNLOCK(&mutex);
+
 	return result;
 }
 #endif
@@ -82,20 +70,16 @@ ctime_r(const time_t *clock, char *buf)
 char *
 asctime_r(struct tm *clock, char *buf)
 {
-	char *result;
-# if defined(HAVE_PTHREAD_MUTEX_INIT)
+	char *result = NULL;
 	static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-	if (pthread_mutex_lock(&mutex))
-		return NULL;
-# endif
+	PTHREAD_MUTEX_LOCK(&mutex);
 	if ((result = asctime(clock)) != NULL) {
 		TextCopy(buf, 26, result);
 		result = buf;
 	}
-# if defined(HAVE_PTHREAD_MUTEX_INIT)
-	(void) pthread_mutex_unlock(&mutex);
-# endif
+	PTHREAD_MUTEX_UNLOCK(&mutex);
+
 	return result;
 }
 #endif
