@@ -1084,17 +1084,10 @@ typedef struct {
 } kvm_db;
 
 static int
-kvm_lock_db(kvm *self, int mode)
+kvm_flock_db(kvm *self, int mode)
 {
 	mode = mode == 0 ? LOCK_SH : LOCK_EX;
 
-#if defined(HAVE_PTHREAD_CREATE)
-	if (pthread_mutex_lock(&self->_mutex))
-		return -1;
-# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
-	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &self->_mutex);
-# endif
-#endif
 	/* Lock the database to prevent other process from
 	 * modifying the database.
 	 *
@@ -1102,7 +1095,6 @@ kvm_lock_db(kvm *self, int mode)
 	 * earlier, then we have to ignore this lock, since
 	 * there is no replacement lock file descriptor yet.
 	 */
-	errno = 0;
 	if (((kvm_db *) self->_kvm)->lockfd != -1) {
 		/* Wait until we get the file lock. */
 		do {
@@ -1110,25 +1102,14 @@ kvm_lock_db(kvm *self, int mode)
 		} while (flock(((kvm_db *) self->_kvm)->lockfd, mode) && errno == EINTR);
 	}
 
-#if defined(HAVE_PTHREAD_CREATE)
-# if defined(HAVE_PTHREAD_CLEANUP_PUSH)
-	pthread_cleanup_pop(1);
-# else
-	(void) pthread_mutex_unlock(&self->_mutex);
-# endif
-#endif
 	return -(errno != 0);
 }
 
 static int
-kvm_unlock_db(kvm *self)
+kvm_funlock_db(kvm *self)
 {
 	(void) flock(((kvm_db *) self->_kvm)->lockfd, LOCK_UN);
-#if defined(HAVE_PTHREAD_CREATE)
-	return pthread_mutex_unlock(&self->_mutex);
-#else
 	return 0;
-#endif
 }
 
 static void
@@ -1136,51 +1117,56 @@ kvm_sync_db(kvm *self)
 {
 	kvm_db *kdb;
 
-	kdb = (kvm_db *) self->_kvm;
-
-	if (kvm_lock_db(self, 1) == 0) {
+	PTHREAD_MUTEX_LOCK(&self->_mutex);
+	if (kvm_flock_db(self, 1) == 0) {
+		kdb = (kvm_db *) self->_kvm;
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-		if (((kvm_db *) self->_kvm)->is_185) {
+		if (kdb->is_185) {
 #endif
 #if defined(HAVE_DBOPEN)
-			((DB185 *) ((kvm_db *) self->_kvm)->db)->sync((DB185 *) ((kvm_db *) self->_kvm)->db, 0);
+			((DB185 *) kdb->db)->sync((DB185 *) kdb->db, 0);
 #endif
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
 		} else {
 #endif
 #if defined(HAVE_DB_CREATE)
-			((kvm_db *) self->_kvm)->db->sync(((kvm_db *) self->_kvm)->db, 0);
+			kdb->db->sync(kdb->db, 0);
 #endif
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
 		}
 #endif
-		(void) kvm_unlock_db(self);
+		(void) kvm_funlock_db(self);
 	}
+	PTHREAD_MUTEX_UNLOCK(&self->_mutex);
 }
 
 static void
 kvm_close_db(kvm *self)
 {
+	kvm_db *bdb;
+
 	if (self != NULL) {
 		if (((kvm_db *) self->_kvm) != NULL) {
-			if (((kvm_db *) self->_kvm)->db != NULL) {
+			bdb = self->_kvm;
+			if (bdb->db != NULL) {
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-				if (((kvm_db *) self->_kvm)->is_185) {
+				if (bdb->is_185) {
 #endif
 #if defined(HAVE_DBOPEN)
-					((DB185 *) ((kvm_db *) self->_kvm)->db)->close((DB185 *) ((kvm_db *) self->_kvm)->db);
+					((DB185 *) bdb->db)->close((DB185 *) bdb->db);
 #endif
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
 				} else {
 #endif
 #if defined(HAVE_DB_CREATE)
-					((kvm_db *) self->_kvm)->db->close(((kvm_db *) self->_kvm)->db, 0);
+					bdb->db->close(bdb->db, 0);
 #endif
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
 				}
 #endif
 			}
-			free(((kvm_db *) self->_kvm)->file);
+			free(bdb->file);
+			free(bdb);
 		}
 
 		kvmClose(self);
@@ -1375,6 +1361,7 @@ kvm_get_db(kvm *self, kvm_data *key, kvm_data *value)
 	if (self == NULL || key == NULL)
 		goto error0;
 
+	PTHREAD_MUTEX_LOCK(&self->_mutex);
 	/* Leave BDB with the responsibility of allocating and
 	 * releasing the data passed back in a DBT. This is the
 	 * only possibilty in BDB 1.85 (used by FreeBSD), but
@@ -1388,68 +1375,68 @@ kvm_get_db(kvm *self, kvm_data *key, kvm_data *value)
 	 * old BDB code, we have to use a mutex to protect this
 	 * chunk of code.
 	 */
-	if (kvm_lock_db(self, 0))
-		goto error0;
-
-	if (kvm_check_db(self))
-		goto error1;
-
-	memset(&k, 0, sizeof (k));
-	memset(&v, 0, sizeof (v));
-
-	/* KVM_MODE_KEY_HAS_NUL is a hack for Postfix. It assumes
-	 * a C string terminated by a NUL byte. If the key is
-	 * actually binary data, such that there is no extra NUL
-	 * byte at the end, then you can end up with a seg. fault.
-	 */
-	k.size = key->size + ((self->_mode & KVM_MODE_KEY_HAS_NUL) == KVM_MODE_KEY_HAS_NUL);
-	k.data = key->data;
-
-	kdb = (kvm_db *) self->_kvm;
-
-#if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	if ((kdb->is_185 && (rc = ((DB185 *) kdb->db)->get((DB185 *) kdb->db, (DBT185 *) &k, (DBT185 *) &v, 0)) == 1)
-	||  (!kdb->is_185 && (rc = kdb->db->get(kdb->db, DBTXN &k, &v, 0)) == DB_NOTFOUND)) {
-#elif defined(HAVE_DB_CREATE)
-	if ((rc = kdb->db->get(kdb->db, DBTXN &k, &v, 0)) == DB_NOTFOUND) {
-#elif defined(HAVE_DBOPEN)
-	if ((rc = ((DB185 *) kdb->db)->get((DB185 *) kdb->db, (DBT185 *) &k, (DBT185 *) &v, 0)) == 1) {
-#endif
-		if (0 < debug)
-			syslog(LOG_DEBUG, "kvm_get_db \"%s\" key=%lu:\"%s\" not found", kdb->file, (unsigned long) k.size, (char *) k.data);
-		rc = KVM_NOT_FOUND;
-		goto error1;
-	}
-
-	if (rc != 0) {
-#if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-		if (kdb->is_185)
-#endif
-#if defined(HAVE_DBOPEN)
-			syslog(LOG_ERR, "kvm_get_db \"%s\" failed: %s (%d)", kdb->file, strerror(errno), errno);
-#endif
-#if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-		else
-#endif
-#if defined(HAVE_DB_CREATE)
-			syslog(LOG_ERR, "kvm_get_db \"%s\" failed: %s", kdb->file, db_strerror(rc));
-#endif
-		goto error1;
-	}
-
-	if (value != NULL) {
-		/* Add an extra NUL byte just in case its a C string. */
-		if ((value->data = malloc(v.size + 1)) == NULL)
+	if (kvm_flock_db(self, 0) == 0) {
+		if (kvm_check_db(self))
 			goto error1;
 
-		memcpy(value->data, v.data, v.size);
-		value->data[v.size] = '\0';
-		value->size = v.size;
-	}
+		memset(&k, 0, sizeof (k));
+		memset(&v, 0, sizeof (v));
 
-	rc = KVM_OK;
+		/* KVM_MODE_KEY_HAS_NUL is a hack for Postfix. It assumes
+		 * a C string terminated by a NUL byte. If the key is
+		 * actually binary data, such that there is no extra NUL
+		 * byte at the end, then you can end up with a seg. fault.
+		 */
+		k.size = key->size + ((self->_mode & KVM_MODE_KEY_HAS_NUL) == KVM_MODE_KEY_HAS_NUL);
+		k.data = key->data;
+
+		kdb = (kvm_db *) self->_kvm;
+
+#if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
+		if ((kdb->is_185 && (rc = ((DB185 *) kdb->db)->get((DB185 *) kdb->db, (DBT185 *) &k, (DBT185 *) &v, 0)) == 1)
+		||  (!kdb->is_185 && (rc = kdb->db->get(kdb->db, DBTXN &k, &v, 0)) == DB_NOTFOUND)) {
+#elif defined(HAVE_DB_CREATE)
+		if ((rc = kdb->db->get(kdb->db, DBTXN &k, &v, 0)) == DB_NOTFOUND) {
+#elif defined(HAVE_DBOPEN)
+		if ((rc = ((DB185 *) kdb->db)->get((DB185 *) kdb->db, (DBT185 *) &k, (DBT185 *) &v, 0)) == 1) {
+#endif
+			if (0 < debug)
+				syslog(LOG_DEBUG, "kvm_get_db \"%s\" key=%lu:\"%s\" not found", kdb->file, (unsigned long) k.size, (char *) k.data);
+			rc = KVM_NOT_FOUND;
+			goto error1;
+		}
+
+		if (rc != 0) {
+#if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
+			if (kdb->is_185)
+#endif
+#if defined(HAVE_DBOPEN)
+				syslog(LOG_ERR, "kvm_get_db \"%s\" failed: %s (%d)", kdb->file, strerror(errno), errno);
+#endif
+#if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
+			else
+#endif
+#if defined(HAVE_DB_CREATE)
+				syslog(LOG_ERR, "kvm_get_db \"%s\" failed: %s", kdb->file, db_strerror(rc));
+#endif
+			goto error1;
+		}
+
+		if (value != NULL) {
+			/* Add an extra NUL byte just in case its a C string. */
+			if ((value->data = malloc(v.size + 1)) == NULL)
+				goto error1;
+
+			memcpy(value->data, v.data, v.size);
+			value->data[v.size] = '\0';
+			value->size = v.size;
+		}
+
+		rc = KVM_OK;
 error1:
-	(void) kvm_unlock_db(self);
+		(void) kvm_funlock_db(self);
+	}
+	PTHREAD_MUTEX_UNLOCK(&self->_mutex);
 error0:
 	return rc;
 }
@@ -1466,8 +1453,6 @@ kvm_put_db(kvm *self, kvm_data *key, kvm_data *value)
 	if (self == NULL || key == NULL || value == NULL)
 		goto error0;
 
-	kdb = (kvm_db *) self->_kvm;
-
 	memset(&k, 0, sizeof (k));
 	k.size = key->size;
 	k.data = key->data;
@@ -1476,27 +1461,29 @@ kvm_put_db(kvm *self, kvm_data *key, kvm_data *value)
 	v.size = value->size;
 	v.data = value->data;
 
-	if (kvm_lock_db(self, 1))
-		goto error0;
-
+	PTHREAD_MUTEX_LOCK(&self->_mutex);
+	if (kvm_flock_db(self, 1) == 0) {
+		kdb = (kvm_db *) self->_kvm;
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	if (kdb->is_185) {
+		if (kdb->is_185) {
 #endif
 #if defined(HAVE_DBOPEN)
-		if ((rc = ((DB185 *) kdb->db)->put((DB185 *) kdb->db, (DBT185 *) &k, (DBT185 *) &v, 0)) != 0)
-			syslog(LOG_ERR, "kvm_put_db \"%s\" failed: %s (%d)", kdb->file, strerror(errno), errno);
+			if ((rc = ((DB185 *) kdb->db)->put((DB185 *) kdb->db, (DBT185 *) &k, (DBT185 *) &v, 0)) != 0)
+				syslog(LOG_ERR, "kvm_put_db \"%s\" failed: %s (%d)", kdb->file, strerror(errno), errno);
 #endif
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	} else {
+		} else {
 #endif
 #if defined(HAVE_DB_CREATE)
-		if ((rc = kdb->db->put(kdb->db, DBTXN &k, &v, 0)) != 0)
-			syslog(LOG_ERR, "kvm_put_db \"%s\" failed: %s", kdb->file, db_strerror(rc));
+			if ((rc = kdb->db->put(kdb->db, DBTXN &k, &v, 0)) != 0)
+				syslog(LOG_ERR, "kvm_put_db \"%s\" failed: %s", kdb->file, db_strerror(rc));
 #endif
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	}
+		}
 #endif
-	(void) kvm_unlock_db(self);
+		(void) kvm_funlock_db(self);
+	}
+	PTHREAD_MUTEX_UNLOCK(&self->_mutex);
 error0:
 	return rc;
 }
@@ -1513,37 +1500,37 @@ kvm_remove_db(kvm *self, kvm_data *key)
 	if (self == NULL || key == NULL)
 		goto error0;
 
-	kdb = (kvm_db *) self->_kvm;
-
 	memset(&k, 0, sizeof (k));
 	k.size = key->size;
 	k.data = key->data;
 
-	if (kvm_lock_db(self, 1))
-		goto error0;
-
+	PTHREAD_MUTEX_LOCK(&self->_mutex);
+	if (kvm_flock_db(self, 1) == 0) {
+		kdb = (kvm_db *) self->_kvm;
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	if (kdb->is_185) {
+		if (kdb->is_185) {
 #endif
 #if defined(HAVE_DBOPEN)
-		switch (((DB185 *) kdb->db)->del((DB185 *) kdb->db, (DBT185 *) &k, 0)) {
-		case 1: rc = KVM_NOT_FOUND; break;
-		case 0: rc = KVM_OK; break;
-		}
+			switch (((DB185 *) kdb->db)->del((DB185 *) kdb->db, (DBT185 *) &k, 0)) {
+			case 1: rc = KVM_NOT_FOUND; break;
+			case 0: rc = KVM_OK; break;
+			}
 #endif
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	} else {
+		} else {
 #endif
 #if defined(HAVE_DB_CREATE)
-		switch (kdb->db->del(kdb->db, DBTXN &k, 0)) {
-		case DB_NOTFOUND: rc = KVM_NOT_FOUND; break;
-		case 0: rc = KVM_OK; break;
-		}
+			switch (kdb->db->del(kdb->db, DBTXN &k, 0)) {
+			case DB_NOTFOUND: rc = KVM_NOT_FOUND; break;
+			case 0: rc = KVM_OK; break;
+			}
 #endif
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	}
+		}
 #endif
-	(void) kvm_unlock_db(self);
+		(void) kvm_funlock_db(self);
+	}
+	PTHREAD_MUTEX_UNLOCK(&self->_mutex);
 error0:
 	return rc;
 }
@@ -1559,33 +1546,33 @@ kvm_truncate_db(kvm *self)
 	if (self == NULL)
 		goto error0;
 
-	kdb = (kvm_db *) self->_kvm;
-
-	if (kvm_lock_db(self, 1))
-		goto error0;
-
+	PTHREAD_MUTEX_LOCK(&self->_mutex);
+	if (kvm_flock_db(self, 1) == 0) {
+		kdb = (kvm_db *) self->_kvm;
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	if (kdb->is_185) {
+		if (kdb->is_185) {
 #endif
 #if defined(HAVE_DBOPEN)
-		rc = KVM_NOT_IMPLEMETED;
+			rc = KVM_NOT_IMPLEMETED;
 #endif
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	} else {
+		} else {
 #endif
 #if defined(HAVE_DB_CREATE)
 {
-		u_int32_t count;
-		switch (kdb->db->truncate(kdb->db, DBTXN &count, 0)) {
-		default: rc = KVM_NOT_FOUND; break;
-		case 0: rc = KVM_OK; break;
-		}
+			u_int32_t count;
+			switch (kdb->db->truncate(kdb->db, DBTXN &count, 0)) {
+			default: rc = KVM_NOT_FOUND; break;
+			case 0: rc = KVM_OK; break;
+			}
 }
 #endif
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	}
+		}
 #endif
-	(void) kvm_unlock_db(self);
+		(void) kvm_funlock_db(self);
+	}
+	PTHREAD_MUTEX_UNLOCK(&self->_mutex);
 error0:
 	return rc;
 }
@@ -1621,81 +1608,82 @@ kvm_walk_db(kvm *self, int (*func)(kvm_data *, kvm_data *, void *), void *data)
 
 	rc = KVM_ERROR;
 
-	if (kvm_lock_db(self, 1))
-		goto error0;
-
-	ret = 0;
-	memset(&k, 0, sizeof (k));
-	memset(&v, 0, sizeof (v));
-	kdb = (kvm_db *) self->_kvm;
+	PTHREAD_MUTEX_LOCK(&self->_mutex);
+	if (kvm_flock_db(self, 1) == 0) {
+		ret = 0;
+		memset(&k, 0, sizeof (k));
+		memset(&v, 0, sizeof (v));
+		kdb = (kvm_db *) self->_kvm;
 
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	if (kdb->is_185) {
+		if (kdb->is_185) {
 #endif
 #if defined(HAVE_DBOPEN)
-		next = R_FIRST;
-		while (((DB185 *) kdb->db)->seq((DB185 *) kdb->db, (DBT185 *) &k, (DBT185 *) &v, next) == 0) {
-			next = R_NEXT;
+			next = R_FIRST;
+			while (((DB185 *) kdb->db)->seq((DB185 *) kdb->db, (DBT185 *) &k, (DBT185 *) &v, next) == 0) {
+				next = R_NEXT;
 
-			if (k.data == NULL || v.data == NULL)
-				break;
+				if (k.data == NULL || v.data == NULL)
+					break;
 
-			/* Convert from DBT to Data object. */
-			key.data = k.data;
-			key.size = k.size;
+				/* Convert from DBT to Data object. */
+				key.data = k.data;
+				key.size = k.size;
 
-			value.data = v.data;
-			value.size = v.size;
+				value.data = v.data;
+				value.size = v.size;
 
-			if ((ret = (*func)(&key, &value, data)) == 0)
-				break;
+				if ((ret = (*func)(&key, &value, data)) == 0)
+					break;
 
-			if (ret == -1 && ((DB185 *) kdb->db)->del((DB185 *) kdb->db, NULL, R_CURSOR) != 0)
-				break;
-		}
+				if (ret == -1 && ((DB185 *) kdb->db)->del((DB185 *) kdb->db, NULL, R_CURSOR) != 0)
+					break;
+			}
 #endif
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	} else {
+		} else {
 #endif
 #if defined(HAVE_DB_CREATE)
-		k.flags = DB_DBT_REALLOC;
-		v.flags = DB_DBT_REALLOC;
+			k.flags = DB_DBT_REALLOC;
+			v.flags = DB_DBT_REALLOC;
 
-		if (kdb->db->cursor(kdb->db, DBTXN &cursor, 0) != 0)
-			goto error1;
+			if (kdb->db->cursor(kdb->db, DBTXN &cursor, 0) != 0)
+				goto error1;
 
-		while (cursor->c_get(cursor, &k, &v, DB_NEXT) == 0) {
-			if (k.data == NULL || v.data == NULL)
-				break;
+			while (cursor->c_get(cursor, &k, &v, DB_NEXT) == 0) {
+				if (k.data == NULL || v.data == NULL)
+					break;
 
-			/* Convert from DBT to Data object. */
-			key.data = k.data;
-			key.size = k.size;
+				/* Convert from DBT to Data object. */
+				key.data = k.data;
+				key.size = k.size;
 
-			value.data = v.data;
-			value.size = v.size;
+				value.data = v.data;
+				value.size = v.size;
 
-			if ((ret = (*func)(&key, &value, data)) == 0)
-				break;
+				if ((ret = (*func)(&key, &value, data)) == 0)
+					break;
 
-			if (ret == -1 && cursor->c_del(cursor, 0) != 0)
-				break;
-		}
+				if (ret == -1 && cursor->c_del(cursor, 0) != 0)
+					break;
+			}
 
-		(void) cursor->c_close(cursor);
-		free(k.data);
-		free(v.data);
+			(void) cursor->c_close(cursor);
+			free(k.data);
+			free(v.data);
 error1:
-		;
+			;
 #endif
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
-	}
+		}
 #endif
-	if (0 <= ret)
-		rc = KVM_OK;
+		if (0 <= ret)
+			rc = KVM_OK;
 
-	(void) kvm_unlock_db(self);
-error0:
+		(void) kvm_funlock_db(self);
+	}
+	PTHREAD_MUTEX_UNLOCK(&self->_mutex);
+
 	return rc;
 }
 
