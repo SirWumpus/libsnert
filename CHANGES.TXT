@@ -45,6 +45,20 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
 
+--1.73.4--
+
+  !!	version.h.in.in, kvm_*_db: fixed mutex locking logic problem
+	introduce sometime around 1.72.7 when the pthread_cleanup_push /
+	pop wrappers were added to resolve possible mutex deadlock due
+	to a pthread_cancel.
+
+   !	sys/gmtime_r: Added pthread_cleanup_push / pop wrappers to
+	release a locked mutex after a cancellation point.
+
+   !	kvm_close_db: fixed potential memory leak when closing a KVM
+   	opened on a Berkeley DB.
+
+
 --1.73.3--
 
    !    Upgraded SQLite to 3.6.22
