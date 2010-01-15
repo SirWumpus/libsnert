@@ -58,6 +58,9 @@ is no set schedule for releases.
    !	kvm_close_db: fixed potential memory leak when closing a KVM
    	opened on a Berkeley DB.
 
+   !	parsePath: Added STRICT_MIN_DOTS flag to control the min.dots
+   	test via STRICT_SYNTAX. Requested by Alex Broens.
+
 
 --1.73.3--
 
