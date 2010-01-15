@@ -162,7 +162,7 @@ findInnerPath(const char *path, const char **start, const char **stop)
  * @param flags
  *	A bit mask of flags used to enable/disable specific tests. Supported
  *	flags are STRICT_ANGLE_BRACKETS, STRICT_LOCAL_LENGTH, STRICT_DOMAIN_LENGTH,
- *	STRICT_LITERAL_PLUS, STRICT_SOURCE_ROUTE, STRICT_ADDR_SPEC.
+ *	STRICT_LITERAL_PLUS, STRICT_SOURCE_ROUTE, STRICT_ADDR_SPEC, STRICT_MIN_DOTS.
  *
  * @param dots
  *	The minimum number of dots expected in the domain portion of the
@@ -366,7 +366,7 @@ parsePath(const char *path, long flags, int dots, ParsePath **out)
 		return "5.1.0 domain name too long, see RFC 2821 section 4.5.3.1";
 	}
 
-	if (0 < dots && p->domain.length <= 0) {
+	if ((flags & STRICT_MIN_DOTS) && 0 < dots && p->domain.length <= 0) {
 		/* We want some dots in the domain after an @-sign. */
 		free(p);
 		return "5.1.7 address incomplete";
