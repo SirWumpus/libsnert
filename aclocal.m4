@@ -585,7 +585,7 @@ dnl	snert_configure_command="$[]0 $[]@"
 		fi
 	fi
 
-	if test ${AUTOCONF:-no} != 'no' -a \( aclocal.m4 -nt configure -o configure.in -nt configure \); then
+	if test ${AUTOCONF:-no} != 'no' -a \( aclocal.m4 -nt configure -o configure.in -nt configure -o configure.ac -nt configure \); then
 		echo 'Rebuilding the configure script first...'
 		${AUTOCONF} -f
 		echo 'Restarting configure script...'
