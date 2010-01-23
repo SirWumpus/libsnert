@@ -39,17 +39,14 @@
 # include <unistd.h>
 #endif
 
-#ifdef ENABLE_PDQ
-# include <com/snert/lib/net/pdq.h>
-#else
-# include <com/snert/lib/io/Dns.h>
-#endif
+#include <com/snert/lib/net/pdq.h>
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/io/file.h>
 #include <com/snert/lib/sys/Time.h>
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/mail/smtp2.h>
 #include <com/snert/lib/util/Text.h>
+#include <com/snert/lib/util/b64.h>
 
 /***********************************************************************
  ***
@@ -356,7 +353,10 @@ smtp2Start(SMTP2 *smtp)
 
 	socketAddressGetString(&name, 0, smtp->local_ip, sizeof (smtp->local_ip));
 	(void) snprintf(smtp->text, sizeof (smtp->text), "EHLO [%s]\r\n", smtp->local_ip);
-	if ((rc = mxCommand(smtp, smtp->text)) != SMTP_OK) {
+	if ((rc = mxCommand(smtp, smtp->text)) == SMTP_OK) {
+		smtp->flags |= SMTP_FLAG_EHLO;
+	} else {
+		smtp->flags &= ~SMTP_FLAG_EHLO;
 		(void) snprintf(smtp->text, sizeof (smtp->text), "HELO [%s]\r\n", smtp->local_ip);
 		rc = mxCommand(smtp, smtp->text);
 	}
@@ -378,7 +378,6 @@ smtp2Connect(SMTP2 *smtp, const char *host)
 	return smtp2Start(smtp);
 }
 
-#ifdef ENABLE_PDQ
 static int
 smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 {
@@ -413,81 +412,6 @@ smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 
 	return rc;
 }
-#else
-static int
-smtp2ConnectMx(SMTP2 *smtp, const char *domain)
-{
-	long i;
-	DnsEntry *mx;
-	Vector mxlist;
-	const char *error;
-	int rc, preference;
-
-	mx = NULL;
-	preference = 65535;
-
-	if (DnsGet2(DNS_TYPE_MX, 1, domain, &mxlist, &error) != DNS_RCODE_OK) {
-		if (smtp->flags & SMTP_FLAG_LOG)
-			syslog(LOG_ERR, LOG_FMT "domain=%s %s", LOG_ARG(smtp), domain, error);
-		return SMTP_ERROR;
-	}
-
-	/* Find the max. possible preference value. */
-	for (i = 0; i < VectorLength(mxlist); i++) {
-		if ((mx = VectorGet(mxlist, i)) == NULL)
-			continue;
-
-		/* RFC 3330 consolidates the list of special IPv4 addresses that
-		 * cannot be used for public internet. We block those that cannot
-		 * possibly be used for MX addresses on the public internet.
-		 */
-		if (mx->address_string == NULL || isReservedIPv6(mx->address, IS_IP_RESTRICTED)) {
-			syslog(LOG_DEBUG, LOG_FMT "removed MX %d %s [%s]", LOG_ARG(smtp), mx->preference, (char *) mx->value, mx->address_string);
-			VectorRemove(mxlist, i--);
-			continue;
-		}
-
-#ifdef HMMM
-		/* Look for our IP address to find our preference value,
-		 * unless we are the lowest/first MX in the list.
-		 */
-		if (TextInsensitiveCompare(mx->address_string, this_addr) == 0)
-			preference = mx->preference + (i == 0);
-#endif
-	}
-
-	if (VectorLength(mxlist) <= 0 && (smtp->flags & SMTP_FLAG_DEBUG))
-		syslog(LOG_DEBUG, LOG_FMT "domain=%s has no acceptable MX", LOG_ARG(smtp), domain);
-
-	rc = SMTP_ERROR_CONNECT;
-
-	/* Try all MX of a lower preference until one answers. */
-	for (i = 0; i < VectorLength(mxlist); i++) {
-		if ((mx = VectorGet(mxlist, i)) == NULL)
-			continue;
-
-		if (preference <= mx->preference)
-			continue;
-
-		if (smtp2Connect(smtp, mx->value) == SMTP_OK) {
-			if ((smtp->domain = strdup(domain)) == NULL) {
-				socketClose(smtp->mx);
-				rc = SMTP_ERROR;
-				break;
-			}
-
-			if (smtp->flags & SMTP_FLAG_DEBUG)
-				syslog(LOG_DEBUG, LOG_FMT "connected MX %d %s", LOG_ARG(smtp), mx->preference, (char *) mx->value);
-			rc = SMTP_OK;
-			break;
-		}
-	}
-
-	VectorDestroy(mxlist);
-
-	return rc;
-}
-#endif
 
 static SMTP2 *
 smtp2Create(unsigned connect_ms, unsigned command_ms, int flags)
@@ -571,6 +495,39 @@ smtp2OpenMx(const char *domain, unsigned connect_ms, unsigned command_ms, int fl
 	}
 
 	return smtp;
+}
+
+int
+smtp2Auth(SMTP2 *smtp, const char *user, const char *pass)
+{
+	B64 b64;
+	size_t auth_length;
+
+	if (!(smtp->flags & SMTP_FLAG_EHLO))
+		return SMTP_UNKNOWN_COMMAND;
+
+	if (user == NULL)
+		user = "";
+	if (pass == NULL)
+		pass = "";
+
+	/* RFC 2595 section 6
+	 *
+	 *   message         = [authorize-id] NUL authenticate-id NUL password
+	 *   authenticate-id = 1*UTF8-SAFE      ; MUST accept up to 255 octets
+	 *   authorize-id    = 1*UTF8-SAFE      ; MUST accept up to 255 octets
+	 *   password        = 1*UTF8-SAFE      ; MUST accept up to 255 octets
+	 */
+	b64Init();
+	b64Reset(&b64);
+	auth_length = TextCopy(smtp->text, sizeof (smtp->text), "AUTH PLAIN ");
+	b64EncodeBuffer(&b64, "", 1, smtp->text, sizeof (smtp->text), &auth_length);
+	b64EncodeBuffer(&b64, user, strlen(user)+1, smtp->text, sizeof (smtp->text), &auth_length);
+	b64EncodeBuffer(&b64, pass, strlen(pass), smtp->text, sizeof (smtp->text), &auth_length);
+	b64EncodeFinish(&b64, smtp->text, sizeof (smtp->text), &auth_length, 0);
+	(void) TextCopy(smtp->text+auth_length, sizeof (smtp->text)-auth_length, "\r\n");
+
+	return mxCommand(smtp, smtp->text);
 }
 
 int

@@ -48,27 +48,34 @@ extern "C" {
 #endif
 
 /*
- * RFC 2821 Reply Codes.
+ * RFC 821, 2821, 5321 Reply Codes.
  */
 #define SMTP_STATUS			211
 #define SMTP_HELP			214
 #define SMTP_WELCOME			220
 #define SMTP_GOODBYE			221
+#define SMTP_AUTH_OK			235	/* RFC 4954 section 6 */
 #define SMTP_OK				250
 #define SMTP_USER_NOT_LOCAL		251
 
 #define SMTP_WAITING			354
 
 #define SMTP_CLOSING			421
+#define SMTP_AUTH_MECHANISM		432	/* RFC 4954 section 6 */
 #define SMTP_BUSY			450
 #define SMTP_TRY_AGAIN_LATER		451
 #define SMTP_NO_STORAGE			452
+#define SMTP_AUTH_TEMP			454	/* RFC 4954 section 6 */
 
 #define SMTP_BAD_SYNTAX			500
 #define SMTP_BAD_ARGUMENTS		501
 #define SMTP_UNKNOWN_COMMAND		502
 #define SMTP_BAD_SEQUENCE		503
 #define SMTP_UNKNOWN_PARAM		504
+#define SMTP_AUTH_REQUIRED		530	/* RFC 4954 section 6 */
+#define SMTP_AUTH_WEAK			534	/* RFC 4954 section 6 */
+#define SMTP_AUTH_FAIL			535	/* RFC 4954 section 6 */
+#define SMTP_AUTH_ENCRYPT		538	/* RFC 4954 section 6 */
 #define SMTP_REJECT			550
 #define SMTP_UNKNOWN_USER		551
 #define SMTP_OVER_QUOTA			552
@@ -121,6 +128,7 @@ extern "C" {
 #define SMTP_FLAG_MSGID			0x0080
 #define SMTP_FLAG_EOH			0x0100
 #define SMTP_FLAG_DATA			0x0200
+#define SMTP_FLAG_EHLO			0x0400
 #define SMTP_FLAG_ERROR			0x8000
 
 typedef struct smtp2 {
@@ -144,6 +152,7 @@ extern SMTP2 *smtp2OpenMx(const char *domain, unsigned connect_ms, unsigned comm
 extern SMTP2 *smtp2Open(const char *host, unsigned connect_ms, unsigned command_ms, int flags);
 extern void smtp2Close(void *_session);
 
+extern int smtp2Auth(SMTP2 *session, const char *user, const char *pass);
 extern int smtp2Mail(SMTP2 *session, const char *sender);
 extern int smtp2Rcpt(SMTP2 *session, const char *recipient);
 extern int smtp2Data(SMTP2 *session);
