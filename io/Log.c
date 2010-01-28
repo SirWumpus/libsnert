@@ -1,7 +1,7 @@
 /*
  * Log.c
  *
- * Copyright 2002, 2008 by Anthony Howe.  All rights reserved.
+ * Copyright 2002, 2010 by Anthony Howe.  All rights reserved.
  */
 
 #define MAX_LOG_LINE_SIZE	512
@@ -18,10 +18,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
-
-#if ! defined(HAVE_FLOCKFILE) && defined(HAVE_PTHREAD_MUTEX_INIT)
-# include <com/snert/lib/sys/pthreads.h>
-#endif
 
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/io/posix.h>
@@ -78,9 +74,6 @@ LogPrintV(int level, const char *msg, va_list args)
 	char stamp[20]; /* yyyy-mm-dd HH:MM:SS */
 	struct tm local;
 	char buffer[MAX_LOG_LINE_SIZE], *buf;
-#if ! defined(HAVE_FLOCKFILE) && defined(HAVE_PTHREAD_MUTEX_INIT)
-	static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-#endif
 
 	if (LOG_PRI(logLevel) < level || logFile == NULL || msg == NULL)
 		return -1;
@@ -111,8 +104,6 @@ LogPrintV(int level, const char *msg, va_list args)
 
 #if defined(HAVE_FLOCKFILE)
 	(void) flockfile(logFile);
-#elif defined(HAVE_PTHREAD_MUTEX_INIT)
-	(void) pthread_mutex_lock(&mutex);
 #endif
 
 	(void) fputs(buffer, logFile);
@@ -121,8 +112,6 @@ LogPrintV(int level, const char *msg, va_list args)
 
 #if defined(HAVE_FLOCKFILE)
 	(void) funlockfile(logFile);
-#elif defined(HAVE_PTHREAD_MUTEX_INIT)
-	(void) pthread_mutex_unlock(&mutex);
 #endif
 
 	return 0;
@@ -211,9 +200,6 @@ LogError(const char *msg, ...)
 int
 LogStderrV(int level, const char *msg, va_list args)
 {
-#if ! defined(HAVE_FLOCKFILE) && defined(HAVE_PTHREAD_MUTEX_INIT)
-	static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-#endif
 	if (LOG_PRI(logLevel) < level || msg == NULL)
 		return -1;
 
@@ -221,8 +207,6 @@ LogStderrV(int level, const char *msg, va_list args)
 
 #if defined(HAVE_FLOCKFILE)
 	(void) flockfile(stderr);
-#elif defined(HAVE_PTHREAD_MUTEX_INIT)
-	(void) pthread_mutex_lock(&mutex);
 #endif
 
 	(void) fprintf(stderr, "%s: ", programName);
@@ -234,8 +218,6 @@ LogStderrV(int level, const char *msg, va_list args)
 
 #if defined(HAVE_FLOCKFILE)
 	(void) funlockfile(stderr);
-#elif defined(HAVE_PTHREAD_MUTEX_INIT)
-	(void) pthread_mutex_unlock(&mutex);
 #endif
 
 	return 0;
