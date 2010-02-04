@@ -45,6 +45,27 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
 
+--1.73.6--
+
+   !	Log.c: remove references to pthread_mutex_lock / unlock in
+	favour of flockfile and funlockfile where available, otherwise
+	no explicit locking. This removes the need for -lpthread for
+	single process non-threaded applications that just need simple
+	logging, such as tools/popin.c
+
+   !	smdbAccessCode: removed toupper() conversion of Sendmail/Postfix
+   	action words; assume (based on Sendmail and Postfix access map
+   	documentation) action words are upper case only.
+
+   	This addresses a milter-ahead Postfix bug with respect to call-
+	ahead-db, where the mailer token of a RHS value might start with
+	"relay:" and so smdbAccessDomain lookup returns SMDB_ACCESS_RELAY
+	instead of SMDB_ACCESS_UNKNOWN. Reported by Alex Broens.
+
+   !	Updated all makefiles to handle a libsnert install target that
+   	installs some of the more useful test/CLI tools.
+
+
 --1.73.5--
 
    +	Add smtp2Auth() and SMTP_AUTH_* support.
