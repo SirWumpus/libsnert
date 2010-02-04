@@ -21,6 +21,10 @@ SNERT_TARDIR	= @snert_tardir@
 SNERT_INCDIR	= @snert_incdir@
 SNERT_LIBDIR	= @snert_libdir@
 
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+
 LIB	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
 BAK	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
 TGZ	= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
@@ -87,6 +91,9 @@ clean : title
 
 distclean: clean
 	-rm makefile
+
+install: build
+	-cp -p Luhn$E ${bindir}
 
 lint: title crc12.tbl crc16.tbl crc32.tbl crcccitt.tbl
 	-splint -D_REENTRANT -I${SNERT_INCDIR} +posixlib +boolint *.c

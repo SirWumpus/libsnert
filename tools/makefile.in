@@ -68,15 +68,15 @@ $O$E :
 #######################################################################
 
 ORIGINAL	= ansi$E flip$E popin$E uue$E show$E range$E sqlargs$E \
-		  counter$E sendform$E nph-download.cgi here-i-am$E \
-		  where-are-you$E mimepart$E clamstream$E ixhash$E \
-		  ziplist$E rarlist$E taglengths$E rsleep$E
+		  counter$E  mimepart$E clamstream$E
+MEH_TOOLS	= sendform$E nph-download.cgi here-i-am$E where-are-you$E \
+		  ixhash$E ziplist$E rarlist$E taglengths$E rsleep$E
 MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E echod$E
 DAEMONS 	= filed zoned
 UNIX 		= mailgroup
 
 
-PROGRAMS = $(ORIGINAL) $(MYVERSION)
+PROGRAMS = $(ORIGINAL) ${MEH_TOOLS} $(MYVERSION)
 
 .MAIN : build
 
@@ -110,10 +110,10 @@ predefined:
 	gcc -E -dM nothing.c
 
 install: build
-	cp $(ORIGINAL) $(bindir)
+	-cp -p $(ORIGINAL) $(bindir)
 
 install-all: install
-	cp $(MYVERSION) $(bindir)
+	-cp -p $(MYVERSION) $(bindir)
 
 uninstall:
 	-rm -f $(PROGRAMS)

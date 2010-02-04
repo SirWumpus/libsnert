@@ -21,6 +21,10 @@ SNERT_TARDIR	= @snert_tardir@
 SNERT_INCDIR	= @snert_incdir@
 SNERT_LIBDIR	= @snert_libdir@
 
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+
 LIB	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
 BAK	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
 TGZ	= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
@@ -82,6 +86,9 @@ title :
 	@echo '==> '${abs_srcdir}
 	@echo '***************************************************************'
 	@echo
+
+install: build
+	-cp -p mime$E smtp2$E spf$E ${bindir}
 
 $(LIB):	$(OBJS)
 

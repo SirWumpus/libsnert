@@ -69,7 +69,7 @@ title :
 	@echo '***************************************************************'
 	@echo
 
-build: title $(LIB) add-lib 
+build: title $(LIB) add-lib
 
 build-test: ${TEST}
 
@@ -86,7 +86,9 @@ clean : title
 
 distclean: clean
 	-rm makefile
-	
+
+install: build
+
 ${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
 	cd ${top_srcdir}/util ; make DebugMalloc.o
 

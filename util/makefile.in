@@ -21,6 +21,10 @@ SNERT_TARDIR	= @snert_tardir@
 SNERT_INCDIR	= @snert_incdir@
 SNERT_LIBDIR	= @snert_libdir@
 
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+
 LIB	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
 BAK	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
 TGZ	= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
@@ -81,7 +85,7 @@ TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
        TextSensitiveEndsWith$E TextInsensitiveEndsWith$E TextMatch$E ProcTitle$E \
        timer$E
 
-CLI = b64$E md4$E md5$E htmlstrip$E
+CLI = b64$E convertDate$E md4$E md5$E htmlstrip$E uri$E
 
 .MAIN : build
 
@@ -118,10 +122,14 @@ add-lib:
 
 clean : title
 	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.stackdump core core *.core core.*.*
-	-rm -f BigInt$E b64$E md4$E md5$E htmlstrip$E ${TEST} cache.* properties.out
+	-rm -f BigInt$E b64$E md4$E md5$E htmlstrip$E uri$E convertDate$E ${TEST} cache.* properties.out
 
 distclean: clean
 	-rm -f makefile
+
+install: build-cli
+	-cp -p b64$E convertDate$E uri$E ${bindir}
+
 
 ${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
 	cd ${top_srcdir}/util ; make DebugMalloc.o

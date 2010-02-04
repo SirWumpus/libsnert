@@ -21,6 +21,10 @@ SNERT_TARDIR	= @snert_tardir@
 SNERT_INCDIR	= @snert_incdir@
 SNERT_LIBDIR	= @snert_libdir@
 
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+
 LIB		= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
 BAK		= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
 TGZ		= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
@@ -99,6 +103,10 @@ clean : title
 
 distclean: clean
 	-rm makefile
+
+install: build
+	-cp -p kvmap$E mcc$E ${bindir}
+
 
 ${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
 	cd ${top_srcdir}/util ; make DebugMalloc.o

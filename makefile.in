@@ -139,9 +139,15 @@ lint: title
 strip: build
 
 install: build
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
+	@echo
+	@echo '***************************************************************'
+	@echo Build ${BUILD} DONE
+	@echo '***************************************************************'
+	@echo
 
 
-next-id:
+next-build:
 	expr `cat BUILD_ID.TXT` + 1 >BUILD_ID.TXT
 	sed -e 's/LIBSNERT_BUILD [0-9]*/LIBSNERT_BUILD '`cat BUILD_ID.TXT`'/' $(SNERT_INCDIR)/com/snert/lib/version.h >$(SNERT_INCDIR)/com/snert/lib/version.h.new
 	sed -e 's/\(LIBSNERT_VERSION.*\.\)[0-9]*"/\1'`cat BUILD_ID.TXT`'"/' $(SNERT_INCDIR)/com/snert/lib/version.h.new >$(SNERT_INCDIR)/com/snert/lib/version.h

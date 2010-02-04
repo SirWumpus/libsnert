@@ -96,6 +96,8 @@ clean : title
 distclean: clean
 	-rm -f makefile
 
+install: build
+
 ${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
 	cd ${top_srcdir}/util ; make DebugMalloc.o
 
