@@ -539,10 +539,16 @@ smdbAccessCode(const char *value)
 	if (value == NULL)
 		return SMDB_ACCESS_NOT_FOUND;
 
-	switch (toupper(value[0])) {
+	/* Sendmail and Postfix access map action words are case
+	 * sensitive and in upper case. Postfix does have some
+	 * additional restriction words that might be lower case,
+	 * but for our purpose of common words between the two
+	 * MTA, we care only about the upper case actions.
+	 */
+	switch (value[0]) {
 	case SMDB_ACCESS_DISCARD:
 		/* Postfix 2.3 DUNNO same as Sendmail SKIP */
-		if (toupper(value[1]) == 'U')
+		if ((value[1]) == 'U')
 			return SMDB_ACCESS_SKIP;
 		/*@fallthrough@*/
 
@@ -550,16 +556,16 @@ smdbAccessCode(const char *value)
 	case SMDB_ACCESS_FRIEND:
 	case SMDB_ACCESS_HATER:
 	case SMDB_ACCESS_VERIFY:
-		return toupper(value[0]);
+		return (value[0]);
 
 	case 'E':
 	case 'S':
-		switch (toupper(value[1])) {
+		switch ((value[1])) {
 		case SMDB_ACCESS_ERROR:
 		case SMDB_ACCESS_ENCR:
 		case SMDB_ACCESS_SKIP:
 		case SMDB_ACCESS_SUBJECT:
-			return toupper(value[1]);
+			return (value[1]);
 		}
 		break;
 
@@ -570,7 +576,7 @@ smdbAccessCode(const char *value)
 		switch (toupper(value[2])) {
 		case SMDB_ACCESS_RELAY:
 		case SMDB_ACCESS_REJECT:
-			return toupper(value[2]);
+			return (value[2]);
 		}
 		break;
 
@@ -583,9 +589,9 @@ smdbAccessCode(const char *value)
 		if (value[1] == '\0' || value[2] == '\0')
 			break;
 
-		switch (toupper(value[2])) {
+		switch ((value[2])) {
 		case SMDB_ACCESS_TEMPFAIL:
-			return toupper(value[2]);
+			return (value[2]);
 		}
 		break;
 	}
