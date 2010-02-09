@@ -61,7 +61,13 @@ The following test cases
 
  Y  U  N  -	remove@goldrush411.biz
 
- N  U  N  -	fbfhbj5df33sdvbn8tg.com
+ N  U  N  -	fbfhbj5df33sdvbn8tg.com		implicit short domain
+
+ N  U  N  -	fbfhbj5df33sdvbn8tg.bogus	should not be tested
+ 
+ ?  ?  Y  -	reachdirect.info		implicit short domain
+
+ ?  ?  Y  -	reachdirect.bogus		should not be tested
 
  Y  Y  Y  Y	<http://translate.google.com/translate?u=www.fsl.com&langpair=en%7Cen&hl=en>
 
