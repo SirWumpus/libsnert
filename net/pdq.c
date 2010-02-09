@@ -151,7 +151,6 @@ typedef struct pdq_query {
 	struct udp_packet packet;
 	SocketAddress address;
 	time_t created;
-	int udp_index;
 	int next_ns;
 } PDQ_query;
 
@@ -1868,7 +1867,6 @@ pdq_query_create(void)
 		MEMSET(query, 0, sizeof (*query));
 		query->prev = query->next = NULL;
 		query->created = time(NULL);
-		query->udp_index = -1;
 		query->next_ns = 0;
 	}
 
@@ -1984,7 +1982,7 @@ pdq_query_send(PDQ *pdq, PDQ_query *query)
 	if (1 < debug)
 		pdqLogPacket(&query->packet, 1);
 
-	if (query->udp_index != -1)
+	if (query->next_ns == -1)
 		return pdq_query_sendto(query, &query->address, pdq->fd);
 
 	if (pdq_round_robin) {
@@ -2412,7 +2410,7 @@ pdq_check_reply_address(SocketAddress *address)
 	int i;
 
 	for (i = 0; i < servers_length; i++) {
-		if (socketAddressEqual((SocketAddress *) &servers[i], (SocketAddress *) address))
+		if (socketAddressEqual((SocketAddress *) &servers[i], address))
 			return 1;
 	}
 
@@ -2427,10 +2425,6 @@ pdq_query_reply(PDQ *pdq, struct udp_packet *packet, SocketAddress *address, PDQ
 
 	*list = NULL;
 
-	/* Make sure the result came from queried server. */
-	if (!pdq_check_reply_address(address))
-		return PDQ_RCODE_ERRNO;
-
 	/* Find the query associated with this response. */
 	for (query = pdq->pending; query != NULL; query = query->next) {
 		if (packet->header.id == query->packet.header.id)
@@ -2439,6 +2433,14 @@ pdq_query_reply(PDQ *pdq, struct udp_packet *packet, SocketAddress *address, PDQ
 
 	if (query == NULL) {
 		/* Not one of our requests or already processed. Ignore it */
+		return PDQ_RCODE_ERRNO;
+	}
+
+	/* Make sure the result came from queried server. */
+	if (query->next_ns == -1) {
+		if (!socketAddressEqual(&query->address, address))
+			return PDQ_RCODE_ERRNO;
+	} else if (!pdq_check_reply_address(address)) {
 		return PDQ_RCODE_ERRNO;
 	}
 
@@ -2642,7 +2644,7 @@ pdqQuery(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char 
 	if (ns != NULL) {
 		if (pdq_parse_ns(ns, &query->address))
 			goto error1;
-		query->udp_index = 0;
+		query->next_ns = -1;
 	}
 
 	pdq_link_add(&pdq->pending, query);
