@@ -44,6 +44,26 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.73.7--
+
+   !	dnsListQueryIP: DNS servers often provide extra A records in the
+	additional section of a DNS reply, which typically relate to the
+	authority section NS records. We now ensure that only the A
+	records in the answer section are checked against the BL.
+	Reported by Sergiu Dunca.
+
+   !	dnsListIsNameListed: similar to the change for dnsListQueryIP,
+	confine ourselves to A records in the answer section of a DNS
+	reply. Currently DNS BLs only provide A and/or TXT records in
+	the answer section and no authority or additional sections.
+	However, this could change depending and we should be prepared.
+
+   !	pdq_query_reply: fixed when pdqGet is given a specific NS server
+	to query, pdqPoll failed to validate that the reply came from
+	the specific NS, unless the server appeared in /etc/resolv.conf,
+	which defeats the purpose of being able to query arbitrary
+	servers. Reported by Sergiu Dunca.
+
 
 --1.73.6--
 

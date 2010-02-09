@@ -134,7 +134,13 @@ two-level-tlds.txt:
 	wget -r -O two-level-tlds.txt http://spamcheck.freeapp.net/two-level-tlds
 
 # Has a more detailed two-level TLD list, which I don't agree within many cases.
-#http://svn.apache.org/repos/asf/spamassassin/trunk/lib/Mail/SpamAssassin/Util/RegistrarBoundaries.pm
+# http://svn.apache.org/repos/asf/spamassassin/trunk/lib/Mail/SpamAssassin/Util/RegistrarBoundaries.pm
+
+# Alex Broens maintains
+# http://www.rulesemporium.com/rules/90_2tld.cf
+
+# There is also the URIBL hosters list
+# http://rss.uribl.com/hosters/hosters.txt
 
 two-level-tlds.c : tlds.sed two-level-tlds.txt
 	sed -e '/^#/d' -e 's/.*/"&",/' two-level-tlds.txt >two-level-tlds.c
