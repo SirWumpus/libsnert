@@ -792,7 +792,10 @@ uriHttpOrigin(const char *url, URI **origin)
 			goto error3;
 		}
 
-		if ((uri = uriParse2(url, -1, IMPLICIT_DOMAIN_MIN_DOTS)) == NULL) {
+		/* Consider current URL trend for shorter strings using
+		 * single dot domains, eg. http://twitter.com/
+		 */
+		if ((uri = uriParse2(url, -1, 1)) == NULL) {
 			error = uriErrorParse;
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "%s: %s", error, url);
@@ -1210,7 +1213,7 @@ static Vector mail_bl_domains;
 #endif
 
 static char usage[] =
-"usage: uri [-aflpqrsv][-A delim][-i ip-bl,...][-m mail-bl][-M domain-pat,...]\n"
+"usage: uri [-aDflpqRsv][-A delim][-i ip-bl,...][-m mail-bl][-M domain-pat,...]\n"
 "           [-n ns-bl,...][-u uri-bl,...][-P ports][-t sec][-T sec][arg ...]\n"
 "\n"
 "-a\t\tcheck all (headers & body), otherwise assume body only\n"

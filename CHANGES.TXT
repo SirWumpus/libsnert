@@ -64,6 +64,9 @@ is no set schedule for releases.
 	which defeats the purpose of being able to query arbitrary
 	servers. Reported by Sergiu Dunca.
 
+   !	uriHttpOrigin: changed from IMPLICIT_DOMAIN_MIN_DOTS (2) to 1,
+   	because of the trend for shorter URL strings using single dot
+   	domains, eg. http://twitter.com/
 
 --1.73.6--
 
