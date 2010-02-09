@@ -284,7 +284,14 @@ dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 
 	suffixes = (const char **) VectorBase(dns_list->suffixes);
 	for (rr = (PDQ_A *) list; rr != NULL; rr = (PDQ_A *) rr->rr.next) {
-		if (rr->rr.rcode != PDQ_RCODE_OK || rr->rr.type != PDQ_TYPE_A)
+		if (rr->rr.rcode != PDQ_RCODE_OK
+		/* Confine ourselves to the answer section. */
+		|| rr->rr.section != PDQ_SECTION_ANSWER
+		/* The DNS BL return one or more numeric results as A records.
+		 * There may be informational TXT records present, but are
+		 * ignored here.
+		 */
+		|| rr->rr.type != PDQ_TYPE_A)
 			continue;
 
 		if (TextInsensitiveStartsWith(rr->rr.name.string.value, name) < 0)
@@ -474,7 +481,13 @@ dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 	list = pdqGet5A(pdq, PDQ_CLASS_IN, name);
 
 	for (rr = list; rr != NULL; rr = rr->next) {
-		if (rr->rcode != PDQ_RCODE_OK || (rr->type != PDQ_TYPE_A && rr->type != PDQ_TYPE_AAAA))
+		if (rr->rcode != PDQ_RCODE_OK
+		/* Only compare A records related to the query.
+		 * Some DNS servers will provide extra A records
+		 * related to the authority NS servers listed.
+		 */
+		|| rr->section != PDQ_SECTION_ANSWER
+		|| (rr->type != PDQ_TYPE_A && rr->type != PDQ_TYPE_AAAA))
 			continue;
 
 		/* Some domains specify a 127.0.0.0/8 address for
