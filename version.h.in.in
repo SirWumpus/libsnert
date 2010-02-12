@@ -177,6 +177,22 @@ typedef unsigned long time_t;
 #endif
 
 /*
+ * ANSI C
+ */
+#undef HAVE_SYS_TYPES_H
+#undef STDC_HEADERS
+#undef HAVE_STDLIB_H
+#undef HAVE_STRING_H
+#undef HAVE_MEMORY_H
+#undef HAVE_STRINGS_H
+
+/* Assumed present since C89. */
+#undef HAVE_CTYPE_H
+#undef HAVE_ERRNO_H
+#undef HAVE_STDIO_H
+#undef HAVE_LIMITS_H
+
+/*
  * POSIX I/O
  */
 #undef HAVE_FCNTL_H
