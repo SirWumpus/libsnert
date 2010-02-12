@@ -44,6 +44,10 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.73.8--
+
+   !	file.c: only call chown/fchown is we're root.
+
 --1.73.7--
 
    !	dnsListQueryIP: DNS servers often provide extra A records in the
