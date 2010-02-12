@@ -36,7 +36,7 @@ int
 fileSetPermsById(int fd, uid_t uid, gid_t gid, mode_t mode)
 {
 #ifdef __unix__
-	if (fchown(fd, uid, gid) && errno != ENOENT)
+	if (geteuid() == 0 && fchown(fd, uid, gid) && errno != ENOENT)
 		return -1;
 
 	if (fchmod(fd, mode))
@@ -49,7 +49,7 @@ int
 pathSetPermsById(const char *path, uid_t uid, gid_t gid, mode_t mode)
 {
 #ifdef __unix__
-	if (chown(path, uid, gid) && errno != ENOENT)
+	if (geteuid() == 0 && chown(path, uid, gid) && errno != ENOENT)
 		return -1;
 
 	if (chmod(path, mode))
@@ -75,7 +75,7 @@ fileSetPermsByName(int fd, const char *user, const char *group, mode_t mode)
 		return -1;
 	}
 
-	if (fchown(fd, pw->pw_uid, gr->gr_gid) && errno != ENOENT) {
+	if (geteuid() == 0 && fchown(fd, pw->pw_uid, gr->gr_gid) && errno != ENOENT) {
 		syslog(LOG_ERR, "fchown(%d, \"%s\", \"%s\") error: %s (%d)", fd, user, group, strerror(errno), errno);
 		return -1;
 	}
@@ -105,7 +105,7 @@ pathSetPermsByName(const char *path, const char *user, const char *group, mode_t
 		return -1;
 	}
 
-	if (chown(path, pw->pw_uid, gr->gr_gid) && errno != ENOENT) {
+	if (geteuid() == 0 && chown(path, pw->pw_uid, gr->gr_gid) && errno != ENOENT) {
 		syslog(LOG_ERR, "chown(\"%s\", \"%s\", \"%s\") error: %s (%d)", path, user, group, strerror(errno), errno);
 		return -1;
 	}
