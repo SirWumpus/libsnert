@@ -366,6 +366,23 @@ typedef unsigned long time_t;
 #undef HAVE_SEM_WAIT
 
 /*
+ * System V Semaphores
+ */
+#undef HAVE_SYS_IPC_H
+#undef HAVE_SYS_SEM_H
+#undef HAVE_UNION_SEMUN
+
+/* Netbsd sys/sem.h fails to define union semun. */
+#ifndef HAVE_UNION_SEMUN
+union semun {
+	int     val;          	/* value for SETVAL */
+	struct  semid_ds *buf;	/* buffer for IPC_{STAT,SET} */
+	unsigned short *array;	/* array for GETALL & SETALL */
+	struct seminfo *__buf;	/* buffer for IPC_INFO */
+};
+#endif
+
+/*
  * Process Functions
  */
 #undef HAVE_LIMITS_H
@@ -676,8 +693,6 @@ typedef int socklen_t;
 #undef HAVE_MEMORY_H
 #undef HAVE_PWD_H
 #undef HAVE_STDLIB_H
-#undef HAVE_SYS_IPC_H
-#undef HAVE_SYS_SEM_H
 #undef HAVE_SYS_FILE_H
 #undef HAVE_SYS_MMAN_H
 #undef HAVE_SYS_TYPES_H

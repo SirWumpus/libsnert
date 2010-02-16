@@ -1286,6 +1286,18 @@ AC_DEFUN(SNERT_SYSTEMV_SEMAPHORES,[
 #endif
 	])
 
+	AC_CHECK_TYPES([union semun],[],[],[
+#ifdef HAVE_SYS_TYPES_H
+# include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_IPC_H
+# include <sys/ipc.h>
+#endif
+#ifdef HAVE_SYS_SEM_H
+# include <sys/sem.h>
+#endif
+	])
+
 	if test $snert_systemv_semaphores = 'yes'; then
 		AC_CHECK_FUNCS([semget semctl semop],[],[
 			snert_systemv_semaphores='no'
