@@ -3528,6 +3528,45 @@ error0:
 }
 
 /**
+ * @param servers
+ *	A list of pointers to C strings, each specifying a
+ *	name server host or IP address. This list will override
+ *	the system default list.
+ *
+ * @return
+ *	Zero on success, otherwise -1 on error.
+ */
+int
+pdqSetServers(Vector name_servers)
+{
+	int i;
+	char *server;
+
+	/* Convert the list of name server addresses into IP addresses. */
+	free(servers);
+	servers_length = VectorLength(name_servers);
+	if ((servers = calloc(servers_length, sizeof (*servers))) == NULL)
+		return -1;
+
+	rand_seed = 0;
+	for (i = 0; i < servers_length; i++) {
+		if ((server = VectorGet(name_servers, i)) == NULL)
+			continue;
+
+		rand_seed = TextHash(rand_seed, server);
+		if (pdq_parse_ns(server, &servers[i])) {
+			VectorRemove(name_servers, i--);
+			servers_length--;
+			continue;
+		}
+	}
+
+	srand(rand_seed ^ time(NULL));
+
+	return 0;
+}
+
+/**
  * (Re)Load the resolv.conf file. Currently only nameserver lines
  * are recognised.
  *
@@ -3537,8 +3576,7 @@ error0:
 int
 pdqInit(void)
 {
-	char *server;
-	int i, rc = -1;
+	int rc = -1;
 	Vector name_servers;
 
 #if defined(__WIN32__)
@@ -3580,29 +3618,7 @@ pdqInit(void)
 		VectorAdd(name_servers, strdup("0.0.0.0"));
 	}
 
-	/* Convert the list of name server addresses into IP addresses. */
-	free(servers);
-	servers_length = VectorLength(name_servers);
-	if ((servers = calloc(servers_length, sizeof (*servers))) == NULL)
-		goto error1;
-
-	rand_seed = 0;
-	for (i = 0; i < servers_length; i++) {
-		if ((server = VectorGet(name_servers, i)) == NULL)
-			continue;
-
-		rand_seed = TextHash(rand_seed, server);
-		if (pdq_parse_ns(server, &servers[i])) {
-			VectorRemove(name_servers, i--);
-			servers_length--;
-			continue;
-		}
-	}
-
-	srand(rand_seed ^ time(NULL));
-
-	rc = 0;
-error1:
+	rc = pdqSetServers(name_servers);
 	VectorDestroy(name_servers);
 error0:
 	return rc;

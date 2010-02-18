@@ -61,6 +61,7 @@ extern "C" {
 #endif
 
 #include <com/snert/lib/net/network.h>
+#include <com/snert/lib/type/Vector.h>
 
 /***********************************************************************
  *** PDQ Types
@@ -264,6 +265,17 @@ extern int pdqInit(void);
  * Terminate the DNS subsystem.
  */
 extern void pdqFini(void);
+
+/**
+ * @param name_servers
+ *	A list of pointers to C strings, each specifying a
+ *	name server host or IP address. This list will override
+ *	the system default list.
+ *
+ * @return
+ *	Zero on success, otherwise -1 on error.
+ */
+extern int pdqSetServers(Vector name_servers);
 
 /**
  * @param seconds
