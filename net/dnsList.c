@@ -1,8 +1,10 @@
 /**
  * dnsList.c
  *
- * Copyright 2008, 2009 by Anthony Howe. All rights reserved.
+ * Copyright 2008, 2010 by Anthony Howe. All rights reserved.
  */
+
+#define NS_VERSION3
 
 /***********************************************************************
  *** No configuration below this point.
@@ -512,7 +514,7 @@ dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 	return list_name;
 }
 
-#ifndef NS_VERSION1
+#if defined(NS_VERSION2)
 static const char *
 dnsListQueryNs0(DnsList *dns_list, PDQ *pdq, Vector names_seen, int recurse, const char *name)
 {
@@ -571,7 +573,7 @@ dnsListQueryNs0(DnsList *dns_list, PDQ *pdq, Vector names_seen, int recurse, con
 const char *
 dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 {
-#ifdef NS_VERSION1
+#if defined(NS_VERSION1)
 	const char *list_name = NULL;
 	PDQ_rr *rr, *ns_list, *soa_list;
 
@@ -602,7 +604,7 @@ dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 
 	return list_name;
 
-#else
+#elif defined(NS_VERSION2)
 /* Version 1 did an initial SOA lookup wnrl37.cheesereason.com
  * assuming the DNS server would return an SOA for the queried
  * host or parent domain. This does not always appear to be the
@@ -618,6 +620,78 @@ dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
  * CNAME records, like www.snert.com.
  */
 	return dnsListQueryNs0(dns_list, pdq, names_seen, 1, name);
+#elif defined(NS_VERSION3)
+/* After some dispute with Alex Broens concerning previous lookup
+ * algorithms, have simplified the search. The previous algorithm relied
+ * on the DNS server doing the recursive search of the name from host to
+ * top level looking for NS or SOA per the request. Some DNS servers
+ * appear not to do this for us, which would result in a incorrect
+ * failure.
+ *
+ * This version handles subdomains, CNAME redirection, and SOA records.
+ * Essentially this should handle NS BL that list by NS domain (Alex B)
+ * or by NS host name (April L).
+ */
+	PDQ_rr *rr, *ns_list;
+	int offset, tld_offset;
+	const char *list_name = NULL;
+ 	int ns_found = 0, ns_rcode_ok;
+
+	if (dns_list == NULL || name == NULL || *name == '\0')
+		return NULL;
+
+	/* Find start of TLD. */
+	if ((tld_offset = indexValidTLD(name)) < 0)
+		return NULL;
+
+	/* Scan domain and subdomains from left-to-right. */
+	for (offset = 0; offset < tld_offset; offset += strcspn(name+offset, ".")+1) {
+		if ((ns_list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_NS, name+offset, NULL)) != NULL) {
+			ns_rcode_ok = ns_list->rcode == PDQ_RCODE_OK;
+
+			for (rr = ns_list; rr != NULL; rr = rr->next) {
+				if (rr->rcode != PDQ_RCODE_OK)
+					continue;
+
+				switch (rr->section) {
+				case PDQ_SECTION_ANSWER:
+					if (rr->type == PDQ_TYPE_CNAME) {
+						list_name = dnsListQueryNs(dns_list, pdq, names_seen, ((PDQ_CNAME *) rr)->host.string.value);
+						goto ns_list_break;
+					}
+					if (rr->type == PDQ_TYPE_NS) {
+						ns_found = 1;
+						if ((list_name = dnsListQuery(dns_list, pdq, names_seen, 1, ((PDQ_NS *) rr)->host.string.value)) != NULL)
+							goto ns_list_break;
+					}
+					break;
+
+				case PDQ_SECTION_AUTHORITY:
+					/* Only follow the SOA domain when there
+					 * were no NS records returned. If we
+					 * tested both NS (which yield no result)
+					 * and the extra SOA, then we can fall
+					 * into an endless loop.
+					 */
+					if (!ns_found && rr->type == PDQ_TYPE_SOA)
+						list_name = dnsListQueryNs(dns_list, pdq, names_seen, rr->name.string.value);
+					goto ns_list_break;
+				}
+			}
+ns_list_break:
+			pdqFree(ns_list);
+
+			/* We found a non-empty NS list for a (sub)domain.
+			 * The dnsListQuery either timed out, failed, or
+			 * succeeded. We can stop processing parent
+			 * domains.
+			 */
+			if (ns_rcode_ok)
+				break;
+		}
+	}
+
+	return list_name;
 #endif
 }
 

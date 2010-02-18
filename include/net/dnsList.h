@@ -1,7 +1,7 @@
 /*
  * dnsList.h
  *
- * Copyright 2008 by Anthony Howe. All rights reserved.
+ * Copyright 2008, 2010 by Anthony Howe. All rights reserved.
  */
 
 #ifndef __com_snert_lib_net_dnsList_h__
@@ -34,6 +34,7 @@ typedef struct dns_list_suffix {
 typedef struct {
 	Vector suffixes;
 	unsigned long *masks;
+	const char *query_server;
 } DnsList;
 
 typedef enum {
