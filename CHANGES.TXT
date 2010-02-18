@@ -48,6 +48,31 @@ is no set schedule for releases.
 
    !	file.c: only call chown/fchown is we're root.
 
+   !	dnsListQueryNs: after some dispute with Alex Broens concerning
+	previous lookup algorithms, have simplified the search. The
+	previous algorithm relied on the DNS server doing the recursive
+	search of the name from host to top level looking for NS or SOA
+	per the request. Some DNS servers appear not to do this for us,
+	which would result in a incorrect failure.
+
+	This version handles subdomains, CNAME redirection, and SOA
+	records. Essentially this should handle NS BL that list by
+	NS domain (Alex B) or by NS host name (April L).
+
+   +	Added pdqSetServers in order to choose an alternative list of
+	name servers.
+
+   +	uri.c: Add -Q option to allow specify a list of name servers.
+
+   !	uriHttpOrigin: changed from IMPLICIT_DOMAIN_MIN_DOTS (2) to 1,
+   	because of the trend for shorter URL strings using single dot
+   	domains, eg. http://twitter.com/
+
+   !	NetBSD does not define union semun. A comment in sys/Mutex.c
+	states that according to SUS (X/OPEN) we have to define it
+	ourselves. Replaced OS based macros with more generic detection
+	of when union semun is defined or not.
+
 --1.73.7--
 
    !	dnsListQueryIP: DNS servers often provide extra A records in the
@@ -67,10 +92,6 @@ is no set schedule for releases.
 	the specific NS, unless the server appeared in /etc/resolv.conf,
 	which defeats the purpose of being able to query arbitrary
 	servers. Reported by Sergiu Dunca.
-
-   !	uriHttpOrigin: changed from IMPLICIT_DOMAIN_MIN_DOTS (2) to 1,
-   	because of the trend for shorter URL strings using single dot
-   	domains, eg. http://twitter.com/
 
 --1.73.6--
 
