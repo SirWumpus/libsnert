@@ -1214,7 +1214,8 @@ static Vector mail_bl_domains;
 
 static char usage[] =
 "usage: uri [-aDflpqRsv][-A delim][-i ip-bl,...][-m mail-bl][-M domain-pat,...]\n"
-"           [-n ns-bl,...][-u uri-bl,...][-P ports][-t sec][-T sec][arg ...]\n"
+"           [-n ns-bl,...][-u uri-bl,...][-P ports][-Q ns,...][-t sec][-T sec]\n"
+"           [arg ...]\n"
 "\n"
 "-a\t\tcheck all (headers & body), otherwise assume body only\n"
 "-A delim\tan alternative delimiter to replace the at-sign (@)\n"
@@ -1233,6 +1234,7 @@ static char usage[] =
 "-P ports\tselect only the URI corresponding to the comma\n"
 "\t\tseparated list of port numbers to print and/or test\n"
 "-q\t\tcheck URL query part for embedded URLs\n"
+"-Q ns,...\tcomma separated list of alternative name servers\n"
 "-R\t\tenable DNS round robin mode, default parallel mode\n"
 "-s\t\tcheck URI domain has valid SOA\n"
 "-t sec\t\tHTTP socket timeout in seconds, default 60\n"
@@ -1277,6 +1279,7 @@ DnsList *uri_bl_list;
 DnsList *mail_bl_list;
 Vector ns_names_seen;
 Vector mail_names_seen;
+const char *name_servers;
 
 void
 process(URI *uri, const char *filename)
@@ -1473,7 +1476,7 @@ main(int argc, char **argv)
 	URI *uri;
 	int i, ch;
 
-	while ((ch = getopt(argc, argv, "aA:Dm:M:i:n:u:flmpP:qRsT:t:v")) != -1) {
+	while ((ch = getopt(argc, argv, "aA:Dm:M:i:n:u:flmpP:qQ:RsT:t:v")) != -1) {
 		switch (ch) {
 		case 'a':
 			check_all = 1;
@@ -1513,6 +1516,9 @@ main(int argc, char **argv)
 			break;
 		case 'q':
 			check_query = 1;
+			break;
+		case 'Q':
+			name_servers = optarg;
 			break;
 		case 's':
 			check_soa = 1;
@@ -1555,6 +1561,15 @@ main(int argc, char **argv)
 	if (pdqInit()) {
 		fprintf(stderr, "pdqInit() failed\n");
 		exit(EX_SOFTWARE);
+	}
+
+	if (name_servers != NULL) {
+		Vector servers = TextSplit(name_servers, ",", 0);
+		if (pdqSetServers(servers)) {
+			fprintf(stderr, "pdqSetServers() failed\n");
+			exit(EX_SOFTWARE);
+		}
+		VectorDestroy(servers);
 	}
 
 	if ((pdq = pdqOpen()) == NULL) {

@@ -145,8 +145,10 @@ BigInt$E : $(LIB) BigInt$O
 Memory$E: Memory.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Memory$E Memory.c
 
-uri$E: ../include/mail/mime.h ../mail/mime$O uri.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)uri$E uri.c ../mail/mime$O $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+uri$E : ../include/mail/mime.h ../mail/mime$O \
+	../include/net/dnsList.h ../net/dnsList$O \
+	../include/net/pdq.h ../net/pdq$O uri.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)uri$E uri.c ../mail/mime$O ../net/dnsList$O ../net/pdq$O $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
 
 TextC$E: TextC.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextC$E TextC.c $(LIB)
