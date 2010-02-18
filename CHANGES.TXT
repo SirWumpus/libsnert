@@ -44,7 +44,8 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
---1.73.8--
+
+--1.73.9--
 
    !	file.c: only call chown/fchown is we're root.
 
@@ -63,6 +64,8 @@ is no set schedule for releases.
 	name servers.
 
    +	uri.c: Add -Q option to allow specify a list of name servers.
+
+--1.73.8--
 
    !	uriHttpOrigin: changed from IMPLICIT_DOMAIN_MIN_DOTS (2) to 1,
    	because of the trend for shorter URL strings using single dot
