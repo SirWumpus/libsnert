@@ -1175,6 +1175,7 @@ static int check_subdomains;
 static int print_uri_parse;
 static char *ipBlOption;
 static char *nsBlOption;
+static char *nsIpBlOption;
 static char *uriBlOption;
 static char *mailBlOption;
 static Vector print_uri_ports;
@@ -1214,8 +1215,8 @@ static Vector mail_bl_domains;
 
 static char usage[] =
 "usage: uri [-aDflpqRsv][-A delim][-i ip-bl,...][-m mail-bl][-M domain-pat,...]\n"
-"           [-n ns-bl,...][-u uri-bl,...][-P ports][-Q ns,...][-t sec][-T sec]\n"
-"           [arg ...]\n"
+"           [-n ns-bl,...][-N ns-ip-bl,...][-u uri-bl,...][-P ports][-Q ns,...]\n"
+"           [-t sec][-T sec][arg ...]\n"
 "\n"
 "-a\t\tcheck all (headers & body), otherwise assume body only\n"
 "-A delim\tan alternative delimiter to replace the at-sign (@)\n"
@@ -1229,6 +1230,8 @@ static char usage[] =
 "-M domain,...\tlist of domain glob-like patterns by which to limit\n"
 "\t\tchecking against mail-bl; default *\n"
 "-n ns-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
+"\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
+"-N ns-ip-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
 "-p\t\tprint each URI parsed\n"
 "-P ports\tselect only the URI corresponding to the comma\n"
@@ -1275,6 +1278,7 @@ PDQ *pdq;
 int check_soa;
 DnsList *ip_bl_list;
 DnsList *ns_bl_list;
+DnsList *ns_ip_bl_list;
 DnsList *uri_bl_list;
 DnsList *mail_bl_list;
 Vector ns_names_seen;
@@ -1346,7 +1350,7 @@ process(URI *uri, const char *filename)
 			exit_code = EXIT_FAILURE;
 		}
 
-		if ((list_name = dnsListQueryNs(ns_bl_list, pdq, ns_names_seen, uri->host)) != NULL) {
+		if ((list_name = dnsListQueryNs(ns_bl_list, ns_ip_bl_list, pdq, ns_names_seen, uri->host)) != NULL) {
 			if (filename != NULL)
 				printf("%s: ", filename);
 			printf("%s NS blacklisted %s\n", uri->host, list_name);
@@ -1476,7 +1480,7 @@ main(int argc, char **argv)
 	URI *uri;
 	int i, ch;
 
-	while ((ch = getopt(argc, argv, "aA:Dm:M:i:n:u:flmpP:qQ:RsT:t:v")) != -1) {
+	while ((ch = getopt(argc, argv, "aA:Dm:M:i:n:N:u:flmpP:qQ:RsT:t:v")) != -1) {
 		switch (ch) {
 		case 'a':
 			check_all = 1;
@@ -1489,6 +1493,9 @@ main(int argc, char **argv)
 			break;
 		case 'n':
 			nsBlOption = optarg;
+			break;
+		case 'N':
+			nsIpBlOption = optarg;
 			break;
 		case 'u':
 			uriBlOption = optarg;
@@ -1583,6 +1590,7 @@ main(int argc, char **argv)
 	VectorSetDestroyEntry(mail_names_seen, free);
 	ip_bl_list = dnsListCreate(ipBlOption);
 	ns_bl_list = dnsListCreate(nsBlOption);
+	ns_ip_bl_list = dnsListCreate(nsIpBlOption);
 	uri_bl_list = dnsListCreate(uriBlOption);
 	mail_bl_list = dnsListCreate(mailBlOption);
 	mail_bl_domains = TextSplit(mailBlDomains, ",", 0);
@@ -1618,6 +1626,7 @@ main(int argc, char **argv)
 	VectorDestroy(ns_names_seen);
 	dnsListFree(mail_bl_list);
 	dnsListFree(uri_bl_list);
+	dnsListFree(ns_ip_bl_list);
 	dnsListFree(ns_bl_list);
 	pdqClose(pdq);
 

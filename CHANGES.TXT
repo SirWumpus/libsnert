@@ -45,6 +45,12 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
 
+--1.73.10--
+
+   !	dnsListQueryNs: Remodeled to handle both NS BL and NS IP BL.
+
+   !	uri.c: Added -N option to do look up against an NS IP BL.
+
 --1.73.9--
 
    !	file.c: only call chown/fchown is we're root.

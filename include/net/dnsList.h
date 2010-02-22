@@ -139,7 +139,10 @@ extern const char *dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_se
 extern const char *dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domains, const char *name);
 
 /**
- * @param dns_list
+ * @param ns_bl
+ *	A pointer to a DnsList.
+ *
+ * @param ns_ip_bl
  *	A pointer to a DnsList.
  *
  * @param pdq
@@ -159,12 +162,7 @@ extern const char *dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, 
  *	A C string pointer to a list name in which name is a member.
  *	Otherwise NULL if name was not found in a DNS list.
  */
-extern const char *dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name);
-
-/**
- * Psuedo list name returned when no NS or SOA records are found.
- */
-extern const char *dnsListNsInvalid;
+extern const char *dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, const char *name);
 
 /**
  * @param dns_list

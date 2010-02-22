@@ -52,8 +52,6 @@ static const char usage_dns_list_log_what[] =
 
 Option optDnsListLogWhat = { "dns-list-log-what", "", usage_dns_list_log_what };
 
-const char *dnsListNsInvalid = "ns.invalid.";
-
 /***********************************************************************
  ***
  ***********************************************************************/
@@ -360,14 +358,17 @@ dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *nam
 		/* Check cache of previously tested hosts/domains. */
 		for (seen = (const char **) VectorBase(names_seen); *seen != NULL; seen++) {
 			if (TextInsensitiveCompare(name, *seen) == 0) {
-				if (1 < debug)
-					syslog(LOG_INFO, "name=%s previously checked", name);
+				if (0 < debug)
+					syslog(LOG_DEBUG, "dnsListQueryName name=\"%s\" previously checked", name);
 				return NULL;
 			}
 		}
 
 		(void) VectorAdd(names_seen, strdup(name));
 	}
+
+	if (0 < debug)
+		syslog(LOG_DEBUG, "dnsListQueryName name=\"%s\" offset=%d", name, offset);
 
 	answers = pdqGetDnsList(
 		pdq, PDQ_CLASS_IN, PDQ_TYPE_A, name+offset,
@@ -376,7 +377,7 @@ dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *nam
 
 	if (answers != NULL) {
 		list_name = dnsListIsNameListed(dns_list, name+offset, answers);
-		pdqFree(answers);
+		pdqListFree(answers);
 	}
 
 	return list_name;
@@ -438,6 +439,8 @@ dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domain
 	/* Scan domain and subdomains from right-to-left. */
 	do {
 		offset = strlrcspn(name, offset-1, ".");
+		if (0 < debug)
+			syslog(LOG_DEBUG, "dnsListQuery name=\"%s\" offset=%d", name, offset);
 
 		if ((list_name = dnsListQueryName(dns_list, pdq, names_seen, name+offset)) != NULL) {
 			if (0 < debug)
@@ -448,6 +451,51 @@ dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domain
 	} while (test_sub_domains && 0 < offset);
 
 	return NULL;
+}
+
+const char *
+dnsListCheckIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name, PDQ_rr *list)
+{
+	PDQ_rr *rr;
+	const char *list_name = NULL;
+
+	if (dns_list == NULL || name == NULL || *name == '\0')
+		return NULL;
+
+	for (rr = list; (rr = pdqListFindName(rr, PDQ_CLASS_IN, PDQ_TYPE_5A, name)) != NULL; rr = rr->next) {
+		if (rr == PDQ_CNAME_TOO_DEEP || rr == PDQ_CNAME_IS_CIRCULAR)
+			break;
+
+		if (rr->rcode != PDQ_RCODE_OK
+		/* Only compare A records related to the query.
+		 * Some DNS servers will provide extra A records
+		 * related to the authority NS servers listed.
+		 */
+		|| rr->section != PDQ_SECTION_ANSWER
+		|| (rr->type != PDQ_TYPE_A && rr->type != PDQ_TYPE_AAAA))
+			continue;
+
+		/* Some domains specify a 127.0.0.0/8 address for
+		 * an A recorded, like "anything.so". The whole
+		 * TLD .so for Somalia, is a wild card record that
+		 * maps to 127.0.0.2, which typically is a DNSBL
+		 * test record that always fails.
+		 */
+		if (isReservedIPv6(((PDQ_AAAA *) rr)->address.ip.value, IS_IP_LOOPBACK|IS_IP_LOCALHOST))
+			continue;
+
+		if (0 < debug)
+			syslog(LOG_DEBUG, "dnsListCheckIP name=\"%s\" ip=\"%s\"", rr->name.string.value, ((PDQ_AAAA *) rr)->address.string.value);
+
+		list_name = dnsListQueryName(dns_list, pdq, names_seen, ((PDQ_AAAA *) rr)->address.string.value);
+		if (list_name != NULL) {
+			if (0 < debug)
+				syslog(LOG_DEBUG, "%s [%s] listed in %s", name, ((PDQ_AAAA *) rr)->address.string.value, list_name);
+			break;
+		}
+	}
+
+	return list_name;
 }
 
 /**
@@ -474,83 +522,24 @@ dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domain
 const char *
 dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 {
-	PDQ_rr *rr, *list;
+	PDQ_rr *list;
 	const char *list_name = NULL;
 
 	if (dns_list == NULL || name == NULL || *name == '\0')
 		return NULL;
 
 	list = pdqGet5A(pdq, PDQ_CLASS_IN, name);
-
-	for (rr = list; rr != NULL; rr = rr->next) {
-		if (rr->rcode != PDQ_RCODE_OK
-		/* Only compare A records related to the query.
-		 * Some DNS servers will provide extra A records
-		 * related to the authority NS servers listed.
-		 */
-		|| rr->section != PDQ_SECTION_ANSWER
-		|| (rr->type != PDQ_TYPE_A && rr->type != PDQ_TYPE_AAAA))
-			continue;
-
-		/* Some domains specify a 127.0.0.0/8 address for
-		 * an A recorded, like "anything.so". The whole
-		 * TLD .so for Somalia, is a wild card record that
-		 * maps to 127.0.0.2, which typically is a DNSBL
-		 * test record that always fails.
-		 */
-		if (isReservedIPv6(((PDQ_AAAA *) rr)->address.ip.value, IS_IP_LOOPBACK|IS_IP_LOCALHOST))
-			continue;
-
-		list_name = dnsListQueryName(dns_list, pdq, names_seen, ((PDQ_AAAA *) rr)->address.string.value);
-		if (list_name != NULL) {
-			if (0 < debug)
-				syslog(LOG_DEBUG, "%s [%s] listed in %s", name, ((PDQ_AAAA *) rr)->address.string.value, list_name);
-			break;
-		}
-	}
-
-	pdqFree(list);
+	list_name = dnsListCheckIP(dns_list, pdq, names_seen, name, list);
+	pdqListFree(list);
 
 	return list_name;
 }
-
-#if defined(NS_VERSION2)
-static const char *
-dnsListQueryNs0(DnsList *dns_list, PDQ *pdq, Vector names_seen, int recurse, const char *name)
-{
-	int missing_ns = 1;
-	PDQ_rr *rr, *ns_list;
-	const char *list_name = NULL;
-
-	if (dns_list == NULL || name == NULL || *name == '\0')
-		return NULL;
-
-	if ((ns_list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_NS, name, NULL)) != NULL) {
-		for (rr = ns_list; rr != NULL; rr = rr->next) {
-			if (0 < recurse && rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_SOA) {
-				list_name = dnsListQueryNs0(dns_list, pdq, names_seen, recurse-1, rr->name.string.value);
-				missing_ns = 0;
-				break;
-			} else if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_NS) {
-				recurse = 0;
-				missing_ns = 0;
-				if ((list_name = dnsListQuery(dns_list, pdq, names_seen, 1, ((PDQ_PTR *) rr)->host.string.value)) != NULL)
-					break;
-			}
-		}
-
-		pdqFree(ns_list);
-	}
-
-	if (missing_ns && list_name == NULL)
-		list_name = dnsListNsInvalid;
-
-	return list_name;
-}
-#endif
 
 /**
- * @param dns_list
+ * @param ns_bl
+ *	A pointer to a DnsList.
+ *
+ * @param ns_ip_bl
  *	A pointer to a DnsList.
  *
  * @param pdq
@@ -571,56 +560,8 @@ dnsListQueryNs0(DnsList *dns_list, PDQ *pdq, Vector names_seen, int recurse, con
  *	Otherwise NULL if name was not found in a DNS list.
  */
 const char *
-dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
+dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, const char *name)
 {
-#if defined(NS_VERSION1)
-	const char *list_name = NULL;
-	PDQ_rr *rr, *ns_list, *soa_list;
-
-	/* Find SOA domain handling the name in question. This
- 	 * handles CNAME. Consider www.snert.com CNAME mx.snert.net.
- 	 * Once you have the SOA domain, then lookup the NS of SOA
- 	 * domain and then check those against an NS BL.
-	 */
-	if ((soa_list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_SOA, name, NULL)) != NULL) {
-		for (rr = soa_list; rr != NULL; rr = rr->next) {
-			if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_SOA) {
-				if ((ns_list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_NS, rr->name.string.value, NULL)) != NULL) {
-					for (rr = ns_list; rr != NULL; rr = rr->next) {
-						if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_NS) {
-							if ((list_name = dnsListQuery(dns_list, pdq, names_seen, 1, ((PDQ_PTR *) rr)->host.string.value)) != NULL)
-								break;
-						}
-					}
-
-					pdqFree(ns_list);
-				}
-				break;
-			}
-		}
-
-		pdqFree(soa_list);
-	}
-
-	return list_name;
-
-#elif defined(NS_VERSION2)
-/* Version 1 did an initial SOA lookup wnrl37.cheesereason.com
- * assuming the DNS server would return an SOA for the queried
- * host or parent domain. This does not always appear to be the
- * case. Example:
- *
- * 	dig soa wnrl37.cheesereason.com		SERVFAIL
- * 	dig soa cheesereason.com		OK (SOA result)
- * 	dig ns wnrl37.cheesereason.com    	OK (SOA result)
- * 	dig ns cheesereason.com    		OK (NS list)
- *
- * However if you do a NS lookup and get an SOA result, then
- * recurse once using the SOA domain. This still works fine for
- * CNAME records, like www.snert.com.
- */
-	return dnsListQueryNs0(dns_list, pdq, names_seen, 1, name);
-#elif defined(NS_VERSION3)
 /* After some dispute with Alex Broens concerning previous lookup
  * algorithms, have simplified the search. The previous algorithm relied
  * on the DNS server doing the recursive search of the name from host to
@@ -637,7 +578,7 @@ dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 	const char *list_name = NULL;
  	int ns_found = 0, ns_rcode_ok;
 
-	if (dns_list == NULL || name == NULL || *name == '\0')
+	if (name == NULL || *name == '\0')
 		return NULL;
 
 	/* Find start of TLD. */
@@ -646,6 +587,9 @@ dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 
 	/* Scan domain and subdomains from left-to-right. */
 	for (offset = 0; offset < tld_offset; offset += strcspn(name+offset, ".")+1) {
+		if (0 < debug)
+			syslog(LOG_DEBUG, "dnsListQueryNs name=\"%s\" offset=%d tld_offset=%d", name, offset, tld_offset);
+
 		if ((ns_list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_NS, name+offset, NULL)) != NULL) {
 			ns_rcode_ok = ns_list->rcode == PDQ_RCODE_OK;
 
@@ -656,12 +600,15 @@ dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 				switch (rr->section) {
 				case PDQ_SECTION_ANSWER:
 					if (rr->type == PDQ_TYPE_CNAME) {
-						list_name = dnsListQueryNs(dns_list, pdq, names_seen, ((PDQ_CNAME *) rr)->host.string.value);
+						list_name = dnsListQueryNs(ns_bl, ns_ip_bl, pdq, names_seen, ((PDQ_CNAME *) rr)->host.string.value);
 						goto ns_list_break;
 					}
 					if (rr->type == PDQ_TYPE_NS) {
 						ns_found = 1;
-						if ((list_name = dnsListQuery(dns_list, pdq, names_seen, 1, ((PDQ_NS *) rr)->host.string.value)) != NULL)
+						if ((list_name = dnsListQuery(ns_bl, pdq, names_seen, 1, ((PDQ_NS *) rr)->host.string.value)) != NULL)
+							goto ns_list_break;
+
+						if ((list_name = dnsListCheckIP(ns_ip_bl, pdq, names_seen, ((PDQ_NS *) rr)->host.string.value, ns_list)) != NULL)
 							goto ns_list_break;
 					}
 					break;
@@ -674,12 +621,12 @@ dnsListQueryNs(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 					 * into an endless loop.
 					 */
 					if (!ns_found && rr->type == PDQ_TYPE_SOA)
-						list_name = dnsListQueryNs(dns_list, pdq, names_seen, rr->name.string.value);
+						list_name = dnsListQueryNs(ns_bl, ns_ip_bl, pdq, names_seen, rr->name.string.value);
 					goto ns_list_break;
 				}
 			}
 ns_list_break:
-			pdqFree(ns_list);
+			pdqListFree(ns_list);
 
 			/* We found a non-empty NS list for a (sub)domain.
 			 * The dnsListQuery either timed out, failed, or
@@ -692,7 +639,6 @@ ns_list_break:
 	}
 
 	return list_name;
-#endif
 }
 
 static void
