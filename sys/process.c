@@ -189,6 +189,13 @@ processDumpCore(int flag)
 #ifdef CHANGE_KERNEL_SETTINGS
 /* We shouldn't do this on a per process baises. */
 # if defined(__OpenBSD__) && defined(HAVE_SYS_SYSCTL_H) && defined(KERN_NOSUIDCOREDUMP)
+/***
+ *** On 23/02/2010 18:28, Theo de Raadt whispered from the shadows...:
+ *** > 3. The program does not use file system setuid bits, BUT does use the
+ *** > setuid() et al. system calls to drop privileges from root to some other
+ ***
+ *** In OpenBSD -- if you change uids, you don't get core dumps.
+ ***/
 {
 	int mib[2], *new_flag = NULL;
 	size_t old_size, new_size = 0;
