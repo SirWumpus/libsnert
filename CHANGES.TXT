@@ -47,7 +47,7 @@ is no set schedule for releases.
 --1.73.11--
 
    !	dnsListQueryNs: fix recursion bug related to SOA handling and
-	the lack of NS records (other than glue records) for a domain.
+	the lack of NS records, other than glue records for a domain.
 	For example mxshelter.com has only glue records, but no properly
 	defined NS records by the primary name server.
 
