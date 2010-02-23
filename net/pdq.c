@@ -559,6 +559,87 @@ pdqSetName(PDQ_name *name, const char *string)
 	}
 }
 
+/**
+ * @param a
+ *	A pointer to a PDQ_rr structure.
+ *
+ * @param b
+ *	A pointer to a PDQ_rr structure.
+ *
+ * @return
+ *	True if the two records are "equal". Note that equality here
+ *	does not mean a byte for byte match, but specific member
+ *	fields match.
+ */
+int
+pdqEqual(PDQ_rr *a, PDQ_rr *b)
+{
+	if (a->type != b->type)
+		return 0;
+
+	if (a->class != b->class)
+		return 0;
+
+	if (TextInsensitiveCompare(a->name.string.value, b->name.string.value) != 0)
+		return 0;
+
+	switch (a->type) {
+	case PDQ_TYPE_A:
+	case PDQ_TYPE_AAAA:
+		/* This assumes that pdqCreate allocates an initially zeroed RR . */
+#ifdef PDQ_EQUAL_DETAILED
+		if (memcmp(&((PDQ_AAAA *) a)->address, &((PDQ_AAAA *) b)->address, sizeof (((PDQ_AAAA *) a)->address)) != 0)
+			return 0;
+#else
+		if (memcmp(&((PDQ_AAAA *) a)->address.ip, &((PDQ_AAAA *) b)->address.ip, sizeof (((PDQ_AAAA *) a)->address.ip)) != 0)
+			return 0;
+#endif
+		break;
+
+	case PDQ_TYPE_SOA:
+		if (((PDQ_SOA *) a)->serial != ((PDQ_SOA *) b)->serial)
+			return 0;
+#ifdef PDQ_EQUAL_DETAILED
+		if (TextInsensitiveCompare(((PDQ_SOA *) a)->mname.string.value, ((PDQ_SOA *) b)->mname.string.value) != 0)
+			return 0;
+		if (TextInsensitiveCompare(((PDQ_SOA *) a)->rname.string.value, ((PDQ_SOA *) b)->rname.string.value) != 0)
+			return 0;
+#endif
+		break;
+
+	case PDQ_TYPE_MX:
+		if (((PDQ_MX *) a)->preference != ((PDQ_MX *) b)->preference)
+			return 0;
+		/*@fallthrough@*/
+
+	case PDQ_TYPE_NS:
+	case PDQ_TYPE_PTR:
+	case PDQ_TYPE_CNAME:
+	case PDQ_TYPE_DNAME:
+		if (memcmp(&((PDQ_NS *) a)->host, &((PDQ_NS *) b)->host, sizeof (((PDQ_NS *) a)->host)) != 0)
+			return 0;
+		break;
+
+	case PDQ_TYPE_TXT:
+	case PDQ_TYPE_NULL:
+		if (((PDQ_TXT *) a)->text.length != ((PDQ_TXT *) b)->text.length)
+			return 0;
+		if (memcmp(((PDQ_TXT *) a)->text.value, ((PDQ_TXT *) b)->text.value, ((PDQ_TXT *) a)->text.length) != 0)
+			return 0;
+		break;
+
+	case PDQ_TYPE_HINFO:
+	case PDQ_TYPE_MINFO:
+		if (memcmp(&((PDQ_HINFO *) a)->cpu, &((PDQ_HINFO *) b)->cpu, sizeof (((PDQ_HINFO *) a)->cpu)) != 0)
+			return 0;
+		if (memcmp(&((PDQ_HINFO *) a)->os, &((PDQ_HINFO *) b)->os, sizeof (((PDQ_HINFO *) a)->os)) != 0)
+			return 0;
+		break;
+	}
+
+	return 1;
+}
+
 static PDQ_rr *
 pdq_create_rr(PDQ_class class, PDQ_type type, const char *host)
 {
@@ -665,6 +746,58 @@ pdqListLength(PDQ_rr *record)
 
 /**
  * @param list
+ *	A pointer to a PDQ_rr list.
+ *
+ * @param record
+ *	A pointer to a PDQ_rr record.
+ *
+ * @return
+ *	True if there is already a duplicate of the record present.
+ */
+int
+pdqListIsMember(PDQ_rr *list, PDQ_rr *record)
+{
+	for ( ; list != NULL; list = list->next) {
+		if (pdqEqual(list, record))
+			return 1;
+	}
+
+	return 0;
+}
+
+/**
+ * @param list
+ *	A pointer to a PDQ_rr list.
+ *
+ * @return
+ *	The updated head of the list or NULL if the list is empty.
+ *	The list will only contain unique records.
+ */
+PDQ_rr *
+pdqListPruneDup(PDQ_rr *list)
+{
+	PDQ_rr **prev, *next, *r1, *r2;
+
+	for (r1 = list; r1 != NULL; r1 = r1->next) {
+		prev = &r1->next;
+		for (r2 = r1->next; r2 != NULL; r2 = next) {
+			next = r2->next;
+
+			if (pdqEqual(r1, r2)) {
+				*prev = r2->next;
+				pdqDestroy(r2);
+				continue;
+			}
+
+			prev = &r2->next;
+		}
+	}
+
+	return list;
+}
+
+/**
+ * @param list
  *	A pointer to a PDQ_rr list containing A or AAAA records.
  *
  * @param is_ip_mask
@@ -766,6 +899,7 @@ pdqListPruneMatch(PDQ_rr *list)
 PDQ_rr *
 pdqListPrune(PDQ_rr *list, long is_ip_mask)
 {
+	list = pdqListPruneDup(list);
 	list = pdqListPrune5A(list, is_ip_mask, 1);
 	return pdqListPruneMatch(list);
 }
@@ -3037,6 +3171,7 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 		}
 
 		head = pdqListAppend(head, pdqWaitAll(pdq));
+		head = pdqListPruneDup(head);
 	}
 	if (0 < debug)
 		pdqListLog(head);

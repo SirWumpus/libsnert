@@ -51,6 +51,14 @@ is no set schedule for releases.
 	For example mxshelter.com has only glue records, but no properly
 	defined NS records by the primary name server.
 
+   +	Added pdqEqual, pdqListIsMember, and pdqListPruneDup to help
+	detect and/or remove redundant records.
+
+   !	pdqListPrune now calls pdqListPruneDup.
+
+   !	pdqGet calls pdqListPruneDup after looking up missing
+   	A / AAAA records to remove redundant records.
+
 --1.73.10--
 
    !	dnsListQueryNs: Remodeled to handle both NS BL and NS IP BL.

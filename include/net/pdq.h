@@ -762,6 +762,20 @@ extern PDQ_rr *pdqCreate(PDQ_type type);
 extern PDQ_rr *pdqDup(PDQ_rr *record);
 
 /**
+ * @param a
+ *	A pointer to a PDQ_rr structure.
+ *
+ * @param b
+ *	A pointer to a PDQ_rr structure.
+ *
+ * @return
+ *	True if the two records are "equal". Note that equality here
+ *	does not mean a byte for byte match, but specific member
+ *	fields match.
+ */
+extern int pdqEqual(PDQ_rr *a, PDQ_rr *b);
+
+/**
  * @param _list
  *	Release memory associated with a PDQ_rr pointer previouly
  *	obtained from pdqCreate(), pdqDup(), pdqFetch(), pdqGet(),
@@ -1025,6 +1039,16 @@ extern PDQ_rr *pdqListPruneMatch(PDQ_rr *list);
  * @param list
  *	A pointer to a PDQ_rr list.
  *
+ * @return
+ *	The updated head of the list or NULL if the list is empty.
+ *	The list will only contain unique records.
+ */
+extern PDQ_rr *pdqListPruneDup(PDQ_rr *list);
+
+/**
+ * @param list
+ *	A pointer to a PDQ_rr list.
+ *
  * @param record
  *	A pointer to a record in the PDQ_rr list to be removed.
  *
@@ -1041,6 +1065,18 @@ extern PDQ_rr *pdqListRemove(PDQ_rr *list, PDQ_rr *record);
  *	A pointer to the new head of the PDQ_rr list.
  */
 extern PDQ_rr *pdqListReverse(PDQ_rr *list);
+
+/**
+ * @param list
+ *	A pointer to a PDQ_rr list.
+ *
+ * @param record
+ *	A pointer to a PDQ_rr record.
+ *
+ * @return
+ *	True if there is already a duplicate of the record present.
+ */
+extern int pdqListIsMember(PDQ_rr *list, PDQ_rr *record);
 
 /**
  * @param list
