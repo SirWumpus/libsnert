@@ -168,29 +168,18 @@ tldInit(void)
 	int rc;
 
 	if (!tld_init_done) {
-#ifdef OLD
-		if (*tldOptLevelOne.string == '\0')
-			rc = tldCopyTable(tld_one, &tld_level_one);
-		else
-			rc = tldLoadTable(tldOptLevelOne.string, &tld_level_one);
-		if (rc != 0)
-			return -1;
-
-		if (*tldOptLevelTwo.string == '\0')
-			rc = tldCopyTable(tld_two, &tld_level_two);
-		else
-			rc = tldLoadTable(tldOptLevelTwo.string, &tld_level_two);
-		if (rc != 0)
-			return -1;
-#else
 		if (*tldOptLevelOne.string != '\0'
-		&& (rc = tldLoadTable(tldOptLevelOne.string, &tld_level_one)))
+		&& (rc = tldLoadTable(tldOptLevelOne.string, &tld_level_one))) {
+			syslog(LOG_ERR, "%s load error: %s (%d)", tldOptLevelOne.string, strerror(errno), errno);
 			return -1;
+		}
 
 		if (*tldOptLevelTwo.string != '\0'
-		&& (rc = tldLoadTable(tldOptLevelTwo.string, &tld_level_two)))
+		&& (rc = tldLoadTable(tldOptLevelTwo.string, &tld_level_two))){
+			syslog(LOG_ERR, "%s load error: %s (%d)", tldOptLevelTwo.string, strerror(errno), errno);
 			return -1;
-#endif
+		}
+
 		tld_init_done = 1;
 	}
 
