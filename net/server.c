@@ -323,18 +323,32 @@ serverSignalsInit(ServerSignals *signals, const char *name)
 # ifdef SIGINT
         (void) sigaddset(&signals->signal_set, SIGINT);
 # endif
-# ifdef SIGQUIT
-	(void) sigaddset(&signals->signal_set, SIGQUIT);
-# endif
 # ifdef SIGPIPE
 	(void) sigaddset(&signals->signal_set, SIGPIPE);
+# endif
+# ifdef SIGQUIT
+	(void) sigaddset(&signals->signal_set, SIGQUIT);
 # endif
 # ifdef SIGTERM
 	(void) sigaddset(&signals->signal_set, SIGTERM);
 # endif
-# ifdef SIGALRM
-	(void) sigaddset(&signals->signal_set, SIGALRM);
+# ifdef SIGUSR1
+	(void) sigaddset(&signals->signal_set, SIGUSR1);
 # endif
+# ifdef SIGUSR2
+	(void) sigaddset(&signals->signal_set, SIGUSR2);
+# endif
+# ifdef SERVER_CATCH_ALARMS_SIGNALS
+#  ifdef SIGALRM
+	(void) sigaddset(&signals->signal_set, SIGALRM);
+#  endif
+#  ifdef SIGPROF
+	(void) sigaddset(&signals->signal_set, SIGPROF);
+#  endif
+#  ifdef SIGVTALRM
+	(void) sigaddset(&signals->signal_set, SIGVTALRM);
+#  endif
+# endif /* SERVER_CATCH_ALARMS_SIGNALS */
 # ifdef SERVER_CATCH_ULIMIT_SIGNALS
 #  ifdef SIGXCPU
 	(void) sigaddset(&signals->signal_set, SIGXCPU);
@@ -342,10 +356,7 @@ serverSignalsInit(ServerSignals *signals, const char *name)
 #  ifdef SIGXFSZ
 	(void) sigaddset(&signals->signal_set, SIGXFSZ);
 #  endif
-# endif
-# ifdef SIGVTALRM
-	(void) sigaddset(&signals->signal_set, SIGVTALRM);
-# endif
+# endif /* SERVER_CATCH_ULIMIT_SIGNALS */
         if (pthread_sigmask(SIG_BLOCK, &signals->signal_set, NULL)) {
 		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
 		return -1;
@@ -379,17 +390,8 @@ serverSignalsLoop(ServerSignals *signals)
 # ifdef SIGHUP
 		case SIGHUP:
 # endif
-# ifdef SIGALRM
-		case SIGALRM:
-# endif
-# ifdef SIGXCPU
-		case SIGXCPU:
-# endif
-# ifdef SIGXFSZ
-		case SIGXFSZ:
-# endif
-# ifdef SIGVTALRM
-		case SIGVTALRM:
+# ifdef SIGPIPE
+		case SIGPIPE:
 # endif
 # ifdef SIGUSR1
 		case SIGUSR1:
@@ -397,9 +399,25 @@ serverSignalsLoop(ServerSignals *signals)
 # ifdef SIGUSR2
 		case SIGUSR2:
 # endif
-# ifdef SIGPIPE
-		case SIGPIPE:
-# endif
+# ifdef SERVER_CATCH_ALARMS_SIGNALS
+#  ifdef SIGALRM
+		case SIGALRM:
+#  endif
+#  ifdef SIGPROF
+		case SIGPROF:
+#  endif
+#  ifdef SIGVTALRM
+		case SIGVTALRM:
+#  endif
+# endif /* SERVER_CATCH_ALARMS_SIGNALS */
+# ifdef SERVER_CATCH_ULIMIT_SIGNALS
+#  ifdef SIGXCPU
+		case SIGXCPU:
+#  endif
+#  ifdef SIGXFSZ
+		case SIGXFSZ:
+#  endif
+# endif /* SERVER_CATCH_ULIMIT_SIGNALS */
 			syslog(LOG_INFO, "signal %d ignored", signal);
 			break;
 		}
@@ -1596,8 +1614,10 @@ serverMain(void)
 		serverSetStackSize(service->server, SERVER_STACK_SIZE);
 	}
 
+#ifdef NOPE
 #if defined(__OpenBSD__) || defined(__FreeBSD__)
 	(void) processDumpCore(2);
+#endif
 #endif
 	if (processDropPrivilages("nobody", "nobody", "/tmp", 0))
 		goto error2;
