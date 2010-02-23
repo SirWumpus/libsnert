@@ -44,6 +44,12 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.73.12--
+
+   !	tldInit: add more descriptive error logging.
+
+   !	server.c: Discontinue blocking alarm signals.
+
 --1.73.11--
 
    !	dnsListQueryNs: fix recursion bug related to SOA handling and
