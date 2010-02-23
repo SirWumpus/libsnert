@@ -578,7 +578,7 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 	const char *list_name = NULL;
  	int ns_found = 0, ns_rcode_ok;
 
-	if (name == NULL || *name == '\0')
+	if ((ns_bl == NULL && ns_ip_bl == NULL) || name == NULL || *name == '\0')
 		return NULL;
 
 	/* Find start of TLD. */
@@ -614,14 +614,29 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 					break;
 
 				case PDQ_SECTION_AUTHORITY:
-					/* Only follow the SOA domain when there
-					 * were no NS records returned. If we
-					 * tested both NS (which yield no result)
-					 * and the extra SOA, then we can fall
-					 * into an endless loop.
-					 */
-					if (!ns_found && rr->type == PDQ_TYPE_SOA)
-						list_name = dnsListQueryNs(ns_bl, ns_ip_bl, pdq, names_seen, rr->name.string.value);
+				/* Three possible SOA handling:
+				 *
+				 * 1. Use the SOA RR domain to do recursive
+				 *    NS lookups. Problem with domains that
+				 *    list no NS other than the parent zone's
+				 *    glue records. This can result in a
+				 *    recursive loop. eg. mxshelter.com
+				 *
+				 * 2. Do a top-down NS search from the root
+				 *    looking for the glue records. Expensive.
+				 *
+				 * 3. Simply test the primary name server
+				 *    given by the SOA mname. Cheap. Assumes
+				 *    that the primary NS would be one of the
+				 *    set of NS listed.
+				 */
+					if (!ns_found && rr->type == PDQ_TYPE_SOA) {
+						if ((list_name = dnsListQuery(ns_bl, pdq, names_seen, 1, ((PDQ_SOA *) rr)->mname.string.value)) != NULL)
+							goto ns_list_break;
+
+						if ((list_name = dnsListCheckIP(ns_ip_bl, pdq, names_seen, ((PDQ_SOA *) rr)->mname.string.value, ns_list)) != NULL)
+							goto ns_list_break;
+					}
 					goto ns_list_break;
 				}
 			}
