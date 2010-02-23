@@ -15,6 +15,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef __MINGW32__
+# if defined(HAVE_SYSLOG_H)
+#  include <syslog.h>
+# endif
+#endif
+#include <com/snert/lib/io/Log.h>
+
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/mail/tlds.h>
 
