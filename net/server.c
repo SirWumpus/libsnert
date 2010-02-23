@@ -335,11 +335,13 @@ serverSignalsInit(ServerSignals *signals, const char *name)
 # ifdef SIGALRM
 	(void) sigaddset(&signals->signal_set, SIGALRM);
 # endif
-# ifdef SIGXCPU
+# ifdef SERVER_CATCH_ULIMIT_SIGNALS
+#  ifdef SIGXCPU
 	(void) sigaddset(&signals->signal_set, SIGXCPU);
-# endif
-# ifdef SIGXFSZ
+#  endif
+#  ifdef SIGXFSZ
 	(void) sigaddset(&signals->signal_set, SIGXFSZ);
+#  endif
 # endif
 # ifdef SIGVTALRM
 	(void) sigaddset(&signals->signal_set, SIGVTALRM);

@@ -112,6 +112,10 @@ extern "C" {
 #define ENABLE_KEEPALIVE		1
 #endif
 
+#ifndef SERVER_CATCH_ULIMIT_SIGNALS
+#define SERVER_CATCH_ULIMIT_SIGNALS	1
+#endif
+
 /***********************************************************************
  ***
  ***********************************************************************/
