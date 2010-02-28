@@ -44,6 +44,12 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.73.13--
+
+   !	serverAccept: when sessionAccept or serverWorkerCreate fail for
+	any reason be sure to call sessionFinish, which will clean up
+	the client socket.
+
 --1.73.12--
 
    !	tldInit: add more descriptive error logging.
