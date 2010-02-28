@@ -440,7 +440,7 @@ mimeStateHdrBdy(Mime *m, int ch)
 static int
 mimeStateHdrLF(Mime *m, int ch)
 {
-	MimeHookOctet decode_state;
+	MimeHookOctet decode_state = NULL;
 
 	if (ch == ASCII_SPACE || ch == ASCII_TAB) {
 		/* Folded header, resume header gathering. */

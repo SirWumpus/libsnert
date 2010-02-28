@@ -267,7 +267,7 @@ httpRead(Socket2 *socket, HttpResponse *response, const char *id_log)
 	} while (buf->length - offset != 2 || buf->bytes[offset] != '\r' || buf->bytes[offset+1] != '\n');
 
 	/* Parse headers. */
-	if (sscanf((char *) buf->bytes, "HTTP/%*s %u", (unsigned int *) &code) != 1)
+	if (sscanf((char *) buf->bytes, "HTTP/%*s %d", (int *) &code) != 1)
 		goto error1;
 	response->result = code;
 

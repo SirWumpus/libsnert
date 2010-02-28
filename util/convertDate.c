@@ -14,6 +14,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -675,7 +676,7 @@ main(int argc, char **argv)
 			LogStderr(LOG_ERR, "\"%s\" does not conform to RFC 2822 section 3.3. Date and Time Specification", argv[i]);
 			exit(1);
 		}
-		printf("%lu\t \"%s\"\t %lu\n", (unsigned long) gmt, argv[i], stop - argv[i]);
+		printf("%lu\t \"%s\"\t %ld\n", (unsigned long) gmt, argv[i], (ptrdiff_t) (stop - argv[i]));
 	}
 
 	exit(0);

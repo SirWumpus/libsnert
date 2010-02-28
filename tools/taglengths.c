@@ -70,7 +70,7 @@ htmltags(const char *filename)
 	byte_size = 0;
 	tag_size = 0;
 	nontag_size = 0;
-
+	word_lineno = 0;
 
 	printf("Filename\n");
 	printf("-------------------------------\n");
@@ -183,7 +183,14 @@ htmltags(const char *filename)
 	printf("-------------------------------\n");
 
 	for (tag = head; tag != NULL; tag = tag->next) {
-		printf("%5lu %5lu %5lu %5lu %s\n", (unsigned long) tag->frequency, (unsigned long) tag->sum_length, tag->sum_length / tag->frequency, tag->max_length, tag->word);
+		printf(
+			"%5lu %5lu %5lu %5lu %s\n",
+			(unsigned long) tag->frequency,
+			(unsigned long) tag->sum_length,
+			(unsigned long) tag->sum_length / tag->frequency,
+			(unsigned long) tag->max_length,
+			tag->word
+		);
 	}
 
 	tagListFree(head);
