@@ -3,7 +3,7 @@
  *
  * Threaded Server API
  *
- * Copyright 2008, 2009 by Anthony Howe. All rights reserved.
+ * Copyright 2008, 2010 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -626,11 +626,18 @@ sessionAccept(ServerSession *session)
 		syslog(LOG_DEBUG, "%s server-id=%u session-id=%u accept", session->id_log, session->server->id, session->id);
 	VALGRIND_PRINTF("%s server-id=%u session-id=%u accept", session->id_log, session->server->id, session->id);
 
+	assert(session->iface != NULL);
+	assert(session->iface->socket != NULL);
+	session->client = socketAccept(session->iface->socket);
+
+	if (session->client == NULL) {
+		syslog(LOG_ERR, "%s server-id=%u session-id=%u accept no socket", session->id_log, session->server->id, session->id);
+		return -1;
+	}
+
 	if (session->server->hook.session_accept != NULL
 	&& (*session->server->hook.session_accept)(session)) {
-		socketClose(session->client);
-		session->client = NULL;
-		session->iface = NULL;
+		syslog(LOG_ERR, "%s server-id=%u session-id=%u accept hook fail", session->id_log, session->server->id, session->id);
 		return -1;
 	}
 
@@ -687,8 +694,8 @@ sessionFinish(ServerSession *session)
 	if (session->client != NULL) {
 		socketClose(session->client);
 		session->client = NULL;
-		session->iface = NULL;
 	}
+	session->iface = NULL;
 }
 
 static ServerSession *
@@ -745,7 +752,7 @@ sessionCreate(Server *server)
 
 	if (server->hook.session_create != NULL
 	&& (*server->hook.session_create)(session)) {
-		syslog(LOG_ERR, log_internal, SERVER_FILE_LINENO, strerror(errno), errno);
+		syslog(LOG_ERR, "%s server-id=%u session-id=%u create hook fail", session->id_log, session->server->id, session->id);
 		goto error1;
 	}
 
@@ -764,12 +771,10 @@ sessionFree(void *_session)
 	if (session != NULL) {
 		if (session->server->hook.session_free != NULL)
 			(void) (*session->server->hook.session_free)(session);
-
-		if (session->client != NULL)
-			sessionFinish(session);
 #ifdef __WIN32__
 		CloseHandle(session->kill_event);
 #endif
+		sessionFinish(session);
 		free(session);
 	}
 }
@@ -1097,13 +1102,15 @@ serverWorker(void *_worker)
 	return NULL;
 }
 
-static ServerWorker *
+static int
 serverWorkerCreate(Server *server)
 {
 	ServerWorker *worker;
 
-	if ((worker = calloc(1, sizeof (*worker))) == NULL)
+	if ((worker = calloc(1, sizeof (*worker))) == NULL) {
+		syslog(LOG_ERR, log_oom, SERVER_FILE_LINENO);
 		goto error0;
+	}
 
 	/* Counter ID zero is reserved for server thread identification. */
 	if (++worker_counter == 0)
@@ -1117,29 +1124,27 @@ serverWorkerCreate(Server *server)
 #endif
 	serverListEnqueue(&server->workers, &worker->node);
 
+	if (0 < server->debug.level)
+		syslog(LOG_DEBUG, "server-id=%u worker-id=%u start", server->id, worker->id);
+
 	/* Create thread persistent data. */
 	if (server->hook.worker_create != NULL
 	&& (*server->hook.worker_create)(worker)) {
-		syslog(LOG_ERR, log_internal, SERVER_FILE_LINENO, strerror(errno), errno);
+		syslog(LOG_ERR, "server-id=%u worker-id=%u create hook fail", server->id, worker->id);
 		goto error1;
 	}
 
 	if (pthread_create(&worker->thread, &server->thread_attr, serverWorker, worker)) {
-		syslog(LOG_ERR, log_internal, SERVER_FILE_LINENO, strerror(errno), errno);
+		syslog(LOG_ERR, "server-id=%u worker-id=%u thread create fail: %s (%d)", server->id, worker->id, strerror(errno), errno);
 		goto error1;
 	}
 
-	(void) pthread_detach(worker->thread);
-
-	if (0 < server->debug.level)
-		syslog(LOG_DEBUG, "server-id=%u worker-id=%u start", server->id, worker->id);
-
-	return worker;
+	return pthread_detach(worker->thread);
 error1:
 	serverWorkerRemove(worker);
 	serverWorkerFree(worker);
 error0:
-	return NULL;
+	return -1;
 }
 
 static void *
@@ -1160,8 +1165,10 @@ serverAccept(void *_server)
 				if (server->interfaces_fd[i] == server->interfaces_ready[i]) {
 					if ((session = sessionCreate(server)) != NULL) {
 						session->iface = (ServerInterface *) VectorGet(server->interfaces, i);
-						session->client = socketAccept(session->iface->socket);
-						(void) sessionAccept(session);
+						if (sessionAccept(session)) {
+							sessionFinish(session);
+							continue;
+						}
 						serverListEnqueue(&server->sessions_queued, &session->node);
 
 						/* Do we have too few threads? */
@@ -1177,7 +1184,10 @@ serverAccept(void *_server)
 
 						if (idle < queued && threads < server->option.max_threads) {
 							pthread_testcancel();
-							(void) serverWorkerCreate(server);
+							if (serverWorkerCreate(server)) {
+								sessionFinish(session);
+								continue;
+							}
 						}
 					}
 				}
@@ -1204,7 +1214,7 @@ serverStart(Server *server)
 	server->running = 1;
 
 	if (pthread_create(&server->accept_thread, &server->thread_attr, serverAccept, server)) {
-		syslog(LOG_ERR, log_internal, SERVER_FILE_LINENO, strerror(errno), errno);
+		syslog(LOG_ERR, "server-id=%u thread create fail: %s (%d)", server->id, strerror(errno), errno);
 		return -1;
 	}
 
@@ -1591,8 +1601,8 @@ ServerHandler services[] = {
 int
 serverMain(void)
 {
-	int rc, signal;
 	ServerHandler *service;
+	int rc, signal = SIGTERM;
 
 	rc = EXIT_FAILURE;
 
