@@ -605,10 +605,9 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 					}
 					if (rr->type == PDQ_TYPE_NS) {
 						ns_found = 1;
-						if ((list_name = dnsListQuery(ns_bl, pdq, names_seen, 1, ((PDQ_NS *) rr)->host.string.value)) != NULL)
-							goto ns_list_break;
-
 						if ((list_name = dnsListCheckIP(ns_ip_bl, pdq, names_seen, ((PDQ_NS *) rr)->host.string.value, ns_list)) != NULL)
+							goto ns_list_break;
+						if ((list_name = dnsListQuery(ns_bl, pdq, names_seen, 1, ((PDQ_NS *) rr)->host.string.value)) != NULL)
 							goto ns_list_break;
 					}
 					break;
@@ -631,10 +630,9 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 				 *    set of NS listed.
 				 */
 					if (!ns_found && rr->type == PDQ_TYPE_SOA) {
-						if ((list_name = dnsListQuery(ns_bl, pdq, names_seen, 1, ((PDQ_SOA *) rr)->mname.string.value)) != NULL)
-							goto ns_list_break;
-
 						if ((list_name = dnsListCheckIP(ns_ip_bl, pdq, names_seen, ((PDQ_SOA *) rr)->mname.string.value, ns_list)) != NULL)
+							goto ns_list_break;
+						if ((list_name = dnsListQuery(ns_bl, pdq, names_seen, 1, ((PDQ_SOA *) rr)->mname.string.value)) != NULL)
 							goto ns_list_break;
 					}
 					goto ns_list_break;
