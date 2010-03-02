@@ -44,6 +44,33 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.73.14--
+
+   !	Fix assorted gcc 4 warnings.
+
+   !	dnsListQueryNS: change DNS list lookup order from ns-bl / ns-a-bl to
+   	ns-a-bl / ns-bl. Requested by Alex Broens.
+
+   !	serverAccept: fixed conflict when a session has been queued,
+	serverWorkCreate exits with an error, terminating the already
+	queued session that has been dequeue by another worker. Once
+	a session is queued, serverAccept must not act on the session.
+
+   !	dnsListIsNameListed: HACK for dbl.spamhaus.org which ignores
+	and returns a false positive code for IP address lookups.
+
+	http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
+
+	Ignore 127.0.1.255 responses.
+
+   !	pdqGetDnsList, pdqFetchDnsList: HACK for dbl.spamhaus.org which
+	ignores and returns a false positive code for IP address
+	lookups.
+
+	http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
+
+	Skip query for IP lookups.
+
 --1.73.13--
 
    !	serverAccept: when sessionAccept or serverWorkerCreate fail for
