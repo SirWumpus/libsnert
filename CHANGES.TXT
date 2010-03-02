@@ -44,6 +44,18 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.73.15--
+
+   +	pdq.c: Added dns-spamhaus-dbl option for use by milter-link and
+	smtpf. The public feed name is dbl.spamhaus.org, but those who
+	have purchased SpamHaus data feeds will have a different feed
+	name. This is required to identify and skip IP lookups against
+	the DBL, since SpamHaus policy is to return a false positive
+	code (127.0.1.255) for such queries.
+
+   +	pdq.c: added pdqSetSpamHausDbl function and a -F option to the CLI
+   	to test changing the DBL feed name.
+
 --1.73.14--
 
    !	Fix assorted gcc 4 warnings.

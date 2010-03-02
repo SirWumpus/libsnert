@@ -244,6 +244,17 @@ typedef struct {
  */
 extern void pdqSetDebug(int level);
 
+/**
+ * @param feed
+ *	Set alternative data feed name for dbl.spamhaus.org.
+ *
+ * @see
+ *	pdqGetDnsList
+ *	pdqFetchDnsList
+ */
+extern void pdqSetSpamHausDbl(const char *feed_name);
+
+
 /*
  * @param flag
  *	Set true to query NS servers, per pdqQuery, in round robin order
@@ -1148,10 +1159,12 @@ extern PDQ_valid_soa pdqTestSOA(PDQ *pdq, PDQ_class class, const char *name, PDQ
 
 extern Option optDnsMaxTimeout;
 extern Option optDnsRoundRobin;
+extern Option optDnsSpamHausDbl;
 
 #define PDQ_OPTIONS_TABLE \
 	&optDnsMaxTimeout, \
-	&optDnsRoundRobin
+	&optDnsRoundRobin, \
+	&optDnsSpamHausDbl
 
 #define PDQ_OPTIONS_SETTING(debug) \
 	pdqSetDebug(debug); \

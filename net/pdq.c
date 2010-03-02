@@ -273,6 +273,16 @@ static const char usage_dns_round_robin[] =
 
 Option optDnsRoundRobin	= { "dns-round-robin",	"-", usage_dns_round_robin };
 
+static const char usage_dns_spamhaus_dbl[] =
+  "The name of the SpamHaus DBL feed being used. The public feed name is\n"
+"# dbl.spamhaus.org, but those who have purchased SpamHaus data feeds will\n"
+"# have a different feed name. This is required to identify and skip IP\n"
+"# lookups against the DBL, since SpamHaus policy is to return a false\n"
+"# positive code (127.0.1.255) for such queries.\n"
+"#"
+;
+Option optDnsSpamHausDbl = { "dns-spamhaus-dbl", "dbl.spamhaus.org", usage_dns_spamhaus_dbl };
+
 /***********************************************************************
  *** Support
  ***********************************************************************/
@@ -3290,7 +3300,8 @@ pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name,
 		 ***
 		 *** http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
 		 ***/
-		if (is_ip_lookup && TextInsensitiveCompare(*suffix + (**suffix == '.'), "dbl.spamhaus.org") == 0)
+		if (is_ip_lookup && optDnsSpamHausDbl.string != NULL
+		&& TextInsensitiveCompare(*suffix + (**suffix == '.'), optDnsSpamHausDbl.string) == 0)
 			continue;
 
 		(void) TextCopy(buffer+length, sizeof (buffer)-length, *suffix + (**suffix == '.'));
@@ -3845,6 +3856,14 @@ pdqSetSourcePortRandomisation(int flag)
 	pdq_source_port_randomise = flag;
 }
 
+void
+pdqSetSpamHausDbl(const char *feed_name)
+{
+	if (optDnsSpamHausDbl.initial != optDnsSpamHausDbl.string)
+		free(optDnsSpamHausDbl.string);
+	optDnsSpamHausDbl.string = strdup(feed_name);
+}
+
 /***********************************************************************
  *** CLI
  ***********************************************************************/
@@ -3858,12 +3877,13 @@ pdqSetSourcePortRandomisation(int flag)
 static char *query_server;
 
 static const char usage[] =
-"usage: pdq [-LprsSv][-c class][-l suffixes][-t sec][-q server]\n"
+"usage: pdq [-LprsSv][-c class][-F feed][-l suffixes][-t sec][-q server]\n"
 "           type name [type name ...]\n"
 "\n"
 "-c class\tone of IN (default), CH, CS, HS, or ANY\n"
 "-L\t\twait for all the replies from DNS lists, see -l\n"
 "-l suffixes\tcomma separated list of DNS list suffixes\n"
+"-F feed\t\talternative feed name for dbl.spamhaus.org\n"
 "-p\t\tprune invalid MX, NS, or SOA records\n"
 "-r\t\tenable round robin mode\n"
 "-s\t\tenable source port randomisation\n"
@@ -3961,7 +3981,7 @@ main(int argc, char **argv)
 	suffix_list = NULL;
 	class = PDQ_CLASS_IN;
 
-	while ((ch = getopt(argc, argv, "LprsSvc:l:t:q:")) != -1) {
+	while ((ch = getopt(argc, argv, "F:LprsSvc:l:t:q:")) != -1) {
 		switch (ch) {
 		case 'c':
 			class = pdqClassCode(optarg);
@@ -3973,6 +3993,10 @@ main(int argc, char **argv)
 
 		case 'l':
 			suffix_list = TextSplit(optarg, ",", 0);
+			break;
+
+		case 'F':
+			pdqSetSpamHausDbl(optarg);
 			break;
 
 		case 't':
