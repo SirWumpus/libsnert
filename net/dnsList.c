@@ -165,9 +165,9 @@ dnsListCreate(const char *string)
 
 #ifdef STRUCTURED_FIELDS
 /*
-$option="$suffix1;$suffix2;..."
+$option="$dns_list1;$dns_list2;..."
 
-$suffix is either
+$dns_list is either
 
 	$suffix/$mask    (currently available)
 
