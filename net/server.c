@@ -1185,7 +1185,6 @@ serverAccept(void *_server)
 						if (idle < queued && threads < server->option.max_threads) {
 							pthread_testcancel();
 							if (serverWorkerCreate(server)) {
-								sessionFinish(session);
 								continue;
 							}
 						}
