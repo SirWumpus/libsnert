@@ -3242,6 +3242,12 @@ pdqFetch(PDQ_class class, PDQ_type type, const char *name, const char *ns)
  * @param wait_fn
  *	Specify pdqWait or pdqWaitAll.
  *
+ * @param is_ip_lookup
+ *	A special HACK to deal with dbl.spamhaus.org, which ignores and
+ *	returns a false positive code (127.0.1.255) for IP address lookups.
+ *
+ *	http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
+ *
  * @return
  *	A PDQ_rr pointer to the head of records list or NULL if
  *	no result found. It is the caller's responsibility to
@@ -3258,7 +3264,7 @@ pdqFetch(PDQ_class class, PDQ_type type, const char *name, const char *ns)
  *	calls to pdqQuery().
  */
 PDQ_rr *
-pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *))
+pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *), int is_ip_lookup)
 {
 	size_t length;
 	const char **suffix;
@@ -3279,6 +3285,14 @@ pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name,
 		buffer[length++] = '.';
 
 	for (suffix = suffix_list; *suffix != NULL; suffix++) {
+		/*** HACK for dbl.spamhaus.org which ignores and returns
+		 *** a false positive code for IP address lookups.
+		 ***
+		 *** http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
+		 ***/
+		if (is_ip_lookup && TextInsensitiveCompare(*suffix + (**suffix == '.'), "dbl.spamhaus.org") == 0)
+			continue;
+
 		(void) TextCopy(buffer+length, sizeof (buffer)-length, *suffix + (**suffix == '.'));
 
 		if (pdqQuery(pdq, class, type, buffer, NULL))
@@ -3330,6 +3344,12 @@ error0:
  * @param wait_fn
  *	Specify pdqWait or pdqWaitAll.
  *
+ * @param is_ip_lookup
+ *	A special HACK to deal with dbl.spamhaus.org, which ignores and
+ *	returns a false positive code (127.0.1.255) for IP address lookups.
+ *
+ *	http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
+ *
  * @return
  *	A PDQ_rr pointer to the head of records list or NULL if
  *	no result found. It is the caller's responsibility to
@@ -3341,13 +3361,13 @@ error0:
  *	using pdqOpen(), pdqGetDnsList(), and pdqClose().
  */
 PDQ_rr *
-pdqFetchDnsList(PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *))
+pdqFetchDnsList(PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *), int is_ip_lookup)
 {
 	PDQ *pdq;
 	PDQ_rr *answer = NULL;
 
 	if ((pdq = pdqOpen()) != NULL) {
-		answer = pdqGetDnsList(pdq, class, type, prefix_name, suffix_list, wait_fn);
+		answer = pdqGetDnsList(pdq, class, type, prefix_name, suffix_list, wait_fn, is_ip_lookup);
 		pdqClose(pdq);
 	}
 
@@ -3933,7 +3953,7 @@ main(int argc, char **argv)
 	PDQ_rr *list, *answers;
 	PDQ_rr *(*wait_fn)(PDQ *);
 	char buffer[DOMAIN_STRING_LENGTH+1];
-	int ch, type, class, i, prune_list, check_soa;
+	int ch, type, class, i, prune_list, check_soa, is_ip_lookup;
 
 	check_soa = 0;
 	prune_list = 0;
@@ -4037,12 +4057,15 @@ main(int argc, char **argv)
 			if (prune_list)
 				list = pdqListPrune(list, IS_IP_RESTRICTED|IS_IP_LAN);
 		} else {
-			if (spanIP(argv[i+1]) == 0)
+			if (spanIP(argv[i+1]) == 0) {
 				(void) TextCopy(buffer, sizeof (buffer), argv[i+1]);
-			else
+				is_ip_lookup = 0;
+			} else {
 				(void) reverseIp(argv[i+1], buffer, sizeof (buffer), 0);
+				is_ip_lookup = 1;
+			}
 
-			list = pdqGetDnsList(pdq, class, type, buffer, (const char **) VectorBase(suffix_list), wait_fn);
+			list = pdqGetDnsList(pdq, class, type, buffer, (const char **) VectorBase(suffix_list), wait_fn, is_ip_lookup);
 		}
 
 		if (pdqIsCircular(list)) {

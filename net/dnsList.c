@@ -305,6 +305,17 @@ dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 
 			if ((bits & dns_list->masks[i]) != 0
 			&& isReservedIPv4(rr->address.ip.value + rr->address.ip.offset, IS_IP_LOCAL|IS_IP_THIS_NET)) {
+				/*** HACK for dbl.spamhaus.org which ignores
+				 *** and returns a false positive code for IP
+				 *** address lookups.
+				 ***
+				 *** http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
+				 ***
+				 *** Ignore 127.0.1.255 responses.
+				 ***/
+				if (bits == 0x7F0001FF)
+					break;
+
 				if (0 < debug)
 					syslog(LOG_DEBUG, "found %s %s", rr->rr.name.string.value, rr->address.string.value);
 
@@ -339,15 +350,16 @@ dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 const char *
 dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 {
-	int offset = 0;
 	PDQ_rr *answers;
 	const char *list_name = NULL;
+	int offset = 0, is_ip_lookup = 0;
 	char buffer[DOMAIN_STRING_LENGTH];
 
 	if (dns_list == NULL || name == NULL || *name == '\0')
 		return NULL;
 
 	if (0 < spanIP(name)) {
+		is_ip_lookup = 1;
 		(void) reverseIp(name, buffer, sizeof (buffer), 0);
 		name = buffer;
 	}
@@ -372,7 +384,7 @@ dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *nam
 
 	answers = pdqGetDnsList(
 		pdq, PDQ_CLASS_IN, PDQ_TYPE_A, name+offset,
-		(const char **) VectorBase(dns_list->suffixes), pdqWait
+		(const char **) VectorBase(dns_list->suffixes), pdqWait, is_ip_lookup
 	);
 
 	if (answers != NULL) {

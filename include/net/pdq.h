@@ -601,6 +601,12 @@ extern PDQ_rr *pdqFetch(PDQ_class class, PDQ_type type, const char *name, const 
  * @param wait_fn
  *	Specify pdqWait or pdqWaitAll.
  *
+ * @param is_ip_lookup
+ *	A special HACK to deal with dbl.spamhaus.org, which ignores and
+ *	returns a false positive code (127.0.1.255) for IP address lookups.
+ *
+ *	http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
+ *
  * @return
  *	A PDQ_rr pointer to the head of records list or NULL if
  *	no result found. It is the caller's responsibility to
@@ -616,7 +622,7 @@ extern PDQ_rr *pdqFetch(PDQ_class class, PDQ_type type, const char *name, const 
  *	discard any incomplete queries previously queued by earlier
  *	calls to pdqQuery().
  */
-extern PDQ_rr *pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *));
+extern PDQ_rr *pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *), int is_ip_lookup);
 
 /**
  * @param class
@@ -634,6 +640,12 @@ extern PDQ_rr *pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const cha
  * @param wait_fn
  *	Specify pdqWait or pdqWaitAll.
  *
+ * @param is_ip_lookup
+ *	A special HACK to deal with dbl.spamhaus.org, which ignores and
+ *	returns a false positive code (127.0.1.255) for IP address lookups.
+ *
+ *	http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
+ *
  * @return
  *	A PDQ_rr pointer to the head of records list or NULL if
  *	no result found. It is the caller's responsibility to
@@ -644,7 +656,7 @@ extern PDQ_rr *pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const cha
  *	steps to perform an asynchronus lookup of DNS based lists
  *	using pdqOpen(), pdqGetDnsList(), and pdqClose().
  */
-extern PDQ_rr *pdqFetchDnsList(PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *));
+extern PDQ_rr *pdqFetchDnsList(PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *), int is_ip_lookup);
 
 /**
  * @param pdq
