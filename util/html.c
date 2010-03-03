@@ -398,7 +398,7 @@ stripMimePartFinish(Mime *m)
 
 	if (0 < ctx->part_length)
 		fputs("\r\n", stdout);
-	fputs(m->source.buffer, stdout);
+	fputs((char *) m->source.buffer, stdout);
 
 	ctx->text_html = 0;
 	ctx->html_state = 0;
@@ -436,7 +436,7 @@ main(int argc, char **argv)
 			break;
 
 		default:
-			(void) fprintf(stderr, usage);
+			(void) fputs(usage, stderr);
 			exit(EX_USAGE);
 		}
 	}

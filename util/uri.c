@@ -1555,13 +1555,13 @@ main(int argc, char **argv)
 			pdqSetDebug(1);
 			break;
 		default:
-			(void) fprintf(stderr, usage);
+			(void) fputs(usage, stderr);
 			return EX_USAGE;
 		}
 	}
 
 	if (argc <= optind) {
-		(void) fprintf(stderr, usage);
+		(void) fputs(usage, stderr);
 		return EX_USAGE;
 	}
 
