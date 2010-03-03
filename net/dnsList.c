@@ -535,14 +535,36 @@ const char *
 dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 {
 	PDQ_rr *list;
+	PDQ_AAAA aaaa;
 	const char *list_name = NULL;
 
 	if (dns_list == NULL || name == NULL || *name == '\0')
 		return NULL;
 
-	list = pdqGet5A(pdq, PDQ_CLASS_IN, name);
+	memset(&aaaa, 0, sizeof (aaaa));
+	if (0 < (aaaa.address.string.length = parseIPv6(name, aaaa.address.ip.value))) {
+		/* Create a psuedo A record. */
+		aaaa.rr.name.string.length = TextCopy(aaaa.rr.name.string.value, sizeof (aaaa.rr.name.string.value), name);
+		(void) TextCopy(aaaa.address.string.value, sizeof (aaaa.address.string.value), name);
+
+		if (isReservedIPv6(aaaa.address.ip.value, IS_IP_V4)) {
+			aaaa.address.ip.offset = IPV6_OFFSET_IPV4;
+			aaaa.rr.type = PDQ_TYPE_A;
+		} else {
+			aaaa.rr.type = PDQ_TYPE_AAAA;
+		}
+
+		aaaa.rr.section = PDQ_SECTION_ANSWER;
+		aaaa.rr.class = PDQ_CLASS_IN;
+		list = &aaaa.rr;
+	} else {
+		list = pdqGet5A(pdq, PDQ_CLASS_IN, name);
+	}
+
 	list_name = dnsListCheckIP(dns_list, pdq, names_seen, name, list);
-	pdqListFree(list);
+
+	if (list != &aaaa.rr)
+		pdqListFree(list);
 
 	return list_name;
 }
