@@ -65,6 +65,7 @@ const char uriErrorParse[] = "URI parse error";
 const char uriErrorPort[] = "unknown port";
 const char uriErrorRead[] = "socket read error";
 const char uriErrorWrite[] = "socket write error";
+const char uriErrorOverflow[] = "buffer overflow";
 
 int uriDebug;
 
@@ -86,6 +87,7 @@ static char uri_reserved[] = "%:/?#[]@!$&'()*+,;=|";
 static char uri_unreserved[] = "-_.~";
 #endif
 static long socket_timeout = SOCKET_CONNECT_TIMEOUT;
+static const char log_error[] = "%s(%d): %s";
 
 /***********************************************************************
  *** URI related support routines.
@@ -723,6 +725,65 @@ uriDecode(const char *s)
 	return decoded;
 }
 
+static URI *
+uri_http_list(const char *list, const char *delim)
+{
+	int i;
+	Vector args;
+	char *arg, *ptr;
+	const char *error;
+	URI *uri, *origin;
+
+	if (list == NULL)
+		return NULL;
+
+	origin = NULL;
+	args = TextSplit(list, delim, 0);
+
+	for (i = 0; i < VectorLength(args); i++) {
+		if ((arg = VectorGet(args, i)) == NULL)
+			continue;
+
+		/* Skip leading symbol name and equals sign. */
+		for (ptr = arg; *ptr != '\0'; ptr++) {
+			if (!isalnum(*ptr) && *ptr != '_') {
+				if (*ptr == '=')
+					arg = ptr+1;
+				break;
+			}
+		}
+
+		if ((uri = uriParse2(arg, -1, 1)) != NULL) {
+			error = uriHttpOrigin(uri->uri, &origin);
+			free(uri);
+			if (error == NULL)
+				break;
+		}
+	}
+
+	VectorDestroy(args);
+
+	return origin;
+}
+
+static URI *
+uri_http_query(URI *uri)
+{
+	URI *origin;
+
+	if (uri == NULL)
+		return NULL;
+
+	if (uri->query == NULL)
+		origin = uri_http_list(uri->path, "&");
+	else if ((origin = uri_http_list(uri->query, "&")) == NULL)
+		origin = uri_http_list(uri->query, "/");
+	if (origin == NULL)
+		origin = uri_http_list(uri->path, "/");
+
+	return origin;
+}
+
 /**
  * @param url
  *	Find the HTTP origin server by following all redirections.
@@ -747,10 +808,7 @@ uriHttpOrigin(const char *url, URI **origin)
 	Socket2 *socket;
 	const char *error;
 	int port, n, redirect_count;
-	char *buffer, *freeurl, *visited_uri;
-
-	uri = NULL;
-	error = NULL;
+	char *buffer, **visited_url;
 
 	if (url == NULL && origin == NULL) {
 		error = uriErrorNullArgument;
@@ -758,39 +816,41 @@ uriHttpOrigin(const char *url, URI **origin)
 		goto error0;
 	}
 
+	uri = NULL;
+	error = NULL;
+	*origin = NULL;
+
 	if ((buffer = malloc(HTTP_BUFFER_SIZE)) == NULL) {
 		error = uriErrorMemory;
-		syslog(LOG_ERR, "uriHttpOrigin(): %s", error);
-		goto error1;
+		syslog(LOG_ERR, log_error, __FILE__, __LINE__, error);
+		goto error0;
 	}
 
 	if ((visited = VectorCreate(10)) == NULL) {
 		error = uriErrorMemory;
-		syslog(LOG_ERR, "uriHttpOrigin(): %s", error);
-		goto error2;
+		syslog(LOG_ERR, log_error, __FILE__, __LINE__, error);
+		goto error1;
 	}
 
 	VectorSetDestroyEntry(visited, free);
 
-	redirect_count = 0;
-	for (socket = NULL, freeurl = NULL; ; ) {
-		for (n = 0; n < VectorLength(visited); n++) {
-			if ((visited_uri = VectorGet(visited, n)) == NULL)
-				continue;
-
-			if (TextInsensitiveCompare(url, visited_uri) == 0) {
+	for (socket = NULL, redirect_count = 0; ; ) {
+		for (visited_url = (char **) VectorBase(visited); *visited_url != NULL; visited_url++) {
+			if (TextInsensitiveCompare(url, *visited_url) == 0) {
 				error = uriErrorLoop;
 				if (0 < uriDebug)
 					syslog(LOG_DEBUG, "%s: %s", error, url);
-				goto error3;
+				goto error2;
 			}
 		}
 
 		if (VectorAdd(visited, strdup(url))) {
 			error = uriErrorMemory;
-			syslog(LOG_ERR, "uriHttpOrigin(): %s", error);
-			goto error3;
+			syslog(LOG_ERR, log_error, __FILE__, __LINE__, error);
+			goto error2;
 		}
+
+		free(uri);
 
 		/* Consider current URL trend for shorter strings using
 		 * single dot domains, eg. http://twitter.com/
@@ -799,14 +859,14 @@ uriHttpOrigin(const char *url, URI **origin)
 			error = uriErrorParse;
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "%s: %s", error, url);
-			goto error3;
+			goto error2;
 		}
 
 		if ((port = uriGetSchemePort(uri)) == -1) {
 			error = uriErrorPort;
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "%s: %s", error, uri->uriDecoded);
-			goto error3;
+			goto error2;
 		}
 
 		/* We won't bother with https: nor anything that didn't
@@ -817,8 +877,12 @@ uriHttpOrigin(const char *url, URI **origin)
 			error = uriErrorNotHttp;
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "%s: %s", error, uri->uriDecoded);
-			goto error3;
+			goto error2;
 		}
+
+		/* Check URI query string first if any. */
+		if ((*origin = uri_http_query(uri)) != NULL)
+			break;
 
 		if (0 < uriDebug)
 			syslog(LOG_DEBUG, "connect %s:%d", uri->host, port);
@@ -829,7 +893,7 @@ uriHttpOrigin(const char *url, URI **origin)
 			error = uriErrorConnect;
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "%s: %s:%d", error, uri->host, port);
-			goto error3;
+			goto error2;
 		}
 #ifdef __unix__
 		(void) fileSetCloseOnExec(socketGetFd(socket), 1);
@@ -840,52 +904,65 @@ uriHttpOrigin(const char *url, URI **origin)
 		 * minimize  identifying / confirming anything.
 		 */
 		n = snprintf(
-			buffer, HTTP_BUFFER_SIZE, "HEAD %s%s%s%s HTTP/1.0\r\nHost: %s:%d\r\n\r\n",
+			buffer, HTTP_BUFFER_SIZE, "HEAD %s%s%s%s HTTP/1.0\r\nHost: %s",
 			(uri->path == NULL || *uri->path != '/') ? "/" : "",
 			uri->path == NULL ? "" : uri->path,
 			(0 < redirect_count && uri->query != NULL) ? "?" : "",
 			(0 < redirect_count && uri->query != NULL) ? uri->query : "",
-			uri->host, port
+			uri->host
 		);
 
+		/* Some spam servers react differently when the default
+		 * port 80 is appended to the host name. In one test case
+		 * with the port, the server redirected back to the same
+		 * URL creating a loop; without the port, it redirected back
+		 * to the same host, but a different path that eventually
+		 * resulted in a 200 status.
+		 */
+		if (port != 80)
+			n += snprintf(buffer+n, HTTP_BUFFER_SIZE-n, ":%d", port);
+
+		n += snprintf(buffer+n, HTTP_BUFFER_SIZE-n, "\r\n\r\n");
+
 		if (0 < uriDebug)
-			syslog(LOG_DEBUG, "> %s", buffer);
+			syslog(LOG_DEBUG, "> %d:%s", n, buffer);
 
 		if (socketWrite(socket, (unsigned char *) buffer, n) != n) {
 			error = uriErrorWrite;
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "%s: %s:%d", error, uri->host, port);
-			goto error3;
+			goto error2;
 		}
 
 		if ((n = (int) socketReadLine(socket, buffer, HTTP_BUFFER_SIZE)) < 0) {
 			error = uriErrorRead;
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "%s (%d): %s:%d", error, n, uri->host, port);
-			goto error3;
+			goto error2;
 		}
 
 		if (0 < uriDebug)
-			syslog(LOG_DEBUG, "< %s", buffer);
+			syslog(LOG_DEBUG, "< %d:%s", n, buffer);
 
 		if (sscanf(buffer, "HTTP/%*s %d", &uri->status) != 1) {
 			error = uriErrorHttpResponse;
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "%s: %s", error, buffer);
-			goto error3;
+			goto error2;
 		}
 
 		if (400 <= uri->status) {
 			error = uriErrorNoOrigin;
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "%s: %s", error, uri->uriDecoded);
-			goto error3;
+			goto error2;
 		}
 
 		/* Have we found the origin server? */
 		if (200 <= uri->status && uri->status < 300) {
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "found HTTP origin %s:%d", uri->host, uriGetSchemePort(uri));
+			*origin = uri;
 			goto origin_found;
 		}
 
@@ -896,30 +973,30 @@ uriHttpOrigin(const char *url, URI **origin)
 
 		while (0 < (n = socketReadLine(socket, buffer, HTTP_BUFFER_SIZE))) {
 			if (0 < uriDebug)
-				syslog(LOG_DEBUG, "< %s", buffer);
+				syslog(LOG_DEBUG, "< %d:%s", n, buffer);
 			if (0 < TextInsensitiveStartsWith(buffer, "Location:")) {
 				url = buffer + sizeof("Location:")-1;
 				url += strspn(url, " \t");
-
-				free(freeurl);
-				freeurl = NULL;
 
 				/* Is it a redirection on the same server,
 				 * ie. no http://host:port given?
 				 */
 				if (*url == '/') {
-					size_t size = 7 + strlen(uri->host) + 16 + strlen(url) + 1;
-					if ((freeurl = malloc(size)) == NULL) {
-						error = uriErrorMemory;
-						syslog(LOG_ERR, "uriHttpOrigin(): %s", error);
-						goto error3;
+					/* Use the upper portion of the buffer
+					 * just past the end of the line to
+					 * construct a new URL.
+					 */
+					int length = snprintf(buffer+n, HTTP_BUFFER_SIZE-n, "http://%s:%d%s", uri->host, port, url);
+
+					if (HTTP_BUFFER_SIZE-n <= length) {
+						error = uriErrorOverflow;
+						syslog(LOG_ERR, log_error, __FILE__, __LINE__, error);
+						goto error2;
 					}
-					snprintf(freeurl, size, "http://%s:%d%s", uri->host, port, url);
-					url = freeurl;
+
+					url = buffer+n;
 				}
 
-				free(uri);
-				uri = NULL;
 				redirect_count++;
 				break;
 			}
@@ -929,23 +1006,16 @@ uriHttpOrigin(const char *url, URI **origin)
 			error = uriErrorNoLocation;
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "%s: %s:%d", error, uri->host, port);
-			goto error3;
+			goto error2;
 		}
 	}
-
-	/*@notreached@*/
-
-error3:
+error2:
 	free(uri);
-	uri = NULL;
 origin_found:
 	VectorDestroy(visited);
 	socketClose(socket);
-	free(freeurl);
-error2:
-	free(buffer);
 error1:
-	*origin = uri;
+	free(buffer);
 error0:
 	return error;
 }
@@ -1214,7 +1284,7 @@ static Vector mail_bl_domains;
 #endif
 
 static char usage[] =
-"usage: uri [-aDflpqRsv][-A delim][-i ip-bl,...][-m mail-bl][-M domain-pat,...]\n"
+"usage: uri [-aDflLpqRsv][-A delim][-i ip-bl,...][-m mail-bl][-M domain-pat,...]\n"
 "           [-n ns-bl,...][-N ns-ip-bl,...][-u uri-bl,...][-P ports][-Q ns,...]\n"
 "           [-t sec][-T sec][arg ...]\n"
 "\n"
@@ -1225,6 +1295,7 @@ static char usage[] =
 "-i ip-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
 "-l\t\tcheck HTTP links are valid & find origin server\n"
+"-L\t\twait for all the replies from DNS lists, use with -v\n"
 "-m mail-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
 "-M domain,...\tlist of domain glob-like patterns by which to limit\n"
@@ -1286,6 +1357,48 @@ Vector mail_names_seen;
 const char *name_servers;
 
 void
+test_uri(URI *uri, const char *filename)
+{
+	PDQ_valid_soa code;
+	const char *list_name = NULL;
+
+	if ((list_name = dnsListQueryDomain(uri_bl_list, pdq, NULL, check_subdomains, uri->host)) != NULL) {
+		if (filename != NULL)
+			printf("%s: ", filename);
+		printf("%s domain blacklisted %s\n", uri->host, list_name);
+		exit_code = EXIT_FAILURE;
+	}
+
+	if ((list_name = dnsListQueryIP(ip_bl_list, pdq, NULL, uri->host)) != NULL) {
+		if (filename != NULL)
+			printf("%s: ", filename);
+		printf("%s IP blacklisted %s\n", uri->host, list_name);
+		exit_code = EXIT_FAILURE;
+	}
+
+	if ((list_name = dnsListQueryNs(ns_bl_list, ns_ip_bl_list, pdq, ns_names_seen, uri->host)) != NULL) {
+		if (filename != NULL)
+			printf("%s: ", filename);
+		printf("%s NS blacklisted %s\n", uri->host, list_name);
+		exit_code = EXIT_FAILURE;
+	}
+
+	if (uriGetSchemePort(uri) == 25 && (list_name = dnsListQueryMail(mail_bl_list, pdq, mail_bl_domains, mail_names_seen, uri->uriDecoded)) != NULL) {
+		if (filename != NULL)
+			printf("%s: ", filename);
+		printf("%s mail blacklisted %s\n", uri->uriDecoded, list_name);
+		exit_code = EXIT_FAILURE;
+	}
+
+	if (check_soa && (code = pdqTestSOA(pdq, PDQ_CLASS_IN, uri->host, NULL)) != PDQ_SOA_OK) {
+		if (filename != NULL)
+			printf("%s: ", filename);
+		printf("%s bad SOA %s (%d)\n", uri->host, pdqSoaName(code), code);
+		exit_code = EXIT_FAILURE;
+	}
+}
+
+void
 process(URI *uri, const char *filename)
 {
 	long *p;
@@ -1333,43 +1446,12 @@ process(URI *uri, const char *filename)
 			exit_code = EXIT_FAILURE;
 	}
 
-	if (uri->host != NULL) {
-		PDQ_valid_soa code;
-		const char *list_name = NULL;
-		if ((list_name = dnsListQuery(uri_bl_list, pdq, NULL, check_subdomains, uri->host)) != NULL) {
-			if (filename != NULL)
-				printf("%s: ", filename);
-			printf("%s domain blacklisted %s\n", uri->host, list_name);
-			exit_code = EXIT_FAILURE;
-		}
+	if (uri->host != NULL)
+		test_uri(uri, filename);
 
-		if ((list_name = dnsListQueryIP(ip_bl_list, pdq, NULL, uri->host)) != NULL) {
-			if (filename != NULL)
-				printf("%s: ", filename);
-			printf("%s IP blacklisted %s\n", uri->host, list_name);
-			exit_code = EXIT_FAILURE;
-		}
-
-		if ((list_name = dnsListQueryNs(ns_bl_list, ns_ip_bl_list, pdq, ns_names_seen, uri->host)) != NULL) {
-			if (filename != NULL)
-				printf("%s: ", filename);
-			printf("%s NS blacklisted %s\n", uri->host, list_name);
-			exit_code = EXIT_FAILURE;
-		}
-
-		if (uriGetSchemePort(uri) == 25 && (list_name = dnsListQueryMail(mail_bl_list, pdq, mail_bl_domains, mail_names_seen, uri->uriDecoded)) != NULL) {
-			if (filename != NULL)
-				printf("%s: ", filename);
-			printf("%s mail blacklisted %s\n", uri->uriDecoded, list_name);
-			exit_code = EXIT_FAILURE;
-		}
-
-		if (check_soa && (code = pdqTestSOA(pdq, PDQ_CLASS_IN, uri->host, NULL)) != PDQ_SOA_OK) {
-			if (filename != NULL)
-				printf("%s: ", filename);
-			printf("%s bad SOA %s (%d)\n", uri->host, pdqSoaName(code), code);
-			exit_code = EXIT_FAILURE;
-		}
+	if (origin != NULL && origin->host != NULL && strcmp(uri->host, origin->host) != 0) {
+		test_uri(origin, filename);
+		free(origin);
 	}
 }
 
@@ -1480,7 +1562,7 @@ main(int argc, char **argv)
 	URI *uri;
 	int i, ch;
 
-	while ((ch = getopt(argc, argv, "aA:Dm:M:i:n:N:u:flmpP:qQ:RsT:t:v")) != -1) {
+	while ((ch = getopt(argc, argv, "aA:Dm:M:i:n:N:u:flLmpP:qQ:RsT:t:v")) != -1) {
 		switch (ch) {
 		case 'a':
 			check_all = 1;
@@ -1515,6 +1597,9 @@ main(int argc, char **argv)
 		case 'l':
 			check_link = 1;
 			break;
+		case 'L':
+			dnsListSetWaitAll(1);
+			break;;
 		case 'P':
 			print_uri_ports = TextSplit(optarg, ",", 0);
 			break;

@@ -176,6 +176,7 @@ extern const char uriErrorParse[];
 extern const char uriErrorPort[];
 extern const char uriErrorRead[];
 extern const char uriErrorWrite[];
+extern const char uriErrorOverflow[];
 
 /**
  * @param host
