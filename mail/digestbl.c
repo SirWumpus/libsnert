@@ -173,7 +173,7 @@ dnsListLookup(DnsList *dnslist, const char *name)
 
 	answers = pdqFetchDnsList(
 		PDQ_CLASS_IN, PDQ_TYPE_A, name,
-		(const char **) VectorBase(dnslist->suffixes), pdqWait, 0
+		(const char **) VectorBase(dnslist->suffixes), pdqWait
 	);
 
 	if (answers != NULL) {
