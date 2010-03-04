@@ -35,6 +35,7 @@
 static int debug;
 static FILE *log_file;
 static DnsListLogResult log_what;
+static PDQ_rr *(*wait_fn)(PDQ *) = pdqWait;
 
 static const char usage_dns_list_log_file[] =
   "File name used to log DNS list lookup results separate from syslog.\n"
@@ -64,6 +65,12 @@ void
 dnsListSetDebug(int level)
 {
 	debug = level;
+}
+
+void
+dnsListSetWaitAll(int flag)
+{
+	wait_fn = flag ? pdqWaitAll : pdqWait;
 }
 
 void
@@ -384,7 +391,7 @@ dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *nam
 
 	answers = pdqGetDnsList(
 		pdq, PDQ_CLASS_IN, PDQ_TYPE_A, name+offset,
-		(const char **) VectorBase(dns_list->suffixes), pdqWait, is_ip_lookup
+		(const char **) VectorBase(dns_list->suffixes), wait_fn, is_ip_lookup
 	);
 
 	if (answers != NULL) {
@@ -420,14 +427,14 @@ dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *nam
  *	dnsListQueryName.
  *
  * @param name
- *	A host or domain name to query in one or more DNS lists.
+ *	A host, domain, or IP to query in one or more DNS lists.
  *
  * @return
  *	A C string pointer to a list name in which name is a member.
  *	Otherwise NULL if name was not found in a DNS list.
  */
 const char *
-dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domains, const char *name)
+dnsListQueryDomain(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domains, const char *name)
 {
 	int offset;
 	const char *list_name = NULL;
@@ -435,24 +442,27 @@ dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domain
 	if (dns_list == NULL || name == NULL || *name == '\0')
 		return NULL;
 
-	/* Find start of TLD. */
+	/* Find start of 1st or 2nd level TLD. */
 	offset = indexValidTLD(name);
 
 	if (offset < 0) {
-		unsigned char ipv6[IPV6_BYTE_LENGTH];
-
-		if (parseIPv6(name, ipv6) <= 0)
+		if (spanIP(name) <= 0)
 			return NULL;
 
 		/* Is an IP address. */
 		offset = 0;
 	}
 
-	/* Scan domain and subdomains from right-to-left. */
+	/* Query domain and sub-domains from right-to-left
+	 * starting with first label below the TLD. For lists
+	 * like SURBL and URIBL that tend to list the parent
+	 * domain, this allows for a possible hit on the
+	 * first query.
+	 */
 	do {
 		offset = strlrcspn(name, offset-1, ".");
 		if (0 < debug)
-			syslog(LOG_DEBUG, "dnsListQuery name=\"%s\" offset=%d", name, offset);
+			syslog(LOG_DEBUG, "dnsListQueryDomain name=\"%s\" offset=%d", name, offset);
 
 		if ((list_name = dnsListQueryName(dns_list, pdq, names_seen, name+offset)) != NULL) {
 			if (0 < debug)
@@ -587,7 +597,7 @@ dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
  *
  * @param name
  *	A host or domain name whos NS records are first found and
- *	then passed to dnsListQuery.
+ *	then passed to dnsListQueryDomain.
  *
  * @return
  *	A C string pointer to a list name in which name is a member.
@@ -641,7 +651,7 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 						ns_found = 1;
 						if ((list_name = dnsListCheckIP(ns_ip_bl, pdq, names_seen, ((PDQ_NS *) rr)->host.string.value, ns_list)) != NULL)
 							goto ns_list_break;
-						if ((list_name = dnsListQuery(ns_bl, pdq, names_seen, 1, ((PDQ_NS *) rr)->host.string.value)) != NULL)
+						if ((list_name = dnsListQueryDomain(ns_bl, pdq, names_seen, 1, ((PDQ_NS *) rr)->host.string.value)) != NULL)
 							goto ns_list_break;
 					}
 					break;
@@ -666,17 +676,20 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 					if (!ns_found && rr->type == PDQ_TYPE_SOA) {
 						if ((list_name = dnsListCheckIP(ns_ip_bl, pdq, names_seen, ((PDQ_SOA *) rr)->mname.string.value, ns_list)) != NULL)
 							goto ns_list_break;
-						if ((list_name = dnsListQuery(ns_bl, pdq, names_seen, 1, ((PDQ_SOA *) rr)->mname.string.value)) != NULL)
+						if ((list_name = dnsListQueryDomain(ns_bl, pdq, names_seen, 1, ((PDQ_SOA *) rr)->mname.string.value)) != NULL)
 							goto ns_list_break;
 					}
 					goto ns_list_break;
+
+				default:
+					break;
 				}
 			}
 ns_list_break:
 			pdqListFree(ns_list);
 
 			/* We found a non-empty NS list for a (sub)domain.
-			 * The dnsListQuery either timed out, failed, or
+			 * The dnsListQueryDomain either timed out, failed, or
 			 * succeeded. We can stop processing parent
 			 * domains.
 			 */

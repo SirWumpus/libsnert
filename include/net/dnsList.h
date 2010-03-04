@@ -49,6 +49,13 @@ typedef enum {
 extern void dnsListSetDebug(int level);
 
 /**
+ * @param flag
+ *	When set true, wait for all the replies from DNS lists; otherwise
+ *	wait for only the first reply (default);
+ */
+extern void dnsListSetWaitAll(int flag);
+
+/**
  *
  */
 extern int dnsListLogOpen(const char *filename, DnsListLogResult what);
@@ -130,13 +137,13 @@ extern const char *dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_se
  *	dnsListQueryName.
  *
  * @param name
- *	A host or domain name to query in one or more DNS lists.
+ *	A host, domain, or IP to query in one or more DNS lists.
  *
  * @return
  *	A C string pointer to a list name in which name is a member.
  *	Otherwise NULL if name was not found in a DNS list.
  */
-extern const char *dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domains, const char *name);
+extern const char *dnsListQueryDomain(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domains, const char *name);
 
 /**
  * @param ns_bl
@@ -156,7 +163,7 @@ extern const char *dnsListQuery(DnsList *dns_list, PDQ *pdq, Vector names_seen, 
  *
  * @param name
  *	A host or domain name whos NS records are first found and
- *	then passed to dnsListQuery.
+ *	then passed to dnsListQueryDomain.
  *
  * @return
  *	A C string pointer to a list name in which name is a member.
