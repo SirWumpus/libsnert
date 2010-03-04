@@ -273,16 +273,6 @@ static const char usage_dns_round_robin[] =
 
 Option optDnsRoundRobin	= { "dns-round-robin",	"-", usage_dns_round_robin };
 
-static const char usage_dns_spamhaus_dbl[] =
-  "The name of the SpamHaus DBL feed being used. The public feed name is\n"
-"# dbl.spamhaus.org, but those who have purchased SpamHaus data feeds will\n"
-"# have a different feed name. This is required to identify and skip IP\n"
-"# lookups against the DBL, since SpamHaus policy is to return a false\n"
-"# positive code (127.0.1.255) for such queries.\n"
-"#"
-;
-Option optDnsSpamHausDbl = { "dns-spamhaus-dbl", "dbl.spamhaus.org", usage_dns_spamhaus_dbl };
-
 /***********************************************************************
  *** Support
  ***********************************************************************/
@@ -3252,12 +3242,6 @@ pdqFetch(PDQ_class class, PDQ_type type, const char *name, const char *ns)
  * @param wait_fn
  *	Specify pdqWait or pdqWaitAll.
  *
- * @param is_ip_lookup
- *	A special HACK to deal with dbl.spamhaus.org, which ignores and
- *	returns a false positive code (127.0.1.255) for IP address lookups.
- *
- *	http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
- *
  * @return
  *	A PDQ_rr pointer to the head of records list or NULL if
  *	no result found. It is the caller's responsibility to
@@ -3274,7 +3258,7 @@ pdqFetch(PDQ_class class, PDQ_type type, const char *name, const char *ns)
  *	calls to pdqQuery().
  */
 PDQ_rr *
-pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *), int is_ip_lookup)
+pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *))
 {
 	size_t length;
 	const char **suffix;
@@ -3295,15 +3279,6 @@ pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name,
 		buffer[length++] = '.';
 
 	for (suffix = suffix_list; *suffix != NULL; suffix++) {
-		/*** HACK for dbl.spamhaus.org which ignores and returns
-		 *** a false positive code for IP address lookups.
-		 ***
-		 *** http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
-		 ***/
-		if (is_ip_lookup && optDnsSpamHausDbl.string != NULL
-		&& TextInsensitiveCompare(*suffix + (**suffix == '.'), optDnsSpamHausDbl.string) == 0)
-			continue;
-
 		(void) TextCopy(buffer+length, sizeof (buffer)-length, *suffix + (**suffix == '.'));
 
 		if (pdqQuery(pdq, class, type, buffer, NULL))
@@ -3355,12 +3330,6 @@ error0:
  * @param wait_fn
  *	Specify pdqWait or pdqWaitAll.
  *
- * @param is_ip_lookup
- *	A special HACK to deal with dbl.spamhaus.org, which ignores and
- *	returns a false positive code (127.0.1.255) for IP address lookups.
- *
- *	http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
- *
  * @return
  *	A PDQ_rr pointer to the head of records list or NULL if
  *	no result found. It is the caller's responsibility to
@@ -3372,13 +3341,13 @@ error0:
  *	using pdqOpen(), pdqGetDnsList(), and pdqClose().
  */
 PDQ_rr *
-pdqFetchDnsList(PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *), int is_ip_lookup)
+pdqFetchDnsList(PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *))
 {
 	PDQ *pdq;
 	PDQ_rr *answer = NULL;
 
 	if ((pdq = pdqOpen()) != NULL) {
-		answer = pdqGetDnsList(pdq, class, type, prefix_name, suffix_list, wait_fn, is_ip_lookup);
+		answer = pdqGetDnsList(pdq, class, type, prefix_name, suffix_list, wait_fn);
 		pdqClose(pdq);
 	}
 
@@ -3856,14 +3825,6 @@ pdqSetSourcePortRandomisation(int flag)
 	pdq_source_port_randomise = flag;
 }
 
-void
-pdqSetSpamHausDbl(const char *feed_name)
-{
-	if (optDnsSpamHausDbl.initial != optDnsSpamHausDbl.string)
-		free(optDnsSpamHausDbl.string);
-	optDnsSpamHausDbl.string = strdup(feed_name);
-}
-
 /***********************************************************************
  *** CLI
  ***********************************************************************/
@@ -3877,13 +3838,12 @@ pdqSetSpamHausDbl(const char *feed_name)
 static char *query_server;
 
 static const char usage[] =
-"usage: pdq [-LprsSv][-c class][-F feed][-l suffixes][-t sec][-q server]\n"
+"usage: pdq [-LprsSv][-c class][-l suffixes][-t sec][-q server]\n"
 "           type name [type name ...]\n"
 "\n"
 "-c class\tone of IN (default), CH, CS, HS, or ANY\n"
 "-L\t\twait for all the replies from DNS lists, see -l\n"
 "-l suffixes\tcomma separated list of DNS list suffixes\n"
-"-F feed\t\talternative feed name for dbl.spamhaus.org\n"
 "-p\t\tprune invalid MX, NS, or SOA records\n"
 "-r\t\tenable round robin mode\n"
 "-s\t\tenable source port randomisation\n"
@@ -3973,7 +3933,7 @@ main(int argc, char **argv)
 	PDQ_rr *list, *answers;
 	PDQ_rr *(*wait_fn)(PDQ *);
 	char buffer[DOMAIN_STRING_LENGTH+1];
-	int ch, type, class, i, prune_list, check_soa, is_ip_lookup;
+	int ch, type, class, i, prune_list, check_soa;
 
 	check_soa = 0;
 	prune_list = 0;
@@ -3981,7 +3941,7 @@ main(int argc, char **argv)
 	suffix_list = NULL;
 	class = PDQ_CLASS_IN;
 
-	while ((ch = getopt(argc, argv, "F:LprsSvc:l:t:q:")) != -1) {
+	while ((ch = getopt(argc, argv, "LprsSvc:l:t:q:")) != -1) {
 		switch (ch) {
 		case 'c':
 			class = pdqClassCode(optarg);
@@ -3993,10 +3953,6 @@ main(int argc, char **argv)
 
 		case 'l':
 			suffix_list = TextSplit(optarg, ",", 0);
-			break;
-
-		case 'F':
-			pdqSetSpamHausDbl(optarg);
 			break;
 
 		case 't':
@@ -4081,15 +4037,12 @@ main(int argc, char **argv)
 			if (prune_list)
 				list = pdqListPrune(list, IS_IP_RESTRICTED|IS_IP_LAN);
 		} else {
-			if (spanIP(argv[i+1]) == 0) {
+			if (spanIP(argv[i+1]) == 0)
 				(void) TextCopy(buffer, sizeof (buffer), argv[i+1]);
-				is_ip_lookup = 0;
-			} else {
+			else
 				(void) reverseIp(argv[i+1], buffer, sizeof (buffer), 0);
-				is_ip_lookup = 1;
-			}
 
-			list = pdqGetDnsList(pdq, class, type, buffer, (const char **) VectorBase(suffix_list), wait_fn, is_ip_lookup);
+			list = pdqGetDnsList(pdq, class, type, buffer, (const char **) VectorBase(suffix_list), wait_fn);
 		}
 
 		if (pdqIsCircular(list)) {
