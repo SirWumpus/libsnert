@@ -19,10 +19,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(HAVE_SYSLOG_H) && ! defined(__MINGW32__)
-# include <syslog.h>
+#ifndef __MINGW32__
+# if defined(HAVE_SYSLOG_H)
+#  include <syslog.h>
+# endif
 #endif
 
+#include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/mail/limits.h>
 #include <com/snert/lib/mail/MailSpan.h>
@@ -69,9 +72,9 @@ static const ParsePath nullPath = {
 static int debug = 0;
 
 void
-parsePathDebug(int flag)
+parsePathSetDebug(int level)
 {
-	debug = flag;
+	debug = level;
 }
 
 /**
@@ -179,20 +182,20 @@ findInnerPath(const char *path, const char **start, const char **stop)
  *	reply message, in which case the reply code should be 553.
  */
 const char *
-parsePath(const char *path, long flags, int dots, ParsePath **out)
+parsePath(const char *path, unsigned long flags, int dots, ParsePath **out)
 {
 	ParsePath *p;
-	const char *start, *stop;
+	const char *start, *stop, *error = NULL;
 	int hasAtSign, hasPlusSign, isUnqualified;
 
-#if !defined(NDEBUG) && defined(__unix__)
-	syslog(LOG_DEBUG, "enter parsePath(%s, %x, %d, %lx)", path, flags, dots, (long) out);
-#endif
+	if (1 < debug)
+		syslog(LOG_DEBUG, "enter parsePath(%s, %lx, %d, %lx)", path, flags, dots, (long) out);
 
 	/*@-mustdefine@*/
 	if (path == NULL || out == NULL) {
 		errno = EFAULT;
-		return "5.0.0 internal error: invalid arguments in parsePath()";
+		error = "5.0.0 internal error: invalid arguments in parsePath()";
+		goto error0;
 	}
 	/*@=mustdefine@*/
 
@@ -206,12 +209,13 @@ parsePath(const char *path, long flags, int dots, ParsePath **out)
 	 * this archaic form, I've opted to support it for now on the grounds
 	 * that the necessary information can still be found within.
 	 */
-	if (findInnerPath(path, &start, &stop))
-		return "5.1.0 imbalanced angle brackets in path";
+	if (findInnerPath(path, &start, &stop)) {
+		error = "5.1.0 imbalanced angle brackets in path";
+		goto error0;
+	}
 
-#if !defined(NDEBUG) && defined(__unix__)
-	syslog(LOG_DEBUG, "*start=%c", *start);
-#endif
+	if (1 < debug)
+		syslog(LOG_DEBUG, "*start=%c", *start);
 
 	/* TEST that the path, as defined by the RFC 2821 grammar, begins
 	 * and ends with angles brackets. Some mail servers relax this
@@ -219,33 +223,38 @@ parsePath(const char *path, long flags, int dots, ParsePath **out)
 	 * instead of MAIL FROM:<address> or RCPT TO:<address>.
 	 */
 	if (flags & STRICT_ANGLE_BRACKETS) {
-		if (*start != '<' || (start < stop && stop[-1] != '>'))
-			return "5.1.0 address does not conform to RFC 2821 syntax";
+		if (*start != '<' || (start < stop && stop[-1] != '>')) {
+			error = "5.1.0 address does not conform to RFC 2821 syntax";
+			goto error0;
+		}
 	}
 
 	/* Remove/skip the angle brackets. */
 	stop -= (start < stop && stop[-1] == '>');
 	start += (*start == '<');
 
+	/* Optionally ignore leading and trailing whitespace within the
+	 * angle brackets. eg. MAIL FROM:<  suspect@example.com  >
+	 */
 	if (!(flags & STRICT_ADDR_SPEC)) {
 		start += strspn(start, " \t\r\n\f");
 		stop = start + strlrspn(start, stop - start, " \t\r\n\f");
 	}
 
-#if !defined(NDEBUG) && defined(__unix__)
-	syslog(LOG_DEBUG, "call calloc(1, %lu)", sizeof(ParsePath) + (stop - start + 1) * 2);
-#endif
+	if (1 < debug)
+		syslog(LOG_DEBUG, "call calloc(1, %lu)", sizeof(ParsePath) + (stop - start + 1) * 2);
 
 	/* Allocate enough space for the structure and the string data.
 	 * While more complex to setup, it allows for a single call to
 	 * free() to release the structure and the strings it points to.
 	 */
-	if ((p = calloc(1, sizeof(ParsePath) + (stop - start + 1) * 2)) == NULL)
-		return "5.0.0 internal error: out of memory in parsePath()";
+	if ((p = calloc(1, sizeof(ParsePath) + (stop - start + 1) * 2)) == NULL) {
+		error = "5.0.0 internal error: out of memory in parsePath()";
+		goto error0;
+	}
 
-#if !defined(NDEBUG) && defined(__unix__)
-	syslog(LOG_DEBUG, "start equals stop=%d", start == stop);
-#endif
+	if (1 < debug)
+		syslog(LOG_DEBUG, "start equals stop=%d", start == stop);
 
 	/* Check for the null address. */
 	if (start == stop) {
@@ -256,19 +265,17 @@ parsePath(const char *path, long flags, int dots, ParsePath **out)
 		p->localRight.string 	=
 		p->domain.string 	= empty;
 		/*@=observertrans@*/
-		*out = p;
-		return NULL;
+		goto done;
 	}
 
-#if !defined(NDEBUG) && defined(__unix__)
-	syslog(LOG_DEBUG, "Place a copy of the address string after the structure.");
-#endif
+	if (1 < debug)
+		syslog(LOG_DEBUG, "Place a copy of the address string after the structure.");
+
 	/* Place a copy of the address string after the structure. */
 	p->address.length = stop - start;
 
-#if !defined(NDEBUG) && defined(__unix__)
-	syslog(LOG_DEBUG, "address-length=%ld", p->address.length);
-#endif
+	if (1 < debug)
+		syslog(LOG_DEBUG, "address-length=%ld", p->address.length);
 
 	p->address.string = (char *)(&p[1]);
 
@@ -276,9 +283,8 @@ parsePath(const char *path, long flags, int dots, ParsePath **out)
 	(void) strncpy(p->address.string, start, (size_t) p->address.length);
 	/*@=modobserver =observertrans@*/
 
-#if !defined(NDEBUG) && defined(__unix__)
-	syslog(LOG_DEBUG, "address-string='%s'", p->address.string);
-#endif
+	if (1 < debug)
+		syslog(LOG_DEBUG, "address-string='%s'", p->address.string);
 
 	/* Place a second copy following the previous. */
 	p->sourceRoute.string = &p->address.string[p->address.length + 1];
@@ -290,16 +296,16 @@ parsePath(const char *path, long flags, int dots, ParsePath **out)
 #endif
 	/*@=modobserver =observertrans@*/
 
-#if !defined(NDEBUG) && defined(__unix__)
-	syslog(LOG_DEBUG, "Split the local-part at a plus-sign or at-sign.");
-#endif
+	if (1 < debug)
+		syslog(LOG_DEBUG, "Split the local-part at a plus-sign or at-sign.");
+
 	p->sourceRoute.length = MailSpanAtDomainList(p->sourceRoute.string);
 	p->localLeft.string = &p->sourceRoute.string[p->sourceRoute.length];
 
 	if (0 < p->sourceRoute.length) {
 		if (p->sourceRoute.string[p->sourceRoute.length] != ':') {
-			free(p);
-			return "5.1.0 invalid source route";
+			error = "5.1.0 invalid source route";
+			goto error1;
 		}
 
 		p->sourceRoute.string[p->sourceRoute.length] = '\0';
@@ -309,9 +315,8 @@ parsePath(const char *path, long flags, int dots, ParsePath **out)
 		p->sourceRoute.string--;
 	}
 
-#if !defined(NDEBUG) && defined(__unix__)
-	syslog(LOG_DEBUG, "source-route-string='%s' source-route-length=%ld", p->sourceRoute.string, p->sourceRoute.length);
-#endif
+	if (1 < debug)
+		syslog(LOG_DEBUG, "source-route-string='%s' source-route-length=%ld", p->sourceRoute.string, p->sourceRoute.length);
 
 	/* Split the local-part at a plus-sign or at-sign. */
 	p->localRight.length = MailSpanLocalPart(p->localLeft.string);
@@ -324,13 +329,12 @@ parsePath(const char *path, long flags, int dots, ParsePath **out)
 	else
 		p->localLeft.length = (long) strcspn(p->localLeft.string, "+");
 
-#if !defined(NDEBUG) && defined(__unix__)
-	syslog(LOG_DEBUG, "left-length=%ld right-length=%ld", p->localLeft.length, p->localRight.length);
-#endif
+	if (1 < debug)
+		syslog(LOG_DEBUG, "left-length=%ld right-length=%ld", p->localLeft.length, p->localRight.length);
 
 	if ((flags & STRICT_LOCAL_LENGTH) && SMTP_LOCAL_PART_LENGTH < p->localRight.length) {
-		free(p);
-		return "5.1.0 local-part too long, see RFC 2821 section 4.5.3.1";
+		error = "5.1.0 local-part too long, see RFC 2821 section 4.5.3.1";
+		goto error1;
 	}
 
 	hasPlusSign = p->localLeft.length < p->localRight.length;
@@ -341,10 +345,9 @@ parsePath(const char *path, long flags, int dots, ParsePath **out)
 	 */
 	if (!hasAtSign && !isUnqualified) {
 		/* An illegal character was found. */
-		free(p);
-
 		/* NOTE that dots == 0 implies a RCPT otherwise a MAIL. */
-		return dots <= 0 ? "5.1.3 invalid local part" : "5.1.7 invalid local part";
+		error = dots <= 0 ? "5.1.3 invalid local part" : "5.1.7 invalid local part";
+		goto error1;
 	}
 
 	p->domain.string = &p->localLeft.string[p->localRight.length + hasAtSign];
@@ -357,27 +360,25 @@ parsePath(const char *path, long flags, int dots, ParsePath **out)
 	p->domain.length = MailSpanDomainName(p->domain.string, dots);
 /*	p->domain.length = p->address.length - p->localRight.length - hasAtSign; */
 
-#if !defined(NDEBUG) && defined(__unix__)
-	syslog(LOG_DEBUG, "domain-length=%ld", p->domain.length);
-#endif
+	if (1 < debug)
+		syslog(LOG_DEBUG, "domain-length=%ld", p->domain.length);
 
 	if ((flags & STRICT_DOMAIN_LENGTH) && SMTP_DOMAIN_LENGTH < p->domain.length) {
-		free(p);
-		return "5.1.0 domain name too long, see RFC 2821 section 4.5.3.1";
+		error = "5.1.0 domain name too long, see RFC 2821 section 4.5.3.1";
+		goto error1;
 	}
 
 	if ((flags & STRICT_MIN_DOTS) && 0 < dots && p->domain.length <= 0) {
 		/* We want some dots in the domain after an @-sign. */
-		free(p);
-		return "5.1.7 address incomplete";
+		error = "5.1.7 address incomplete";
+		goto error1;
 	}
 
 	if (p->domain.string[p->domain.length] != '\0') {
 		/* An illegal character was found. */
-		free(p);
-
 		/* NOTE that dots == 0 implies a RCPT otherwise a MAIL. */
-		return dots <= 0 ? "5.1.3 invalid domain name" : "5.1.7 invalid domain name";
+		error = dots <= 0 ? "5.1.3 invalid domain name" : "5.1.7 invalid domain name";
+		goto error1;
 	}
 
 	/* Adjust local-right-side length. */
@@ -413,13 +414,18 @@ parsePath(const char *path, long flags, int dots, ParsePath **out)
 	TextLower(p->localLeft.string, -1);
 	TextLower(p->domain.string, -1);
 
+	if (error != NULL) {
+error1:
+		free(p);
+		p = NULL;
+	}
+done:
 	*out = p;
+error0:
+	if (1 < debug)
+		syslog(LOG_DEBUG, "exit parsePath(%s, %lx, %d, %lx) error=\"%s\"", path, flags, dots, (long) out, error);
 
-#if !defined(NDEBUG) && defined(__unix__)
-	syslog(LOG_DEBUG, "exit parsePath(%s, %x, %d, %lx) error=NULL", path, flags, dots, (long) out);
-#endif
-
-	return NULL;
+	return error;
 }
 
 /**
@@ -473,10 +479,9 @@ formatPath(char *buffer, long length, const char *fmt, ParsePath *p)
 {
 	long i;
 
-#if defined(__unix__)
-	if (debug)
+	if (1 < debug)
 		syslog(LOG_DEBUG, "enter formatPath(%lx, %ld, %s, %lx)", (long) buffer, length, fmt, (long) p);
-#endif
+
 	if (buffer == NULL || length <= 0 || fmt == NULL || p == NULL) {
 		errno = EFAULT;
 		i = -1;
@@ -572,10 +577,9 @@ formatPath(char *buffer, long length, const char *fmt, ParsePath *p)
 	/* Make sure the string is terminated. */
 	buffer[i - (length <= i)] = '\0';
 error0:
-#if defined(__unix__)
-	if (debug)
+	if (1 < debug)
 		syslog(LOG_DEBUG, "exit  formatPath(%lx, %ld, %s, %lx) length=%ld", (long) buffer, length, fmt, (long) p, i);
-#endif
+
 	return i;
 }
 
@@ -699,9 +703,7 @@ allocatePath(const char *fmt, ParsePath *p)
 	length = formatPathLength(fmt, p);
 	if ((path = malloc(length+1)) != NULL) {
 		 if ((nbytes = formatPath(path, length+1, fmt, p)) != length) {
-#if defined(__unix__)
 			syslog(LOG_ERR, "length mismatch, formatPathLength=%ld formatPath=%ld", length, nbytes);
-#endif
 			errno = EFAULT;
 		 	free(path);
 			return NULL;
@@ -713,6 +715,21 @@ allocatePath(const char *fmt, ParsePath *p)
 
 #ifdef TEST
 #include <stdio.h>
+
+#if ! defined(__MINGW32__)
+void
+syslog(int level, const char *fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	if (logFile == NULL)
+		vsyslog(level, fmt, args);
+	else
+		LogV(level, fmt, args);
+	va_end(args);
+}
+#endif
 
 struct test_path {
 	long expect;
@@ -825,7 +842,7 @@ testFormat(const char *fmt, ParsePath *p)
 }
 
 int
-test(long flags, int argc, char **argv)
+test(unsigned long flags, int argc, char **argv)
 {
 	int i;
 	size_t n;
@@ -839,7 +856,7 @@ test(long flags, int argc, char **argv)
 			continue;
 		}
 
-		printf("'%s'\n", argv[i]);
+		printf("'%s' flags=0x%lX\n", argv[i], flags);
 
 		printf(
 			"\taddress='%s' sourceroute='%s' localleft='%s' localright='%s' domain='%s'\n",
@@ -997,13 +1014,14 @@ int
 main(int argc, char **argv)
 {
 	long flags;
-	int regressTest, argi;
+	int regressTest, vflag, argi;
 
 	if (argc <= 1) {
-		printf("usage: parsePath [-t][-f flags] [email-path ...]\n");
+		printf("usage: parsePath [-t][-v ...][-f flags] [email-path ...]\n");
 		return 2;
 	}
 
+	vflag = 0;
 	regressTest = 0;
 	flags = STRICT_LENGTH;
 
@@ -1019,12 +1037,19 @@ main(int argc, char **argv)
 		case 't':
 			regressTest = 1;
 			break;
-#ifdef NOPE
-		case 'l':
-			log_file = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+
+		case 'v':
+			vflag++;
 			break;
-#endif
 		}
+	}
+
+	if (0 < vflag) {
+		LogSetProgramName("parsePath");
+		LogOpen("(standard error)");
+		LogSetLevel(LOG_DEBUG);
+		setlogmask(LOG_UPTO(LOG_DEBUG));
+		parsePathSetDebug(vflag);
 	}
 
 	if (regressTest) {

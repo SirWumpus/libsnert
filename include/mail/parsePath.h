@@ -39,7 +39,7 @@ typedef struct {
 
 /*@-exportlocal@*/
 
-extern void parsePathDebug(int flag);
+extern void parsePathSetDebug(int level);
 
 /**
  * @param ip
@@ -211,7 +211,7 @@ extern /*@null@*/ char *allocatePath(const char *fmt, ParsePath *p);
  *	NULL on success. Otherwise an error string suitable as an SMTP error
  *	reply message, in which case the reply code should be 553.
  */
-extern /*@observer@*//*@null@*/ const char *parsePath(const char *path, long flags, int dots, /*@out@*/ ParsePath **out);
+extern /*@observer@*//*@null@*/ const char *parsePath(const char *path, unsigned long flags, int dots, /*@out@*/ ParsePath **out);
 
 /*
  * Flags for parsePath()
