@@ -81,8 +81,8 @@ TextGetSubstring(Text self, long offset, long length)
 	return TextCreateN(self->_string + offset, length);
 }
 
-int
-TextIsBlank(Text self)
+static int
+text_is_blank(Text self)
 {
 	return self->_string[strcspn(self->_string, " \t\r\n\f")] == '\0';
 }
@@ -670,7 +670,7 @@ TextInitEmptyString(Text self)
 		model.string = TextString;
 		model.length = TextLength;
 
-		model.isBlank = TextIsBlank;
+		model.isBlank = text_is_blank;
 		model.isInteger = TextIsInt;
 		model.getOctet = TextGetOctet;
 		model.setOctet = TextSetOctet;
