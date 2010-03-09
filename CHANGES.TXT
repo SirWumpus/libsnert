@@ -44,6 +44,91 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = anthony's reduced search expressions)
 
+--1.73.16--
+
+   +	smfAccessMail, smfAccessRcpt: back ported support from BarricadeMX
+   	for combo tags. Commissioned on by Skull.
+
+	Connect:ip:From:mail
+	Connect:domain:From:mail
+	    This set of combination tags are used to black or white list
+	    sender addresses when sent from a given SMTP client. The
+	    sender address can be easily forged and using the From: tag
+	    by itself could allow spam with a forged address. By adding
+	    the sender's SMTP client as an extra constraint, it is
+	    possible to limit such abuse. Note that the lookup variants
+	    with blank IP, domain, or mail are not supported.
+
+	Connect:ip:To:mail
+	Connect:domain:To:mail
+	    This set of combination tags are used to black or white list
+	    recipient addresses that a given SMTP client may contact.
+	    This allows for finer granularity of control in place of the
+	    To: tag. Note that the lookup variants with blank IP,
+	    domain, or mail are not supported.
+
+	From:mail:To:mail
+	    This set of combination tags are used to black or white list
+	    a pair of sender and recipient addresses. This allows for
+	    finer granularity of control in place of the To: tag. Note
+	    that the lookup variants with blank mail elements are not
+	    supported.
+
+   !	dnsListQueryIP: support BL lookups when name argument is an IP
+	address. This means in milter-link and smtpf, that IP in URI eg.
+	http://192.0.2.1/ can be checked against an IP BL like
+	sbl.spamhaus.org or similar BL without an A record lookup.
+	Reported by Jeff Chan.
+
+   !	uriHttpOrigin: updated redirection handling to also process the
+   	query string of any Location: URL. http://bit.ly/dw5tGm is one
+   	example where the relocation is part of the query string. In
+   	bit.ly's case, their redirection is to a warning page about a
+   	bad web site. However, this doesn't mean every URL shortener
+   	is a helpful as is bit.ly and spammers do chain through multiple
+   	redirectors. Tested also with
+
+   		http://tr.im/R125
+   		http://is.gd/9VxAZ
+		http://url4.eu/1hwwl
+		http://4sq.com/92ZlLf
+		http://tumblr.com/xgb76866i
+		http://twitpic.com/179yvt
+		http://itunes.apple.com/WebObjects/MZStore.woa/wa/browserRedirect?url=http%253A%252F%252Fitunes.apple.com%252FWebObjects%252FMZStore.woa%252Fwa%252FviewSoftware
+
+   !	Renamed dnsListQuery to dnsListQueryDomain.
+
+   +	Added dnsListSetWaitAll to API. Note that the dnsListQuery*
+	family of functions return the first list hit found, so setting
+	dnsListSetWaitAll(1) is only of interest with debugging output
+	for the moment.
+
+   +	uri.c: Added -L option to wait for all DNS list replies; currently
+   	needs -v in order to see the additional results.
+
+   !	pdq.c/h: Undo dbl.spamhaus.org hack made in 1.73.15 and 1.73.14
+   	in favour API changes in dnsList.c.
+
+   !	uri.c: Reordered tests: 1. assorted uri BL tests; 2. uri-links-
+	policy; 3. if origin found, apply uri BL tests to origin.
+
+   !	uri.c: Weakened uri-links-policy test to only report redirection
+   	loop error. This would be a rejection case in milter-link and
+   	smtpf. Recommended by Papa Steve Freegard.
+
+  !!	smfAccessClient: Fixed slow memory leak. Very old.
+
+   !	VectorWalk: changed return values so that it can be better used
+   	for searching and is_member functions.
+
+   +	Added pdqRootGet to perform explicit top down search.
+
+   !	dnsListQueryNs now uses pdqRootGet to find authoritative NS or
+	NS glue records.
+
+   !	mccDestroy, mcc_listener_thread: Fixed mutex deadlock and listener
+   	thread shutdown.
+
 --1.73.15--
 
    +	pdq.c: Added dns-spamhaus-dbl option for use by milter-link and
