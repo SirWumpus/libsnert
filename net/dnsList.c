@@ -348,50 +348,41 @@ dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
  *	to this vector.	Specify NULL to skip this check.
  *
  * @param name
- *	A host or domain name to query in one or more DNS lists.
+ *	An arbitrary string to query in one or more DNS lists.
  *
  * @return
  *	A C string pointer to a list name in which name is a member.
  *	Otherwise NULL if name was not found in a DNS list.
  */
 const char *
-dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
+dnsListQueryString(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 {
+	char *copy;
+	int offset = 0;
 	PDQ_rr *answers;
-	const char *list_name = NULL;
-	int offset = 0, is_ip_lookup = 0;
-	char buffer[DOMAIN_STRING_LENGTH];
+	const char *list_name = NULL, **seen;
 
 	if (dns_list == NULL || name == NULL || *name == '\0')
 		return NULL;
 
-	if (0 < spanIP(name)) {
-		is_ip_lookup = 1;
-		(void) reverseIp(name, buffer, sizeof (buffer), 0);
-		name = buffer;
-	}
-
-	if (names_seen != NULL) {
-		const char **seen;
-
-		/* Check cache of previously tested hosts/domains. */
-		for (seen = (const char **) VectorBase(names_seen); *seen != NULL; seen++) {
-			if (TextInsensitiveCompare(name, *seen) == 0) {
-				if (0 < debug)
-					syslog(LOG_DEBUG, "dnsListQueryName name=\"%s\" previously checked", name);
-				return NULL;
-			}
+	/* Check cache of previously tested hosts/domains. */
+	for (seen = (const char **) VectorBase(names_seen); *seen != NULL; seen++) {
+		if (TextInsensitiveCompare(name, *seen) == 0) {
+			if (0 < debug)
+				syslog(LOG_DEBUG, "dnsListQueryString name=\"%s\" previously checked", name);
+			return NULL;
 		}
-
-		(void) VectorAdd(names_seen, strdup(name));
 	}
+
+	if (VectorAdd(names_seen, copy = strdup(name)))
+		free(copy);
 
 	if (0 < debug)
-		syslog(LOG_DEBUG, "dnsListQueryName name=\"%s\" offset=%d", name, offset);
+		syslog(LOG_DEBUG, "dnsListQueryString name=\"%s\" offset=%d", name, offset);
 
 	answers = pdqGetDnsList(
 		pdq, PDQ_CLASS_IN, PDQ_TYPE_A, name+offset,
-		(const char **) VectorBase(dns_list->suffixes), wait_fn, is_ip_lookup
+		(const char **) VectorBase(dns_list->suffixes), wait_fn
 	);
 
 	if (answers != NULL) {
@@ -410,82 +401,40 @@ dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *nam
  *	A pointer to PDQ structure to use for the query.
  *
  * @param names_seen
- *	A pointer to vector of previously looked up names. If name
+ *	A pointer to vector of previously queried names. If name
  *	is present in this vector, then the query is skipped and
  *	NULL immiediately returned. The query name will be added
  *	to this vector.	Specify NULL to skip this check.
  *
- * @param test_sub_domains
- *	If true, then test sub-domains from right to left. That is
- *	the domain starting with the label immediately preceding the
- *	top-level-domain is passed to dnsListQueryName. If NULL is
- *	returned, then repeat with the next preceding label, until a
- *	a list name is return or the entire name has been queried.
- *
- *	Otherwise when false, the domain starting with the label
- *	immediately preceding the top-level-domain is passed to
- *	dnsListQueryName.
- *
  * @param name
- *	A host, domain, or IP to query in one or more DNS lists.
+ *	A host or domain name to query in one or more DNS lists.
+ *	An IP address will result in NULL being returned.
  *
  * @return
  *	A C string pointer to a list name in which name is a member.
  *	Otherwise NULL if name was not found in a DNS list.
  */
 const char *
-dnsListQueryDomain(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domains, const char *name)
+dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 {
-	int offset;
-	const char *list_name = NULL;
-
-	if (dns_list == NULL || name == NULL || *name == '\0')
+	if (name != NULL && 0 < spanIP(name))
 		return NULL;
 
-	/* Find start of 1st or 2nd level TLD. */
-	offset = indexValidTLD(name);
-
-	if (offset < 0) {
-		if (spanIP(name) <= 0)
-			return NULL;
-
-		/* Is an IP address. */
-		offset = 0;
-	}
-
-	/* Query domain and sub-domains from right-to-left
-	 * starting with first label below the TLD. For lists
-	 * like SURBL and URIBL that tend to list the parent
-	 * domain, this allows for a possible hit on the
-	 * first query.
-	 */
-	do {
-		offset = strlrcspn(name, offset-1, ".");
-		if (0 < debug)
-			syslog(LOG_DEBUG, "dnsListQueryDomain name=\"%s\" offset=%d", name, offset);
-
-		if ((list_name = dnsListQueryName(dns_list, pdq, names_seen, name+offset)) != NULL) {
-			if (0 < debug)
-				syslog(LOG_DEBUG, "%s listed in %s", name+offset, list_name);
-
-			return list_name;
-		}
-	} while (test_sub_domains && 0 < offset);
-
-	return NULL;
+	return dnsListQueryString(dns_list, pdq, names_seen, name);
 }
 
-const char *
+static const char *
 dnsListCheckIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name, PDQ_rr *list)
 {
 	PDQ_rr *rr;
 	const char *list_name = NULL;
+	char buffer[DOMAIN_STRING_LENGTH];
 
 	if (dns_list == NULL || name == NULL || *name == '\0')
 		return NULL;
 
 	for (rr = list; (rr = pdqListFindName(rr, PDQ_CLASS_IN, PDQ_TYPE_5A, name)) != NULL; rr = rr->next) {
-		if (rr == PDQ_CNAME_TOO_DEEP || rr == PDQ_CNAME_IS_CIRCULAR)
+		if (PDQ_RR_IS_NOT_VALID(rr))
 			break;
 
 		if (rr->rcode != PDQ_RCODE_OK
@@ -493,7 +442,6 @@ dnsListCheckIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name,
 		 * Some DNS servers will provide extra A records
 		 * related to the authority NS servers listed.
 		 */
-		|| rr->section != PDQ_SECTION_ANSWER
 		|| (rr->type != PDQ_TYPE_A && rr->type != PDQ_TYPE_AAAA))
 			continue;
 
@@ -509,7 +457,9 @@ dnsListCheckIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name,
 		if (0 < debug)
 			syslog(LOG_DEBUG, "dnsListCheckIP name=\"%s\" ip=\"%s\"", rr->name.string.value, ((PDQ_AAAA *) rr)->address.string.value);
 
-		list_name = dnsListQueryName(dns_list, pdq, names_seen, ((PDQ_AAAA *) rr)->address.string.value);
+		(void) reverseIp(((PDQ_AAAA *) rr)->address.string.value, buffer, sizeof (buffer), 0);
+		list_name = dnsListQueryString(dns_list, pdq, names_seen, buffer);
+
 		if (list_name != NULL) {
 			if (0 < debug)
 				syslog(LOG_DEBUG, "%s [%s] listed in %s", name, ((PDQ_AAAA *) rr)->address.string.value, list_name);
@@ -534,8 +484,9 @@ dnsListCheckIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name,
  *	to this vector.	Specify NULL to skip this check.
  *
  * @param name
- *	A host or domain name whos A/AAAA records are first found and
- *	then passed to dnsListQueryName.
+ *	An IP, host name, or domain name. In the case of a host or
+ *	domain name, their A/AAAA records are first found and the
+ *	resulting list of IP addresses checked.
  *
  * @return
  *	A C string pointer to a list name in which name is a member.
@@ -580,6 +531,77 @@ dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 }
 
 /**
+ * @param dns_list
+ *	A pointer to a DnsList.
+ *
+ * @param pdq
+ *	A pointer to PDQ structure to use for the query.
+ *
+ * @param names_seen
+ *	A pointer to vector of previously looked up names. If name
+ *	is present in this vector, then the query is skipped and
+ *	NULL immiediately returned. The query name will be added
+ *	to this vector.	Specify NULL to skip this check.
+ *
+ * @param test_sub_domains
+ *	If true, then test sub-domains from right to left. That is
+ *	the domain starting with the label immediately preceding the
+ *	top-level-domain is passed to dnsListQueryString. If NULL is
+ *	returned, then repeat with the next preceding label, until a
+ *	a list name is return or the entire name has been queried.
+ *
+ *	Otherwise when false, the domain starting with the label
+ *	immediately preceding the top-level-domain is passed to
+ *	dnsListQueryString.
+ *
+ * @param name
+ *	A host, domain, or IP to query in one or more DNS lists.
+ *
+ * @return
+ *	A C string pointer to a list name in which name is a member.
+ *	Otherwise NULL if name was not found in a DNS list.
+ */
+const char *
+dnsListQueryDomain(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_domains, const char *name)
+{
+	int offset;
+	const char *list_name = NULL;
+
+	if (dns_list == NULL || name == NULL || *name == '\0')
+		return NULL;
+
+	/* Find start of 1st or 2nd level TLD. */
+	offset = indexValidTLD(name);
+
+	if (offset < 0) {
+		if (spanIP(name) <= 0)
+			return NULL;
+		return dnsListQueryIP(dns_list, pdq, names_seen, name);
+	}
+
+	/* Query domain and sub-domains from right-to-left
+	 * starting with first label below the TLD. For lists
+	 * like SURBL and URIBL that tend to list the parent
+	 * domain, this allows for a possible hit on the
+	 * first query.
+	 */
+	do {
+		offset = strlrcspn(name, offset-1, ".");
+		if (0 < debug)
+			syslog(LOG_DEBUG, "dnsListQueryDomain name=\"%s\" offset=%d", name, offset);
+
+		if ((list_name = dnsListQueryString(dns_list, pdq, names_seen, name+offset)) != NULL) {
+			if (0 < debug)
+				syslog(LOG_DEBUG, "%s listed in %s", name+offset, list_name);
+
+			return list_name;
+		}
+	} while (test_sub_domains && 0 < offset);
+
+	return NULL;
+}
+
+/**
  * @param ns_bl
  *	A pointer to a DnsList.
  *
@@ -617,10 +639,11 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
  * Essentially this should handle NS BL that list by NS domain (Alex B)
  * or by NS host name (April L).
  */
+ 	char *copy;
 	PDQ_rr *rr, *ns_list;
 	int offset, tld_offset;
-	const char *list_name = NULL;
  	int ns_found = 0, ns_rcode_ok;
+	const char *list_name = NULL, **seen;
 
 	if ((ns_bl == NULL && ns_ip_bl == NULL) || name == NULL || *name == '\0')
 		return NULL;
@@ -629,12 +652,21 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 	if ((tld_offset = indexValidTLD(name)) < 0)
 		return NULL;
 
+	/* Check cache of previously tested hosts/domains. */
+	for (seen = (const char **) VectorBase(names_seen); *seen != NULL; seen++) {
+		if (TextInsensitiveCompare(name, *seen) == 0) {
+			if (0 < debug)
+				syslog(LOG_DEBUG, "dnsListQueryNs name=\"%s\" previously seen", name);
+			return NULL;
+		}
+	}
+
 	/* Scan domain and subdomains from left-to-right. */
 	for (offset = 0; offset < tld_offset; offset += strcspn(name+offset, ".")+1) {
 		if (0 < debug)
 			syslog(LOG_DEBUG, "dnsListQueryNs name=\"%s\" offset=%d tld_offset=%d", name, offset, tld_offset);
 
-		if ((ns_list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_NS, name+offset, NULL)) != NULL) {
+		if ((ns_list = pdqRootGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_NS, name+offset, NULL)) != NULL) {
 			ns_rcode_ok = ns_list->rcode == PDQ_RCODE_OK;
 
 			for (rr = ns_list; rr != NULL; rr = rr->next) {
@@ -644,6 +676,9 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 				switch (rr->section) {
 				case PDQ_SECTION_ANSWER:
 					if (rr->type == PDQ_TYPE_CNAME) {
+						/* Add to list to detect CNAME loops. */
+						if (VectorAdd(names_seen, copy = strdup(name)))
+							free(copy);
 						list_name = dnsListQueryNs(ns_bl, ns_ip_bl, pdq, names_seen, ((PDQ_CNAME *) rr)->host.string.value);
 						goto ns_list_break;
 					}
@@ -714,6 +749,46 @@ digestToString(unsigned char digest[16], char digest_string[33])
 	digest_string[32] = '\0';
 }
 
+/**
+ * @param dns_list
+ *	A pointer to a DnsList.
+ *
+ * @param pdq
+ *	A pointer to PDQ structure to use for the query.
+ *
+ * @param already_seen
+ *	A pointer to vector of previously looked up mails. If mail
+ *	is present in this vector, then the query is skipped and
+ *	NULL immiediately returned. The query mail will be added
+ *	to this vector.	Specify NULL to skip this check.
+ *
+ * @param mail
+ *	A C string is hashed then passed to dnsListQueryString.
+ *
+ * @return
+ *	A C string pointer to a list name in which name is a member.
+ *	Otherwise NULL if name was not found in a DNS list.
+ */
+const char *
+dnsListQueryMD5(DnsList *dns_list, PDQ *pdq, Vector already_seen, const char *string)
+{
+	md5_state_t md5;
+	char digest_string[33];
+	unsigned char digest[16];
+	const char *list_name = NULL;
+
+	md5_init(&md5);
+	md5_append(&md5, (md5_byte_t *) string, strlen(string));
+	md5_finish(&md5, (md5_byte_t *) digest);
+	digestToString(digest, digest_string);
+
+	list_name = dnsListQueryString(dns_list, pdq, already_seen, digest_string);
+	if (list_name != NULL && 0 < debug)
+		syslog(LOG_DEBUG, "\"%s\" listed in %s", string, list_name);
+
+	return list_name;
+}
+
 static const char *mail_ignore_table[] = {
  	"abuse@*",
  	"contact@*",
@@ -746,8 +821,8 @@ static const char *mail_ignore_table[] = {
  *	NULL immiediately returned. The query mail will be added
  *	to this vector.	Specify NULL to skip this check.
  *
- * @param mail
- *	A mail address is hashed then passed to dnsListQueryName.
+ * @param string
+ *	A mail address is hashed then passed to dnsListQueryMD5.
  *
  * @return
  *	A C string pointer to a list name in which name is a member.
@@ -756,10 +831,7 @@ static const char *mail_ignore_table[] = {
 const char *
 dnsListQueryMail(DnsList *dns_list, PDQ *pdq, Vector limited_domains, Vector mails_seen, const char *mail)
 {
-	md5_state_t md5;
-	char digest_string[33];
-	unsigned char digest[16];
-	const char *list_name = NULL, **table, *domain;
+	const char **table, *domain;
 
 	if (dns_list == NULL || mail == NULL || *mail == '\0')
 		return NULL;
@@ -783,16 +855,7 @@ dnsListQueryMail(DnsList *dns_list, PDQ *pdq, Vector limited_domains, Vector mai
 			return NULL;
 	}
 
-	md5_init(&md5);
-	md5_append(&md5, (md5_byte_t *) mail, strlen(mail));
-	md5_finish(&md5, (md5_byte_t *) digest);
-	digestToString(digest, digest_string);
-
-	list_name = dnsListQueryName(dns_list, pdq, mails_seen, digest_string);
-	if (list_name != NULL && 0 < debug)
-		syslog(LOG_DEBUG, "<%s> listed in %s", mail, list_name);
-
-	return list_name;
+	return dnsListQueryMD5(dns_list, pdq, mails_seen, mail);
 }
 
 /***********************************************************************

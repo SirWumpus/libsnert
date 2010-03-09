@@ -11,6 +11,44 @@
 extern "C" {
 #endif
 
+/**
+ * dnsList API Function Relationship
+ * ---------------------------------
+ *
+ * 			pdqGetDnsList:
+ * 			  string+suffix process loop
+ * 			^
+ * 			|
+ *
+ * 			dnsLisQueryString
+ * 			  check/maintain names_seen
+ * 			  do single name lookup
+ * 			  process result
+ * 			^
+ * 			|
+ * +--------------------+-----------------------+
+ * ^			^			^
+ * |			|			|
+ *
+ * dnsListQueryIP	dnsListQueryName	dnsListQueryMD5
+ *   name 5A lookup	  assert host/domain	  generate MD5 hash
+ *   process IP lists,    lookup, bar IP	  single lookup of hash
+ *   reversing IP	^			^
+ * ^			|			|
+ * |			|			|
+ * |
+ * +----------- dnsListQueryDomain		dnsListQueryMail
+ * ^		  TLD/registry process		  localpart exclusions
+ * |		  sub-domain right-to-left	  domains permitted
+ * |			^
+ * |			|
+ * |			|
+ * |
+ * +----------- dnsListQueryNs
+ * 		  left-to-right search for
+ * 		  NS hosts and IPs
+ */
+
 /***********************************************************************
  ***
  ***********************************************************************/
@@ -104,13 +142,60 @@ extern DnsList *dnsListCreate(const char *list_string);
  *	to this vector.	Specify NULL to skip this check.
  *
  * @param name
+ *	An arbitrary string to query in one or more DNS lists.
+ *
+ * @return
+ *	A C string pointer to a list name in which name is a member.
+ *	Otherwise NULL if name was not found in a DNS list.
+ */
+extern const char *dnsListQueryString(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name);
+
+/**
+ * @param dns_list
+ *	A pointer to a DnsList.
+ *
+ * @param pdq
+ *	A pointer to PDQ structure to use for the query.
+ *
+ * @param names_seen
+ *	A pointer to vector of previously queried names. If name
+ *	is present in this vector, then the query is skipped and
+ *	NULL immiediately returned. The query name will be added
+ *	to this vector.	Specify NULL to skip this check.
+ *
+ * @param name
  *	A host or domain name to query in one or more DNS lists.
+ *	An IP address will result in NULL being returned.
  *
  * @return
  *	A C string pointer to a list name in which name is a member.
  *	Otherwise NULL if name was not found in a DNS list.
  */
 extern const char *dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name);
+
+/**
+ * @param dns_list
+ *	A pointer to a DnsList.
+ *
+ * @param pdq
+ *	A pointer to PDQ structure to use for the query.
+ *
+ * @param names_seen
+ *	A pointer to vector of previously looked up names. If name
+ *	is present in this vector, then the query is skipped and
+ *	NULL immiediately returned. The query name will be added
+ *	to this vector.	Specify NULL to skip this check.
+ *
+ * @param name
+ *	An IP, host name, or domain name. In the case of a host or
+ *	domain name, their A/AAAA records are first found and the
+ *	resulting list of IP addresses checked.
+ *
+ * @return
+ *	A C string pointer to a list name in which name is a member.
+ *	Otherwise NULL if name was not found in a DNS list.
+ */
+extern const char *dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name);
 
 /**
  * @param dns_list
@@ -162,7 +247,7 @@ extern const char *dnsListQueryDomain(DnsList *dns_list, PDQ *pdq, Vector names_
  *	to this vector.	Specify NULL to skip this check.
  *
  * @param name
- *	A host or domain name whos NS records are first found and
+ *	A host or domain name who's NS records are first found and
  *	then passed to dnsListQueryDomain.
  *
  * @return
@@ -178,21 +263,20 @@ extern const char *dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, V
  * @param pdq
  *	A pointer to PDQ structure to use for the query.
  *
- * @param names_seen
- *	A pointer to vector of previously looked up names. If name
+ * @param already_seen
+ *	A pointer to vector of previously looked up mails. If mail
  *	is present in this vector, then the query is skipped and
- *	NULL immiediately returned. The query name will be added
+ *	NULL immiediately returned. The query mail will be added
  *	to this vector.	Specify NULL to skip this check.
  *
- * @param name
- *	A host or domain name whos A/AAAA records are first found and
- *	then passed to dnsListQueryName.
+ * @param mail
+ *	A C string is hashed then passed to dnsListQueryString.
  *
  * @return
  *	A C string pointer to a list name in which name is a member.
  *	Otherwise NULL if name was not found in a DNS list.
  */
-extern const char *dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name);
+extern const char *dnsListQueryMD5(DnsList *dns_list, PDQ *pdq, Vector already_seen, const char *string);
 
 /**
  * @param dns_list
@@ -201,7 +285,7 @@ extern const char *dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen
  * @param pdq
  *	A pointer to PDQ structure to use for the query.
  *
- * @param domains
+ * @param limited_domains
  *	A list of domain glob-like patterns for which to test against dns_list,
  *	typically free mail services. This reduces the load on public black lists.
  *	Specify NULL to test all domains.
@@ -212,8 +296,8 @@ extern const char *dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen
  *	NULL immiediately returned. The query mail will be added
  *	to this vector.	Specify NULL to skip this check.
  *
- * @param mail
- *	A mail address is hashed then passed to dnsListQueryName.
+ * @param string
+ *	A mail address is hashed then passed to dnsListQueryMD5.
  *
  * @return
  *	A C string pointer to a list name in which name is a member.

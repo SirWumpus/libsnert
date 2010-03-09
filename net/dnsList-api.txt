@@ -1,0 +1,35 @@
+dnsList API Function Relationship
+---------------------------------
+
+			pdqGetDnsList:
+			  string+suffix process loop
+			^
+			|
+
+			dnsLisQueryString
+			  check/maintain names_seen
+			  do single name lookup
+			  process result
+			^
+			|
++-----------------------+-----------------------+
+^			^			^
+|			|			|
+
+dnsListQueryIP		dnsListQueryName	dnsListQueryMD5
+  name 5A lookup	  assert host/domain	  generate MD5 hash
+  process IP lists,	  lookup, bar IP	  single lookup of hash
+  reversing IP		^			^
+^			|			|
+|			|			|
+|
++--------------	dnsListQueryDomain		dnsListQueryMail
+^		  TLD/registry process		  localpart exclusions
+|		   sub-domain right-to-left	  domains permitted
+|			^
+|			|
+|			|
+|
++--------------	dnsListQueryNs
+		  left-to-right search for
+		  NS hosts and IPs
