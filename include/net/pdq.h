@@ -171,6 +171,8 @@ typedef struct pdq_rr {
 	uint16_t class;			/* RFC 1035, PDQ_CLASS_ value */
 	uint16_t type;			/* RFC 1035, PDQ_TYPE_ value */
 	uint32_t ttl;			/* Original TTL received. */
+	uint16_t flags;
+	uint16_t ancount;
 } PDQ_rr;
 
 #define PDQ_LIST_WALK(rr, list)		for ((rr) = (list); (rr) != NULL; (rr) = (rr)->next)
@@ -733,6 +735,8 @@ extern PDQ_rr *pdqGetMX(PDQ *pdq, PDQ_class class, const char *name, long is_ip_
  *	This is a convience function.
  */
 extern PDQ_rr *pdqFetchMX(PDQ_class class, const char *name, long is_ip_mask);
+
+extern PDQ_rr *pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *ns);
 
 /***********************************************************************
  *** Record & List Support

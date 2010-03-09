@@ -174,6 +174,8 @@ typedef struct {
 
 struct pdq {
 	SOCKET fd;
+	int get_extra;
+	int round_robin;
 	unsigned timeout;
 	PDQ_query *pending;
 };
@@ -191,6 +193,7 @@ static long servers_length;
 static SocketAddress *servers;
 static unsigned pdq_max_timeout = PDQ_TIMEOUT_MAX;
 static unsigned pdq_initial_timeout = PDQ_TIMEOUT_START * 1000;
+static PDQ_rr *root_hints;
 
 struct mapping {
 	int code;
@@ -2082,7 +2085,7 @@ pdq_query_fill(PDQ *pdq, PDQ_query *query, PDQ_class class, PDQ_type type, const
 	*label   = (unsigned char) class;
 
 	if (0 < debug)
-		syslog(LOG_DEBUG, "> query id=%-5u %s %-5s %s", ntohs(q->header.id), pdqClassName(class), pdqTypeName(type), name);
+		syslog(LOG_DEBUG, "> query id=%-5u %s %s %s", ntohs(q->header.id), name, pdqClassName(class), pdqTypeName(type));
 
 	return 0;
 }
@@ -2119,7 +2122,7 @@ pdq_query_send(PDQ *pdq, PDQ_query *query)
 	if (query->next_ns == -1)
 		return pdq_query_sendto(query, &query->address, pdq->fd);
 
-	if (pdq_round_robin) {
+	if (pdq->round_robin) {
 		if (servers_length <= query->next_ns)
 			query->next_ns = 0;
 
@@ -2165,6 +2168,8 @@ pdq_reply_rr(struct udp_packet *packet, unsigned char *ptr, unsigned char **stop
 		syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
 	} else {
 		record->class = class;
+		record->flags = packet->header.bits;
+		record->ancount = packet->header.ancount;
 		record->name.string.length = pdq_name_copy(
 			packet, name,
 			(unsigned char *) record->name.string.value,
@@ -2449,7 +2454,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 		}
 
 		if (0 < debug)
-			syslog(LOG_DEBUG, "answer id=%-5u %s %-5s %s", packet->header.id, pdqClassName(record->class), pdqTypeName(record->type), record->name.string.value);
+			syslog(LOG_DEBUG, "answer id=%-5u %s %s %s", packet->header.id, record->name.string.value, pdqClassName(record->class), pdqTypeName(record->type));
 
 		record->next = (PDQ_rr *) q;
 		*p = record;
@@ -2640,8 +2645,10 @@ pdqOpen(void)
 	if ((pdq = malloc(sizeof (PDQ))) == NULL)
 		goto error0;
 
+	pdq->round_robin = pdq_round_robin;
 	pdq->timeout = pdq_max_timeout;
 	pdq->pending = NULL;
+	pdq->get_extra = 1;
 
 	if ((pdq->fd = socket(servers[0].sa.sa_family, SOCK_DGRAM, 0)) == INVALID_SOCKET) {
 		pdqClose(pdq);
@@ -3152,7 +3159,7 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 	}
 
 	/* Make sure we have all the associated A / AAAA records. */
-	if (head != NULL && (type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA)) {
+	if (head != NULL && pdq->get_extra && (type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA)) {
 		for (rr = head; rr != NULL; rr = rr->next) {
 			if (rr->rcode == PDQ_RCODE_OK && rr->type == type) {
 				/* "domain IN MX ." is a short hand to indicate
@@ -3553,6 +3560,100 @@ pdqTestSOA(PDQ *pdq, PDQ_class class, const char *name, PDQ_rr **list)
 	return code;
 }
 
+PDQ_rr *
+pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *ns)
+{
+	int old_round_robin, old_get_extra;
+	PDQ_rr *ns_list, *ns_rr, *a_rr, *answer;
+
+	answer = NULL;
+
+	/* Do NOT perform parallel queries on root or TLD servers. */
+	old_round_robin = pdq->round_robin;
+	pdq->round_robin = 1;
+
+	/* Also skip 5A lookups for all TLD servers. */
+	old_get_extra = pdq->get_extra;
+	pdq->get_extra = 0;
+
+	if (ns == NULL) {
+		ns_list = root_hints;
+	} else {
+		ns_list = pdqGet(pdq, class, PDQ_TYPE_NS, name, ns);
+		if (ns_list != NULL && ns_list->rcode == PDQ_RCODE_OK && (ns_list->flags & BITS_AA)) {
+			pdq->round_robin = old_round_robin;
+			pdq->get_extra = old_get_extra;
+
+			if (ns_list->ancount == 0)
+				/* Use NS glue records. */
+				return (PDQ_rr *) 1;
+
+			/* Found authoritative NS servers. */
+			return ns_list;
+		}
+	}
+
+	for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
+		if (ns_rr->type != PDQ_TYPE_NS)
+			continue;
+
+		a_rr = pdqListFindName(ns_rr->next, class, PDQ_TYPE_5A, ((PDQ_NS *) ns_rr)->host.string.value);
+		if (PDQ_RR_IS_NOT_VALID(a_rr))
+			continue;
+
+		if (0 <debug)
+			syslog(LOG_DEBUG, "pdqRootGet %s %s %s @%s", name, pdqClassName(class), pdqTypeName(type), ((PDQ_NS *) ns_rr)->host.string.value);
+
+		answer = pdqRootGet(pdq, class, PDQ_TYPE_NS, name, ((PDQ_AAAA *) a_rr)->address.string.value);
+		if (answer != NULL) {
+			if (answer == (PDQ_rr *) 1) {
+				if (0 < debug)
+					syslog(LOG_DEBUG, "glue records %s %s %s", name, pdqClassName(class), pdqTypeName(type));
+
+				/* Make it look like an authoriative answer.
+				 * Required for dnsListQueryNs.
+				 */
+				for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
+					if (ns_rr->type == PDQ_TYPE_NS)
+						ns_rr->section = PDQ_SECTION_ANSWER;
+				}
+
+				answer = ns_list;
+				ns_list = NULL;
+			}
+			break;
+		}
+	}
+
+	pdq->get_extra = old_get_extra;
+	if (ns_list != root_hints) {
+		pdqListFree(ns_list);
+	} else if (type != PDQ_TYPE_NS) {
+		/* We should have a set of hopefully authoritative
+		 * NS servers or NS glue records.
+		 */
+		ns_list = answer;
+		answer = NULL;
+		for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
+			if (ns_rr->type != PDQ_TYPE_NS)
+				continue;
+
+			a_rr = pdqListFindName(ns_rr->next, class, PDQ_TYPE_5A, ((PDQ_NS *) ns_rr)->host.string.value);
+			if (PDQ_RR_IS_NOT_VALID(a_rr))
+				continue;
+
+			answer = pdqGet(pdq, class, type, name, ((PDQ_AAAA *) a_rr)->address.string.value);
+			if (answer != NULL)
+				break;
+		}
+		pdqListFree(ns_list);
+	}
+
+	pdq->round_robin = old_round_robin;
+
+	return answer;
+}
+
 /***********************************************************************
  *** Initialisation
  ***********************************************************************/
@@ -3755,6 +3856,13 @@ pdqInit(void)
 
 	rc = pdqSetServers(name_servers);
 	VectorDestroy(name_servers);
+
+	/* Fetch a copy of the current root servers. */
+	pdqSetRoundRobin(1);
+	root_hints = pdqFetch(PDQ_CLASS_IN, PDQ_TYPE_NS, ".", NULL);
+	pdqSetRoundRobin(0);
+	if (0 < debug)
+		syslog(LOG_DEBUG, "root_hints ancount=%u", root_hints->ancount);
 error0:
 	return rc;
 }
@@ -3765,6 +3873,7 @@ error0:
 void
 pdqFini(void)
 {
+	pdqListFree(root_hints);
 	free(servers);
 }
 
@@ -3838,7 +3947,7 @@ pdqSetSourcePortRandomisation(int flag)
 static char *query_server;
 
 static const char usage[] =
-"usage: pdq [-LprsSv][-c class][-l suffixes][-t sec][-q server]\n"
+"usage: pdq [-LprRsSv][-c class][-l suffixes][-t sec][-q server]\n"
 "           type name [type name ...]\n"
 "\n"
 "-c class\tone of IN (default), CH, CS, HS, or ANY\n"
@@ -3846,6 +3955,7 @@ static const char usage[] =
 "-l suffixes\tcomma separated list of DNS list suffixes\n"
 "-p\t\tprune invalid MX, NS, or SOA records\n"
 "-r\t\tenable round robin mode\n"
+"-R\t\tsearch from the root\n"
 "-s\t\tenable source port randomisation\n"
 "-S\t\tcheck SOA is valid for name\n"
 "-t sec\t\ttimeout in seconds, default 45\n"
@@ -3933,15 +4043,16 @@ main(int argc, char **argv)
 	PDQ_rr *list, *answers;
 	PDQ_rr *(*wait_fn)(PDQ *);
 	char buffer[DOMAIN_STRING_LENGTH+1];
-	int ch, type, class, i, prune_list, check_soa;
+	int ch, type, class, i, prune_list, check_soa, from_root;
 
+	from_root = 0;
 	check_soa = 0;
 	prune_list = 0;
 	wait_fn = pdqWait;
 	suffix_list = NULL;
 	class = PDQ_CLASS_IN;
 
-	while ((ch = getopt(argc, argv, "LprsSvc:l:t:q:")) != -1) {
+	while ((ch = getopt(argc, argv, "LprRsSvc:l:t:q:")) != -1) {
 		switch (ch) {
 		case 'c':
 			class = pdqClassCode(optarg);
@@ -3969,6 +4080,10 @@ main(int argc, char **argv)
 
 		case 'r':
 			pdqSetRoundRobin(1);
+			break;
+
+		case 'R':
+			from_root = 1;
 			break;
 
 		case 's':
@@ -4030,6 +4145,8 @@ main(int argc, char **argv)
 			if (check_soa) {
 				if ((ch = pdqTestSOA(pdq, class, argv[i+1], &list)) != 0)
 					printf("%s invalid SOA: %s (%d)\n", argv[i+1], pdqSoaName(ch), ch);
+			} else if (from_root) {
+				list = pdqRootGet(pdq, class, type, argv[i+1], NULL);
 			} else {
 				list = pdqGet(pdq, class, type, argv[i+1], query_server);
 			}
