@@ -725,8 +725,11 @@ uriDecode(const char *s)
 	return decoded;
 }
 
+static const char *
+uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI **origin);
+
 static URI *
-uri_http_list(const char *list, const char *delim)
+uri_http_list(const char *list, const char *delim, Vector visited, char *buffer, size_t size)
 {
 	int i;
 	Vector args;
@@ -754,7 +757,7 @@ uri_http_list(const char *list, const char *delim)
 		}
 
 		if ((uri = uriParse2(arg, -1, 1)) != NULL) {
-			error = uriHttpOrigin(uri->uri, &origin);
+			error = uri_http_origin(uri->uri, visited, buffer, size, &origin);
 			free(uri);
 			if (error == NULL)
 				break;
@@ -767,7 +770,7 @@ uri_http_list(const char *list, const char *delim)
 }
 
 static URI *
-uri_http_query(URI *uri)
+uri_http_query(URI *uri, Vector visited, char *buffer, size_t size)
 {
 	URI *origin;
 
@@ -775,64 +778,27 @@ uri_http_query(URI *uri)
 		return NULL;
 
 	if (uri->query == NULL)
-		origin = uri_http_list(uri->path, "&");
-	else if ((origin = uri_http_list(uri->query, "&")) == NULL)
-		origin = uri_http_list(uri->query, "/");
+		origin = uri_http_list(uri->path, "&", visited, buffer, size);
+	else if ((origin = uri_http_list(uri->query, "&", visited, buffer, size)) == NULL)
+		origin = uri_http_list(uri->query, "/", visited, buffer, size);
 	if (origin == NULL)
-		origin = uri_http_list(uri->path, "/");
+		origin = uri_http_list(uri->path, "/", visited, buffer, size);
 
 	return origin;
 }
 
-/**
- * @param url
- *	Find the HTTP origin server by following all redirections.
- *
- * @param origin
- *	A pointer to a URI pointer used to pass back to the caller
- *	the HTTP origin server found. Its the caller's responsibility
- *	to free() this pointer. Otherwise NULL on error.
- *
- * @return
- *	NULL on success; otherwise on error a pointer to a C string
- *	giving brief decription.
- *
- * @see
- *	uriError messages
- */
-const char *
-uriHttpOrigin(const char *url, URI **origin)
+static const char *
+uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI **origin)
 {
 	URI *uri;
-	Vector visited;
 	Socket2 *socket;
 	const char *error;
-	int port, n, redirect_count;
-	char *buffer, **visited_url;
-
-	if (url == NULL && origin == NULL) {
-		error = uriErrorNullArgument;
-		errno = EFAULT;
-		goto error0;
-	}
+	char **visited_url, *copy;
+	int port, n, span, redirect_count;
 
 	uri = NULL;
 	error = NULL;
 	*origin = NULL;
-
-	if ((buffer = malloc(HTTP_BUFFER_SIZE)) == NULL) {
-		error = uriErrorMemory;
-		syslog(LOG_ERR, log_error, __FILE__, __LINE__, error);
-		goto error0;
-	}
-
-	if ((visited = VectorCreate(10)) == NULL) {
-		error = uriErrorMemory;
-		syslog(LOG_ERR, log_error, __FILE__, __LINE__, error);
-		goto error1;
-	}
-
-	VectorSetDestroyEntry(visited, free);
 
 	for (socket = NULL, redirect_count = 0; ; ) {
 		for (visited_url = (char **) VectorBase(visited); *visited_url != NULL; visited_url++) {
@@ -844,7 +810,8 @@ uriHttpOrigin(const char *url, URI **origin)
 			}
 		}
 
-		if (VectorAdd(visited, strdup(url))) {
+		if (VectorAdd(visited, copy = strdup(url))) {
+			free(copy);
 			error = uriErrorMemory;
 			syslog(LOG_ERR, log_error, __FILE__, __LINE__, error);
 			goto error2;
@@ -880,10 +847,6 @@ uriHttpOrigin(const char *url, URI **origin)
 			goto error2;
 		}
 
-		/* Check URI query string first if any. */
-		if ((*origin = uri_http_query(uri)) != NULL)
-			break;
-
 		if (0 < uriDebug)
 			syslog(LOG_DEBUG, "connect %s:%d", uri->host, port);
 
@@ -904,7 +867,7 @@ uriHttpOrigin(const char *url, URI **origin)
 		 * minimize  identifying / confirming anything.
 		 */
 		n = snprintf(
-			buffer, HTTP_BUFFER_SIZE, "HEAD %s%s%s%s HTTP/1.0\r\nHost: %s",
+			buffer, size, "HEAD %s%s%s%s HTTP/1.0\r\nHost: %s",
 			(uri->path == NULL || *uri->path != '/') ? "/" : "",
 			uri->path == NULL ? "" : uri->path,
 			(0 < redirect_count && uri->query != NULL) ? "?" : "",
@@ -920,9 +883,9 @@ uriHttpOrigin(const char *url, URI **origin)
 		 * resulted in a 200 status.
 		 */
 		if (port != 80)
-			n += snprintf(buffer+n, HTTP_BUFFER_SIZE-n, ":%d", port);
+			n += snprintf(buffer+n, size-n, ":%d", port);
 
-		n += snprintf(buffer+n, HTTP_BUFFER_SIZE-n, "\r\n\r\n");
+		n += snprintf(buffer+n, size-n, "\r\n\r\n");
 
 		if (0 < uriDebug)
 			syslog(LOG_DEBUG, "> %d:%s", n, buffer);
@@ -934,7 +897,7 @@ uriHttpOrigin(const char *url, URI **origin)
 			goto error2;
 		}
 
-		if ((n = (int) socketReadLine(socket, buffer, HTTP_BUFFER_SIZE)) < 0) {
+		if ((n = (int) socketReadLine(socket, buffer, size)) < 0) {
 			error = uriErrorRead;
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "%s (%d): %s:%d", error, n, uri->host, port);
@@ -971,24 +934,37 @@ uriHttpOrigin(const char *url, URI **origin)
 		 * it was different 3xx response code and an error.
 		 */
 
-		while (0 < (n = socketReadLine(socket, buffer, HTTP_BUFFER_SIZE))) {
+		while (0 < (n = socketReadLine(socket, buffer, size))) {
 			if (0 < uriDebug)
 				syslog(LOG_DEBUG, "< %d:%s", n, buffer);
 			if (0 < TextInsensitiveStartsWith(buffer, "Location:")) {
 				url = buffer + sizeof("Location:")-1;
 				url += strspn(url, " \t");
 
-				/* Is it a redirection on the same server,
-				 * ie. no http://host:port given?
+				/* Is it a redirection on the same server?
+				 * Does it have a leading scheme or not?
+				 * Without a scheme, assume relative URL.
 				 */
-				if (*url == '/') {
+				if (!(0 < (span = spanScheme(url)) && url[span] == ':')) {
 					/* Use the upper portion of the buffer
 					 * just past the end of the line to
 					 * construct a new URL.
 					 */
-					int length = snprintf(buffer+n, HTTP_BUFFER_SIZE-n, "http://%s:%d%s", uri->host, port, url);
+					int length;
+					char *path, root[] = { '/', '\0' };
 
-					if (HTTP_BUFFER_SIZE-n <= length) {
+					/* Is path defined? */
+					path = (uri->path == NULL || *uri->path != '/') ? root : uri->path;
+					/* Find previous slash. */
+					length = strlrcspn(path, strlen(path), "/");
+					/* Remove basename. */
+					path[length] = '\0';
+					/* Include null byte in length. */
+					n++;
+					/* Build absolute path from relative one. */
+					length = snprintf(buffer+n, size-n, "http://%s:%d%s%s", uri->host, port, path, url);
+					/* Buffer overflow? */
+					if (size-n <= length) {
 						error = uriErrorOverflow;
 						syslog(LOG_ERR, log_error, __FILE__, __LINE__, error);
 						goto error2;
@@ -1008,18 +984,72 @@ uriHttpOrigin(const char *url, URI **origin)
 				syslog(LOG_DEBUG, "%s: %s:%d", error, uri->host, port);
 			goto error2;
 		}
+
+		/* Check URI query string first if any. */
+		if ((*origin = uri_http_query(uri, visited, buffer, size)) != NULL)
+			break;
 	}
 error2:
 	free(uri);
 origin_found:
-	VectorDestroy(visited);
 	socketClose(socket);
+
+	return error;
+}
+
+/**
+ * @param url
+ *	Find the HTTP origin server by following all redirections.
+ *
+ * @param origin
+ *	A pointer to a URI pointer used to pass back to the caller
+ *	the HTTP origin server found. Its the caller's responsibility
+ *	to free() this pointer. Otherwise NULL on error.
+ *
+ * @return
+ *	NULL on success; otherwise on error a pointer to a C string
+ *	giving brief decription.
+ *
+ * @see
+ *	uriError messages
+ */
+const char *
+uriHttpOrigin(const char *url, URI **origin)
+{
+	char *buffer;
+	Vector visited;
+	const char *error;
+
+	if (url == NULL && origin == NULL) {
+		error = uriErrorNullArgument;
+		errno = EFAULT;
+		goto error0;
+	}
+
+	*origin = NULL;
+
+	if ((buffer = malloc(HTTP_BUFFER_SIZE)) == NULL) {
+		error = uriErrorMemory;
+		syslog(LOG_ERR, log_error, __FILE__, __LINE__, error);
+		goto error0;
+	}
+
+	if ((visited = VectorCreate(10)) == NULL) {
+		error = uriErrorMemory;
+		syslog(LOG_ERR, log_error, __FILE__, __LINE__, error);
+		goto error1;
+	}
+
+	VectorSetDestroyEntry(visited, free);
+
+	error = uri_http_origin(url, visited, buffer, HTTP_BUFFER_SIZE, origin);
+
+	VectorDestroy(visited);
 error1:
 	free(buffer);
 error0:
 	return error;
 }
-
 /***********************************************************************
  *** Parsing URI in MIME parts
  ***********************************************************************/
@@ -1243,6 +1273,7 @@ static int check_files;
 static int check_query;
 static int check_subdomains;
 static int print_uri_parse;
+static char *dBlOption;
 static char *ipBlOption;
 static char *nsBlOption;
 static char *nsIpBlOption;
@@ -1284,18 +1315,18 @@ static Vector mail_bl_domains;
 #endif
 
 static char usage[] =
-"usage: uri [-aDflLpqRsv][-A delim][-i ip-bl,...][-m mail-bl][-M domain-pat,...]\n"
-"           [-n ns-bl,...][-N ns-ip-bl,...][-u uri-bl,...][-P ports][-Q ns,...]\n"
-"           [-t sec][-T sec][arg ...]\n"
+"usage: uri [-aflLpqRsUv][-A delim][-d dbl,...][-i ip-bl,...][-m mail-bl,...]\n"
+"           [-M domain-pat,...][-n ns-bl,...][-N ns-ip-bl,...][-u uri-bl,...]\n"
+"           [-P port,...][-Q ns,...][-t sec][-T sec][arg ...]\n"
 "\n"
 "-a\t\tcheck all (headers & body), otherwise assume body only\n"
 "-A delim\tan alternative delimiter to replace the at-sign (@)\n"
-"-D\t\tcheck sub-domains segments of URI domains\n"
+"-d dbl,...\tcomma separate list of domain black lists\n"
 "-f\t\tcommand line arguments are file names\n"
 "-i ip-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
 "-l\t\tcheck HTTP links are valid & find origin server\n"
-"-L\t\twait for all the replies from DNS lists, use with -v\n"
+"-L\t\twait for all the replies from DNS list queries, need -v\n"
 "-m mail-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
 "-M domain,...\tlist of domain glob-like patterns by which to limit\n"
@@ -1305,7 +1336,7 @@ static char usage[] =
 "-N ns-ip-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
 "-p\t\tprint each URI parsed\n"
-"-P ports\tselect only the URI corresponding to the comma\n"
+"-P port,...\tselect only the URI corresponding to the comma\n"
 "\t\tseparated list of port numbers to print and/or test\n"
 "-q\t\tcheck URL query part for embedded URLs\n"
 "-Q ns,...\tcomma separated list of alternative name servers\n"
@@ -1315,6 +1346,7 @@ static char usage[] =
 "-T sec\t\tDNS timeout in seconds, default 45\n"
 "-u uri-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
+"-U\t\tcheck sub-domains segments of URI domains\n"
 "-v\t\tverbose logging to system's user log\n"
 "\n"
 "Each argument is a URI to be parsed and tested. If -f is specified\n"
@@ -1347,6 +1379,7 @@ syslog(int level, const char *fmt, ...)
 
 PDQ *pdq;
 int check_soa;
+DnsList *d_bl_list;
 DnsList *ip_bl_list;
 DnsList *ns_bl_list;
 DnsList *ns_ip_bl_list;
@@ -1362,6 +1395,13 @@ test_uri(URI *uri, const char *filename)
 	PDQ_valid_soa code;
 	const char *list_name = NULL;
 
+	if ((list_name = dnsListQueryName(d_bl_list, pdq, NULL, uri->host)) != NULL) {
+		if (filename != NULL)
+			printf("%s: ", filename);
+		printf("%s domain blacklisted %s\n", uri->host, list_name);
+		exit_code = EXIT_FAILURE;
+	}
+
 	if ((list_name = dnsListQueryDomain(uri_bl_list, pdq, NULL, check_subdomains, uri->host)) != NULL) {
 		if (filename != NULL)
 			printf("%s: ", filename);
@@ -1369,17 +1409,17 @@ test_uri(URI *uri, const char *filename)
 		exit_code = EXIT_FAILURE;
 	}
 
-	if ((list_name = dnsListQueryIP(ip_bl_list, pdq, NULL, uri->host)) != NULL) {
-		if (filename != NULL)
-			printf("%s: ", filename);
-		printf("%s IP blacklisted %s\n", uri->host, list_name);
-		exit_code = EXIT_FAILURE;
-	}
-
 	if ((list_name = dnsListQueryNs(ns_bl_list, ns_ip_bl_list, pdq, ns_names_seen, uri->host)) != NULL) {
 		if (filename != NULL)
 			printf("%s: ", filename);
 		printf("%s NS blacklisted %s\n", uri->host, list_name);
+		exit_code = EXIT_FAILURE;
+	}
+
+	if ((list_name = dnsListQueryIP(ip_bl_list, pdq, NULL, uri->host)) != NULL) {
+		if (filename != NULL)
+			printf("%s: ", filename);
+		printf("%s IP blacklisted %s\n", uri->host, list_name);
 		exit_code = EXIT_FAILURE;
 	}
 
@@ -1436,18 +1476,18 @@ process(URI *uri, const char *filename)
 		fputc('\n', stdout);
 	}
 
+	if (uri->host != NULL)
+		test_uri(uri, filename);
+
 	if (check_link && uri->host != NULL) {
 		error = uriHttpOrigin(uri->uriDecoded, &origin);
 		if (filename != NULL)
 			printf("%s: ", filename);
 		printf("%s -> ", uri->uriDecoded);
 		printf("%s\n", error == NULL ? origin->uri : error);
-		if (error != NULL)
+		if (error == uriErrorLoop)
 			exit_code = EXIT_FAILURE;
 	}
-
-	if (uri->host != NULL)
-		test_uri(uri, filename);
 
 	if (origin != NULL && origin->host != NULL && strcmp(uri->host, origin->host) != 0) {
 		test_uri(origin, filename);
@@ -1562,13 +1602,16 @@ main(int argc, char **argv)
 	URI *uri;
 	int i, ch;
 
-	while ((ch = getopt(argc, argv, "aA:Dm:M:i:n:N:u:flLmpP:qQ:RsT:t:v")) != -1) {
+	while ((ch = getopt(argc, argv, "aA:d:m:M:i:n:N:u:UflLmpP:qQ:RsT:t:v")) != -1) {
 		switch (ch) {
 		case 'a':
 			check_all = 1;
 			break;
 		case 'A':
 			at_sign_delim = *optarg;
+			break;
+		case 'd':
+			dBlOption = optarg;
 			break;
 		case 'i':
 			ipBlOption = optarg;
@@ -1673,6 +1716,8 @@ main(int argc, char **argv)
 	VectorSetDestroyEntry(ns_names_seen, free);
 	mail_names_seen = VectorCreate(10);
 	VectorSetDestroyEntry(mail_names_seen, free);
+
+	d_bl_list = dnsListCreate(dBlOption);
 	ip_bl_list = dnsListCreate(ipBlOption);
 	ns_bl_list = dnsListCreate(nsBlOption);
 	ns_ip_bl_list = dnsListCreate(nsIpBlOption);
@@ -1713,6 +1758,7 @@ main(int argc, char **argv)
 	dnsListFree(uri_bl_list);
 	dnsListFree(ns_ip_bl_list);
 	dnsListFree(ns_bl_list);
+	dnsListFree(d_bl_list);
 	pdqClose(pdq);
 
 	return exit_code;
