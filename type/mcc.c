@@ -752,6 +752,7 @@ error0:
 static void *
 mcc_listener_thread(void *data)
 {
+	long nbytes;
 	md5_state_t md5;
 	mcc_handle *mcc;
 	SocketAddress from;
@@ -775,10 +776,15 @@ mcc_listener_thread(void *data)
 			continue;
 		}
 
-		if (socketReadFrom(listener->socket, (unsigned char *) &new_row, sizeof (new_row), &from) < 0) {
+		nbytes = socketReadFrom(listener->socket, (unsigned char *) &new_row, sizeof (new_row), &from);
+
+		if (nbytes < 0) {
 			syslog(LOG_ERR, "multi/unicast socket read error: %s (%d)", strerror(errno), errno);
 			continue;
 		}
+
+		if (nbytes == 0)
+			continue;
 
 		(void) socketAddressGetString(&from, 0, ip, sizeof (ip));
 
@@ -981,6 +987,9 @@ mccStopUnicast(mcc_handle *mcc)
 		mcc->unicast_ip = NULL;
 	}
 
+	if (0 < debug)
+		syslog(LOG_DEBUG, "closing unicast socket...");
+
 	/* Now we can clean this up. */
 	socketClose(mcc->unicast.socket);
 	mcc->unicast.socket = NULL;
@@ -1115,6 +1124,8 @@ mccStopMulticast(mcc_handle *mcc)
 		(void) socketMulticast(mcc->multicast.socket, mcc->multicast_ip, 0);
 	}
 
+	if (0 < debug)
+		syslog(LOG_DEBUG, "closing multicast socket...");
 	socketClose(mcc->multicast.socket);
 	mcc->multicast.socket = NULL;
 
@@ -1538,7 +1549,6 @@ mccDestroy(void *_mcc)
 		if (0 < debug)
 			syslog(LOG_DEBUG, "mccDestroy(%lx)", (long) mcc);
 
-		(void) pthread_mutex_trylock(&mcc->mutex);
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &mcc->mutex);
 #endif
