@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <string.h>
+#include <assert.h>
 #include <sys/stat.h>
 
 #if defined(HAVE_SYSLOG_H) && ! defined(__MINGW32__)
@@ -569,13 +570,13 @@ smfAccessPattern(smfWork *work, const char *hay, char *pins, char **actionp)
 		(long) work, TextNull(hay), TextNull(pins), (long) actionp
 	);
 
-	if (actionp != NULL)
-		*actionp = NULL;
-
 	if (hay == NULL || pins == NULL || *pins == '\0') {
 		access = SMDB_ACCESS_NOT_FOUND;
 		goto error0;
 	}
+
+	if (actionp != NULL)
+		*actionp = NULL;
 
 	action = "";
 	is_hay_ip = 0 < parseIPv6(hay, ipv6);
@@ -772,6 +773,19 @@ error0:
 	return access;
 }
 
+static void
+smdb_free_pair(char **lhs, char **rhs)
+{
+	if (lhs != NULL) {
+		free(*lhs);
+		*lhs = NULL;
+	}
+	if (rhs != NULL) {
+		free(*rhs);
+		*rhs = NULL;
+	}
+}
+
 /**
  * Perform the following access.db lookups concerning IP and/or resolved
  * domain name, stopping on the first entry found:
@@ -852,13 +866,7 @@ int
 smfAccessClient(smfWork *work, const char *tag, const char *client_name, const char *client_addr, char **lhs, char **rhs)
 {
 	int access;
-	char *value;
-
-	smfLog(
-		SMF_LOG_DEBUG,
-		TAG_FORMAT "enter smfAccessClient(%lx, %s, %s, %s, %lx, %lx)", TAG_ARGS,
-		(long) work, tag, client_name, client_addr, (long) lhs, (long) rhs
-	);
+	char *value = NULL;
 
 	/*	tag:a.b.c.d
 	 *	tag:a.b.c
@@ -882,27 +890,28 @@ smfAccessClient(smfWork *work, const char *tag, const char *client_name, const c
 	 * 	tag:
 	 */
 	if (access == SMDB_ACCESS_NOT_FOUND) {
+		smdb_free_pair(lhs, &value);
 		access = smdbAccessDomain(smdbAccess, tag, client_name, lhs, &value);
 
 		if (access == SMDB_ACCESS_NOT_FOUND) {
+			smdb_free_pair(lhs, &value);
 			value = smdbGetValue(smdbAccess, tag);
 			if (value != NULL && lhs != NULL)
 				*lhs = strdup(tag);
 		}
 
-		access = smfAccessPattern(work, client_name, value, rhs);
-		if (access == SMDB_ACCESS_NOT_FOUND)
+		if ((access = smfAccessPattern(work, client_name, value, rhs)) == SMDB_ACCESS_NOT_FOUND)
 			access = smfAccessPattern(work, client_addr, value, rhs);
-	}
 
-	if (access == SMDB_ACCESS_NOT_FOUND && lhs != NULL)
-		free(*lhs);
+		if (access == SMDB_ACCESS_NOT_FOUND)
+			smdb_free_pair(lhs, &value);
+	}
 
 	free(value);
 
 	smfLog(
 		SMF_LOG_DEBUG,
-		TAG_FORMAT "exit  smfAccessClient(%lx, %s, %s, %s, %lx, %lx) access=%d", TAG_ARGS,
+		TAG_FORMAT "smfAccessClient(%lx, %s, %s, %s, %lx, %lx) access=%d", TAG_ARGS,
 		(long) work, tag, client_name, client_addr, (long) lhs, (long) rhs, access
 	);
 
@@ -1424,8 +1433,9 @@ smfAccessMail(smfWork *work, const char *tag, const char *mail, int dsnDefault)
 {
 	int access;
 	ParsePath *path;
-	char *auth_authen;
 	const char *error;
+	char connect[128], *name, *delim;
+	char *auth_authen, *client_name, *client_addr, *value;
 
 	free(work->mail);
 	work->mail = NULL;
@@ -1435,22 +1445,48 @@ smfAccessMail(smfWork *work, const char *tag, const char *mail, int dsnDefault)
 		return SMDB_ACCESS_ERROR;
 	}
 
+	client_name = smfi_getsymval(work->ctx, smMacro_client_name);
+	client_addr = smfi_getsymval(work->ctx, smMacro_client_addr);
 	auth_authen = smfi_getsymval(work->ctx, smMacro_auth_authen);
 
 	smfLog(
 		SMF_LOG_PARSE,
-		TAG_FORMAT "address='%s' localleft='%s' localright='%s' domain='%s' auth='%s'",
+		TAG_FORMAT "address='%s' localleft='%s' localright='%s' domain='%s' auth='%s' client_name=%s client_addr=%s",
 		TAG_ARGS, path->address.string, path->localLeft.string,
-		path->localRight.string, path->domain.string, TextNull(auth_authen)
+		path->localRight.string, path->domain.string, TextNull(auth_authen),
+		TextNull(client_name), TextNull(client_addr)
 	);
+
+	if (work->info == NULL) {
+		name = delim = "";
+	} else {
+		/* Build the milter specific leading tag name for combo
+		 * tags to avoid confusion with sendmail's own tags.
+		 */
+		name = work->info->package;
+		delim = "-";
+	}
+
+	(void) snprintf(connect, sizeof (connect), "%s%sconnect:", name, delim);
 
 	/* The default is to white list authenticated users. */
 	if (smfOptSmtpAuthOk.value && auth_authen != NULL)
 		access = SMDB_ACCESS_OK;
 
 	/* How to handle the DSN address. */
-	else if (*path->address.string == '\0')
+	else if (path->address.length == 0)
 		access = dsnDefault;
+
+	else if ((access = smdbIpMail(smdbAccess, connect, client_addr, ":from:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND
+	     ||  (*client_name != '\0' && (access = smdbDomainMail(smdbAccess, connect, client_name, ":from:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND)) {
+		access = smfAccessPattern(work, client_addr, value, NULL);
+		if (access == SMDB_ACCESS_NOT_FOUND) {
+			access = smfAccessPattern(work, client_name, value, NULL);
+			if (access == SMDB_ACCESS_NOT_FOUND)
+				access = smfAccessPattern(work, path->address.string, value, NULL);
+		}
+		free(value);
+	}
 
 	/* Lookup
 	 *
@@ -1602,6 +1638,8 @@ smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
 	int access;
 	ParsePath *path;
 	const char *error;
+	char *client_name, *client_addr, *value;
+	char connect[128], from[128], *name, *delim;
 #ifdef HAVE_POP_BEFORE_SMTP
 /* Requested by Michael Elliott <elliott@rod.msen.com>. [ACH: Why is this
  * being applied during the RCPT handler instead of the MAIL handler where
@@ -1619,12 +1657,26 @@ smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
 		return SMDB_ACCESS_ERROR;
 	}
 
+	client_name = smfi_getsymval(work->ctx, smMacro_client_name);
+	client_addr = smfi_getsymval(work->ctx, smMacro_client_addr);
+
 	smfLog(
 		SMF_LOG_PARSE,
-		TAG_FORMAT "address='%s' localleft='%s' localright='%s' domain='%s'",
+		TAG_FORMAT "address='%s' localleft='%s' localright='%s' domain='%s' client_name=%s client_addr=%s",
 		TAG_ARGS, path->address.string, path->localLeft.string,
-		path->localRight.string, path->domain.string
+		path->localRight.string, path->domain.string,
+		TextNull(client_name), TextNull(client_addr)
 	);
+
+	if (work->info == NULL) {
+		name = delim = "";
+	} else {
+		name = work->info->package;
+		delim = "-";
+	}
+
+	(void) snprintf(from, sizeof (from), "%s%sfrom:", name, delim);
+	(void) snprintf(connect, sizeof (connect), "%s%sconnect:", name, delim);
 
 #ifdef HAVE_POP_BEFORE_SMTP
 	if ((popauth_info = smfi_getsymval(work->ctx, smMacro_popauth_info)) != NULL) {
@@ -1644,6 +1696,24 @@ smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
 	if (smfOptRejectPercentRelay.value && strchr(path->address.string, '%') != NULL) {
 		smfReply(work, 550, NULL, "routed address relaying denied");
 		access = SMDB_ACCESS_REJECT;
+	}
+
+	else if ((access = smdbIpMail(smdbAccess, connect, client_addr, ":to:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND
+	     ||  (*client_name != '\0' && (access = smdbDomainMail(smdbAccess, connect, client_name, ":to:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND)) {
+		access = smfAccessPattern(work, client_addr, value, NULL);
+		if (access == SMDB_ACCESS_NOT_FOUND) {
+			access = smfAccessPattern(work, client_name, value, NULL);
+			if (access == SMDB_ACCESS_NOT_FOUND)
+				access = smfAccessPattern(work, path->address.string, value, NULL);
+		}
+		free(value);
+	}
+
+	else if ((access = smdbMailMail(smdbAccess, from, work->mail->address.string, ":to:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND) {
+		access = smfAccessPattern(work, work->mail->address.string, value, NULL);
+		if (access == SMDB_ACCESS_NOT_FOUND)
+			access = smfAccessPattern(work, path->address.string, value, NULL);
+		free(value);
 	}
 
 	/* Lookup

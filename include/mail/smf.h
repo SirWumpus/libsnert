@@ -134,6 +134,7 @@ typedef struct {
 
 typedef struct {
 	SMFICTX *ctx;				/* per connection */
+	smfInfo *info;				/* per process, static */
 	unsigned short cid;			/* per connection id */
 	int skipConnection;			/* per connection */
 	int skipMessage;			/* per message */
