@@ -352,7 +352,7 @@ VectorUniq(Vector self, int (*compare)(const void *a, const void *b))
  *
  * @param function
  *	A call-back function that is give the current index and vector
- *	value to examine. This should function returns 0 to stop walking,
+ *	value to examine. This function should return 0 to stop walking,
  *	1 to continue walking, or -1 to delete the current index and
  *	and continue walking.
  *
@@ -360,7 +360,7 @@ VectorUniq(Vector self, int (*compare)(const void *a, const void *b))
  *	An obsecure data type passed to the callback function.
  *
  * @return
- *	Return 0 on success, otherwise -1 on error.
+ *	Return 0 on early stop, 1 on end of walk, otherwise -1 on error.
  */
 int
 VectorWalk(Vector self, int (*function)(Vector self, long index, void *object, void *data), void *data)
@@ -384,7 +384,7 @@ VectorWalk(Vector self, int (*function)(Vector self, long index, void *object, v
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 /**
