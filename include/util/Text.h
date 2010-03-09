@@ -76,10 +76,34 @@ extern unsigned long TextHash(unsigned long, const char *);
 extern const char *TextNull(const char *);
 extern const char *TextEmpty(const char *);
 extern const char *TextDelim(const char *, const char *);
-extern int TextIsEmpty(const char *);
 extern int TextIsInteger(const char *, int);
 extern Buf *TextExpand(Buf *s, long col);
 extern char *TextHexEncode(Buf *b);
+
+#define TextIsBlank(s)		((s) == NULL || (s)[strcspn(s, " \t\r\n\f")] == '\0')
+#define TextIsEmpty(s)		((s) == NULL || *(s) == '\0')
+
+#ifndef TextIsBlank
+/**
+ * @param s
+ *	A C string pointer.
+ *
+ * @return
+ *	True if the string is empty (zero length)
+ *	or contains only whitespace.
+ */
+extern int TextIsBlank(const char *s);
+#endif
+#ifndef TextIsEmpty
+/**
+ * @param s
+ *	A C string pointer.
+ *
+ * @return
+ *	True if the string is empty (zero length).
+ */
+extern int TextIsEmpty(const char *s);
+#endif
 
 /**
  * <p>

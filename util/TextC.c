@@ -58,25 +58,32 @@ TextSubstring(const char *orig, long offset, long length)
 }
 
 /**
- * <p>
- * Is the string empty or blank?  This is equivalent to the
- * Perl regular expression:
- * </p>
- * <pre>
- *	m!^\s*!.
- * </pre>
- *
  * @param s
- *	A string to scan.
+ *	A C string pointer.
  *
  * @return
- *	True if the string is empty (zero length) or contains
- *	only whitespace.
+ *	True if the string is empty (zero length)
+ *	or contains only whitespace.
  */
+#undef TextIsBlank
+int
+TextIsBlank(const char *s)
+{
+	return s == NULL || s[strcspn(s, " \t\r\n\f")] == '\0';
+}
+
+/**
+ * @param s
+ *	A C string pointer.
+ *
+ * @return
+ *	True if the string is empty (zero length).
+ */
+#undef TextIsEmpty
 int
 TextIsEmpty(const char *s)
 {
-	return s[strcspn(s, " \t\r\n\f")] == '\0';
+	return s == NULL || *s == '\0';
 }
 
 /**
