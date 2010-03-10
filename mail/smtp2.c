@@ -408,7 +408,7 @@ smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 		}
 	}
 
-	pdqFree(list);
+	pdqListFree(list);
 
 	return rc;
 }

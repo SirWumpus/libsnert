@@ -28,11 +28,7 @@
 #endif
 
 #include <com/snert/lib/io/Log.h>
-#ifdef ENABLE_PDQ
-# include <com/snert/lib/net/pdq.h>
-#else
-# include <com/snert/lib/io/Dns.h>
-#endif
+#include <com/snert/lib/net/pdq.h>
 #include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/mail/limits.h>
 #include <com/snert/lib/mail/MailSpan.h>
@@ -131,7 +127,6 @@ socketAddressCreate(const char *host, unsigned port)
 	}
 #endif
 	if ((length = parseIPv6(host, ipv6)) == 0) {
-#ifdef ENABLE_PDQ
 		char *name;
 		PDQ_rr *list, *rr;
 
@@ -158,46 +153,11 @@ socketAddressCreate(const char *host, unsigned port)
 			}
 		}
 
-		pdqFree(list);
+		pdqListFree(list);
 		free(name);
 
 		if (rr == NULL)
 			goto error1;
-#else
-		Dns dns;
-		char *name;
-		Vector entries;
-		DnsEntry *entry;
-
-		if (*host == '[')
-			host++;
-
-		if ((length = MailSpanDomainName(host, 0)) == 0)
-			goto error1;
-
-		if ((name = malloc(length+1)) == NULL)
-			goto error1;
-		TextCopy(name, length+1, (char *) host);
-
-		if (host[length] == ']')
-			length++;
-
-		if ((dns = DnsOpen()) == NULL) {
-			free(name);
-			goto error1;
-		}
-
-		if ((entries = DnsGet(dns, DNS_TYPE_A, 1, name)) == NULL)
-			entries = DnsGet(dns, DNS_TYPE_AAAA, 1, name);
-
-		DnsClose(dns);
-		free(name);
-
-		if ((entry = VectorGet(entries, 0)) != NULL)
-			memcpy(ipv6, entry->address, IPV6_BYTE_LENGTH);
-
-		VectorDestroy(entries);
-#endif
 	}
 
 	if (ispunct(host[length]) || isspace(host[length])) {
@@ -358,7 +318,7 @@ socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 				break;
 			}
 		}
-		pdqFree(list);
+		pdqListFree(list);
 	}
 
 	return length;

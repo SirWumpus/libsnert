@@ -85,7 +85,6 @@
  ***
  ***********************************************************************/
 
-#ifdef ENABLE_PDQ
 int
 isClientIpHeloEqual(char *client_addr, char *helo)
 {
@@ -107,49 +106,10 @@ isClientIpHeloEqual(char *client_addr, char *helo)
 		}
 	}
 
-	pdqFree(list);
+	pdqListFree(list);
 error0:
 	return rc;
 }
-#else
-int
-isClientIpHeloEqual(char *client_addr, char *helo)
-{
-	Dns dns;
-	int i, rc;
-	Vector hosts;
-	DnsEntry *entry;
-
-	rc = 0;
-
-	if (client_addr == NULL || helo == NULL || *helo == '\0')
-		goto error0;
-
-	if ((dns = DnsOpen()) == NULL)
-		goto error0;
-
-	if ((hosts = DnsGet(dns, DNS_TYPE_A, 1, helo)) == NULL)
-		hosts = DnsGet(dns, DNS_TYPE_AAAA, 1, helo);
-
-	if (DnsGetReturnCode(dns) != DNS_RCODE_OK || hosts == NULL)
-		goto error1;
-
-	for (i = 0; i < VectorLength(hosts); i++) {
-		if ((entry = VectorGet(hosts, i)) == NULL)
-			continue;
-
-		if (strcmp(client_addr, entry->value) == 0) {
-			rc = 1;
-			break;
-		}
-	}
-error1:
-	VectorDestroy(hosts);
-	DnsClose(dns);
-error0:
-	return rc;
-}
-#endif
 
 int
 isHeloMailSimilar(char *helo, char *domain)

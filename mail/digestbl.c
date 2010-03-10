@@ -178,7 +178,7 @@ dnsListLookup(DnsList *dnslist, const char *name)
 
 	if (answers != NULL) {
 		list_name = dnsListIsListed(dnslist, name, answers);
-		pdqFree(answers);
+		pdqListFree(answers);
 	}
 
 	return list_name;
