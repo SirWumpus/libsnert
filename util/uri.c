@@ -1752,14 +1752,17 @@ main(int argc, char **argv)
 		}
 	}
 
+	VectorDestroy(mail_bl_domains);
 	VectorDestroy(mail_names_seen);
 	VectorDestroy(ns_names_seen);
 	dnsListFree(mail_bl_list);
 	dnsListFree(uri_bl_list);
 	dnsListFree(ns_ip_bl_list);
 	dnsListFree(ns_bl_list);
+	dnsListFree(ip_bl_list);
 	dnsListFree(d_bl_list);
 	pdqClose(pdq);
+	pdqFini();
 
 	return exit_code;
 }
