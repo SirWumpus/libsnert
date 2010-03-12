@@ -1122,8 +1122,6 @@ serverWorkerCreate(Server *server)
 #ifdef __WIN32__
 	worker->kill_event = CreateEvent(NULL, 0, 0, NULL);
 #endif
-	serverListEnqueue(&server->workers, &worker->node);
-
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u worker-id=%u start", server->id, worker->id);
 
@@ -1138,6 +1136,8 @@ serverWorkerCreate(Server *server)
 		syslog(LOG_ERR, "server-id=%u worker-id=%u thread create fail: %s (%d)", server->id, worker->id, strerror(errno), errno);
 		goto error1;
 	}
+
+	serverListEnqueue(&server->workers, &worker->node);
 
 	return pthread_detach(worker->thread);
 error1:
