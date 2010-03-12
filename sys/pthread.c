@@ -230,6 +230,9 @@ pthread_cancel(pthread_t target_thread)
 	int rc;
 	HANDLE self_thread;
 
+	if (target_thread == NULL)
+		return errno = ESRCH;
+
 	self_thread = GetCurrentThread();
 	rc = SignalObjectAndWait(target_thread, self_thread, 0, 0);
 	CloseHandle(self_thread);
