@@ -3,7 +3,7 @@
  *
  * RFC 2821, 2396 Support Routines
  *
- * Copyright 2002, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2006, 2010 by Anthony Howe. All rights reserved.
  */
 
 #ifndef HTTP_BUFFER_SIZE
@@ -16,6 +16,7 @@
 
 #define TEXT_VS_INLINE
 #define TEST_MESSAGE_PARTS
+#define URI_HTTP_ORIGIN_QUERY_FIRST
 
 /***********************************************************************
  *** No configuration below this point.
@@ -44,6 +45,7 @@
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/net/dnsList.h>
 #include <com/snert/lib/mail/tlds.h>
+#include <com/snert/lib/mail/limits.h>
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/util/b64.h>
 #include <com/snert/lib/util/uri.h>
@@ -847,6 +849,11 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 			goto error2;
 		}
 
+#ifdef URI_HTTP_ORIGIN_QUERY_FIRST
+		/* Check URI query string first if any. */
+		if ((*origin = uri_http_query(uri, visited, buffer, size)) != NULL)
+			break;
+#endif
 		if (0 < uriDebug)
 			syslog(LOG_DEBUG, "connect %s:%d", uri->host, port);
 
@@ -858,10 +865,10 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 				syslog(LOG_DEBUG, "%s: %s:%d", error, uri->host, port);
 			goto error2;
 		}
-#ifdef __unix__
+
 		(void) fileSetCloseOnExec(socketGetFd(socket), 1);
-#endif
 		socketSetTimeout(socket, socket_timeout);
+		(void) socketSetLinger(socket, 0);
 
 		/* NOTE the query string is not added in order to
 		 * minimize  identifying / confirming anything.
@@ -984,10 +991,11 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 				syslog(LOG_DEBUG, "%s: %s:%d", error, uri->host, port);
 			goto error2;
 		}
-
+#ifndef URI_HTTP_ORIGIN_QUERY_FIRST
 		/* Check URI query string first if any. */
 		if ((*origin = uri_http_query(uri, visited, buffer, size)) != NULL)
 			break;
+#endif
 	}
 error2:
 	free(uri);
@@ -1385,7 +1393,7 @@ DnsList *ns_bl_list;
 DnsList *ns_ip_bl_list;
 DnsList *uri_bl_list;
 DnsList *mail_bl_list;
-Vector ns_names_seen;
+Vector uri_names_seen;
 Vector mail_names_seen;
 const char *name_servers;
 
@@ -1395,35 +1403,35 @@ test_uri(URI *uri, const char *filename)
 	PDQ_valid_soa code;
 	const char *list_name = NULL;
 
-	if ((list_name = dnsListQueryName(d_bl_list, pdq, NULL, uri->host)) != NULL) {
+	if ((list_name = dnsListQueryName(d_bl_list, pdq, uri_names_seen, uri->host)) != NULL) {
 		if (filename != NULL)
 			printf("%s: ", filename);
 		printf("%s domain blacklisted %s\n", uri->host, list_name);
 		exit_code = EXIT_FAILURE;
 	}
 
-	if ((list_name = dnsListQueryDomain(uri_bl_list, pdq, NULL, check_subdomains, uri->host)) != NULL) {
+	if ((list_name = dnsListQueryDomain(uri_bl_list, pdq, uri_names_seen, check_subdomains, uri->host)) != NULL) {
 		if (filename != NULL)
 			printf("%s: ", filename);
 		printf("%s domain blacklisted %s\n", uri->host, list_name);
 		exit_code = EXIT_FAILURE;
 	}
 
-	if ((list_name = dnsListQueryNs(ns_bl_list, ns_ip_bl_list, pdq, ns_names_seen, uri->host)) != NULL) {
+	if ((list_name = dnsListQueryNs(ns_bl_list, ns_ip_bl_list, pdq, uri_names_seen, uri->host)) != NULL) {
 		if (filename != NULL)
 			printf("%s: ", filename);
 		printf("%s NS blacklisted %s\n", uri->host, list_name);
 		exit_code = EXIT_FAILURE;
 	}
 
-	if ((list_name = dnsListQueryIP(ip_bl_list, pdq, NULL, uri->host)) != NULL) {
+	if ((list_name = dnsListQueryIP(ip_bl_list, pdq, uri_names_seen, uri->host)) != NULL) {
 		if (filename != NULL)
 			printf("%s: ", filename);
 		printf("%s IP blacklisted %s\n", uri->host, list_name);
 		exit_code = EXIT_FAILURE;
 	}
 
-	if (uriGetSchemePort(uri) == 25 && (list_name = dnsListQueryMail(mail_bl_list, pdq, mail_bl_domains, mail_names_seen, uri->uriDecoded)) != NULL) {
+	if (uriGetSchemePort(uri) == SMTP_PORT && (list_name = dnsListQueryMail(mail_bl_list, pdq, mail_bl_domains, mail_names_seen, uri->uriDecoded)) != NULL) {
 		if (filename != NULL)
 			printf("%s: ", filename);
 		printf("%s mail blacklisted %s\n", uri->uriDecoded, list_name);
@@ -1613,6 +1621,8 @@ main(int argc, char **argv)
 		case 'd':
 			dBlOption = optarg;
 			break;
+		/* case 'D': reserved for possible future domain exception list. */
+
 		case 'i':
 			ipBlOption = optarg;
 			break;
@@ -1631,7 +1641,7 @@ main(int argc, char **argv)
 		case 'M':
 			mailBlDomains = optarg;
 			break;
-		case 'D':
+		case 'U':
 			check_subdomains = 1;
 			break;
 		case 'f':
@@ -1712,8 +1722,8 @@ main(int argc, char **argv)
 		exit(EX_SOFTWARE);
 	}
 
-	ns_names_seen = VectorCreate(10);
-	VectorSetDestroyEntry(ns_names_seen, free);
+	uri_names_seen = VectorCreate(10);
+	VectorSetDestroyEntry(uri_names_seen, free);
 	mail_names_seen = VectorCreate(10);
 	VectorSetDestroyEntry(mail_names_seen, free);
 
@@ -1754,7 +1764,7 @@ main(int argc, char **argv)
 
 	VectorDestroy(mail_bl_domains);
 	VectorDestroy(mail_names_seen);
-	VectorDestroy(ns_names_seen);
+	VectorDestroy(uri_names_seen);
 	dnsListFree(mail_bl_list);
 	dnsListFree(uri_bl_list);
 	dnsListFree(ns_ip_bl_list);

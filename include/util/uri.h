@@ -3,7 +3,7 @@
  *
  * RFC 2396
  *
- * Copyright 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2006, 2010 by Anthony Howe. All rights reserved.
  */
 
 #ifndef __com_snert_lib_util_uri_h__
