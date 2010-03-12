@@ -194,7 +194,7 @@ parsePath(const char *path, unsigned long flags, int dots, ParsePath **out)
 	/*@-mustdefine@*/
 	if (path == NULL || out == NULL) {
 		errno = EFAULT;
-		error = "5.0.0 internal error: invalid arguments in parsePath()";
+		error = "4.0.0 internal error, invalid arguments";
 		goto error0;
 	}
 	/*@=mustdefine@*/
@@ -249,7 +249,7 @@ parsePath(const char *path, unsigned long flags, int dots, ParsePath **out)
 	 * free() to release the structure and the strings it points to.
 	 */
 	if ((p = calloc(1, sizeof(ParsePath) + (stop - start + 1) * 2)) == NULL) {
-		error = "5.0.0 internal error: out of memory in parsePath()";
+		error = "4.3.0 internal error, out of memory";
 		goto error0;
 	}
 
