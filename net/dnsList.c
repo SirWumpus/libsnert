@@ -517,6 +517,7 @@ dnsListQueryIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 
 		aaaa.rr.section = PDQ_SECTION_ANSWER;
 		aaaa.rr.class = PDQ_CLASS_IN;
+		aaaa.rr.next = NULL;
 		list = &aaaa.rr;
 	} else {
 		list = pdqGet5A(pdq, PDQ_CLASS_IN, name);
