@@ -115,6 +115,24 @@ typedef enum {
 } PDQ_type;
 
 typedef enum {
+	PDQ_KEEP_A			= 0x0001,	/* RFC 1035 */
+	PDQ_KEEP_NS			= 0x0002,	/* RFC 1035 */
+	PDQ_KEEP_CNAME			= 0x0004,	/* RFC 1035 */
+	PDQ_KEEP_SOA			= 0x0008,	/* RFC 1035 */
+	PDQ_KEEP_NULL			= 0x0010,	/* RFC 1035 */
+	PDQ_KEEP_WKS			= 0x0020,	/* RFC 1035, not supported */
+	PDQ_KEEP_PTR			= 0x0040,	/* RFC 1035 */
+	PDQ_KEEP_HINFO			= 0x0080,	/* RFC 1035 */
+	PDQ_KEEP_MINFO			= 0x0100,	/* RFC 1035 */
+	PDQ_KEEP_MX			= 0x0200,	/* RFC 1035 */
+	PDQ_KEEP_TXT			= 0x0400,	/* RFC 1035 */
+	PDQ_KEEP_AAAA			= 0x0800,	/* RFC 1886, 3596 */
+	PDQ_KEEP_A6			= 0x1000,	/* RFC 2874, not supported */
+	PDQ_KEEP_DNAME			= 0x2000,	/* RFC 2672 */
+	PDQ_KEEP_5A			= PDQ_KEEP_A|PDQ_KEEP_AAAA,
+} PDQ_keep;
+
+typedef enum {
 	PDQ_CLASS_IN			= 1,	/* RFC 1035 Internet */
 	PDQ_CLASS_CS			= 2,	/* RFC 1035 CSNET */
 	PDQ_CLASS_CH			= 3,	/* RFC 1035 CHAOS */
@@ -126,6 +144,8 @@ typedef enum {
 	PDQ_RCODE_OK			= 0,	/* RFC 1035 */
 	PDQ_RCODE_FORMAT		= 1,	/* RFC 1035 */
 	PDQ_RCODE_SERVER		= 2,	/* RFC 1035 */
+	PDQ_RCODE_SERVFAIL		= 2,	/* RFC 1035 */
+	PDQ_RCODE_NXDOMAIN		= 3,	/* RFC 1035 */
 	PDQ_RCODE_UNDEFINED		= 3,	/* RFC 1035 */
 	PDQ_RCODE_NOT_IMPLEMENTED	= 4,	/* RFC 1035 */
 	PDQ_RCODE_REFUSED		= 5,	/* RFC 1035 */
@@ -253,6 +273,8 @@ extern void pdqSetDebug(int level);
  *	to query all the NS servers at the same time.
  */
 extern void pdqSetRoundRobin(int flag);
+
+extern void pdqSetShortQuery(int flag);
 
 /**
  * (Re)Load the resolv.conf file. Currently only nameserver lines
@@ -440,6 +462,9 @@ extern void pdqClose(PDQ *pdq);
  */
 extern void pdqSetTimeout(PDQ *pdq, unsigned seconds);
 
+extern int pdqSetBasicQuery(PDQ *pdq, int flag);
+extern int pdqSetLinearQuery(PDQ *pdq, int flag);
+
 /**
  * @param pdq
  *	A PDQ structure pointer for handling queries.
@@ -482,7 +507,7 @@ extern void pdqQueryRemoveAll(PDQ *pdq);
  * @return
  *	A PDQ_rr pointer to the head of records list or NULL if
  *	no result found. It is the caller's responsibility to
- *	pdqFree() this list when done.
+ *	pdqListFree() this list when done.
  */
 extern PDQ_rr *pdqPoll(PDQ *pdq, unsigned ms);
 
@@ -493,7 +518,7 @@ extern PDQ_rr *pdqPoll(PDQ *pdq, unsigned ms);
  * @return
  *	A PDQ_rr pointer to the head of records list or NULL if
  *	no result found. It is the caller's responsibility to
- *	pdqFree() this list when done.
+ *	pdqListFree() this list when done.
  */
 extern PDQ_rr *pdqWait(PDQ *pdq);
 
@@ -504,7 +529,7 @@ extern PDQ_rr *pdqWait(PDQ *pdq);
  * @return
  *	A PDQ_rr pointer to the head of records list or NULL if
  *	no result found. It is the caller's responsibility to
- *	pdqFree() this list when done.
+ *	pdqListFree() this list when done.
  */
 extern PDQ_rr *pdqWaitAll(PDQ *pdq);
 
@@ -606,7 +631,7 @@ extern PDQ_rr *pdqFetch(PDQ_class class, PDQ_type type, const char *name, const 
  * @return
  *	A PDQ_rr pointer to the head of records list or NULL if
  *	no result found. It is the caller's responsibility to
- *	pdqFree() this list when done.
+ *	pdqListFree() this list when done.
  *
  * @note
  *	This is a convience function that combines the necessary
@@ -639,7 +664,7 @@ extern PDQ_rr *pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const cha
  * @return
  *	A PDQ_rr pointer to the head of records list or NULL if
  *	no result found. It is the caller's responsibility to
- *	pdqFree() this list when done.
+ *	pdqListFree() this list when done.
  *
  * @note
  *	This is a convience function that combines the necessary
@@ -661,7 +686,7 @@ extern PDQ_rr *pdqFetchDnsList(PDQ_class class, PDQ_type type, const char *prefi
  * @return
  *	A PDQ_rr pointer to the head of A and/or AAAA records list
  *	or NULL if no result found. It is the caller's responsibility
- *	to pdqFree() this list when done.
+ *	to pdqListFree() this list when done.
  *
  * @note
  *	This is a convience function.
@@ -678,7 +703,7 @@ extern PDQ_rr *pdqGet5A(PDQ *pdq, PDQ_class class, const char *name);
  * @return
  *	A PDQ_rr pointer to the head of A and/or AAAA records list
  *	or NULL if no result found. It is the caller's responsibility
- *	to pdqFree() this list when done.
+ *	to pdqListFree() this list when done.
  *
  * @note
  *	This is a convience function.
@@ -705,7 +730,7 @@ extern PDQ_rr *pdqFetch5A(PDQ_class class, const char *name);
  *	or NULL if no result found. A/AAAA records that match the
  *	is_ip_mask are removed, after which any MX without an A/AAAA
  *	record is also removed. It is the caller's responsibility
- *	to pdqFree() this list when done.
+ *	to pdqListFree() this list when done.
  *
  * @note
  *	This is a convience function.
@@ -729,7 +754,7 @@ extern PDQ_rr *pdqGetMX(PDQ *pdq, PDQ_class class, const char *name, long is_ip_
  *	or NULL if no result found. A/AAAA records that match the
  *	is_ip_mask are removed, after which any MX without an A/AAAA
  *	record is also removed. It is the caller's responsibility
- *	to pdqFree() this list when done.
+ *	to pdqListFree() this list when done.
  *
  * @note
  *	This is a convience function.
@@ -759,11 +784,18 @@ extern PDQ_rr *pdqCreate(PDQ_type type);
  *
  * @return
  *	A copy of the given PDQ_rr structure or NULL on error. It is
- *	the caller's responsibility to pdqFree() this record when done.
- *	Note that pointer returned is a single record. To duplicate an
- *	entire PDQ_rr list, use pdqListClone().
+ *	the caller's responsibility to pdqDestroy() or pdqListFree()
+ *	this record when done. Note that pointer returned is a single
+ *	record. To duplicate an	entire PDQ_rr list, use pdqListClone().
  */
 extern PDQ_rr *pdqDup(PDQ_rr *record);
+
+/**
+ * @param _record
+ *	Release memory associated with a PDQ_rr pointer previouly
+ *	obtained from pdqCreate() or pdqDup().
+ */
+extern void pdqDestroy(void *_record);
 
 /**
  * @param a
@@ -807,7 +839,7 @@ extern PDQ_rr *pdqListAppend(PDQ_rr *a, PDQ_rr *b);
  *
  * @return
  *	A clone of the given PDQ_rr list or NULL on error. It is the
- *	caller's responsibility to pdqFree() this record list when done.
+ *	caller's responsibility to pdqListFree() this record list when done.
  */
 extern PDQ_rr *pdqListClone(PDQ_rr *record);
 
@@ -1048,6 +1080,35 @@ extern PDQ_rr *pdqListPruneMatch(PDQ_rr *list);
  *	The list will only contain unique records.
  */
 extern PDQ_rr *pdqListPruneDup(PDQ_rr *list);
+
+/**
+ * @param list
+ *	A pointer to a PDQ_rr list.
+ *
+ * @param mask
+ *	A PDQ_KEEP_ mask of the DNS record type to keep. PDQ_KEEP_5A
+ *	looks for bother A and AAAA records. Records of all other types
+ *	are freed.
+ *
+ * @return
+ *	The updated head of the list or NULL if the list is empty.
+ */
+extern PDQ_rr *pdqListKeepType(PDQ_rr *list, PDQ_keep mask);
+
+extern PDQ_keep pdqKeepMask(PDQ_type type);
+
+/**
+ * @param mask
+ *	A PDQ_KEEP_ mask of the DNS record type to keep. PDQ_KEEP_5A
+ *	looks for bother A and AAAA records.
+ *
+ * @param type
+ *	A PDQ_TYPE_ code to check against the mask.
+ *
+ * @return
+ *	True if type is a member of set.
+ */
+extern int pdqKeepType(PDQ_keep mask, PDQ_type type);
 
 /**
  * @param list

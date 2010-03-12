@@ -174,7 +174,7 @@ typedef struct {
 
 struct pdq {
 	SOCKET fd;
-	int get_extra;
+	int short_query;
 	int round_robin;
 	unsigned timeout;
 	PDQ_query *pending;
@@ -187,6 +187,7 @@ struct host {
 
 static int debug = 0;
 static int rand_seed;
+static int pdq_short_query;
 static int pdq_round_robin;
 static int pdq_source_port_randomise;
 static long servers_length;
@@ -260,6 +261,24 @@ static struct mapping sectionMap[] = {
 	{ PDQ_SECTION_AUTHORITY,	"AUTHORITY" 	},
 	{ PDQ_SECTION_EXTRA,		"EXTRA"		},
 	{ 0, 				NULL 		}
+};
+
+static PDQ_type keepMap[] = {
+	PDQ_TYPE_A,
+	PDQ_TYPE_NS,
+	PDQ_TYPE_CNAME,
+	PDQ_TYPE_SOA,
+	PDQ_TYPE_NULL,
+	PDQ_TYPE_WKS,
+	PDQ_TYPE_PTR,
+	PDQ_TYPE_HINFO,
+	PDQ_TYPE_MINFO,
+	PDQ_TYPE_MX,
+	PDQ_TYPE_TXT,
+	PDQ_TYPE_AAAA,
+	PDQ_TYPE_A6,
+	PDQ_TYPE_DNAME,
+	PDQ_TYPE_UNKNOWN
 };
 
 static const char usage_dns_max_timeout[] =
@@ -842,6 +861,56 @@ pdqListPrune5A(PDQ_rr *list, long is_ip_mask, int must_have_ip)
 	return list;
 }
 
+PDQ_keep
+pdqKeepMask(PDQ_type type)
+{
+	PDQ_keep mask;
+	PDQ_type *map;
+
+	for (mask = 1, map = keepMap; *map != PDQ_TYPE_UNKNOWN; map++, mask <<= 1) {
+		if (*map == type)
+			return mask;
+	}
+
+	return 0;
+}
+
+int
+pdqKeepType(PDQ_keep mask, PDQ_type type)
+{
+	int bit;
+	PDQ_type *map;
+
+	for (bit = 1, map = keepMap; *map != PDQ_TYPE_UNKNOWN; map++, bit <<= 1) {
+		if ((bit & mask) && *map == type)
+			return 1;
+	}
+
+	return 0;
+}
+
+PDQ_rr *
+pdqListKeepType(PDQ_rr *list, PDQ_keep mask)
+{
+	PDQ_rr **prev, *rr, *next;
+
+	prev = &list;
+	for (rr = list; rr != NULL; rr = next) {
+		next = rr->next;
+
+		if (!pdqKeepType(mask, rr->type)) {
+			*prev = rr->next;
+			pdqDestroy(rr);
+			continue;
+		}
+
+		prev = &rr->next;
+	}
+
+	return list;
+}
+
+
 /**
  * @param list
  *	A pointer to a PDQ_rr list containing MX, NS, SOA, A, or AAAA records.
@@ -1309,7 +1378,7 @@ pdqListFindHost(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *host)
 
 	/* Ignore the rest, since trying to find a host name of
 	 * the other types has no meaning, and could potentially
-	 * case a bus error or segmentation fault if we tried to
+	 * cause a bus error or segmentation fault if we tried to
 	 * compare the wrong structure type.
 	 */
 	default:
@@ -2454,7 +2523,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 		}
 
 		if (0 < debug)
-			syslog(LOG_DEBUG, "answer id=%-5u %s %s %s", packet->header.id, record->name.string.value, pdqClassName(record->class), pdqTypeName(record->type));
+			syslog(LOG_DEBUG, "answer id=%-5u %s %s %s %s", packet->header.id, record->name.string.value, pdqClassName(record->class), pdqTypeName(record->type), pdqSectionName(record->section));
 
 		record->next = (PDQ_rr *) q;
 		*p = record;
@@ -2645,10 +2714,10 @@ pdqOpen(void)
 	if ((pdq = malloc(sizeof (PDQ))) == NULL)
 		goto error0;
 
+	pdq->short_query = pdq_short_query;
 	pdq->round_robin = pdq_round_robin;
 	pdq->timeout = pdq_max_timeout;
 	pdq->pending = NULL;
-	pdq->get_extra = 1;
 
 	if ((pdq->fd = socket(servers[0].sa.sa_family, SOCK_DGRAM, 0)) == INVALID_SOCKET) {
 		pdqClose(pdq);
@@ -2658,6 +2727,12 @@ pdqOpen(void)
 # ifdef __unix__
 	(void) fcntl(pdq->fd, F_SETFD, FD_CLOEXEC);
 # endif
+#ifdef SO_LINGER
+{
+	struct linger setlinger = { 0, 0 };
+	(void) setsockopt(pdq->fd, SOL_SOCKET, SO_LINGER, (char *) &setlinger, sizeof (setlinger));
+}
+#endif
 	if (pdq_source_port_randomise) {
 		int i;
 		SocketAddress local;
@@ -2730,6 +2805,22 @@ void
 pdqSetTimeout(PDQ *pdq, unsigned seconds)
 {
 	pdq->timeout = seconds;
+}
+
+int
+pdqSetBasicQuery(PDQ *pdq, int flag)
+{
+	int old = pdq->short_query;
+	pdq->short_query = flag;
+	return old;
+}
+
+int
+pdqSetLinearQuery(PDQ *pdq, int flag)
+{
+	int old = pdq->round_robin;
+	pdq->round_robin = flag;
+	return old;
 }
 
 /**
@@ -3159,7 +3250,7 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 	}
 
 	/* Make sure we have all the associated A / AAAA records. */
-	if (head != NULL && pdq->get_extra && (type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA)) {
+	if (head != NULL && !pdq->short_query && (type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA)) {
 		for (rr = head; rr != NULL; rr = rr->next) {
 			if (rr->rcode == PDQ_RCODE_OK && rr->type == type) {
 				/* "domain IN MX ." is a short hand to indicate
@@ -3278,7 +3369,6 @@ pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name,
 		goto error0;
 
 	length = TextCopy(buffer, sizeof (buffer), prefix_name);
-
 	if (sizeof (buffer) <= length)
 		goto error0;
 
@@ -3286,10 +3376,11 @@ pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name,
 		buffer[length++] = '.';
 
 	for (suffix = suffix_list; *suffix != NULL; suffix++) {
-		(void) TextCopy(buffer+length, sizeof (buffer)-length, *suffix + (**suffix == '.'));
-
-		if (pdqQuery(pdq, class, type, buffer, NULL))
-			goto error1;
+		/* Copy and query if no buffer overflow. */
+		if (TextCopy(buffer+length, sizeof (buffer)-length, *suffix + (**suffix == '.')) < sizeof (buffer)-length) {
+			if (pdqQuery(pdq, class, type, buffer, NULL))
+				goto error1;
+		}
 	}
 
 	do {
@@ -3387,6 +3478,7 @@ pdqGet5A(PDQ *pdq, PDQ_class class, const char *name)
 	(void) pdqQuery(pdq, class, PDQ_TYPE_A, name, NULL);
 	(void) pdqQuery(pdq, class, PDQ_TYPE_AAAA, name, NULL);
 	list = pdqWaitAll(pdq);
+	list = pdqListPruneDup(list);
 
 	if (0 < debug)
 		pdqListLog(list);
@@ -3553,40 +3645,76 @@ pdqTestSOA(PDQ *pdq, PDQ_class class, const char *name, PDQ_rr **list)
 	code = pdqListHasValidSOA(rr_list, name);
 
 	if (list == NULL)
-		pdqFree(rr_list);
+		pdqListFree(rr_list);
 	else
 		*list = rr_list;
 
 	return code;
 }
 
+static PDQ_rr *
+pdq_list_find_5A_by_name(PDQ *pdq, PDQ_class class, const char *name, PDQ_rr **list)
+{
+	PDQ_rr *a_rr;
+
+	a_rr = pdqListFindName(*list, class, PDQ_TYPE_5A, name);
+
+	if (PDQ_RR_IS_NOT_VALID(a_rr)) {
+		/* No IP address for the NS, get it now. */
+		a_rr = pdqGet5A(pdq, class, name);
+		if (a_rr == NULL || a_rr->rcode != PDQ_RCODE_OK) {
+			pdqListFree(a_rr);
+			return NULL;
+		}
+
+		a_rr = pdqListKeepType(a_rr, PDQ_KEEP_5A|PDQ_KEEP_CNAME);
+
+		/* Append the found list of addresses to the current list
+		 * so that they can be reused and eventually freed with
+		 * the list.
+		 */
+		*list = pdqListAppend(*list, a_rr);
+
+		a_rr = pdqListFindName(a_rr, class, PDQ_TYPE_5A, name);
+	}
+
+	return a_rr;
+}
+
+#undef ORIGINAL
+#ifdef ORIGINAL
 PDQ_rr *
 pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *ns)
 {
-	int old_round_robin, old_get_extra;
+	int old_linear_query, old_basic_query;
 	PDQ_rr *ns_list, *ns_rr, *a_rr, *answer;
 
 	answer = NULL;
 
-	/* Do NOT perform parallel queries on root or TLD servers. */
-	old_round_robin = pdq->round_robin;
-	pdq->round_robin = 1;
+	/* Also skip extra 5A lookups for all TLD servers. The IP
+	 * address of an NS, if not already supplied will be fetched
+	 * only as required.
+	 */
+	old_basic_query = pdqSetBasicQuery(pdq, 1);
 
-	/* Also skip 5A lookups for all TLD servers. */
-	old_get_extra = pdq->get_extra;
-	pdq->get_extra = 0;
+	/* Do NOT perform parallel queries on root or TLD servers. */
+	old_linear_query = pdqSetLinearQuery(pdq, 1);
 
 	if (ns == NULL) {
+		/* From the top. */
 		ns_list = root_hints;
 	} else {
 		ns_list = pdqGet(pdq, class, PDQ_TYPE_NS, name, ns);
-		if (ns_list != NULL && ns_list->rcode == PDQ_RCODE_OK && (ns_list->flags & BITS_AA)) {
-			pdq->round_robin = old_round_robin;
-			pdq->get_extra = old_get_extra;
+		if (ns_list != NULL && (ns_list->flags & BITS_AA)) {
+			(void) pdqSetBasicQuery(pdq, old_basic_query);
+			(void) pdqSetLinearQuery(pdq, old_linear_query);
 
-			if (ns_list->ancount == 0)
-				/* Use NS glue records. */
+			/* Do we have an authoritative result with no answer section? */
+			if (ns_list->rcode != PDQ_RCODE_OK || ns_list->ancount == 0) {
+				/* Then use NS glue records of immediate parent zone. */
+				pdqListFree(ns_list);
 				return (PDQ_rr *) 1;
+			}
 
 			/* Found authoritative NS servers. */
 			return ns_list;
@@ -3594,15 +3722,15 @@ pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const cha
 	}
 
 	for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
-		if (ns_rr->type != PDQ_TYPE_NS)
+		if (ns_rr->rcode != PDQ_RCODE_OK || (ns_rr->type != PDQ_TYPE_NS && ns_rr->type != PDQ_TYPE_CNAME))
 			continue;
 
-		a_rr = pdqListFindName(ns_rr->next, class, PDQ_TYPE_5A, ((PDQ_NS *) ns_rr)->host.string.value);
-		if (PDQ_RR_IS_NOT_VALID(a_rr))
+		a_rr = pdq_list_find_5A_by_name(pdq, class, ((PDQ_NS *) ns_rr)->host.string.value, &ns_rr->next);
+		if (a_rr == NULL)
 			continue;
 
 		if (0 <debug)
-			syslog(LOG_DEBUG, "pdqRootGet %s %s %s @%s", name, pdqClassName(class), pdqTypeName(type), ((PDQ_NS *) ns_rr)->host.string.value);
+			syslog(LOG_DEBUG, "pdqRootGet %s %s %s @%s (%s)", name, pdqClassName(class), pdqTypeName(type), ((PDQ_NS *) ns_rr)->host.string.value, ((PDQ_AAAA *) a_rr)->address.string.value);
 
 		answer = pdqRootGet(pdq, class, PDQ_TYPE_NS, name, ((PDQ_AAAA *) a_rr)->address.string.value);
 		if (answer != NULL) {
@@ -3621,11 +3749,17 @@ pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const cha
 				answer = ns_list;
 				ns_list = NULL;
 			}
-			break;
+
+			if (answer->rcode == PDQ_RCODE_OK)
+				break;
+
+			pdqListFree(answer);
+			answer = NULL;
 		}
 	}
 
-	pdq->get_extra = old_get_extra;
+	(void) pdqSetBasicQuery(pdq, old_basic_query);
+
 	if (ns_list != root_hints) {
 		pdqListFree(ns_list);
 	} else if (type != PDQ_TYPE_NS) {
@@ -3635,24 +3769,156 @@ pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const cha
 		ns_list = answer;
 		answer = NULL;
 		for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
-			if (ns_rr->type != PDQ_TYPE_NS)
+			if (ns_rr->rcode != PDQ_RCODE_OK
+			|| (ns_rr->type != PDQ_TYPE_NS && ns_rr->type != PDQ_TYPE_CNAME))
 				continue;
 
-			a_rr = pdqListFindName(ns_rr->next, class, PDQ_TYPE_5A, ((PDQ_NS *) ns_rr)->host.string.value);
-			if (PDQ_RR_IS_NOT_VALID(a_rr))
+			a_rr = pdq_list_find_5A_by_name(pdq, class, ((PDQ_NS *) ns_rr)->host.string.value, &ns_rr->next);
+			if (a_rr == NULL)
 				continue;
 
 			answer = pdqGet(pdq, class, type, name, ((PDQ_AAAA *) a_rr)->address.string.value);
-			if (answer != NULL)
-				break;
+			if (answer != NULL) {
+				if (answer->rcode == PDQ_RCODE_OK)
+					break;
+				pdqListFree(answer);
+				answer = NULL;
+			}
 		}
 		pdqListFree(ns_list);
 	}
 
-	pdq->round_robin = old_round_robin;
+	(void) pdqSetLinearQuery(pdq, old_linear_query);
 
 	return answer;
 }
+#else
+
+
+PDQ_rr *
+pdqRootGetNS(PDQ *pdq, PDQ_class class, const char *name)
+{
+	PDQ_rr *ns_list, *ns_rr, *a_rr, *answer;
+	int offset, old_linear_query, old_basic_query;
+
+	old_basic_query = pdqSetBasicQuery(pdq, 1);
+	old_linear_query = pdqSetLinearQuery(pdq, 1);
+
+	ns_list = root_hints;
+	offset = (int) strlen(name);
+
+	do {
+		answer = NULL;
+		offset = strlrcspn(name, offset-1, ".");
+
+		for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
+			if (ns_rr->rcode != PDQ_RCODE_OK
+			|| (ns_rr->type != PDQ_TYPE_NS && ns_rr->type != PDQ_TYPE_CNAME))
+				continue;
+
+			a_rr = pdq_list_find_5A_by_name(pdq, class, ((PDQ_NS *) ns_rr)->host.string.value, &ns_rr->next);
+			if (a_rr == NULL)
+				continue;
+
+			if (0 <debug)
+				syslog(LOG_DEBUG, "pdqRootGetNS %s %s NS @%s (%s)", name, pdqClassName(class), ((PDQ_NS *) ns_rr)->host.string.value, ((PDQ_AAAA *) a_rr)->address.string.value);
+
+			answer = pdqGet(pdq, class, PDQ_TYPE_NS, name+offset, ((PDQ_AAAA *) a_rr)->address.string.value);
+
+			if (answer != NULL) {
+				if (answer->rcode == PDQ_RCODE_OK) {
+#ifdef MORE_DIG_LIKE
+/* Consider dig ns www.snert.com will return a CNAME and SOA,
+ * which this code will duplicate, BUT we want to find the NS
+ * for a name, be it authoritative or parent zone's glue.
+ */
+					if ((answer->flags & BITS_AA) && answer->ancount == 0) {
+#else
+					if ((answer->flags & BITS_AA)) {
+						/* Use glue records that got us here. */
+#endif
+						ns_rr = NULL;
+					}
+					break;
+				}
+
+				pdqListFree(answer);
+				answer = NULL;
+			}
+		}
+
+		if (ns_rr == NULL && ns_list != root_hints) {
+			/* Assume end of list without an answer bumps to glue records. */
+			if (0 < debug)
+				syslog(LOG_DEBUG, "glue records %s %s NS", name, pdqClassName(class));
+			pdqListFree(answer);
+			answer = ns_list;
+
+			/* Make it look like an authoriative answer.
+			 * Required for dnsListQueryNs.
+			 */
+			for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
+				if (ns_rr->type == PDQ_TYPE_NS)
+					ns_rr->section = PDQ_SECTION_ANSWER;
+			}
+
+			goto use_glue_records;
+		}
+
+		if (ns_list != root_hints)
+			pdqListFree(ns_list);
+
+		ns_list = answer;
+	} while (0 < offset);
+use_glue_records:
+	(void) pdqSetLinearQuery(pdq, old_linear_query);
+	(void) pdqSetBasicQuery(pdq, old_basic_query);
+
+	return answer;
+}
+
+PDQ_rr *
+pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *ns)
+{
+	int old_linear_query;
+	PDQ_rr *ns_list, *ns_rr, *a_rr, *answer;
+
+	/* Find authoritative NS or parent zone's NS glue_records. */
+	if ((ns_list = pdqRootGetNS(pdq, class, name)) == NULL)
+		return NULL;
+
+	if (type == PDQ_TYPE_NS)
+		return ns_list;
+
+	/* Sequential query of the NS servers. */
+	old_linear_query = pdqSetLinearQuery(pdq, 1);
+
+	answer = NULL;
+	for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
+		if (ns_rr->rcode != PDQ_RCODE_OK
+		|| (ns_rr->type != PDQ_TYPE_NS && ns_rr->type != PDQ_TYPE_CNAME))
+			continue;
+
+		a_rr = pdq_list_find_5A_by_name(pdq, class, ((PDQ_NS *) ns_rr)->host.string.value, &ns_rr->next);
+		if (a_rr == NULL)
+			continue;
+
+		answer = pdqGet(pdq, class, type, name, ((PDQ_AAAA *) a_rr)->address.string.value);
+
+		if (answer != NULL) {
+			if (answer->rcode == PDQ_RCODE_OK)
+				break;
+			pdqListFree(answer);
+			answer = NULL;
+		}
+	}
+	pdqListFree(ns_list);
+
+	(void) pdqSetLinearQuery(pdq, old_linear_query);
+
+	return answer;
+}
+#endif
 
 /***********************************************************************
  *** Initialisation
@@ -3859,10 +4125,18 @@ pdqInit(void)
 
 	/* Fetch a copy of the current root servers. */
 	pdqSetRoundRobin(1);
-	root_hints = pdqFetch(PDQ_CLASS_IN, PDQ_TYPE_NS, ".", NULL);
-	pdqSetRoundRobin(0);
+	pdqSetShortQuery(1);
 	if (0 < debug)
-		syslog(LOG_DEBUG, "root_hints ancount=%u", root_hints->ancount);
+		syslog(LOG_DEBUG, "fetch root_hints...");
+	root_hints = pdqFetch(PDQ_CLASS_IN, PDQ_TYPE_NS, ".", NULL);
+	if (0 < debug)
+		syslog(LOG_DEBUG, "prune root_hints...");
+	root_hints = pdqListKeepType(root_hints, PDQ_KEEP_NS|PDQ_KEEP_5A);
+	root_hints = pdqListPrune(root_hints, IS_IP_RESTRICTED|IS_IP_LAN);
+	if (0 < debug)
+		pdqListLog(root_hints);
+	pdqSetRoundRobin(0);
+	pdqSetShortQuery(0);
 error0:
 	return rc;
 }
@@ -3873,8 +4147,12 @@ error0:
 void
 pdqFini(void)
 {
-	pdqListFree(root_hints);
+	if (root_hints != NULL) {
+		pdqListFree(root_hints);
+		root_hints = NULL;
+	}
 	free(servers);
+	servers = NULL;
 }
 
 /**
@@ -3922,6 +4200,12 @@ void
 pdqSetRoundRobin(int flag)
 {
 	pdq_round_robin = flag;
+}
+
+void
+pdqSetShortQuery(int flag)
+{
+	pdq_short_query = flag;
 }
 
 /**
@@ -4174,6 +4458,7 @@ main(int argc, char **argv)
 	pdqListDump(stdout, answers);
 	pdqListFree(answers);
 	pdqClose(pdq);
+	pdqFini();
 
 	if (suffix_list != NULL)
 		VectorDestroy(suffix_list);
