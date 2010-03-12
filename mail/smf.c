@@ -3,8 +3,10 @@
  *
  * Sendmail Filter Support
  *
- * Copyright 2004, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2004, 2010 by Anthony Howe. All rights reserved.
  */
+
+#define ENABLE_COMBO_TAGS
 
 /***********************************************************************
  *** No configuration below this point.
@@ -1201,11 +1203,15 @@ smfAccessAuth(smfWork *work, const char *tag, const char *auth, const char *mail
 
 	buflen = strlen(tag) + strlen(auth) + 1;
 	if ((buf = malloc(buflen)) == NULL) {
-		(void) smfReply(work, 553, NULL, "internal error");
+		(void) smfReply(work, 451, "4.0.0", "internal error, out of memory");
+		return SMDB_ACCESS_TEMPFAIL;
+	}
+
+	if (buflen <= snprintf(buf, buflen, "%s%s", tag, auth)) {
+		(void) smfReply(work, 553, "5.1.0", "internal error, buffer overflow");
 		return SMDB_ACCESS_ERROR;
 	}
 
-	(void) snprintf(buf, buflen, "%s%s", tag, auth);
 	value = smdbGetValue(smdbAccess, buf);
 
 	if (value == NULL) {
@@ -1434,29 +1440,30 @@ smfAccessMail(smfWork *work, const char *tag, const char *mail, int dsnDefault)
 	int access;
 	ParsePath *path;
 	const char *error;
-	char connect[128], *name, *delim;
-	char *auth_authen, *client_name, *client_addr, *value;
+	char *auth_authen;
+#ifdef ENABLE_COMBO_TAGS
+	char connect[80], *name, *delim, *value;
+#endif
 
 	free(work->mail);
 	work->mail = NULL;
 
 	if ((error = parsePath(mail, smfFlags, 1, &path)) != NULL) {
-		(void) smfReply(work, 553, NULL, error);
-		return SMDB_ACCESS_ERROR;
+		(void) smfReply(work, SMTP_ISS_TEMP(error) ? 451 : 553, NULL, error);
+		return SMTP_ISS_TEMP(error) ? SMDB_ACCESS_TEMPFAIL : SMDB_ACCESS_ERROR;
 	}
 
-	client_name = smfi_getsymval(work->ctx, smMacro_client_name);
-	client_addr = smfi_getsymval(work->ctx, smMacro_client_addr);
 	auth_authen = smfi_getsymval(work->ctx, smMacro_auth_authen);
 
 	smfLog(
 		SMF_LOG_PARSE,
-		TAG_FORMAT "address='%s' localleft='%s' localright='%s' domain='%s' auth='%s' client_name=%s client_addr=%s",
+		TAG_FORMAT "address='%s' localleft='%s' localright='%s' domain='%s' auth='%s'",
 		TAG_ARGS, path->address.string, path->localLeft.string,
-		path->localRight.string, path->domain.string, TextNull(auth_authen),
-		TextNull(client_name), TextNull(client_addr)
+		path->localRight.string, path->domain.string, TextNull(auth_authen)
+
 	);
 
+#ifdef ENABLE_COMBO_TAGS
 	if (work->info == NULL) {
 		name = delim = "";
 	} else {
@@ -1467,8 +1474,11 @@ smfAccessMail(smfWork *work, const char *tag, const char *mail, int dsnDefault)
 		delim = "-";
 	}
 
-	(void) snprintf(connect, sizeof (connect), "%s%sconnect:", name, delim);
-
+	if (sizeof (connect) <= snprintf(connect, sizeof (connect), "%s%sconnect:", name, delim)) {
+		(void) smfReply(work, 553, "5.1.0", "internal error, buffer overflow");
+		return SMDB_ACCESS_ERROR;
+	}
+#endif
 	/* The default is to white list authenticated users. */
 	if (smfOptSmtpAuthOk.value && auth_authen != NULL)
 		access = SMDB_ACCESS_OK;
@@ -1477,17 +1487,18 @@ smfAccessMail(smfWork *work, const char *tag, const char *mail, int dsnDefault)
 	else if (path->address.length == 0)
 		access = dsnDefault;
 
-	else if ((access = smdbIpMail(smdbAccess, connect, client_addr, ":from:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND
-	     ||  (*client_name != '\0' && (access = smdbDomainMail(smdbAccess, connect, client_name, ":from:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND)) {
-		access = smfAccessPattern(work, client_addr, value, NULL);
+#ifdef ENABLE_COMBO_TAGS
+	else if ((access = smdbIpMail(smdbAccess, connect, work->client_addr, ":from:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND
+	     ||  (*work->client_name != '\0' && (access = smdbDomainMail(smdbAccess, connect, work->client_name, ":from:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND)) {
+		access = smfAccessPattern(work, work->client_addr, value, NULL);
 		if (access == SMDB_ACCESS_NOT_FOUND) {
-			access = smfAccessPattern(work, client_name, value, NULL);
+			access = smfAccessPattern(work, work->client_name, value, NULL);
 			if (access == SMDB_ACCESS_NOT_FOUND)
 				access = smfAccessPattern(work, path->address.string, value, NULL);
 		}
 		free(value);
 	}
-
+#endif
 	/* Lookup
 	 *
 	 *	tag:account@some.sub.domain.tld
@@ -1638,8 +1649,9 @@ smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
 	int access;
 	ParsePath *path;
 	const char *error;
-	char *client_name, *client_addr, *value;
-	char connect[128], from[128], *name, *delim;
+#ifdef ENABLE_COMBO_TAGS
+	char connect[80], from[80], *name, *delim, *value;
+#endif
 #ifdef HAVE_POP_BEFORE_SMTP
 /* Requested by Michael Elliott <elliott@rod.msen.com>. [ACH: Why is this
  * being applied during the RCPT handler instead of the MAIL handler where
@@ -1653,21 +1665,18 @@ smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
 	work->skipRecipient = 0;
 
 	if ((error = parsePath(rcpt, smfFlags, 0, &path)) != NULL) {
-		(void) smfReply(work, 553, NULL, error);
-		return SMDB_ACCESS_ERROR;
+		(void) smfReply(work, SMTP_ISS_TEMP(error) ? 451 : 553, NULL, error);
+		return SMTP_ISS_TEMP(error) ? SMDB_ACCESS_TEMPFAIL : SMDB_ACCESS_ERROR;
 	}
-
-	client_name = smfi_getsymval(work->ctx, smMacro_client_name);
-	client_addr = smfi_getsymval(work->ctx, smMacro_client_addr);
 
 	smfLog(
 		SMF_LOG_PARSE,
-		TAG_FORMAT "address='%s' localleft='%s' localright='%s' domain='%s' client_name=%s client_addr=%s",
+		TAG_FORMAT "address='%s' localleft='%s' localright='%s' domain='%s'",
 		TAG_ARGS, path->address.string, path->localLeft.string,
-		path->localRight.string, path->domain.string,
-		TextNull(client_name), TextNull(client_addr)
+		path->localRight.string, path->domain.string
 	);
 
+#ifdef ENABLE_COMBO_TAGS
 	if (work->info == NULL) {
 		name = delim = "";
 	} else {
@@ -1675,9 +1684,15 @@ smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
 		delim = "-";
 	}
 
-	(void) snprintf(from, sizeof (from), "%s%sfrom:", name, delim);
-	(void) snprintf(connect, sizeof (connect), "%s%sconnect:", name, delim);
-
+	if (sizeof (from) <= snprintf(from, sizeof (from), "%s%sfrom:", name, delim)) {
+		(void) smfReply(work, 553, "5.1.0", "internal error, buffer overflow");
+		return SMDB_ACCESS_ERROR;
+	}
+	if (sizeof (connect) <= snprintf(connect, sizeof (connect), "%s%sconnect:", name, delim)) {
+		(void) smfReply(work, 553, "5.1.0", "internal error, buffer overflow");
+		return SMDB_ACCESS_ERROR;
+	}
+#endif
 #ifdef HAVE_POP_BEFORE_SMTP
 	if ((popauth_info = smfi_getsymval(work->ctx, smMacro_popauth_info)) != NULL) {
 		smfLog(SMF_LOG_PARSE, TAG_FORMAT "{popauth_info}=%s", TAG_ARGS, popauth_info);
@@ -1697,12 +1712,12 @@ smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
 		smfReply(work, 550, NULL, "routed address relaying denied");
 		access = SMDB_ACCESS_REJECT;
 	}
-
-	else if ((access = smdbIpMail(smdbAccess, connect, client_addr, ":to:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND
-	     ||  (*client_name != '\0' && (access = smdbDomainMail(smdbAccess, connect, client_name, ":to:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND)) {
-		access = smfAccessPattern(work, client_addr, value, NULL);
+#ifdef ENABLE_COMBO_TAGS
+	else if ((access = smdbIpMail(smdbAccess, connect, work->client_addr, ":to:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND
+	     ||  (*work->client_name != '\0' && (access = smdbDomainMail(smdbAccess, connect, work->client_name, ":to:", path->address.string, NULL, &value)) != SMDB_ACCESS_NOT_FOUND)) {
+		access = smfAccessPattern(work, work->client_addr, value, NULL);
 		if (access == SMDB_ACCESS_NOT_FOUND) {
-			access = smfAccessPattern(work, client_name, value, NULL);
+			access = smfAccessPattern(work, work->client_name, value, NULL);
 			if (access == SMDB_ACCESS_NOT_FOUND)
 				access = smfAccessPattern(work, path->address.string, value, NULL);
 		}
@@ -1715,7 +1730,7 @@ smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
 			access = smfAccessPattern(work, path->address.string, value, NULL);
 		free(value);
 	}
-
+#endif
 	/* Lookup
 	 *
 	 *	tag:account@some.sub.domain.tld
@@ -2001,6 +2016,21 @@ smfOpenProlog(SMFICTX *ctx, char *client_name, _SOCK_ADDR *raw_client_addr, char
 	}
 
 	return cid;
+}
+
+void
+smfProlog(smfWork *work, SMFICTX *ctx, char *client_name, _SOCK_ADDR *raw_client_addr)
+{
+	work->ctx = ctx;
+	work->qid = smfNoQueue;
+
+	/* Postfix claims to support {client_name} and {client_addr}
+	 * macros, but smfi_getsymval always returns NULL, so at
+	 * xxfi_connect we save the arguments given to us as part of
+	 * our context for future reference.
+	 */
+	(void) TextCopy(work->client_name, sizeof (work->client_name), client_name);
+	work->cid = smfOpenProlog(ctx, client_name, raw_client_addr, work->client_addr, sizeof (work->client_addr));
 }
 
 unsigned short

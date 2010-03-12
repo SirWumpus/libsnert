@@ -143,6 +143,8 @@ typedef struct {
 	ParsePath *mail;			/* per message, must free */
 	ParsePath *rcpt;			/* per recipient, must free */
 	char replyLine[SMTP_REPLY_LINE_LENGTH+1];	/* smfReply(), smfReplyV() */
+	char client_name[SMTP_DOMAIN_LENGTH+1];	/* per connection */
+	char client_addr[IPV6_TAG_LENGTH+IPV6_STRING_LENGTH];	/* per connection */
 } smfWork;
 
 /* DEPRICATED; use smfOpt* */
@@ -214,6 +216,7 @@ extern sfsistat smfMultiLineReplyV(smfWork *work, int code, const char *ecode, v
 extern sfsistat smfMultiLineReplyA(smfWork *work, int code, const char *ecode, char **lines);
 #endif
 
+extern void smfProlog(smfWork *work, SMFICTX *ctx, char *client_name, _SOCK_ADDR *raw_client_addr);
 extern unsigned short smfOpenProlog(SMFICTX *ctx, char *client_name, _SOCK_ADDR *raw_client_addr, char *client_addr, long length);
 extern unsigned short smfCloseEpilog(smfWork *work);
 
