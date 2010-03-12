@@ -26,23 +26,67 @@ is no set schedule for releases.
 
    ?	Consider a TextFind2. Brain storm...
 
-   	a) that supports a regex-like subset and single character backreferences
+   	a) that supports a regex-like subset and single character back references
    	b) shortest match instead of longest
    	c) parse on the fly
    	d) ^ $ anchors, . ? wild cards, * + (long match), # ~ (short match),
    	   < > word boundaries,
-        e) \w \W word chars, \d \D digits, \s \S whitespace, and other predefined
+        e) \w \W word chars, \d \D digits, \s \S white space, and other predefined
            classes with a special design that treats them like "(\w)" so that
-           backreferences could be done on single characters;
+           back references could be done on single characters;
            \p \P punctuation, \x \X hex digits,
-	f) no ( ) or { } to avoid recusion issues
+	f) no ( ) or { } to avoid recursion issues
 
-	As long as you have enough puntuation characters for special operations,
+	As long as you have enough punctuation characters for special operations,
 	you can parse in real time. Actually if you drop the longest match and only
 	use first/shortest match, you simplify things and you can drop the +
 	operator since you can do "a+" as "aa*"
 
-	*** To be refined. (ARSE = anthony's reduced search expressions)
+	*** To be refined. (ARSE = Anthony's reduced search expressions)
+
+
+--1.73.17--
+
+   *    Upgraded SQLite to 3.6.23
+
+   +	pdqListKeepType: Remove records not of the given type.
+
+   !	pdqRootGet: Correct lookup performance and avoid spurious NS / 5A
+   	lookups.
+
+  !!	pdqRootGet: Fixed memory leak related to returning (PDQ_rr *) 1
+	to signal the use of glue records to the immediate parent. The
+	ns_list was not free in this case.
+
+  !!	pdqRootGet: Fixed segmentation fault caused by a domain's
+	authoritative NS returning NXDOMAIN (PDQ_RCODE_UNDEFINED).
+
+  !!	pdqRootGet: Fixed what appeared to be an infinite loop bug
+  	related to use of NS lookups returning CNAME records.
+
+  !!	Reengineered pdqRootGet to use iteration instead of recursion
+  	and to do the NS search by label from right-to-left. Old code
+  	still present to be removed at a later date.
+
+   !	parsePath: Altered internal errors to return temp.fail code.
+
+   !	smf.c: Handle parsePath temp.fail errors, enlarge combo tag
+	buffers, and test for buffer overflows from snprintf.
+
+   +	smf.c: Added client_name and client_addr fields to the smfWork
+   	structure and added smfProlog. This to address Postfix failure
+   	to support {client_name} and {client_addr} macros as documented
+   	here;
+
+   		http://www.postfix.org/MILTER_README.html
+
+   !	Fixed smfAccessMail and smfAccessRcpt to use work->client_name
+  	and work->client_addr for the combo tag look-ups.
+
+   !	In serverWorkerCreate, moved enqueue of new worker to after the
+	worker thread is created so as to avoid occasional segmentation
+	fault in serverStop.
+
 
 --1.73.16--
 
