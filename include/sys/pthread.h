@@ -168,6 +168,33 @@ extern int pthread_cond_destroy(pthread_cond_t *);
 #  define PTHREAD_STACK_MIN		16384
 # endif
 
+#if defined(HAVE_PTHREAD_CLEANUP_PUSH)
+/* If we are called because of pthread_cancel(), be
+ * sure to cleanup the current locked mutex too.
+ */
+# define PTHREAD_MUTEX_LOCK(m)		if (!pthread_mutex_lock(m)) { \
+						pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, (m));
+
+# define PTHREAD_MUTEX_UNLOCK(m)			pthread_cleanup_pop(1); \
+					}
+#else
+# define PTHREAD_MUTEX_LOCK(m)		if (!pthread_mutex_lock(m)) {
+
+# define PTHREAD_MUTEX_UNLOCK(m)			(void) pthread_mutex_unlock(m); \
+					}
+#endif
+
+#if defined(HAVE_PTHREAD_YIELD) && defined(__linux__)
+/* Stupid Linux wants stupid extension macros to declare a function it has
+ * in the library. Wankers. OpenBSD is far more sensible in this regard.
+ */
+extern void pthread_yield(void);
+#endif
+
+#if !defined(HAVE_PTHREAD_YIELD)
+# define pthread_yield()
+#endif
+
 /* Non-POSIX using pthread functions. */
 extern int pthreadMutexDestroy(pthread_mutex_t *);
 extern int pthreadSleep(unsigned seconds, unsigned nanoseconds);
