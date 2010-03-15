@@ -33,6 +33,8 @@ extern "C" {
 #undef LIBSNERT_LIBS
 #undef LIBSNERT_CONFIGURE
 #undef LIBSNERT_BUILT
+#undef LIBSNERT_BUILD_HOST
+#undef LIBSNERT_PLATFORM
 
 #ifndef __@platform@__
 #define __@platform@__		1
@@ -74,6 +76,7 @@ typedef struct {
 	const char *ldflags;
 	const char *libs;
 	const char *built;
+	const char *host;
 } VersionInfo;
 
 extern VersionInfo LibSnert;

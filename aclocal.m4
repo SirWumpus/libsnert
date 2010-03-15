@@ -555,6 +555,7 @@ AC_DEFUN(SNERT_PLATFORM,[
 	fi
 
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_PLATFORM, [["${platform}"]])
+	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_BUILD_HOST, [["`hostname`"]])
 
 dnl	case $platform in
 dnl	Linux*)
