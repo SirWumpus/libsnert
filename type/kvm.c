@@ -3415,25 +3415,6 @@ kvmOpen(const char *table_name, const char *map_location, int mode)
 #endif
 #include <signal.h>
 
-#ifndef __MINGW32__
-# if defined(HAVE_GRP_H)
-#  include <grp.h>
-# endif
-# if defined(HAVE_PWD_H)
-#  include <pwd.h>
-# endif
-# if defined(HAVE_SYSLOG_H)
-#  include <syslog.h>
-# endif
-# if defined(HAVE_SYS_WAIT_H)
-#  include <sys/wait.h>
-# endif
-#endif
-
-#ifdef HAVE_UNISTD_H
-# include <unistd.h>
-#endif
-
 #include <com/snert/lib/util/getopt.h>
 #include <com/snert/lib/sys/pthread.h>
 
