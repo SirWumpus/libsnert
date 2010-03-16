@@ -45,6 +45,17 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+--1.73.18--
+
+   !	version.h.in.in, sys/pthread.h: PTHREAD_MUTEX_LOCK/UNLOCK macros
+   	to the more appropriate pthread.h.
+
+   !	mccStringCreate, mccStringReplace: Added NULL guards.
+
+   !	mcc.c: Clean-up code to use PTHREAD_MUTEX_LOCK/UNLOCK macros.
+
+   !	mcc_listener_thread: added mutex wrapper around mccSqlStep calls.
+
 --1.73.17--
 
    *    Upgraded SQLite to 3.6.23
