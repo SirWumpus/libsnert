@@ -1449,6 +1449,7 @@ smfAccessMail(smfWork *work, const char *tag, const char *mail, int dsnDefault)
 	work->mail = NULL;
 
 	if ((error = parsePath(mail, smfFlags, 1, &path)) != NULL) {
+		smfLog(SMF_LOG_ERROR, "sender %s parse error: %s", mail, error);
 		(void) smfReply(work, SMTP_ISS_TEMP(error) ? 451 : 553, NULL, error);
 		return SMTP_ISS_TEMP(error) ? SMDB_ACCESS_TEMPFAIL : SMDB_ACCESS_ERROR;
 	}
@@ -1665,6 +1666,7 @@ smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
 	work->skipRecipient = 0;
 
 	if ((error = parsePath(rcpt, smfFlags, 0, &path)) != NULL) {
+		smfLog(SMF_LOG_ERROR, "recipient %s parse error: %s", rcpt, error);
 		(void) smfReply(work, SMTP_ISS_TEMP(error) ? 451 : 553, NULL, error);
 		return SMTP_ISS_TEMP(error) ? SMDB_ACCESS_TEMPFAIL : SMDB_ACCESS_ERROR;
 	}
