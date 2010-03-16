@@ -175,12 +175,14 @@ extern int pthread_cond_destroy(pthread_cond_t *);
 # define PTHREAD_MUTEX_LOCK(m)		if (!pthread_mutex_lock(m)) { \
 						pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, (m));
 
-# define PTHREAD_MUTEX_UNLOCK(m)			pthread_cleanup_pop(1); \
+# define PTHREAD_MUTEX_UNLOCK(m)		; \
+						pthread_cleanup_pop(1); \
 					}
 #else
 # define PTHREAD_MUTEX_LOCK(m)		if (!pthread_mutex_lock(m)) {
 
-# define PTHREAD_MUTEX_UNLOCK(m)			(void) pthread_mutex_unlock(m); \
+# define PTHREAD_MUTEX_UNLOCK(m)		; \
+						(void) pthread_mutex_unlock(m); \
 					}
 #endif
 
