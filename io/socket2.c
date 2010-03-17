@@ -30,11 +30,7 @@
 #endif
 
 #include <com/snert/lib/io/Log.h>
-#ifdef ENABLE_PDQ
-# include <com/snert/lib/net/pdq.h>
-#else
-# include <com/snert/lib/io/Dns.h>
-#endif
+#include <com/snert/lib/net/pdq.h>
 #include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/mail/limits.h>
 #include <com/snert/lib/mail/MailSpan.h>
@@ -68,11 +64,7 @@ socketInit(void)
 	int rc = 0;
 	static int initialised = 0;
 
-#ifdef ENABLE_PDQ
 	if (!initialised && (rc = pdqInit()) == 0)
-#else
-	if (!initialised && (rc = DnsInit(NULL)) == 0)
-#endif
 		initialised = 1;
 
 	if (0 < debug)
@@ -87,11 +79,7 @@ socketInit(void)
 void
 socketFini(void)
 {
-#ifdef ENABLE_PDQ
 	pdqFini();
-#else
-	DnsFini();
-#endif
 }
 
 /**

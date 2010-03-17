@@ -51,6 +51,8 @@ extern int h_error;
 # endif
 #endif
 
+#include <com/snert/lib/net/network.h>
+
 #if defined(__WIN32__)
 # if defined(__VISUALC__)
 #  define _WINSOCK2API_

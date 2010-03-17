@@ -120,7 +120,7 @@ socketAddressCreate(const char *host, unsigned port)
 	if (*host == '/') {
 		(void) TextCopy(addr->un.sun_path, sizeof (addr->un.sun_path), (char *) host);
 # ifdef HAVE_STRUCT_SOCKADDR_UN_SUN_LEN
-		addr->un.sun_len = sizeof (struct sockaddr_un) + strlen(host) + 1;
+		addr->un.sun_len = sizeof (struct sockaddr_un);
 # endif
 		addr->un.sun_family = AF_UNIX;
 		return addr;
