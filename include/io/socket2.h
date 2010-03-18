@@ -364,6 +364,10 @@ extern int socketAddressEqual(SocketAddress *a, SocketAddress *b);
  */
 extern Socket2 *socketOpen(SocketAddress *addr, int isStream);
 
+extern Socket2 *socketFdOpen(SOCKET fd);
+extern void socketFdClose(Socket2 *s);
+extern long socketFdWriteTo(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to);
+
 /**
  * @param s
  *	A Socket2 pointer returned by socketOpen() or socketAccept().

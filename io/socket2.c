@@ -241,6 +241,36 @@ socketSetNonBlocking(Socket2 *s, int flag)
 	return rc == 0 ? 0 : SOCKET_ERROR;
 }
 
+Socket2 *
+socketFdOpen(SOCKET fd)
+{
+	socklen_t socklen;
+	Socket2 *s = NULL;
+
+	if (fd != INVALID_SOCKET && (s = malloc(sizeof (*s))) != NULL) {
+		socklen = sizeof (s->address);
+		if (getpeername(fd, &s->address.sa, &socklen))
+			(void) getsockname(fd, &s->address.sa, &socklen);
+		s->isNonBlocking = 0;
+		s->readOffset = 0;
+		s->readLength = 0;
+		s->readTimeout = -1;
+		s->fd = fd;
+	}
+
+	return s;
+}
+
+void
+socketFdClose(Socket2 *s)
+{
+	if (s != NULL) {
+		/* Close without shutdown of connection. */
+		closesocket(s->fd);
+		free(s);
+	}
+}
+
 /**
  * @param addr
  *	A SocketAddress pointer. For a client, this will be the
@@ -258,16 +288,14 @@ socketSetNonBlocking(Socket2 *s, int flag)
 Socket2 *
 socketOpen(SocketAddress *addr, int isStream)
 {
+	SOCKET fd;
+	Socket2 *s;
 	int so_type;
-	Socket2 *s = NULL;
-
-	if (addr == NULL || (s = malloc(sizeof (*s))) == NULL)
-		goto error0;
 
 	so_type = isStream ? SOCK_STREAM : SOCK_DGRAM;
 
 #ifdef NOT_USED
-	s->fd = WSASocket(
+	fd = WSASocket(
 		addr->sa.sa_family, so_type, 0, NULL, 0,
 		WSA_FLAG_MULTIPOINT_C_LEAF|WSA_FLAG_MULTIPOINT_D_LEAF
 	);
@@ -276,25 +304,15 @@ socketOpen(SocketAddress *addr, int isStream)
 	 * When AF_UNIX is the family you don't want to specify a
 	 * protocol argument.
 	 */
-	s->fd = socket(addr->sa.sa_family, so_type, 0);
+	fd = socket(addr->sa.sa_family, so_type, 0);
 #endif
-	if (s->fd == INVALID_SOCKET) {
-		UPDATE_ERRNO;
-		free(s);
-		s = NULL;
-		goto error0;
+	if ((s = socketFdOpen(fd)) != NULL) {
+		s->address = *addr;
+#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
+		s->address.sa.sa_len = socketAddressLength(addr);
+#endif
 	}
 
-	s->address = *addr;
-	s->isNonBlocking = 0;
-	s->readOffset = 0;
-	s->readLength = 0;
-	s->readTimeout = -1;
-
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	s->address.sa.sa_len = socketAddressLength(addr);
-#endif
-error0:
 	if (0 < debug) {
 		syslog(
 			LOG_DEBUG, "socketOpen(%lx, %d) s=%lx s.fd=%d",
@@ -715,8 +733,16 @@ error0:
 int
 socketShutdown(Socket2 *s, int shut)
 {
+	int so_type;
+	socklen_t socklen;
+
 	if (s == NULL)
 		return SOCKET_ERROR;
+
+	socklen = sizeof (so_type);
+	if (getsockopt(s->fd, SOL_SOCKET, SO_TYPE, (void *) &so_type, &socklen) || so_type != SOCK_STREAM)
+		return SOCKET_ERROR;
+
 	return shutdown(s->fd, shut);
 }
 
@@ -730,19 +756,45 @@ socketShutdown(Socket2 *s, int shut)
 void
 socketClose(Socket2 *s)
 {
-	int so_type;
-	socklen_t socklen;
-
 	if (0 < debug)
 		syslog(LOG_DEBUG, "socketClose(%lx) s.fd=%d", (long) s, s == NULL ? -1 : s->fd);
 
 	if (s != NULL) {
-		socklen = sizeof (so_type);
-		if (getsockopt(s->fd, SOL_SOCKET, SO_TYPE, (void *) &so_type, &socklen) == 0 && so_type == SOCK_STREAM)
-			(void) shutdown(s->fd, SHUT_WR);
-		closesocket(s->fd);
-		free(s);
+		socketShutdown(s, SHUT_WR);
+		socketFdClose(s);
 	}
+}
+
+long
+socketFdWriteTo(int fd, unsigned char *buffer, long size, SocketAddress *to)
+{
+	long sent, offset;
+	socklen_t socklen;
+
+	errno = 0;
+
+	if (buffer == NULL || size <= 0)
+		return 0;
+
+#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
+	socklen = to == NULL ? 0 : to->sa.sa_len;
+#else
+	socklen = socketAddressLength(to);
+#endif
+	for (offset = 0; offset < size; offset += sent) {
+		if ((sent = sendto(fd, buffer+offset, size-offset, 0, (const struct sockaddr *) to, socklen)) < 0) {
+			UPDATE_ERRNO;
+			if (!ERRNO_EQ_EAGAIN) {
+				if (offset == 0)
+					offset = SOCKET_ERROR;
+				break;
+			}
+			sent = 0;
+			sleep(1);
+		}
+	}
+
+ 	return offset;
 }
 
 /**
@@ -769,47 +821,12 @@ socketClose(Socket2 *s)
 long
 socketWriteTo(Socket2 *s, unsigned char *buffer, long size, SocketAddress *to)
 {
-	long sent, offset;
-	socklen_t socklen;
-
 	if (s == NULL || to == NULL) {
 		errno = EFAULT;
 		return SOCKET_ERROR;
 	}
 
-	if (buffer == NULL || size <= 0)
-		return 0;
-
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	socklen = to->sa.sa_len;
-#else
-	socklen = socketAddressLength(to);
-#endif
-
-#ifdef ALLOW_ZERO_LENGTH_SEND
-	offset = 0;
-	do {
-#else
-	for (offset = 0; offset < size; offset += sent) {
-#endif
-		if ((sent = sendto(s->fd, buffer+offset, size-offset, 0, (const struct sockaddr *) to, socklen)) < 0) {
-			UPDATE_ERRNO;
-			if (!ERRNO_EQ_EAGAIN) {
-				if (offset == 0)
-					offset = SOCKET_ERROR;
-				break;
-			}
-			sent = 0;
-			sleep(1);
-		}
-#ifdef ALLOW_ZERO_LENGTH_SEND
-		offset += sent;
-	} while (offset < size);
-#else
-	}
-#endif
-
- 	return offset;
+	return socketFdWriteTo(s->fd, buffer, size, to);
 }
 
 /**
@@ -833,42 +850,12 @@ socketWriteTo(Socket2 *s, unsigned char *buffer, long size, SocketAddress *to)
 long
 socketWrite(Socket2 *s, unsigned char *buffer, long size)
 {
-	long sent, offset;
-
 	if (s == NULL) {
 		errno = EFAULT;
 		return SOCKET_ERROR;
 	}
 
-	errno = 0;
-
-	if (buffer == NULL)
-		return 0;
-
-#ifdef ALLOW_ZERO_LENGTH_SEND
-	offset = 0;
-	do {
-#else
-	for (offset = 0; offset < size; offset += sent) {
-#endif
-		if ((sent = send(s->fd, buffer+offset, size-offset, 0)) < 0) {
-			UPDATE_ERRNO;
-			if (!ERRNO_EQ_EAGAIN) {
-				if (offset == 0)
-					offset = SOCKET_ERROR;
-				break;
-			}
-			sent = 0;
-			sleep(1);
-		}
-#ifdef ALLOW_ZERO_LENGTH_SEND
-		offset += sent;
-	} while (offset < size);
-#else
-	}
-#endif
-
- 	return offset;
+ 	return socketFdWriteTo(s->fd, buffer, size, NULL);
 }
 
 /**
