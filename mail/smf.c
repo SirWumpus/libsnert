@@ -531,6 +531,23 @@ error1:
  *** Access Database White List Tests
  ***********************************************************************/
 
+/*
+ * @return
+ *	Pointer to the next delimiter in string or the end of string.
+ */
+static char *
+find_delim(const char *start, const char *delims)
+{
+	const char *s;
+
+	for (s = start; *(s += strcspn(s, delims)) != '\0'; s++) {
+		if (start < s && s[-1] != '\\')
+			break;
+	}
+
+	return (char *) s;
+}
+
 /**
  * @param work
  *	A pointer to a smfWork workspace.
@@ -601,11 +618,8 @@ smfAccessPattern(smfWork *work, const char *hay, char *pins, char **actionp)
 			 * An exclamation is permitted in the local-part of
 			 * an email address and so must be backslash escaped.
 			 */
-			for (action = pin; (action = strchr(action+1, '!')) != NULL; ) {
-			 	if (action[-1] != '\\')
-			 		break;
-			}
-			if (action == NULL) {
+			action = find_delim(pin+1, "!");
+			if (*action == '\0') {
 				smfLog(SMF_LOG_ERROR, TAG_FORMAT "pattern delimiter error: \"%.50s...\"", TAG_ARGS, pin);
 				continue;
 			}
@@ -643,11 +657,8 @@ smfAccessPattern(smfWork *work, const char *hay, char *pins, char **actionp)
 			 * A right-square bracket is permitted for an IP-as-domain
 			 * literal in an email address and so must be backslash escaped.
 			 */
-			for (action = pin; (action = strchr(action+1, ']')) != NULL; ) {
-			 	if (action[-1] != '\\')
-			 		break;
-			}
-			if (action == NULL) {
+			action = find_delim(pin+1, "]");
+			if (*action == '\0') {
 				smfLog(SMF_LOG_ERROR, TAG_FORMAT "network delimiter error: \"%.50s...\"", TAG_ARGS, pin);
 				continue;
 			}
@@ -707,11 +718,8 @@ smfAccessPattern(smfWork *work, const char *hay, char *pins, char **actionp)
 			 * A slash is permitted in the local-part of an email
 			 * address and so must be backslash escaped.
 			 */
-			for (action = pin; (action = strchr(action+1, '/')) != NULL; ) {
-			 	if (action[-1] != '\\')
-			 		break;
-			}
-			if (action == NULL) {
+			action = find_delim(pin+1, "/");
+			if (*action == '\0') {
 				smfLog(SMF_LOG_ERROR, TAG_FORMAT "regular expression delimiter error: \"%.50s...\"", TAG_ARGS, pin);
 				continue;
 			}
