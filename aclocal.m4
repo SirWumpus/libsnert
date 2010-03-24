@@ -1077,7 +1077,7 @@ AC_DEFUN(SNERT_PROCESS,[
 		AC_CHECK_FUNCS([geteuid getegid seteuid setegid getpgid setpgid])
 		AC_CHECK_FUNCS([getresuid getresgid setresuid setresgid])
 		AC_CHECK_FUNCS([setreuid getgroups setgroups initgroups])
-		AC_CHECK_FUNCS([_exit exit fork execl execle execlp execv execve execvp setsid])
+		AC_CHECK_FUNCS([_exit exit daemon fork execl execle execlp execv execve execvp setsid])
 	])
 	AC_CHECK_HEADER([sys/wait.h],[
 		AC_DEFINE_UNQUOTED(HAVE_SYS_WAIT_H)

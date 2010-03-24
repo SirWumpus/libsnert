@@ -89,6 +89,20 @@ extern int processDropPrivilages(const char *run_user, const char *run_group, co
  */
 extern int processDumpCore(int flag);
 
+#if !defined(HAVE_DAEMON)
+/*
+ * Mac OS X links libc symbols ahead of replacement functions. In
+ * order to ensure we link with our version, we need to use an
+ * alternative name.
+ */
+#define daemon		alt_daemon
+
+/*
+ * Alternative daemon()
+ */
+extern int alt_daemon(int nochdir, int noclose);
+#endif /* !defined(HAVE_DAEMON) */
+
 /***********************************************************************
  *** System Information Routines
  ***********************************************************************/

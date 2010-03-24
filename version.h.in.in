@@ -397,6 +397,7 @@ union semun {
 #undef HAVE_INITGROUPS
 #undef HAVE__EXIT
 #undef HAVE_EXIT
+#undef HAVE_DAEMON
 #undef HAVE_FORK
 #undef HAVE_EXCEL
 #undef HAVE_EXCELE
