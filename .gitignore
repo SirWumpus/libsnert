@@ -64,13 +64,16 @@ tools/flip
 tools/here-i-am
 tools/ixhash
 tools/kat
+tools/mailgroup
 tools/mimepart
 tools/nph-download.cgi
 tools/popin
 tools/range
 tools/rarlist
+tools/rsleep
 tools/sendform
 tools/show
+tools/socketsink
 tools/sqlargs
 tools/strings
 tools/taglengths
