@@ -735,7 +735,7 @@ extern PDQ_rr *pdqFetch5A(PDQ_class class, const char *name);
  * @note
  *	This is a convience function.
  */
-extern PDQ_rr *pdqGetMX(PDQ *pdq, PDQ_class class, const char *name, long is_ip_mask);
+extern PDQ_rr *pdqGetMX(PDQ *pdq, PDQ_class class, const char *name, is_ip_t is_ip_mask);
 
 /**
  * @param class
@@ -759,7 +759,7 @@ extern PDQ_rr *pdqGetMX(PDQ *pdq, PDQ_class class, const char *name, long is_ip_
  * @note
  *	This is a convience function.
  */
-extern PDQ_rr *pdqFetchMX(PDQ_class class, const char *name, long is_ip_mask);
+extern PDQ_rr *pdqFetchMX(PDQ_class class, const char *name, is_ip_t is_ip_mask);
 
 extern PDQ_rr *pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *ns);
 
@@ -1038,7 +1038,7 @@ extern void pdqLog(PDQ_rr *record);
  *	themselves have an IP address "at this time" (ie. PDQ_RCODE_SERVER
  *	results are discarded).
  */
-extern PDQ_rr *pdqListPrune(PDQ_rr *a_record, long is_ip_mask);
+extern PDQ_rr *pdqListPrune(PDQ_rr *a_record, is_ip_t is_ip_mask);
 
 /**
  * @param list
@@ -1059,7 +1059,7 @@ extern PDQ_rr *pdqListPrune(PDQ_rr *a_record, long is_ip_mask);
  *	The list will only contain A/AAAA records that successfully
  *	returned an IP address. Other record types remain untouched.
  */
-extern PDQ_rr *pdqListPrune5A(PDQ_rr *list, long is_ip_mask, int must_have_ip);
+extern PDQ_rr *pdqListPrune5A(PDQ_rr *list, is_ip_t is_ip_mask, int must_have_ip);
 
 /**
  * @param list

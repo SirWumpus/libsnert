@@ -30,7 +30,7 @@
  *	See RFC 3330, 3513, 3849, 4048
  */
 int
-isReservedIPv6(unsigned char ipv6[IPV6_BYTE_LENGTH], long mask)
+isReservedIPv6(unsigned char ipv6[IPV6_BYTE_LENGTH], is_ip_t mask)
 {
 	int zeros;
 

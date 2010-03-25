@@ -838,7 +838,7 @@ pdqListPruneDup(PDQ_rr *list)
  *	returned an IP address. Other record types remain untouched.
  */
 PDQ_rr *
-pdqListPrune5A(PDQ_rr *list, long is_ip_mask, int must_have_ip)
+pdqListPrune5A(PDQ_rr *list, is_ip_t is_ip_mask, int must_have_ip)
 {
 	PDQ_rr **prev, *rr, *next;
 
@@ -969,7 +969,7 @@ pdqListPruneMatch(PDQ_rr *list)
  *	results are discarded).
  */
 PDQ_rr *
-pdqListPrune(PDQ_rr *list, long is_ip_mask)
+pdqListPrune(PDQ_rr *list, is_ip_t is_ip_mask)
 {
 	list = pdqListPruneDup(list);
 	list = pdqListPrune5A(list, is_ip_mask, 1);
@@ -3541,7 +3541,7 @@ pdqFetch5A(PDQ_class class, const char *name)
  *	This is a convience function.
  */
 PDQ_rr *
-pdqGetMX(PDQ *pdq, PDQ_class class, const char *name, long is_ip_mask)
+pdqGetMX(PDQ *pdq, PDQ_class class, const char *name, is_ip_t is_ip_mask)
 {
 	PDQ_rr *list;
 
@@ -3583,7 +3583,7 @@ pdqGetMX(PDQ *pdq, PDQ_class class, const char *name, long is_ip_mask)
  *	This is a convience function.
  */
 PDQ_rr *
-pdqFetchMX(PDQ_class class, const char *name, long is_ip_mask)
+pdqFetchMX(PDQ_class class, const char *name, is_ip_t is_ip_mask)
 {
 	PDQ *pdq;
 	PDQ_rr *answer = NULL;

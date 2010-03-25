@@ -29,7 +29,7 @@
  *	See RFC 3330, 3513, 3849, 4048
  */
 int
-isReservedIP(const char *ip, long mask)
+isReservedIP(const char *ip, is_ip_t mask)
 {
 	unsigned char ipv6[IPV6_BYTE_LENGTH];
 

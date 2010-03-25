@@ -87,22 +87,25 @@ extern "C" {
 /*
  * IP test flags for isReservedIPv4(), isReservedIPv6(), isReservedIP().
  */
-#define IS_IP_BENCHMARK		0x0001	/* 198.18.0.0/15   RFC 2544       */
-#define IS_IP_LINK_LOCAL	0x0002	/* 169.254.0.0/16  link local (private use) */
-#define IS_IP_LOCALHOST		0x0004	/* 127.0.0.1/32    localhost      */
-#define IS_IP_LOOPBACK		0x0008	/* 127.0.0.0/8     loopback, excluding 127.0.0.1 */
-#define IS_IP_MULTICAST		0x0010	/* 224.0.0.0/4     RFC 3171       */
-#define IS_IP_PRIVATE_A		0x0020	/* 10.0.0.0/8      private use    */
-#define IS_IP_PRIVATE_B		0x0040	/* 172.16.0.0/12   private use    */
-#define IS_IP_PRIVATE_C		0x0080	/* 192.168.0.0/16  private use    */
-#define IS_IP_RESERVED		0x0100	/* IPv6 reserved prefix (not global unicast) */
-#define IS_IP_SITE_LOCAL	0x0200  /* IPv6 site local autoconfiguration */
-#define IS_IP_TEST_NET		0x0400	/* 192.0.2.0/24    test network   */
-#define IS_IP_THIS_HOST		0x0800	/* 0.0.0.0/32      "this" host */
-#define IS_IP_THIS_NET		0x1000	/* 0.0.0.0/8       "this" network */
-#define IS_IP_V4_COMPATIBLE	0x2000  /* is this an IPv4-compatible IPv6 address */
-#define IS_IP_V4_MAPPED		0x4000  /* is this an IPv4-mapped IPv6 address */
-#define IS_IP_V6		0x8000
+typedef enum {
+	IS_IP_BENCHMARK		= 0x0001,	/* 198.18.0.0/15   RFC 2544       */
+	IS_IP_LINK_LOCAL	= 0x0002,	/* 169.254.0.0/16  link local (private use) */
+	IS_IP_LOCALHOST		= 0x0004,	/* 127.0.0.1/32    localhost      */
+	IS_IP_LOOPBACK		= 0x0008,	/* 127.0.0.0/8     loopback, excluding 127.0.0.1 */
+	IS_IP_MULTICAST		= 0x0010,	/* 224.0.0.0/4     RFC 3171       */
+	IS_IP_PRIVATE_A		= 0x0020,	/* 10.0.0.0/8      private use    */
+	IS_IP_PRIVATE_B		= 0x0040,	/* 172.16.0.0/12   private use    */
+	IS_IP_PRIVATE_C		= 0x0080,	/* 192.168.0.0/16  private use    */
+	IS_IP_RESERVED		= 0x0100,	/* IPv6 reserved prefix (not global unicast) */
+	IS_IP_SITE_LOCAL	= 0x0200, 	/* IPv6 site local autoconfiguration */
+	IS_IP_TEST_NET		= 0x0400,	/* 192.0.2.0/24    test network   */
+	IS_IP_THIS_HOST		= 0x0800,	/* 0.0.0.0/32      "this" host */
+	IS_IP_THIS_NET		= 0x1000,	/* 0.0.0.0/8       "this" network */
+	IS_IP_V4_COMPATIBLE	= 0x2000,  	/* is this an IPv4-compatible IPv6 address */
+	IS_IP_V4_MAPPED		= 0x4000,  	/* is this an IPv4-mapped IPv6 address */
+	IS_IP_V6		= 0x8000,
+} is_ip_t;
+
 #define IS_IP_V4		(IS_IP_V4_COMPATIBLE|IS_IP_V4_MAPPED) /* not a special reserved address; just a classification */
 #define IS_IP_ANY		(0xffff & ~IS_IP_V4 & ~IS_IP_V6)
 
@@ -184,7 +187,7 @@ extern int isIPv4InName(const char *client_name, unsigned char *ipv4, const char
  *	True if the IP address string matches a reserved IP address.
  *	See RFC 3330, 3513, 3849, 4048
  */
-extern int isReservedIPv4(unsigned char ipv4[IPV4_BYTE_LENGTH], long flags);
+extern int isReservedIPv4(unsigned char ipv4[IPV4_BYTE_LENGTH], is_ip_t flags);
 
 /**
  * @param ip
@@ -197,7 +200,7 @@ extern int isReservedIPv4(unsigned char ipv4[IPV4_BYTE_LENGTH], long flags);
  *	True if the IP address string matches a reserved IP address.
  *	See RFC 3330, 3513, 3849, 4048
  */
-extern int isReservedIPv6(unsigned char ipv6[IPV6_BYTE_LENGTH], long flags);
+extern int isReservedIPv6(unsigned char ipv6[IPV6_BYTE_LENGTH], is_ip_t flags);
 
 /**
  * A convenience function to parse and test an IP address string.
@@ -212,7 +215,7 @@ extern int isReservedIPv6(unsigned char ipv6[IPV6_BYTE_LENGTH], long flags);
  *	True if the IP address string matches a reserved IP address.
  *	See RFC 3330, 3513, 3849, 4048
  */
-extern int isReservedIP(const char *ip, long flags);
+extern int isReservedIP(const char *ip, is_ip_t flags);
 
 /**
  * @param path
