@@ -32,8 +32,10 @@
 #endif /* __MINGW32__ */
 
 #include <com/snert/lib/io/Log.h>
+#include <com/snert/lib/io/file.h>
 #include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/sys/pid.h>
+#include <com/snert/lib/sys/process.h>
 #include <com/snert/lib/net/server.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/timer.h>
@@ -332,11 +334,13 @@ serverSignalsInit(ServerSignals *signals, const char *name)
 # ifdef SIGTERM
 	(void) sigaddset(&signals->signal_set, SIGTERM);
 # endif
-# ifdef SIGUSR1
+# ifdef SERVER_CATCH_USER_SIGNALS
+#  ifdef SIGUSR1
 	(void) sigaddset(&signals->signal_set, SIGUSR1);
-# endif
-# ifdef SIGUSR2
+#  endif
+#  ifdef SIGUSR2
 	(void) sigaddset(&signals->signal_set, SIGUSR2);
+#  endif
 # endif
 # ifdef SERVER_CATCH_ALARMS_SIGNALS
 #  ifdef SIGALRM
@@ -387,17 +391,28 @@ serverSignalsLoop(ServerSignals *signals)
 		case SIGQUIT:		/* Slow quit, wait for sessions to complete. */
 			running = 0;
 			break;
-# ifdef SIGHUP
-		case SIGHUP:
-# endif
 # ifdef SIGPIPE
 		case SIGPIPE:
+			/* Silently ignore since we can get LOTS of
+			 * these during the life of the server.
+			 */
+			break;
 # endif
-# ifdef SIGUSR1
+# ifdef SIGHUP
+		case SIGHUP:
+			if (signals->sig_hup) {
+				(*signals->sig_hup)(signal);
+				break;
+			}
+			/*@fallthrough@*/
+# endif
+# ifdef SERVER_CATCH_USER_SIGNALS
+#  ifdef SIGUSR1
 		case SIGUSR1:
-# endif
-# ifdef SIGUSR2
+#  endif
+#  ifdef SIGUSR2
 		case SIGUSR2:
+#  endif
 # endif
 # ifdef SERVER_CATCH_ALARMS_SIGNALS
 #  ifdef SIGALRM
@@ -565,15 +580,11 @@ interfaceCreate(const char *if_name, unsigned port, int queue_size)
 	if (iface->socket == NULL)
 		goto error1;
 
-#if defined(__unix__)
-	(void) fcntl(socketGetFd(iface->socket), F_SETFD, FD_CLOEXEC);
-#endif
+	(void) fileSetCloseOnExec(socketGetFd(iface->socket), 1);
 	(void) socketSetNonBlocking(iface->socket, 1);
 	(void) socketSetLinger(iface->socket, 0);
 	(void) socketSetReuse(iface->socket, 1);
-#ifdef DISABLE_NAGLE
-	(void) socketSetNagle(iface->socket, 0);
-#endif
+	(void) SOCKET_SET_NAGLE(iface->socket, 0);
 
 	if (socketServer(iface->socket, (int) queue_size))
 		goto error1;
@@ -653,16 +664,10 @@ sessionStart(ServerSession *session)
 	if (session->client == NULL)
 		return;
 
-#ifdef DISABLE_NAGLE
-	(void) socketSetNagle(session->client, 0);
-#endif
+	(void) SOCKET_SET_NAGLE(session->client, 0);
 	(void) socketSetLinger(session->client, 0);
-#ifdef ENABLE_KEEPALIVE
 	(void) socketSetKeepAlive(session->client, 1);
-#endif
-#if defined(__unix__)
-	(void) fcntl(socketGetFd(session->client), F_SETFD, FD_CLOEXEC);
-#endif
+	(void) fileSetCloseOnExec(socketGetFd(session->client), 1);
 	socketSetTimeout(session->client, session->server->option.read_to);
 
 	/* SOCKET_ADDRESS_AS_IPV4 flag: Convert (normalise) IPv4-mapped-IPv6
@@ -1210,6 +1215,11 @@ serverStart(Server *server)
 		syslog(LOG_DEBUG, "server-id=%u start", server->id);
 	VALGRIND_PRINTF("server-id=%u\n start", server->id);
 
+	if (server->hook.server_start != NULL && (*server->hook.server_start)(server)) {
+		syslog(LOG_ERR, "server-id=%u server start hook fail", server->id);
+		return -1;
+	}
+
 	server->running = 1;
 
 	if (pthread_create(&server->accept_thread, &server->thread_attr, serverAccept, server)) {
@@ -1270,10 +1280,8 @@ serverStop(Server *server, int slow_quit)
 	}
 
 	/* Signal the remaining worker threads to stop. */
-	(void) pthread_mutex_lock(&server->workers.mutex);
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-	pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &server->workers.mutex);
-#endif
+	PTHREAD_MUTEX_LOCK(&server->workers.mutex);
+
 	if (0 < server->debug.level)
 		syslog(LOG_INFO, "server-id=%u th=%u cancel", server->id, server->workers.length);
 
@@ -1312,11 +1320,11 @@ serverStop(Server *server, int slow_quit)
 			break;
 	}
 #endif
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-	pthread_cleanup_pop(1);
-#else
-	(void) pthread_mutex_unlock(&server->workers.mutex);
-#endif
+	PTHREAD_MUTEX_UNLOCK(&server->workers.mutex);
+
+	if (server->hook.server_stop != NULL)
+		(void) (*server->hook.server_stop)(server);
+
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u all stop", server->id);
 }
@@ -1342,6 +1350,8 @@ serverStop(Server *server, int slow_quit)
 #define DAYTIME_PORT		13
 #define CHARGEN_PORT		19
 #define SMTP_PORT		25
+#define SINK_PORT		27
+#define CONNECT_TIMEOUT		10000
 
 int debug;
 int server_quit;
@@ -1352,16 +1362,51 @@ char *pid_file = PID_FILE;
 int min_threads = SERVER_MIN_THREADS;
 int max_threads = SERVER_MAX_THREADS;
 int spare_threads = SERVER_NEW_THREADS;
+int sink_service = DISCARD_PORT;
+int sink_state = 0;
+
+struct mapping {
+	int code;
+	char *name;
+};
+
+static struct mapping logFacilityMap[] = {
+	{ LOG_AUTH,		"auth"		},
+	{ LOG_CRON,		"cron" 		},
+	{ LOG_DAEMON,		"daemon" 	},
+	{ LOG_FTP,		"ftp" 		},
+	{ LOG_LPR,		"lpr"		},
+	{ LOG_MAIL,		"mail"		},
+	{ LOG_NEWS,		"news"		},
+	{ LOG_UUCP,		"uucp"		},
+	{ LOG_USER,		"user"		},
+	{ LOG_LOCAL0,		"local0"	},
+	{ LOG_LOCAL1,		"local1"	},
+	{ LOG_LOCAL2,		"local2"	},
+	{ LOG_LOCAL3,		"local3"	},
+	{ LOG_LOCAL4,		"local4"	},
+	{ LOG_LOCAL5,		"local5"	},
+	{ LOG_LOCAL6,		"local6"	},
+	{ LOG_LOCAL7,		"local7"	},
+	{ 0, 			NULL 		}
+};
+
+int log_facility = LOG_DAEMON;
 
 static const char usage_msg[] =
-"usage: " _NAME " [-dqv][-m min][-M max][-P pidfile][-s spare][-w add|remove]\n"
+"usage: " _NAME " [-dqv][-l facility][-m min][-M max][-P pidfile][-s spare]\n"
+"              [-S port,state][-w add|remove]\n"
 "\n"
 "-d\t\tdisable daemon; run in foreground\n"
+"-l facility\tauth, cron, daemon, ftp, lpr, mail, news, uucp, user, \n"
+"\t\tlocal0, ... local7; default daemon\n"
 "-m min\t\tmin. number of worker threads\n"
 "-M max\t\tmax. number of worker threads\n"
 "-P pidfile\twere the PID file lives, default " PID_FILE "\n"
 "-q\t\t-q slow quit, -qq fast quit, -qqq restart, -qqqq restart-if\n"
 "-s spare\tnumber of spare worker threads to maintain\n"
+"-S port,state\tsink port behaviour 7=echo, 9=discard (default), 25=smtp;\n"
+"\t\tfor port=25: state can be 200, 400 (default), or 500\n"
 "-v\t\tverbose debugging\n"
 "-w arg\t\tadd or remove Windows service\n"
 "\n"
@@ -1370,6 +1415,17 @@ static const char usage_msg[] =
 "\n"
 LIBSNERT_COPYRIGHT "\n"
 ;
+
+static int
+name_to_code(struct mapping *map, const char *name)
+{
+	for ( ; map->name != NULL; map++) {
+		if (TextInsensitiveCompare(name, map->name) == 0)
+			return map->code;
+	}
+
+	return -1;
+}
 
 #undef syslog
 
@@ -1521,14 +1577,138 @@ smtpProcess(ServerSession *session)
 	return reportFinish(session);
 }
 
+#ifdef HAVE_SENDMSG
+#include <sys/uio.h>
+
+int
+sinkStart(Server *server)
+{
+	Socket2 *sink_socket;
+	SocketAddress *sink_address;
+
+	if (server == NULL)
+		goto error0;
+
+	server->data = NULL;
+
+	if ((sink_address = socketAddressCreate("/tmp/socketsink", 0)) == NULL) {
+		syslog(LOG_ERR, "sink: address error: %s (%d)", strerror(errno), errno);
+		goto error0;
+	}
+
+	if ((sink_socket = socketOpen(sink_address, 1)) == NULL) {
+		syslog(LOG_ERR, "sink: open error: %s (%d)", strerror(errno), errno);
+		goto error1;
+	}
+
+	if (socketClient(sink_socket, CONNECT_TIMEOUT)) {
+		syslog(LOG_ERR, "sink: connect error: %s (%d)", strerror(errno), errno);
+		goto error2;
+	}
+
+	server->data = sink_socket;
+	free(sink_address);
+
+	return 0;
+error2:
+	socketClose(sink_socket);
+	server->data = NULL;
+error1:
+	free(sink_address);
+error0:
+	return 0;
+}
+
+int
+sinkStop(Server *server)
+{
+	if (server != NULL) {
+		socketClose(server->data);
+		server->data = NULL;
+	}
+
+	return 0;
+}
+
+int
+send_fd(int unix_stream_socket, int fd, unsigned short port, short state, char token[20])
+{
+	struct msghdr msg;
+	struct cmsghdr *cmsg;
+	struct iovec service_protocol;
+	unsigned char buf[CMSG_SPACE(sizeof (int))], service[2 * sizeof (uint16_t) + 20];
+
+	service_protocol.iov_base = &service;
+	service_protocol.iov_len = sizeof (service);
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_control = buf;
+	msg.msg_controllen = CMSG_LEN(sizeof (int));
+	msg.msg_iov = &service_protocol;
+	msg.msg_iovlen = 1;
+
+	cmsg = CMSG_FIRSTHDR(&msg);
+	cmsg->cmsg_len = CMSG_LEN(sizeof (int));
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+	*(int *)CMSG_DATA(cmsg) = fd;
+
+	*(uint16_t *) &service[0] = port;
+	*(int16_t *) &service[sizeof (uint16_t)] = state;
+	(void) TextCopy(&service[2 * sizeof (uint16_t)], 20, token);
+
+	return -(sendmsg(unix_stream_socket, &msg, 0) < 0);
+}
+
+int
+sinkProcess(ServerSession *session)
+{
+	Socket2 *sink_socket;
+
+	reportAccept(session);
+
+	sink_socket = session->server->data;
+	syslog(LOG_INFO, "%s sink fd=%d", session->id_log, socketGetFd(session->client));
+
+	if (sink_socket == NULL
+	|| send_fd(socketGetFd(sink_socket), socketGetFd(session->client), sink_service, sink_state, session->id_log)) {
+		/* Assume socketsink daemon restarted, attempt reconnect. */
+		socketClose(sink_socket);
+		session->server->data = NULL;
+
+		if (sinkStart(session->server)) {
+			syslog(LOG_ERR, "sink: reconnect error: %s (%d)", strerror(errno), errno);
+			goto error0;
+		}
+
+		sink_socket = session->server->data;
+		if (sink_socket == NULL
+		|| send_fd(socketGetFd(sink_socket), socketGetFd(session->client), sink_service, sink_state, session->id_log)) {
+			syslog(LOG_ERR, "sink: send_fd error: %s (%d)", strerror(errno), errno);
+			goto error0;
+		}
+	}
+
+	/* Close the socket without calling shutdown(). */
+	socketFdClose(session->client);
+	session->client = NULL;
+error0:
+	return reportFinish(session);
+}
+
+#endif /* HAVE_SENDMSG */
+
 void
 serverOptions(int argc, char **argv)
 {
 	int ch;
+	char *stop;
 
 	optind = 1;
-	while ((ch = getopt(argc, argv, "dm:M:P:qs:vw:")) != -1) {
+	while ((ch = getopt(argc, argv, "dl:m:M:P:qs:S:vw:")) != -1) {
 		switch (ch) {
+		case 'l':
+			log_facility = name_to_code(logFacilityMap, optarg);
+			break;
 		case 'm':
 			min_threads = strtol(optarg, NULL, 10);
 			break;
@@ -1539,6 +1719,12 @@ serverOptions(int argc, char **argv)
 
 		case 's':
 			spare_threads = strtol(optarg, NULL, 10);
+			break;
+
+		case 'S':
+			sink_service = (int) strtol(optarg, &stop, 10);
+			if (*stop == ',')
+				sink_state = (int) strtol(stop+1, NULL, 10);
 			break;
 
 		case 'd':
@@ -1573,6 +1759,8 @@ serverOptions(int argc, char **argv)
 
 typedef struct {
 	Server *server;
+	ServerHook start;
+	ServerHook stop;
 	ServerSessionHook process;
 	const char *host;
 	int port;
@@ -1580,19 +1768,22 @@ typedef struct {
 
 ServerHandler services[] = {
 #ifdef ECHO_PORT
-	{ NULL, echoProcess, "[::0]:" QUOTE(ECHO_PORT) "; 0.0.0.0:" QUOTE(ECHO_PORT), ECHO_PORT },
+	{ NULL, NULL, NULL, echoProcess, "[::0]:" QUOTE(ECHO_PORT) "; 0.0.0.0:" QUOTE(ECHO_PORT), ECHO_PORT },
 #endif
 #ifdef DISCARD_PORT
-	{ NULL, discardProcess, "[::0]:" QUOTE(DISCARD_PORT) "; 0.0.0.0:" QUOTE(DISCARD_PORT), DISCARD_PORT },
+	{ NULL, NULL, NULL, discardProcess, "[::0]:" QUOTE(DISCARD_PORT) "; 0.0.0.0:" QUOTE(DISCARD_PORT), DISCARD_PORT },
 #endif
 #ifdef DAYTIME_PORT
-	{ NULL, daytimeProcess, "[::0]:" QUOTE(DAYTIME_PORT) "; 0.0.0.0:" QUOTE(DAYTIME_PORT), DAYTIME_PORT },
+	{ NULL, NULL, NULL, daytimeProcess, "[::0]:" QUOTE(DAYTIME_PORT) "; 0.0.0.0:" QUOTE(DAYTIME_PORT), DAYTIME_PORT },
 #endif
 #ifdef CHARGEN_PORT
-	{ NULL, chargenProcess, "[::0]:" QUOTE(CHARGEN_PORT) "; 0.0.0.0:" QUOTE(CHARGEN_PORT), CHARGEN_PORT },
+	{ NULL, NULL, NULL, chargenProcess, "[::0]:" QUOTE(CHARGEN_PORT) "; 0.0.0.0:" QUOTE(CHARGEN_PORT), CHARGEN_PORT },
 #endif
 #ifdef SMTP_PORT
-	{ NULL, smtpProcess, "[::0]:" QUOTE(SMTP_PORT) "; 0.0.0.0:" QUOTE(SMTP_PORT), SMTP_PORT },
+	{ NULL, NULL, NULL, smtpProcess, "[::0]:" QUOTE(SMTP_PORT) "; 0.0.0.0:" QUOTE(SMTP_PORT), SMTP_PORT },
+#endif
+#if defined(SINK_PORT) && defined(HAVE_SENDMSG)
+	{ NULL, sinkStart, sinkStop, sinkProcess, "[::0]:" QUOTE(SINK_PORT) "; 0.0.0.0:" QUOTE(SINK_PORT), SINK_PORT },
 #endif
 	{ NULL, NULL, NULL, 0 }
 };
@@ -1619,6 +1810,8 @@ serverMain(void)
 		service->server->option.min_threads = min_threads;
 		service->server->option.max_threads = max_threads;
 		service->server->debug.level = debug;
+		service->server->hook.server_start = service->start;
+		service->server->hook.server_stop = service->stop;
 		service->server->hook.session_process = service->process;
 		serverSetStackSize(service->server, SERVER_STACK_SIZE);
 	}
@@ -1683,8 +1876,8 @@ atExitCleanUp(void)
 int
 main(int argc, char **argv)
 {
-	serverOptions(argc, argv);
 	LogSetProgramName(_NAME);
+	serverOptions(argc, argv);
 
 	switch (server_quit) {
 	case 1:
@@ -1709,24 +1902,15 @@ main(int argc, char **argv)
 	}
 
 	if (daemon_mode) {
-		pid_t ppid;
 		int pid_fd;
 
-		openlog(_NAME, LOG_PID|LOG_NDELAY, LOG_USER);
+		if (daemon(1, 1)) {
+			fprintf(stderr, "daemon failed\n");
+			return EX_SOFTWARE;
+		}
+
 		setlogmask(LOG_UPTO(LOG_DEBUG));
-
-		if ((ppid = fork()) < 0) {
-			syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
-			return EX_OSERR;
-		}
-
-		if (ppid != 0)
-			return EXIT_SUCCESS;
-
-		if (setsid() == -1) {
-			syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
-			return EX_OSERR;
-		}
+		openlog(_NAME, LOG_PID|LOG_NDELAY, log_facility);
 
 		if (atexit(atExitCleanUp)) {
 			syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
@@ -1886,7 +2070,7 @@ main(int argc, char **argv)
 		return EXIT_SUCCESS;
 	}
 
-	openlog(_NAME, LOG_PID|LOG_NDELAY, LOG_USER);
+	openlog(_NAME, LOG_PID|LOG_NDELAY, log_facility);
 
 	if (daemon_mode) {
 		if (pidSave(pid_file)) {

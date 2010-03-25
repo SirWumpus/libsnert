@@ -108,15 +108,11 @@ extern "C" {
 # endif
 #endif /* __MINGW32__ */
 
-#ifndef ENABLE_KEEPALIVE
-#define ENABLE_KEEPALIVE		1
-#endif
-
+#undef SERVER_CATCH_USER_SIGNALS
 #undef SERVER_CATCH_ALARMS_SIGNALS
-
-#ifndef SERVER_CATCH_ULIMIT_SIGNALS
 #define SERVER_CATCH_ULIMIT_SIGNALS	1
-#endif
+
+#define SOCKET_SET_NAGLE(s, f)		0
 
 /***********************************************************************
  ***
@@ -187,6 +183,8 @@ typedef struct {
 } ServerOptions;
 
 typedef struct {
+	ServerHook server_start;		/* serverStart */
+	ServerHook server_stop;			/* serverStop */
 	ServerWorkerHook worker_create;		/* serverAccept, serverWorkerCreate */
 	ServerWorkerHook worker_free;		/* serverWorker, serverWorkerFree */
 	ServerSessionHook session_create;	/* serverAccept, sessionCreate	*/
@@ -300,6 +298,8 @@ typedef enum {
 } ServerSignal;
 #endif
 
+typedef void (*ServerSignalHook)(int signum);
+
 typedef struct {
 #ifdef __unix__
 	sigset_t signal_set;
@@ -307,6 +307,7 @@ typedef struct {
 #ifdef __WIN32__
 	HANDLE signal_event[SIGNAL_LENGTH];
 #endif
+	ServerSignalHook sig_hup;
 } ServerSignals;
 
 extern int serverSignalsInit(ServerSignals *signals, const char *name);

@@ -73,10 +73,10 @@ MEH_TOOLS	= sendform$E nph-download.cgi here-i-am$E where-are-you$E \
 		  ixhash$E ziplist$E rarlist$E taglengths$E rsleep$E
 MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E echod$E
 DAEMONS 	= filed zoned
-UNIX 		= mailgroup
+UNIX 		= mailgroup socketsink$E
 
 
-PROGRAMS = $(ORIGINAL) ${MEH_TOOLS} $(MYVERSION)
+PROGRAMS = $(ORIGINAL) ${MEH_TOOLS} $(MYVERSION) $(UNIX)
 
 .MAIN : build
 
@@ -129,6 +129,9 @@ ansi$E : ansi.c
 
 clamstream$E : ${top_srcdir}/io/socket2$O clamstream.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)clamstream$E clamstream.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+
+socketsink$E : ${top_srcdir}/io/socket2$O socketsink.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)socketsink$E socketsink.c $(LIBSNERT) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
 
 flip$E : flip.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)flip$E flip.c $(LIBSNERT) ${LIBS_PREFIX}

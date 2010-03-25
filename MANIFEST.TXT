@@ -104,6 +104,7 @@ com/snert/src/lib/sys/TimeStamp.c
 com/snert/src/lib/sys/gmtime_r.c
 com/snert/src/lib/sys/makefile.in
 com/snert/src/lib/sys/malloc.c
+com/snert/src/lib/sys/daemon.c
 com/snert/src/lib/sys/process.c
 com/snert/src/lib/sys/pthread.c
 com/snert/src/lib/sys/pthreadSleep.c
@@ -317,6 +318,7 @@ com/snert/src/lib/tools/sendform.cfg
 com/snert/src/lib/tools/sendform.example
 com/snert/src/lib/tools/sendform.html
 com/snert/src/lib/tools/show.c
+com/snert/src/lib/tools/socketsink.c
 com/snert/src/lib/tools/sqlargs.c
 com/snert/src/lib/tools/ssi.c
 com/snert/src/lib/tools/strings.c
