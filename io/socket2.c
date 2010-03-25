@@ -249,8 +249,11 @@ socketFdOpen(SOCKET fd)
 
 	if (fd != INVALID_SOCKET && (s = malloc(sizeof (*s))) != NULL) {
 		socklen = sizeof (s->address);
-		if (getpeername(fd, &s->address.sa, &socklen))
-			(void) getsockname(fd, &s->address.sa, &socklen);
+		memset(&s->address, 0, sizeof (s->address));
+		if (getpeername(fd, &s->address.sa, &socklen)) {
+			if (getsockname(fd, &s->address.sa, &socklen))
+				memset(&s->address.sa, 0, sizeof (s->address));
+		}
 		s->isNonBlocking = 0;
 		s->readOffset = 0;
 		s->readLength = 0;
@@ -370,16 +373,14 @@ socketBind(Socket2 *s, SocketAddress *addr)
 int
 socketSetKeepAlive(Socket2 *s, int flag)
 {
-#ifdef SO_KEEPALIVE
 	if (s == NULL) {
 		errno = EFAULT;
 		return SOCKET_ERROR;
 	}
 
-	return setsockopt(s->fd, SOL_SOCKET, SO_KEEPALIVE, (char *) &flag, sizeof (flag));
-#else
+	socketFdSetKeepAlive(s->fd, flag, -1, -1, -1);
+
 	return 0;
-#endif
 }
 
 /**
@@ -765,6 +766,27 @@ socketClose(Socket2 *s)
 	}
 }
 
+void
+socketFdSetKeepAlive(SOCKET fd, int flag, int idle, int interval, int count)
+{
+#ifdef SO_KEEPALIVE
+	if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *) &flag, sizeof (flag)))
+		syslog(LOG_WARNING, "setting fd=%d SO_KEEPALIVE=%d failed", fd, flag);
+#endif
+#ifdef TCP_KEEPIDLE
+	if (0 < idle && setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, (char *) &idle, sizeof (idle)))
+		syslog(LOG_WARNING, "setting fd=%d TCP_KEEPIDLE=%d failed", fd, idle);
+#endif
+#ifdef TCP_KEEPINTVL
+	if (0 < interval && setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, (char *) &interval, sizeof (interval)))
+		syslog(LOG_WARNING, "setting fd=%d TCP_KEEPINTVL=%d failed", fd, interval);
+#endif
+#ifdef TCP_KEEPCNT
+	if (0 < count && setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, (char *) &count, sizeof (count)))
+		syslog(LOG_WARNING, "setting fd=%d TCP_KEEPCNT=%d failed", fd, count);
+#endif
+}
+
 long
 socketFdWriteTo(int fd, unsigned char *buffer, long size, SocketAddress *to)
 {
@@ -855,7 +877,7 @@ socketWrite(Socket2 *s, unsigned char *buffer, long size)
 		return SOCKET_ERROR;
 	}
 
- 	return socketFdWriteTo(s->fd, buffer, size, NULL);
+ 	return socketFdWriteTo(s->fd, buffer, size, &s->address);
 }
 
 /**
@@ -1360,4 +1382,6 @@ socketMulticastTTL(Socket2 *s, int ttl)
 	return 0;
 #endif
 }
+
+
 

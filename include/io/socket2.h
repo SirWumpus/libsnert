@@ -366,6 +366,7 @@ extern Socket2 *socketOpen(SocketAddress *addr, int isStream);
 
 extern Socket2 *socketFdOpen(SOCKET fd);
 extern void socketFdClose(Socket2 *s);
+extern void socketFdSetKeepAlive(SOCKET fd, int flag, int idle, int interval, int count);
 extern long socketFdWriteTo(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to);
 
 /**
