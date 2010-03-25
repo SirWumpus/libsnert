@@ -45,6 +45,34 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+--1.73.19--
+
+   +	Added tools/socketsink.c as a simple tar pit server that holds a
+	connection open, discarding input, and sending no replies until
+	the connected client finally disconnects.
+
+   +	net/server.c: Added a sink server for testing socketsink daemon.
+	The sink server accepts a connection on port 27 and then
+	immediately passes the client socket to the socketsink daemon
+	for tar pitting. Tests the passing of file descriptors between
+	processes.
+
+   +	net/server.c: Add socketFdOpen, socketFdClose, and socketFdWriteTo.
+   	Modified related functions to use these.
+
+   !	accessPattern: Fix segmentation fault when parsing the pattern
+	lists and there is a syntax error. For example:
+
+   		[82.97.10.32/29/OK	syntax error causes seg. fault.
+
+   		[82.97.10.32/29]OK	correct version works
+
+	Affects all three pattern types [.../..], !...!, and /.../.
+	Reported by Quentin Campbell.
+
+   +	Added check for daemon() and a conditional alt_daemon() implementation.
+
+
 --1.73.18--
 
    !	version.h.in.in, sys/pthread.h: PTHREAD_MUTEX_LOCK/UNLOCK macros
