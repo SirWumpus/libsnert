@@ -70,8 +70,7 @@ extern int spanIPv6(const char *ip);
 extern int spanIP(const char *ip);
 extern int spanHost(const char *host, int minDots);
 extern int spanFQDN(const char *host);
-
-extern int spanURI(const char *uri, const char *stop);
+extern int spanURI(const char *uri);
 
 extern void uriSetDebug(int flag);
 
