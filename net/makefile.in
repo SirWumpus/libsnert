@@ -71,7 +71,8 @@ $O$E :
 
 OBJS =  getRFC2821DateTime$O formatIP$O isRFC2606$O network$O networkGetMyDetails$O \
 	parseIPv6$O isReservedIPv4$O isReservedIPv6$O isReservedIP$O ipinclient$O \
-	reverse$O pdq$O spanIP$O findIP$O dnsList$O server$O http$O
+	reverse$O pdq$O spanIP$O spanHost$O spanLocalPart$O findIP$O dnsList$O \
+	server$O http$O
 
 
 .MAIN : build

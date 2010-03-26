@@ -456,6 +456,10 @@ extern const char *findIPv4(const char *string, int *offsetp, int *spanp);
  */
 extern const char *findIPv6(const char *string, int *offsetp, int *spanp);
 
+/***********************************************************************
+ *** Span Family
+ ***********************************************************************/
+
 /**
  * RFC 2821 section 4.1.3 IP address literals
  *
@@ -494,6 +498,62 @@ extern int spanIPv4(const char *ip);
  *	parse error.
  */
 extern int spanIPv6(const char *ip);
+
+/**
+ * @param host
+ *	Start of a host name, IP-domain-literal, or IP address..
+ *
+ * @param minDots
+ *	The minimum number of dots separators expected in the host name.
+ *
+ * @return
+ *	The length of the host name upto, but excluding, the first
+ *	invalid character.
+ */
+extern int spanHost(const char *host, int minDots);
+
+/**
+ * RFC 2821 domain syntax excluding address-literal.
+ *
+ * Note that RFC 1035 section 2.3.1 indicates that domain labels
+ * should begin with an alpha character and end with an alpha-
+ * numeric character. However, all numeric domains do exist, such
+ * as 123.com, so are permitted.
+ *
+ * @param domain
+ *	Start of a domain name.
+ *
+ * @param minDots
+ *	The minimum number of dots separators expected in the domain.
+ *
+ * @return
+ *	The length of the domain upto, but excluding, the first
+ *	invalid character.
+ */
+extern int spanDomain(const char *domain, int minDots);
+
+/**
+ * RFC 2821 section 4.1.2 Local-part and RFC 2822 section 3.2.4 Atom
+ *
+ * Validate only the characters.
+ *
+ *    Local-part = Dot-string / Quoted-string
+ *    Dot-string = Atom *("." Atom)
+ *    Atom = 1*atext
+ *    Quoted-string = DQUOTE *qcontent DQUOTE
+ *
+ * @param s
+ *	Start of the local-part of a mailbox.
+ *
+ * @return
+ *	The length of the local-part upto, but excluding, the first
+ *	invalid character.
+ */
+extern int spanLocalPart(const char *s);
+
+/***********************************************************************
+ ***
+ ***********************************************************************/
 
 #ifdef  __cplusplus
 }

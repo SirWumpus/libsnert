@@ -94,6 +94,8 @@ com/snert/src/lib/net/pdq.c
 com/snert/src/lib/net/pdq.txt
 com/snert/src/lib/net/reverse.c
 com/snert/src/lib/net/spanIP.c
+com/snert/src/lib/net/spanHost.c
+com/snert/src/lib/net/spanLocalPart.c
 com/snert/src/lib/net/getRFC2821DateTime.c
 com/snert/src/lib/net/server.c
 com/snert/src/lib/sys/Mutex.c
