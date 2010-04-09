@@ -572,6 +572,111 @@ error0:
 	return rc;
 }
 
+extern SocketAddress *socketAddressNew(const char *host, unsigned port);
+
+static Socket2 *
+socketBasicConnect(const char *host, unsigned port, long timeout)
+{
+	Socket2 *s;
+	SocketAddress *addr;
+
+	if ((addr = socketAddressNew(host, port)) == NULL)
+		return NULL;
+
+	s = socketOpen(addr, 1);
+	free(addr);
+
+	if (socketClient(s, timeout)) {
+		socketClose(s);
+		return NULL;
+	}
+
+	return s;
+}
+
+/**
+ * A convenience function that combines the steps for socketAddressCreate()
+ * socketOpen() and socketClient() into one function call. This version
+ * handles multi-homed hosts and replaces socketOpenClient().
+ *
+ * @param host
+ *	The server name or IP address string to connect to.
+ *
+ * @param port
+ *	If the port is not specified as part of the host argument, then
+ *	use this value.
+ *
+ * @param timeout
+ *	A timeout value in milliseconds to wait for the socket connection
+ *	with the server. Zero or negative value for an infinite (system)
+ *	timeout.
+ *
+ * @return
+ *	A Socket2 pointer. Its the caller's responsibility to pass this
+ *	pointer to socketClose() when done.
+ */
+Socket2 *
+socketConnect(const char *host, unsigned port, long timeout)
+{
+	int span;
+	Socket2 *s;
+	char *name;
+	PDQ_rr *list, *rr, *a_rr;
+
+	/* Simple case of IP address or local domain path? */
+	if ((s = socketBasicConnect(host, port, timeout)) != NULL)
+		return s;
+
+	/* We have a host[:port] where the host might be multi-homed. */
+	if ((span = spanHost(host, 1)) <= 0)
+		return NULL;
+
+	/* Find the optional port. */
+	if (host[span] == ':') {
+		char *stop;
+		long value = (unsigned short) strtol(host+span+1, &stop, 10);
+		if (host+span+1 < stop)
+			port = value;
+	}
+
+	/* Duplicate the host to strip off the port. */
+	if ((name = TextDupN(host, span)) == NULL)
+		return NULL;
+
+	/* Look up the A/AAAA record(s). */
+	list = pdqFetch5A(PDQ_CLASS_IN, name);
+	list = pdqListKeepType(list, PDQ_KEEP_5A|PDQ_KEEP_CNAME);
+
+	/* Walk the list of A/AAAA records, following CNAME as needed. */
+	s = NULL;
+	host = name;
+	for (rr = list; rr != NULL; rr = rr->next) {
+		if (rr->rcode != PDQ_RCODE_OK)
+			continue;
+
+		a_rr = pdqListFindName(rr, PDQ_CLASS_IN, PDQ_TYPE_5A, host);
+		if (PDQ_RR_IS_NOT_VALID(a_rr))
+			continue;
+
+		/* The A/AAAA recorded found might have a different
+		 * host name as a result of CNAME redirections.
+		 * Remember this for subsequent iterations.
+		 */
+		host = a_rr->name.string.value;
+
+		/* Now try to connect to this IP address. */
+		if ((s = socketBasicConnect(((PDQ_AAAA *) a_rr)->address.string.value, port, timeout)) != NULL)
+			break;
+
+		rr = a_rr;
+	}
+
+	pdqListFree(list);
+	free(name);
+
+	return s;
+}
+
 /**
  * A convenience function that combines the steps for socketAddressCreate()
  * socketOpen() and socketClient() into one function call.
@@ -602,6 +707,7 @@ error0:
 int
 socketOpenClient(const char *host, unsigned port, long timeout, SocketAddress **out_addr, Socket2 **out_sock)
 {
+#ifdef OLD_CRAP_VERSION
 	SocketAddress *addr;
 
 	if (out_sock == NULL) {
@@ -632,6 +738,18 @@ error1:
 	*out_sock = NULL;
 error0:
 	return SOCKET_ERROR;
+#else
+	if (out_sock == NULL)
+		return SOCKET_ERROR;
+
+	if ((*out_sock = socketConnect(host, port, timeout)) == NULL)
+		return SOCKET_ERROR;
+
+	if (out_addr != NULL)
+		*out_addr = NULL;
+
+	return 0;
+#endif
 }
 
 /**
@@ -804,7 +922,12 @@ socketFdWriteTo(int fd, unsigned char *buffer, long size, SocketAddress *to)
 	socklen = socketAddressLength(to);
 #endif
 	for (offset = 0; offset < size; offset += sent) {
-		if ((sent = sendto(fd, buffer+offset, size-offset, 0, (const struct sockaddr *) to, socklen)) < 0) {
+		if (to == NULL)
+			sent = send(fd, buffer+offset, size-offset, 0);
+		else
+			sent = sendto(fd, buffer+offset, size-offset, 0, (const struct sockaddr *) to, socklen);
+
+		if (sent < 0) {
 			UPDATE_ERRNO;
 			if (!ERRNO_EQ_EAGAIN) {
 				if (offset == 0)
@@ -877,7 +1000,7 @@ socketWrite(Socket2 *s, unsigned char *buffer, long size)
 		return SOCKET_ERROR;
 	}
 
- 	return socketFdWriteTo(s->fd, buffer, size, &s->address);
+ 	return socketFdWriteTo(s->fd, buffer, size, NULL);
 }
 
 /**

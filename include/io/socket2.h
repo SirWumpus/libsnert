@@ -514,8 +514,34 @@ extern int socketClient(Socket2 *s, long timeout);
  *
  * @return
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
+ *
+ * @notes
+ *	--DEPRICATED--
  */
 extern int socketOpenClient(const char *host, unsigned port, long timeout, SocketAddress **out_addr, Socket2 **out_sock);
+
+/**
+ * A convenience function that combines the steps for socketAddressNew(),
+ * socketOpen() and socketClient() into one function call. This version
+ * handles multi-homed hosts and replaces socketOpenClient().
+ *
+ * @param host
+ *	The server name or IP address string to connect to.
+ *
+ * @param port
+ *	If the port is not specified as part of the host argument, then
+ *	use this value.
+ *
+ * @param timeout
+ *	A timeout value in milliseconds to wait for the socket connection
+ *	with the server. Zero or negative value for an infinite (system)
+ *	timeout.
+ *
+ * @return
+ *	A Socket2 pointer. Its the caller's responsibility to pass this
+ *	pointer to socketClose() when done.
+ */
+extern Socket2 *socketConnect(const char *host, unsigned port, long timeout);
 
 /**
  * Prepare the socket to wait for TCP client connections on the address given

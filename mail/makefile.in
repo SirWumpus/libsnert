@@ -163,7 +163,7 @@ smtp1$E : ../io/Dns$O smtpError$O smtpError$O smtpRead$O smtpWrite$O smtpOpen.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp1$E smtpOpen.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI}
 
 # This cannot be built until AFTER the lib/io routines have been built.
-smtp2$E : ../io/Dns$O smtp2.c
+smtp2$E : ../net/pdq$O ../io/socket2$O smtp2.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp2$E smtp2.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
 
 # This cannot be built until AFTER the lib/io routines have been built.

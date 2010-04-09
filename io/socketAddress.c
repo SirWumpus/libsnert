@@ -71,6 +71,67 @@ socketAddressLength(SocketAddress *addr)
 	return 0;
 }
 
+SocketAddress *
+socketAddressNew(const char *host, unsigned port)
+{
+	char *stop;
+	long length, value;
+	SocketAddress *addr;
+	unsigned char ipv6[IPV6_BYTE_LENGTH];
+
+	if (host == NULL)
+		return NULL;
+
+	if (*host != '/' && (length = parseIPv6(host, ipv6)) == 0)
+		return NULL;
+
+	if ((addr = calloc(1, sizeof (*addr))) == NULL)
+		return NULL;
+
+#ifdef HAVE_STRUCT_SOCKADDR_UN
+	if (*host == '/') {
+		addr->un.sun_family = AF_UNIX;
+		(void) TextCopy(addr->un.sun_path, sizeof (addr->un.sun_path), (char *) host);
+# ifdef HAVE_STRUCT_SOCKADDR_UN_SUN_LEN
+		addr->un.sun_len = sizeof (struct sockaddr_un);
+# endif
+		return addr;
+	}
+#endif
+	if (host[length] == ':') {
+		value = (unsigned short) strtol(host+length+1, &stop, 10);
+		if (host+length+1 < stop)
+			port = value;
+	}
+
+	/* Determine the address family and ... */
+	if (isReservedIPv6(ipv6, IS_IP_V6)
+	/* ... be sure to distinguish between ::0 and 0.0.0.0. */
+	&& strncmp(host, "0.0.0.0", sizeof ("0.0.0.0")-1) != 0) {
+#ifdef HAVE_STRUCT_SOCKADDR_IN6
+		addr->in6.sin6_family = AF_INET6;
+		addr->in6.sin6_port = htons(port);
+# ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
+		addr->sa.sa_len = sizeof (struct sockaddr_in6);
+# endif
+		memcpy(&addr->in6.sin6_addr, ipv6, sizeof (ipv6));
+#else
+		/* IPv6 address specified on a system that doesn't support IPv6. */
+		free(addr);
+		addr = NULL;
+#endif
+	} else {
+		addr->in.sin_family = AF_INET;
+		addr->in.sin_port = htons(port);
+# ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
+		addr->sa.sa_len = sizeof (struct sockaddr_in);
+# endif
+		memcpy(&addr->in.sin_addr, ipv6+sizeof (ipv6)-IPV4_BYTE_LENGTH, IPV4_BYTE_LENGTH);
+	}
+
+	return addr;
+}
+
 /**
  * @param host
  *	A unix domain socket or internet host[:port]. Note that the colon
@@ -575,11 +636,9 @@ socketAddressSetPort(SocketAddress *addr, unsigned port)
 		addr->in6.sin6_port = htons(port);
 		break;
 #endif
-#ifdef HAVE_STRUCT_SOCKADDR_UN
-	case AF_UNIX:
+	default:
 		errno = EINVAL;
 		return SOCKET_ERROR;
-#endif
 	}
 
 	return 0;

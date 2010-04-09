@@ -351,13 +351,13 @@ smtp2Start(SMTP2 *smtp)
 	if (getsockname(smtp->mx->fd, (struct sockaddr *) &name, &namelen))
 		return SMTP_ERROR;
 
-	socketAddressGetString(&name, 0, smtp->local_ip, sizeof (smtp->local_ip));
-	(void) snprintf(smtp->text, sizeof (smtp->text), "EHLO [%s]\r\n", smtp->local_ip);
+	socketAddressGetString(&name, SOCKET_ADDRESS_WITH_BRACKETS, smtp->local_ip, sizeof (smtp->local_ip));
+	(void) snprintf(smtp->text, sizeof (smtp->text), "EHLO %s\r\n", smtp->local_ip);
 	if ((rc = mxCommand(smtp, smtp->text)) == SMTP_OK) {
 		smtp->flags |= SMTP_FLAG_EHLO;
 	} else {
 		smtp->flags &= ~SMTP_FLAG_EHLO;
-		(void) snprintf(smtp->text, sizeof (smtp->text), "HELO [%s]\r\n", smtp->local_ip);
+		(void) snprintf(smtp->text, sizeof (smtp->text), "HELO %s\r\n", smtp->local_ip);
 		rc = mxCommand(smtp, smtp->text);
 	}
 
@@ -367,11 +367,13 @@ smtp2Start(SMTP2 *smtp)
 static int
 smtp2Connect(SMTP2 *smtp, const char *host)
 {
-	if (socketOpenClient(host, SMTP_PORT, smtp->connect_to, NULL, &smtp->mx) != 0)
+	if ((smtp->mx = socketConnect(host, SMTP_PORT, smtp->connect_to)) == NULL)
 		return SMTP_ERROR;
-#ifdef __unix__
+
 	(void) fileSetCloseOnExec(socketGetFd(smtp->mx), 1);
-#endif
+	(void) socketSetNonBlocking(smtp->mx, 1);
+	(void) socketSetLinger(smtp->mx, 0);
+
 	if (smtp->flags & SMTP_FLAG_LOG)
 		syslog(LOG_INFO, LOG_FMT "connected host=%s", LOG_ARG(smtp), host);
 
@@ -536,7 +538,7 @@ smtp2Mail(SMTP2 *smtp, const char *sender)
 	next_msg_id(smtp, smtp->id_string);
 
 	if (sender == NULL) {
-		(void) snprintf(smtp->text, sizeof (smtp->text), "postmaster@[%s]", smtp->local_ip);
+		(void) snprintf(smtp->text, sizeof (smtp->text), "postmaster@%s", smtp->local_ip);
 		sender = smtp->text;
 	}
 
@@ -639,7 +641,7 @@ smtp2Print(SMTP2 *smtp, const char *line, size_t length)
 				(void) mxPrint(smtp, "Subject: \r\n", sizeof ("Subject: \r\n")-1);
 
 			if (!(smtp->flags & SMTP_FLAG_MSGID))
-				(void) smtp2Printf(smtp, "Message-ID: <%s@[%s]>\r\n", smtp->id_string, smtp->local_ip);
+				(void) smtp2Printf(smtp, "Message-ID: <%s@%s>\r\n", smtp->id_string, smtp->local_ip);
 		} else if (!(smtp->flags & SMTP_FLAG_SUBJECT) && TextMatch(line, "Subject:*", length, 1)) {
 			smtp->flags |= SMTP_FLAG_SUBJECT;
 		} else if (!(smtp->flags & SMTP_FLAG_FROM) && TextMatch(line, "From:*", length, 1)) {
@@ -965,11 +967,11 @@ sendMessage(void *context, CommandSet *cmd, const char *from, int argc, char **a
 			/* Read in the message headers and find the original sender. */
 			for (offset = 0; offset+SMTP_TEXT_LINE_LENGTH < sizeof (headers); offset += length) {
 				if (fgets(headers+offset, sizeof (headers)-offset, stdin) == NULL)
-					return;
+					break;
 
 				length = smtp2AssertCRLF(headers+offset, strlen(headers+offset), sizeof (headers)-offset);
 
-				if (headers[offset] == '\r' && headers[offset] == '\n') {
+				if (headers[offset] == '\r' && headers[offset+1] == '\n') {
 					offset += length;
 					break;
 				}
@@ -1013,11 +1015,9 @@ sendMessage(void *context, CommandSet *cmd, const char *from, int argc, char **a
 		}
 
 		while (fgets(text, sizeof (text)-2, stdin) != NULL) {
-			if (text[0] == '.' && (text[1] == '\n' || text[1] == '\r'))
-				break;
 			length = smtp2AssertCRLF(text, strlen(text), sizeof (text));
 			if ((*cmd->print)(context, text, strlen(text)) != SMTP_OK)
-				exit(1);
+				break;
 		}
 
 		if ((*cmd->dot)(context) != SMTP_OK)
