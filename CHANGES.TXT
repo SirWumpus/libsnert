@@ -99,7 +99,11 @@ is no set schedule for releases.
 
 		http://213.210.237.83/webscr/cmd/protect_files/yassino-file.php
 
+   +	Added socketConnect() to socket2 API to better handle connections
+   	to multi-homed hosts. This replaces the more clumsy socketOpenClient().
 
+   !	smtp2.c: Fixed smtp2 API to use socketConnect(). In addition fixed
+   	some minor annoyances with the smtp2 CLI.
 
 --1.73.18--
 
