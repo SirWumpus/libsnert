@@ -1,7 +1,7 @@
 /*
  * queue.c
  *
- * Copyright 2009 by Anthony Howe. All rights reserved.
+ * Copyright 2009, 2010 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -12,6 +12,7 @@
 
 #include <stdlib.h>
 
+#include <com/snert/lib/sys/pthread.h>
 #include <com/snert/lib/type/queue.h>
 #include <com/snert/lib/util/Text.h>
 
@@ -34,9 +35,14 @@ listFini(void *_list)
 	ListItem *item, *next;
 	List *list = (List *) _list;
 
-	for (item = list->head; item != NULL; item = next) {
-		next = item->next;
-		listItemFree(item);
+	if (list != NULL) {
+		for (item = list->head; item != NULL; item = next) {
+			next = item->next;
+			listItemFree(item);
+		}
+
+		if (list->free != NULL)
+			(*list->free)(list);
 	}
 }
 
@@ -44,7 +50,6 @@ void
 listInit(List *list)
 {
 	memset(list, 0, sizeof (*list));
-	list->free = listFini;
 }
 
 void
@@ -117,10 +122,11 @@ listDelete(List *list, ListItem *item)
 ListItem *
 listFind(List *list, ListFindFn find_fn, void *key)
 {
-	ListItem *node;
+	ListItem *node, *next;
 
-	for (node = list->head; node != NULL; node = node->next) {
-		if ((*find_fn)(node, key))
+	for (node = list->head; node != NULL; node = next) {
+		next = node->next;
+		if ((*find_fn)(list, node, key))
 			break;
 	}
 
@@ -128,7 +134,7 @@ listFind(List *list, ListFindFn find_fn, void *key)
 }
 
 /***********************************************************************
- ***
+ *** Thread-safe message queue.
  ***********************************************************************/
 
 void
@@ -136,19 +142,17 @@ queueFini(void *_queue)
 {
 	Queue *queue = (Queue *) _queue;
 
-	listFini(&queue->list);
-
 	(void) pthread_cond_destroy(&queue->cv_less);
 	(void) pthread_cond_destroy(&queue->cv_more);
 	(void) pthreadMutexDestroy(&queue->mutex);
+
+	listFini(&queue->list);
 }
 
 int
 queueInit(Queue *queue)
 {
 	listInit(&queue->list);
-
-	queue->list.free = queueFini;
 
 	if (pthread_cond_init(&queue->cv_more, NULL))
 		goto error0;
@@ -171,19 +175,11 @@ error0:
 size_t
 queueLength(Queue *queue)
 {
-	unsigned length = 0;
+	size_t length = 0;
 
-	if (!pthread_mutex_lock(&queue->mutex)) {
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &queue->mutex);
-#endif
-		length = queue->list.length;
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_pop(1);
-#else
-		(void) pthread_mutex_unlock(&queue->mutex);
-#endif
-	}
+	PTHREAD_MUTEX_LOCK(&queue->mutex);
+	length = queue->list.length;
+	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
 
 	return length;
 }
@@ -197,19 +193,16 @@ queueIsEmpty(Queue *queue)
 int
 queueEnqueue(Queue *queue, ListItem *item)
 {
-	if (pthread_mutex_lock(&queue->mutex))
-		return -1;
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-	pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &queue->mutex);
-#endif
+	int rc = -1;
+
+	PTHREAD_MUTEX_LOCK(&queue->mutex);
+
 	listInsertAfter(&queue->list, queue->list.tail, item);
-	pthread_cond_signal(&queue->cv_more);
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-	pthread_cleanup_pop(1);
-#else
-	(void) pthread_mutex_unlock(&queue->mutex);
-#endif
-	return 0;
+	rc = pthread_cond_signal(&queue->cv_more);
+
+	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
+
+	return rc;
 }
 
 ListItem *
@@ -217,69 +210,53 @@ queueDequeue(Queue *queue)
 {
 	ListItem *item = NULL;
 
-	if (!pthread_mutex_lock(&queue->mutex)) {
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &queue->mutex);
-#endif
-		/* Wait until the queue has an item to process. */
-		while (queue->list.head == NULL) {
-			if (pthread_cond_wait(&queue->cv_more, &queue->mutex))
-				break;
-		}
+	PTHREAD_MUTEX_LOCK(&queue->mutex);
 
-		item = queue->list.head;
-		listDelete(&queue->list, item);
-		pthread_cond_signal(&queue->cv_less);
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_pop(1);
-#else
-		(void) pthread_mutex_unlock(&queue->mutex);
-#endif
+	/* Wait until the queue has an item to process. */
+	while (queue->list.head == NULL) {
+		if (pthread_cond_wait(&queue->cv_more, &queue->mutex))
+			break;
 	}
 
+	item = queue->list.head;
+	listDelete(&queue->list, item);
+	(void) pthread_cond_signal(&queue->cv_less);
+
+	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
+
 	return item;
+}
+
+static int
+queueRemoveFn(List *list, ListItem *node, void *queue)
+{
+	listDelete(list, node);
+	if (node->free != NULL)
+		(*node->free)(node->data);
+	(void) pthread_cond_signal(&((Queue *) queue)->cv_less);
+	return 0;
 }
 
 void
 queueRemove(Queue *queue, ListItem *node)
 {
-	if (!pthread_mutex_lock(&queue->mutex)) {
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &queue->mutex);
-#endif
-		listDelete(&queue->list, node);
-		if (node->free != NULL)
-			(*node->free)(node->data);
-		(void) pthread_cond_signal(&queue->cv_less);
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_pop(1);
-#else
-		(void) pthread_mutex_unlock(&queue->mutex);
-#endif
-	}
+	PTHREAD_MUTEX_LOCK(&queue->mutex);
+	(void) queueRemoveFn(&queue->list, node, queue);
+	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
+}
+
+ListItem *
+queueWalk(Queue *queue, ListFindFn find_fn, void *data)
+{
+	ListItem *item = NULL;
+	PTHREAD_MUTEX_LOCK(&queue->mutex);
+	item = listFind(&queue->list, find_fn, data);
+	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
+	return item;
 }
 
 void
 queueRemoveAll(Queue *queue)
 {
-	ListItem *node, *next;
-
-	if (!pthread_mutex_lock(&queue->mutex)) {
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &queue->mutex);
-#endif
-		for (node = queue->list.head; node != NULL; node = next) {
-			next = node->next;
-			listDelete(&queue->list, node);
-			if (node->free != NULL)
-				(*node->free)(node->data);
-			(void) pthread_cond_signal(&queue->cv_less);
-		}
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_pop(1);
-#else
-		(void) pthread_mutex_unlock(&queue->mutex);
-#endif
-	}
+	(void) queueWalk(queue, queueRemoveFn, queue);
 }
-

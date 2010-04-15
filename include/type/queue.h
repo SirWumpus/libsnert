@@ -1,7 +1,7 @@
 /*
  * queue.h
  *
- * Copyright 2009 by Anthony Howe. All rights reserved.
+ * Copyright 2009, 2010 by Anthony Howe. All rights reserved.
  */
 
 #ifndef __com_snert_lib_type_queue_h__
@@ -20,7 +20,7 @@ extern "C" {
 typedef void (*FreeFn)(void *);
 typedef struct list List;
 typedef struct list_item ListItem;
-typedef int (*ListFindFn)(ListItem *, void *);
+typedef int (*ListFindFn)(List *list, ListItem *item, void *key_data);
 
 struct list_item {
 	FreeFn free;
@@ -41,7 +41,7 @@ extern void listFini(void *_list);
 extern void listDelete(List *list, ListItem *item);
 extern void listInsertAfter(List *list, ListItem *node, ListItem *new_node);
 extern void listInsertBefore(List *list, ListItem *node, ListItem *new_node);
-extern ListItem *listFind(List *list, ListFindFn find_fn, void *key);
+extern ListItem *listFind(List *list, ListFindFn find_fn, void *key_data);
 
 /***********************************************************************
  *** Message Queue (mutex protected)
@@ -64,7 +64,8 @@ extern void queueItemFree(ListItem *item);
 extern ListItem *queueDequeue(Queue *queue);
 extern int queueEnqueue(Queue *queue, ListItem *item);
 extern void queueRemove(Queue *queue, ListItem *item);
-extern void queueRemoveAll(Queue *Queue);
+extern void queueRemoveAll(Queue *queue);
+extern ListItem *queueWalk(Queue *queue, ListFindFn find_fn, void *data);
 
 /***********************************************************************
  ***
