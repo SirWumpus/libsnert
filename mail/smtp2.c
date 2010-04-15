@@ -523,9 +523,9 @@ smtp2Auth(SMTP2 *smtp, const char *user, const char *pass)
 	b64Init();
 	b64Reset(&b64);
 	auth_length = TextCopy(smtp->text, sizeof (smtp->text), "AUTH PLAIN ");
-	b64EncodeBuffer(&b64, "", 1, smtp->text, sizeof (smtp->text), &auth_length);
-	b64EncodeBuffer(&b64, user, strlen(user)+1, smtp->text, sizeof (smtp->text), &auth_length);
-	b64EncodeBuffer(&b64, pass, strlen(pass), smtp->text, sizeof (smtp->text), &auth_length);
+	b64EncodeBuffer(&b64, (unsigned char *) "", 1, smtp->text, sizeof (smtp->text), &auth_length);
+	b64EncodeBuffer(&b64, (unsigned char *) user, strlen(user)+1, smtp->text, sizeof (smtp->text), &auth_length);
+	b64EncodeBuffer(&b64, (unsigned char *) pass, strlen(pass), smtp->text, sizeof (smtp->text), &auth_length);
 	b64EncodeFinish(&b64, smtp->text, sizeof (smtp->text), &auth_length, 0);
 	(void) TextCopy(smtp->text+auth_length, sizeof (smtp->text)-auth_length, "\r\n");
 

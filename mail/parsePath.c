@@ -242,7 +242,7 @@ parsePath(const char *path, unsigned long flags, int dots, ParsePath **out)
 	}
 
 	if (1 < debug)
-		syslog(LOG_DEBUG, "call calloc(1, %lu)", sizeof(ParsePath) + (stop - start + 1) * 2);
+		syslog(LOG_DEBUG, "call calloc(1, %lu)", (unsigned long)(sizeof(ParsePath) + (stop - start + 1) * 2));
 
 	/* Allocate enough space for the structure and the string data.
 	 * While more complex to setup, it allows for a single call to

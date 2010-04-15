@@ -201,7 +201,7 @@ recv_fd(SOCKET unix_stream_socket, int *port, int *state, char token[20])
 		if (state != NULL)
 			*state = (int) *(int16_t *)&service[sizeof (uint16_t)];
 		if (token != NULL) {
-			(void) TextCopy(token, 20, &service[2*sizeof (uint16_t)]);
+			(void) TextCopy(token, 20, (char *) &service[2*sizeof (uint16_t)]);
 			token[19] = '\0';
 		}
 	}
@@ -314,7 +314,8 @@ tcp_keepalive_fd(SOCKET fd, int idle, int interval, int count)
 ssize_t
 discard_echo_input(SOCKET fd, fd_data *data)
 {
-	char buffer[128], *name;
+	char *name;
+	unsigned char buffer[128];
 	ssize_t in_bytes, out_bytes, count;
 
 	name = data->service == ECHO_PORT ? "echo" : "discard";
@@ -474,7 +475,7 @@ smtp_input(SOCKET fd, fd_data *data)
 	SocketAddress address;
 	long in_bytes, out_bytes, sent;
 	char if_addr[DOMAIN_STRING_LENGTH];
-	unsigned char buffer[SMTP_TEXT_LINE_LENGTH];
+	char buffer[SMTP_TEXT_LINE_LENGTH];
 	static const char fmt_in[] = "%s smtp fd=%d > %ld:%s";
 	static const char fmt_out[] = "%s smtp fd=%d < %ld:%s sent=%lu errno=%d";
 	static const char msg_220[] = "220 %s ESMTP Welcome to Kuroi-Ana\r\n";
@@ -567,11 +568,11 @@ smtp_input(SOCKET fd, fd_data *data)
 
 	errno = 0;
 #ifdef ENABLE_SLOW_REPLY
-	sent = slow_send(data, buffer, out_bytes);
+	sent = slow_send(data, (unsigned char *)buffer, out_bytes);
 #else
-	sent = socketWrite(data->socket, buffer, out_bytes);
+	sent = socketWrite(data->socket, (unsigned char *) buffer, out_bytes);
 #endif
-	syslog(LOG_INFO, fmt_out, data->id_log, fd, out_bytes, buffer, sent, errno);
+	syslog(LOG_INFO, fmt_out, data->id_log, fd, out_bytes, (unsigned char *) buffer, sent, errno);
 
 	return in_bytes;
 }
