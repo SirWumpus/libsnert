@@ -79,13 +79,13 @@ extern "C" {
  *
  * A comprimise was required in order to support large keys, yet still
  * fit in a UDP packet, leave some room for a value field, and extra
- * supporting data. The value 383 = 3 * 128 - 1 was used.
+ * supporting data. The value 384 = 3 * 128 was used.
  */
-#define MCC_MAX_KEY_SIZE			383
-#define MCC_MAX_KEY_SIZE_S			"382"
+#define MCC_MAX_KEY_SIZE			384
+#define MCC_MAX_KEY_SIZE_S			"383"	/* allow for terminating NUL byte */
 
 #define MCC_MAX_VALUE_SIZE			92
-#define MCC_MAX_VALUE_SIZE_S			"91"
+#define MCC_MAX_VALUE_SIZE_S			"91"	/* allow for terminating NUL byte */
 
 /*
  * A multicast cache packet cannot be more than 512 bytes.
@@ -116,7 +116,7 @@ typedef struct {
 "SELECT name FROM sqlite_master WHERE type='table' AND name='mcc';"
 
 #define MCC_SQL_CREATE_TABLE	\
-"CREATE TABLE mcc( k VARCHAR(383) PRIMARY KEY, d VARCHAR(92), h INTEGER DEFAULT 1, c INTEGER, t INTEGER, e INTEGER );"
+"CREATE TABLE mcc( k VARCHAR(" QUOTE(MCC_MAX_KEY_SIZE) ") PRIMARY KEY, d VARCHAR(" QUOTE(MCC_MAX_VALUE_SIZE) "), h INTEGER DEFAULT 1, c INTEGER, t INTEGER, e INTEGER );"
 
 #define MCC_SQL_INDEX_EXISTS	\
 "SELECT name FROM sqlite_master WHERE type='index' AND name='mcc_expire';"

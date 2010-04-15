@@ -54,6 +54,8 @@
 
 static int debug;
 
+#define MCC_KEY_FMT	"key={%." MCC_MAX_KEY_SIZE_S "s}"
+
 /***********************************************************************
  ***
  ***********************************************************************/
@@ -355,14 +357,14 @@ mccSend(mcc_handle *mcc, mcc_row *row, uint8_t command)
 
 	if (mcc->multicast.is_running) {
 		if (1 < debug)
-			syslog(LOG_DEBUG, "mccSend multicast command=%c key={%." MCC_MAX_KEY_SIZE_S "s}", row->command, row->key_data);
+			syslog(LOG_DEBUG, "mccSend multicast command=%c " MCC_KEY_FMT, row->command, row->key_data);
 		if (socketWriteTo(mcc->multicast.socket, (unsigned char *) row, sizeof (*row), mcc->multicast_ip) != sizeof (*row))
 			rc = MCC_ERROR;
 	}
 
 	if (mcc->unicast.is_running) {
 		if (1 < debug)
-			syslog(LOG_DEBUG, "mccSend unicast command=%c key={%." MCC_MAX_KEY_SIZE_S "s}", row->command, row->key_data);
+			syslog(LOG_DEBUG, "mccSend unicast command=%c " MCC_KEY_FMT, row->command, row->key_data);
 		for (unicast = mcc->unicast_ip; *unicast != NULL; unicast++) {
 			if (socketWriteTo(mcc->unicast.socket, (unsigned char *) row, sizeof (*row), *unicast) != sizeof (*row))
 				rc = MCC_ERROR;
@@ -785,7 +787,7 @@ mcc_listener_thread(void *data)
 		if (1 < debug) {
 			if (new_row.key_size < MCC_MAX_KEY_SIZE)
 				new_row.key_data[new_row.key_size] = '\0';
-			syslog(LOG_DEBUG, "multi/unicast cache packet [%s] command=%c key={%." MCC_MAX_KEY_SIZE_S "s}", ip, new_row.command, new_row.key_data);
+			syslog(LOG_DEBUG, "multi/unicast cache packet [%s] command=%c " MCC_KEY_FMT, ip, new_row.command, new_row.key_data);
 		}
 
 		switch (new_row.command) {
@@ -853,7 +855,7 @@ mcc_listener_thread(void *data)
 
 					if (0 < debug) {
 						old_row.key_data[old_row.key_size] = '\0';
-						syslog(LOG_DEBUG, "multi/unicast ignore key={%." MCC_MAX_KEY_SIZE_S "s}", old_row.key_data);
+						syslog(LOG_DEBUG, "multi/unicast ignore " MCC_KEY_FMT, old_row.key_data);
 					}
 					continue;
 				}
@@ -866,7 +868,7 @@ mcc_listener_thread(void *data)
 					PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
 					if (mccSend(mcc, &old_row, MCC_CMD_PUT) && 0 < debug) {
 						old_row.key_data[old_row.key_size] = '\0';
-						syslog(LOG_DEBUG, "multi/unicast broadcast correction key={%." MCC_MAX_KEY_SIZE_S "s}", old_row.key_data);
+						syslog(LOG_DEBUG, "multi/unicast broadcast correction " MCC_KEY_FMT, old_row.key_data);
 					}
 					continue;
 				}
@@ -883,7 +885,7 @@ mcc_listener_thread(void *data)
 			}
 
 			if (mccPutRowLocal(mcc, &new_row, 0) != MCC_OK) {
-				syslog(LOG_ERR, "multi/unicast put error key={%." MCC_MAX_KEY_SIZE_S "s}", new_row.key_data);
+				syslog(LOG_ERR, "multi/unicast put error " MCC_KEY_FMT, new_row.key_data);
 				PTHREAD_MUTEX_LOCK(&mcc->mutex);
 				(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
 				PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
@@ -909,7 +911,7 @@ mcc_listener_thread(void *data)
 			}
 
 			if (mccDeleteKey(mcc, new_row.key_data, new_row.key_size) != MCC_OK) {
-				syslog(LOG_ERR, "multi/unicast remove error key={%." MCC_MAX_KEY_SIZE_S "s}", new_row.key_data);
+				syslog(LOG_ERR, "multi/unicast remove error " MCC_KEY_FMT, new_row.key_data);
 				PTHREAD_MUTEX_LOCK(&mcc->mutex);
 				(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
 				PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
@@ -1237,6 +1239,9 @@ mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *r
 
 	if (mcc == NULL || key == NULL || row == NULL || sizeof (row->key_data) <= length)
 		goto error0;
+
+	if (1 < debug)
+		syslog(LOG_DEBUG, "mccGetKey " MCC_KEY_FMT, row->key_data);
 
 	PTHREAD_MUTEX_LOCK(&mcc->mutex);
 
