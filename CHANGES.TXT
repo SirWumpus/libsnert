@@ -45,6 +45,13 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+--1.74.1--
+
+   !	mcc.h: Rewind cache key size change to avoid upgrade problems for
+   	FSL customers. This change is postponed until a major milter
+   	upgrade (milter-gris, milter-ahead) that requires a shared cache
+   	or smtpf 3.0.
+
 --1.74.0--
 
    !	mcc.h: Miscalculated cache key size one byte too short, such that
