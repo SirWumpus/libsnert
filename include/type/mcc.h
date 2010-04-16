@@ -3,7 +3,7 @@
  *
  * Multicast Cache
  *
- * Copyright 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2006, 2010 by Anthony Howe.  All rights reserved.
  */
 
 #ifndef __com_snert_lib_type_mcc_h__
@@ -81,8 +81,8 @@ extern "C" {
  * fit in a UDP packet, leave some room for a value field, and extra
  * supporting data. The value 384 = 3 * 128 was used.
  */
-#define MCC_MAX_KEY_SIZE			384
-#define MCC_MAX_KEY_SIZE_S			"383"	/* allow for terminating NUL byte */
+#define MCC_MAX_KEY_SIZE			383
+#define MCC_MAX_KEY_SIZE_S			"382"	/* allow for terminating NUL byte */
 
 #define MCC_MAX_VALUE_SIZE			92
 #define MCC_MAX_VALUE_SIZE_S			"91"	/* allow for terminating NUL byte */
