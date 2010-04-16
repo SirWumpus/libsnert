@@ -45,6 +45,19 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+--1.74.0--
+
+   !	mcc.h: Miscalculated cache key size one byte too short, such that
+   	the overall packet size was 511 bytes instead of 512. Requires all
+   	previous caches be deleted and recreated.
+
+   +	Added queueWalk() to thread safe queue API. Reworked queueRemoveAll()
+   	in terms of queueWalk() with an internal function to remove list
+   	items. listFind() tweaked to make to handle a node removal function.
+
+   !	server.c: Replaced serverList*() internal thread-safe queue API with
+   	LibSnert's thread safe queue API to remove code duplication.
+
 --1.73.19--
 
    +	Added tools/socketsink.c as a simple tar pit server that holds a
