@@ -39,7 +39,6 @@
 #include <com/snert/lib/net/server.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/timer.h>
-#include <com/snert/lib/type/queue.h>
 
 #ifdef __WIN32__
 # include <windows.h>
@@ -87,221 +86,6 @@ printVar(int columns, const char *name, const char *value)
 
 		VectorDestroy(list);
 	}
-}
-
-static void
-serverListInsertAfter(ServerList *list, ServerListNode *node, ServerListNode *new_node)
-{
-	if (node != NULL) {
-		new_node->prev = node;
-		new_node->next = node->next;
-		if (node->next == NULL)
-			list->tail = new_node;
-		else
-			node->next->prev = new_node;
-		node->next = new_node;
-		list->length++;
-	} else if (list->tail == NULL) {
-		new_node->prev = new_node->next = NULL;
-		list->head = list->tail = new_node;
-		list->length++;
-	} else {
-		serverListInsertAfter(list, list->tail, new_node);
-	}
-}
-
-#ifdef NOT_USED
-static void
-serverListInsertBefore(ServerList *list, ServerListNode *node, ServerListNode *new_node)
-{
-	if (node != NULL) {
-		new_node->prev = node->prev;
-		new_node->next = node;
-		if (node->prev == NULL)
-			list->head = new_node;
-		else
-			node->prev->next = new_node;
-		node->prev = new_node;
-		list->length++;
-	} else if (list->head == NULL) {
-		new_node->prev = new_node->next = NULL;
-		list->head = list->tail = new_node;
-		list->length++;
-	} else {
-		serverListInsertBefore(list, list->head, new_node)
-	}
-
-}
-#endif
-
-static void
-serverListDelete(ServerList *list, ServerListNode *node)
-{
-	ServerListNode *prev, *next;
-
-	if (node != NULL) {
-		prev = node->prev;
-		next = node->next;
-
-		if (prev == NULL)
-			list->head = next;
-		else
-			prev->next = next;
-
-		if (next == NULL)
-			list->tail = prev;
-		else
-			next->prev = prev;
-
-		node->prev = node->next = NULL;
-		list->length--;
-
-		if (list->length == 0 && list->hook.list_empty != NULL)
-			(*list->hook.list_empty)(list);
-	}
-}
-
-void
-serverListRemove(ServerList *list, ServerListNode *node)
-{
-	if (!pthread_mutex_lock(&list->mutex)) {
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &list->mutex);
-#endif
-		serverListDelete(list, node);
-		(void) pthread_cond_signal(&list->cv_less);
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_pop(1);
-#else
-		(void) pthread_mutex_unlock(&list->mutex);
-#endif
-	}
-}
-
-void
-serverListRemoveAll(ServerList *list, void (*free_fn)(void *))
-{
-	ServerListNode *node, *next;
-
-	if (!pthread_mutex_lock(&list->mutex)) {
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &list->mutex);
-#endif
-		for (node = list->head; node != NULL; node = next) {
-			next = node->next;
-			serverListDelete(list, node);
-			(void) pthread_cond_signal(&list->cv_less);
-			if (free_fn != NULL)
-				(*free_fn)(node->data);
-		}
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_pop(1);
-#else
-		(void) pthread_mutex_unlock(&list->mutex);
-#endif
-	}
-}
-
-unsigned
-serverListLength(ServerList *list)
-{
-	unsigned length = 0;
-
-	if (!pthread_mutex_lock(&list->mutex)) {
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &list->mutex);
-#endif
-		length = list->length;
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_pop(1);
-#else
-		(void) pthread_mutex_unlock(&list->mutex);
-#endif
-	}
-
-	return length;
-}
-
-int
-serverListIsEmpty(ServerList *list)
-{
-	return serverListLength(list) == 0;
-}
-
-void
-serverListEnqueue(ServerList *list, ServerListNode *node)
-{
-	if (node != NULL && !pthread_mutex_lock(&list->mutex)) {
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &list->mutex);
-#endif
-		serverListInsertAfter(list, list->tail, node);
-		(void) pthread_cond_signal(&list->cv_more);
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_pop(1);
-#else
-		(void) pthread_mutex_unlock(&list->mutex);
-#endif
-	}
-}
-
-ServerListNode *
-serverListDequeue(ServerList *list)
-{
-	ServerListNode *node = NULL;
-
-	if (!pthread_mutex_lock(&list->mutex)) {
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_push((void (*)(void*)) pthread_mutex_unlock, &list->mutex);
-#endif
-		/* Wait until the list has an element. */
-		while (list->head == NULL) {
-			if (pthread_cond_wait(&list->cv_more, &list->mutex))
-				break;
-		}
-
-		node = list->head;
-		serverListDelete(list, node);
-		(void) pthread_cond_signal(&list->cv_less);
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_pop(1);
-#else
-		(void) pthread_mutex_unlock(&list->mutex);
-#endif
-	}
-
-	return node;
-}
-
-int
-serverListInit(ServerList *list)
-{
-	memset(list, 0, sizeof (*list));
-
-	if (pthread_cond_init(&list->cv_more, NULL)) {
-		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
-		return -1;
-	}
-
-	if (pthread_cond_init(&list->cv_less, NULL)) {
-		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
-		return -1;
-	}
-
-	if (pthread_mutex_init(&list->mutex, NULL)) {
-		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
-		return -1;
-	}
-
-	return 0;
-}
-
-void
-serverListFini(ServerList *list)
-{
-	(void) pthread_cond_destroy(&list->cv_less);
-	(void) pthread_cond_destroy(&list->cv_more);
-	(void) pthreadMutexDestroy(&list->mutex);
 }
 
 /***********************************************************************
@@ -703,23 +487,41 @@ sessionFinish(ServerSession *session)
 	session->iface = NULL;
 }
 
+static void
+sessionFree(void *_session)
+{
+	ServerSession *session = _session;
+
+	if (session != NULL) {
+		if (session->server->hook.session_free != NULL)
+			(void) (*session->server->hook.session_free)(session);
+#ifdef __WIN32__
+		CloseHandle(session->kill_event);
+#endif
+		sessionFinish(session);
+		free(session);
+	}
+}
+
 static ServerSession *
 sessionCreate(Server *server)
 {
-	int length;
 	ServerSession *session;
+	int length, cleanup = 1;
 
 	if ((session = malloc(sizeof (*session))) == NULL) {
 		syslog(LOG_ERR, log_oom, SERVER_FILE_LINENO);
 		goto error0;
 	}
 
+	PTHREAD_PUSH_FREE(session);
 	MEMSET(session, 0, sizeof (*session));
 
 	session->data = NULL;
 	session->client = NULL;
 	session->server = server;
 	session->node.data = session;
+	session->node.free = sessionFree;
 	session->node.prev = session->node.next = NULL;
 #ifdef __WIN32__
 	session->kill_event = CreateEvent(NULL, 0, 0, NULL);
@@ -761,27 +563,11 @@ sessionCreate(Server *server)
 		goto error1;
 	}
 
-	return session;
+	cleanup = 0;
 error1:
-	free(session);
+	PTHREAD_POP_FREE(cleanup, session);
 error0:
-	return NULL;
-}
-
-static void
-sessionFree(void *_session)
-{
-	ServerSession *session = _session;
-
-	if (session != NULL) {
-		if (session->server->hook.session_free != NULL)
-			(void) (*session->server->hook.session_free)(session);
-#ifdef __WIN32__
-		CloseHandle(session->kill_event);
-#endif
-		sessionFinish(session);
-		free(session);
-	}
+	return session;
 }
 
 /***********************************************************************
@@ -797,11 +583,11 @@ serverFini(Server *server)
 #if defined(HAVE_PTHREAD_ATTR_INIT)
 		(void) pthread_attr_destroy(&server->thread_attr);
 #endif
-		serverListRemoveAll(&server->sessions_queued, sessionFree);
-		serverListFini(&server->sessions_queued);
+		queueRemoveAll(&server->sessions_queued);
+		queueFini(&server->sessions_queued);
 
-		serverListRemoveAll(&server->workers, serverWorkerFree);
-		serverListFini(&server->workers);
+		queueRemoveAll(&server->workers);
+		queueFini(&server->workers);
 
 		free((char *) server->option.interfaces);
 		VectorDestroy(server->interfaces);
@@ -825,12 +611,12 @@ serverInit(Server *server, const char *interfaces, unsigned default_port)
 		goto error1;
 	}
 
-	if (serverListInit(&server->workers)) {
+	if (queueInit(&server->workers)) {
 		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
 		goto error1;
 	}
 
-	if (serverListInit(&server->sessions_queued)) {
+	if (queueInit(&server->sessions_queued)) {
 		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
 		goto error1;
 	}
@@ -844,13 +630,13 @@ serverInit(Server *server, const char *interfaces, unsigned default_port)
 	(void) pthread_attr_setscope(&server->thread_attr, PTHREAD_SCOPE_SYSTEM);
 # endif
 #endif
-	server->option.min_threads = SERVER_MIN_THREADS;
-	server->option.max_threads = SERVER_MAX_THREADS;
-	server->option.new_threads = SERVER_NEW_THREADS;
-	server->option.queue_size  = SERVER_QUEUE_SIZE;
-	server->option.accept_to   = SERVER_ACCEPT_TO;
-	server->option.read_to     = SERVER_READ_TO;
-	server->option.port	   = default_port;
+	server->option.min_threads	= SERVER_MIN_THREADS;
+	server->option.max_threads	= SERVER_MAX_THREADS;
+	server->option.spare_threads	= SERVER_SPARE_THREADS;
+	server->option.queue_size	= SERVER_QUEUE_SIZE;
+	server->option.accept_to	= SERVER_ACCEPT_TO;
+	server->option.read_to		= SERVER_READ_TO;
+	server->option.port		= default_port;
 
 	server->id = ++count;
 
@@ -978,8 +764,8 @@ serverAtForkParent(Server *server)
 void
 serverAtForkChild(Server *server)
 {
-	serverListFini(&server->sessions_queued);
-	serverListFini(&server->workers);
+	queueFini(&server->sessions_queued);
+	queueFini(&server->workers);
 }
 
 static unsigned worker_counter = 0;
@@ -997,7 +783,7 @@ serverWorkerIsTerminated(ServerWorker *worker)
 static void
 serverWorkerRemove(void *_worker)
 {
-	serverListRemove(&((ServerWorker *) _worker)->server->workers, &((ServerWorker *) _worker)->node);
+	queueRemove(&((ServerWorker *) _worker)->server->workers, &((ServerWorker *) _worker)->node);
 }
 
 static void
@@ -1041,7 +827,7 @@ serverWorker(void *_worker)
 		syslog(LOG_DEBUG, "server-id=%u worker-id=%u running (%lx)", server->id, worker->id, (unsigned long) worker);
 
 	for (worker->running = 1; server->running && worker->running; ) {
-		session = serverListDequeue(&server->sessions_queued)->data;
+		session = queueDequeue(&server->sessions_queued)->data;
 
 		if (serverWorkerIsTerminated(worker)) {
 			sessionFree(session);
@@ -1054,9 +840,9 @@ serverWorker(void *_worker)
 		VALGRIND_PRINTF("%s server-id=%u worker-id=%u session-id=%u dequeued", session->id_log, server->id, worker->id, sess_id);
 
 		/* Keep track of active worker threads. */
-		(void) pthread_mutex_lock(&server->workers.mutex);
+		PTHREAD_MUTEX_LOCK(&server->workers.mutex);
 		server->workers_active++;
-		(void) pthread_mutex_unlock(&server->workers.mutex);
+		PTHREAD_MUTEX_UNLOCK(&server->workers.mutex);
 
 		worker->session = session;
 		session->worker = worker;
@@ -1072,17 +858,17 @@ serverWorker(void *_worker)
 		worker->session = NULL;
 
 		/* Do we have too many threads? */
-		(void) pthread_mutex_lock(&server->workers.mutex);
+		PTHREAD_MUTEX_LOCK(&server->workers.mutex);
 		active = --server->workers_active;
-		threads = server->workers.length;
+		PTHREAD_MUTEX_UNLOCK(&server->workers.mutex);
+		queued = queueLength(&server->sessions_queued);
+		threads = queueLength(&server->workers);
 		idle = threads - active;
-		(void) pthread_mutex_unlock(&server->workers.mutex);
-		queued = serverListLength(&server->sessions_queued);
 
                 if (0 < server->debug.level)
                         syslog(LOG_DEBUG, "server-id=%u active=%u idle=%u queued=%u", server->id, active, idle, queued);
 
-		if (server->option.min_threads < threads && queued + server->option.new_threads < idle) {
+		if (server->option.min_threads < threads && queued + server->option.spare_threads < idle) {
 			if (0 < server->debug.level)
 				syslog(LOG_DEBUG, "server-id=%u worker-id=%u exit; active=%u idle=%u queued=%u", server->id, worker->id, active, idle, queued);
 			break;
@@ -1110,12 +896,15 @@ serverWorker(void *_worker)
 static int
 serverWorkerCreate(Server *server)
 {
+	int cleanup = -1;
 	ServerWorker *worker;
 
 	if ((worker = calloc(1, sizeof (*worker))) == NULL) {
 		syslog(LOG_ERR, log_oom, SERVER_FILE_LINENO);
 		goto error0;
 	}
+
+	PTHREAD_PUSH_FREE(worker);
 
 	/* Counter ID zero is reserved for server thread identification. */
 	if (++worker_counter == 0)
@@ -1124,6 +913,7 @@ serverWorkerCreate(Server *server)
 	worker->id = worker_counter;
 	worker->server = server;
 	worker->node.data = worker;
+	worker->node.free = NULL;
 #ifdef __WIN32__
 	worker->kill_event = CreateEvent(NULL, 0, 0, NULL);
 #endif
@@ -1142,14 +932,12 @@ serverWorkerCreate(Server *server)
 		goto error1;
 	}
 
-	serverListEnqueue(&server->workers, &worker->node);
-
-	return pthread_detach(worker->thread);
+	if ((cleanup = pthread_detach(worker->thread)) == 0)
+		queueEnqueue(&server->workers, &worker->node);
 error1:
-	serverWorkerRemove(worker);
-	serverWorkerFree(worker);
+	PTHREAD_POP_FREE(cleanup, worker);
 error0:
-	return -1;
+	return cleanup;
 }
 
 static void *
@@ -1174,15 +962,15 @@ serverAccept(void *_server)
 							sessionFinish(session);
 							continue;
 						}
-						serverListEnqueue(&server->sessions_queued, &session->node);
+						queueEnqueue(&server->sessions_queued, &session->node);
 
 						/* Do we have too few threads? */
 						(void) pthread_mutex_lock(&server->workers.mutex);
-						threads = server->workers.length;
 						active = server->workers_active;
-						idle = threads - active;
 						(void) pthread_mutex_unlock(&server->workers.mutex);
-						queued = serverListLength(&server->sessions_queued);
+						queued = queueLength(&server->sessions_queued);
+						threads = queueLength(&server->workers);
+						idle = threads - active;
 
 						if (0 < server->debug.level)
 							syslog(LOG_DEBUG, "%s server-id=%u session-id=%u enqueued; active=%u idle=%u queued=%u", session->id_log, server->id, session->id, active, idle, queued);
@@ -1240,12 +1028,61 @@ timerSetAbstime(struct timespec *abstime, struct timespec *delay)
 }
 #endif
 
+static int
+serverWorkerCancel(List *list, ListItem *node, void *data)
+{
+	ServerWorker *worker;
+	Server *server = data;
+
+	worker = node->data;
+	worker->running = 0;
+#ifdef __WIN32__
+	SetEvent(worker->kill_event);
+#endif
+#ifdef __unix__
+	(void) pthread_cancel(worker->thread);
+#endif
+	if (0 < server->debug.level)
+		syslog(LOG_DEBUG, "server-id=%u worker-id=%u cancel (%lx, %lu)", server->id, worker->id, (unsigned long) worker, (unsigned long) worker->thread);
+
+	return 0;
+}
+
+/*
+ * Poor man's pthread_join() for detached worker threads.
+ * Wait for the list to empty.
+ */
+static int
+serverWorkerJoin(List *list, ListItem *node, void *data)
+{
+	Server *server = data;
+
+#if defined(HAVE_CLOCK_GETTIME) && defined(HAVE_PTHREAD_COND_TIMEDWAIT)
+{
+	CLOCK max_wait, max_delay = { SERVER_STOP_TIMEOUT, 0 };
+
+	timerSetAbstime(&max_wait, &max_delay);
+	if (0 < list->length) {
+		if (0 < server->debug.level)
+			syslog(LOG_DEBUG, "server-id=%u workers-remaining=%lu", server->id, (unsigned long) list->length);
+		if (pthread_cond_timedwait(&server->workers.cv_less, &server->workers.mutex, &max_wait))
+			return -1;
+	}
+}
+#else
+	if (0 < list->length) {
+		if (0 < server->debug.level)
+			syslog(LOG_DEBUG, "server-id=%u workers-remaining=%lu", server->id, list->length);
+		if (pthread_cond_wait(&server->workers.cv_less, &server->workers.mutex))
+			return -1;
+	}
+#endif
+	return 0;
+}
+
 void
 serverStop(Server *server, int slow_quit)
 {
-	ServerListNode *node;
-	ServerWorker *worker;
-
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u stopping...", server->id);
 
@@ -1258,7 +1095,7 @@ serverStop(Server *server, int slow_quit)
 	/* Stop creating new threads. */
 	server->option.min_threads = 0;
 	server->option.max_threads = 0;
-	server->option.new_threads = 0;
+	server->option.spare_threads = 0;
 
 	/* Stop the accept listener thread. */
 #ifndef __WIN32__
@@ -1269,58 +1106,22 @@ serverStop(Server *server, int slow_quit)
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u accept stopped", server->id);
 
-	if (slow_quit && !pthread_mutex_lock(&server->workers.mutex)) {
+	if (slow_quit) {
+		PTHREAD_MUTEX_LOCK(&server->workers.mutex);
 		/* Wait for all the active workers to finish. */
 		while (0 < server->workers_active) {
 			syslog(LOG_INFO, "server-id=%u slow quit active=%u", server->id, server->workers_active);
 			if (pthread_cond_wait(&server->workers.cv_less, &server->workers.mutex))
 				break;
 		}
-		(void) pthread_mutex_unlock(&server->workers.mutex);
+		PTHREAD_MUTEX_UNLOCK(&server->workers.mutex);
 	}
 
 	/* Signal the remaining worker threads to stop. */
-	PTHREAD_MUTEX_LOCK(&server->workers.mutex);
-
 	if (0 < server->debug.level)
-		syslog(LOG_INFO, "server-id=%u th=%u cancel", server->id, server->workers.length);
-
-	for (node = server->workers.head; node != NULL; node = node->next) {
-		worker = node->data;
-		worker->running = 0;
-#ifdef __WIN32__
-		SetEvent(worker->kill_event);
-#endif
-#ifdef __unix__
-		(void) pthread_cancel(worker->thread);
-#endif
-		if (0 < server->debug.level)
-			syslog(LOG_DEBUG, "server-id=%u worker-id=%u cancel (%lx, %lu)", server->id, worker->id, (unsigned long) worker, (unsigned long) worker->thread);
-	}
-
-	/* Poor man's pthread_join. Wait for the list to empty. */
-#if defined(HAVE_CLOCK_GETTIME) && defined(HAVE_PTHREAD_COND_TIMEDWAIT)
-{
-	CLOCK max_wait, max_delay = { SERVER_STOP_TIMEOUT, 0 };
-
-	timerSetAbstime(&max_wait, &max_delay);
-	while (server->workers.head != NULL) {
-		if (0 < server->debug.level)
-			syslog(LOG_DEBUG, "server-id=%u workers-remaining=%u", server->id, server->workers.length);
-
-		if (pthread_cond_timedwait(&server->workers.cv_less, &server->workers.mutex, &max_wait))
-			break;
-	}
-}
-#else
-	while (server->workers.head != NULL) {
-		if (0 < server->debug.level)
-			syslog(LOG_DEBUG, "server-id=%u workers-remaining=%u", server->id, server->workers.length);
-		if (pthread_cond_wait(&server->workers.cv_less, &server->workers.mutex))
-			break;
-	}
-#endif
-	PTHREAD_MUTEX_UNLOCK(&server->workers.mutex);
+		syslog(LOG_INFO, "server-id=%u th=%lu cancel", server->id, (unsigned long) queueLength(&server->workers));
+	queueWalk(&server->workers, serverWorkerCancel, server);
+	queueWalk(&server->workers, serverWorkerJoin, server);
 
 	if (server->hook.server_stop != NULL)
 		(void) (*server->hook.server_stop)(server);
@@ -1361,7 +1162,7 @@ ServerSignals signals;
 char *pid_file = PID_FILE;
 int min_threads = SERVER_MIN_THREADS;
 int max_threads = SERVER_MAX_THREADS;
-int spare_threads = SERVER_NEW_THREADS;
+int spare_threads = SERVER_SPARE_THREADS;
 int sink_service = DISCARD_PORT;
 int sink_state = 0;
 
@@ -1806,7 +1607,7 @@ serverMain(void)
 		if ((service->server = serverCreate(service->host, service->port)) == NULL)
 			goto error2;
 
-		service->server->option.new_threads = spare_threads;
+		service->server->option.spare_threads = spare_threads;
 		service->server->option.min_threads = min_threads;
 		service->server->option.max_threads = max_threads;
 		service->server->debug.level = debug;

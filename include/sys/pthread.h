@@ -178,13 +178,22 @@ extern int pthread_cond_destroy(pthread_cond_t *);
 # define PTHREAD_MUTEX_UNLOCK(m)		; \
 						pthread_cleanup_pop(1); \
 					}
+
+# define PTHREAD_PUSH_FREE(p)		pthread_cleanup_push(free, p)
+# define PTHREAD_POP_FREE(x, p)		; pthread_cleanup_pop(x); if (x) { p = NULL; }
+
 #else
+
 # define PTHREAD_MUTEX_LOCK(m)		if (!pthread_mutex_lock(m)) {
 
 # define PTHREAD_MUTEX_UNLOCK(m)		; \
 						(void) pthread_mutex_unlock(m); \
 					}
-#endif
+
+# define PTHREAD_PUSH_FREE(p)
+# define PTHREAD_POP_FREE(x, p)		if (x) { free(p); p = NULL; }
+
+#endif /* defined(HAVE_PTHREAD_CLEANUP_PUSH) */
 
 #if defined(HAVE_PTHREAD_YIELD) && defined(__linux__)
 /* Stupid Linux wants stupid extension macros to declare a function it has

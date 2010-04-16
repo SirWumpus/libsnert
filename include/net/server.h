@@ -50,6 +50,7 @@ extern "C" {
 #include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/sys/pthread.h>
+#include <com/snert/lib/type/queue.h>
 #include <com/snert/lib/type/Vector.h>
 #include <com/snert/lib/util/time62.h>
 
@@ -69,8 +70,8 @@ extern "C" {
 #define SERVER_MIN_THREADS		10
 #endif
 
-#ifndef SERVER_NEW_THREADS
-#define SERVER_NEW_THREADS		10
+#ifndef SERVER_SPARE_THREADS
+#define SERVER_SPARE_THREADS		10
 #endif
 
 #ifndef SERVER_MAX_THREADS
@@ -119,43 +120,18 @@ extern "C" {
  ***********************************************************************/
 
 typedef struct server Server;
-typedef struct server_list ServerList;
 typedef struct server_worker ServerWorker;
 typedef struct server_session ServerSession;
 
 typedef int (*ServerHook)(Server *server);
-typedef int (*ServerListHook)(ServerList *list);
 typedef int (*ServerWorkerHook)(ServerWorker *worker);
 typedef int (*ServerSessionHook)(ServerSession *session);
-
-typedef struct {
-	ServerListHook list_empty;
-} ServerListHooks;
-
-typedef struct server_list_node {
-	struct server_list_node *prev;
-	struct server_list_node *next;
-	void *data;
-} ServerListNode;
-
-struct server_list {
-	/* Private state. */
-	unsigned length;
-	ServerListNode *tail;
-	ServerListNode *head;
-	pthread_mutex_t mutex;
-	pthread_cond_t cv_more;
-	pthread_cond_t cv_less;
-
-	/* Public */
-	ServerListHooks	hook;
-};
 
 struct server_worker {
 	/* Private */
 	unsigned id;
+	ListItem node;
 	pthread_t thread;
-	ServerListNode node;
 	volatile int running;
 #ifdef __WIN32__
 	HANDLE kill_event;
@@ -175,7 +151,7 @@ typedef struct {
 	const char *interfaces;			/* semi-colon separated list of IP addresses (copy) */
 	unsigned min_threads;
 	unsigned max_threads;
-	unsigned new_threads;			/* aka spare_threads */
+	unsigned spare_threads;			/* aka spare_threads */
 	unsigned queue_size;			/* server socket queue size */
 	unsigned accept_to;			/* accept timeout */
 	unsigned read_to;			/* read timeout */
@@ -200,8 +176,8 @@ typedef struct {
 
 struct server_session {
 	/* Private state. */
+	ListItem node;
 	pthread_t thread;
-	ServerListNode node;
 	ServerInterface *iface;
 #if defined(__WIN32__)
 	HANDLE kill_event;
@@ -227,10 +203,10 @@ struct server {
 
 	volatile int running;
 
-	ServerList workers;		/* All worker threads. */
+	Queue workers;			/* All worker threads. */
 	unsigned workers_active;	/* workers.mutex used to control access. */
 
-	ServerList sessions_queued;	/* Client sessions queued by accept thread. */
+	Queue sessions_queued;		/* Client sessions queued by accept thread. */
 	pthread_t accept_thread;
 	pthread_attr_t thread_attr;
 
@@ -313,14 +289,6 @@ typedef struct {
 extern int serverSignalsInit(ServerSignals *signals, const char *name);
 extern int serverSignalsLoop(ServerSignals *signals);
 extern void serverSignalsFini(ServerSignals *signals);
-
-extern int serverListInit(ServerList *list);
-extern void serverListFini(ServerList *list);
-extern void serverListRemove(ServerList *list, ServerListNode *node);
-extern void serverListEnqueue(ServerList *list, ServerListNode *node);
-extern ServerListNode *serverListDequeue(ServerList *list);
-extern unsigned serverListLength(ServerList *list);
-extern int serverListIsEmpty(ServerList *list);
 
 /***********************************************************************
  ***
