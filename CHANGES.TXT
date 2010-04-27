@@ -45,6 +45,10 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+--1.74.2--
+
+   !	aclocal.m4, configure.in, version.h.in.in: added termios checks.
+
 --1.74.1--
 
    !	mcc.h: Rewind cache key size change to avoid upgrade problems for
