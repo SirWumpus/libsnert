@@ -743,6 +743,8 @@ mcc_listener_thread(void *data)
 	free(data);
 
 	listen_addr = socketAddressToString(&listener->socket->address);
+	PTHREAD_PUSH_FREE(listen_addr);
+
 	syslog(LOG_INFO, "started multi/unicast listener %s", listen_addr);
 
 	for (listener->is_running = 1; listener->is_running; ) {
@@ -942,7 +944,7 @@ mcc_listener_thread(void *data)
 	}
 
 	syslog(LOG_INFO, "multi/unicast listener %s thread exit", listen_addr);
-	free(listen_addr);
+	PTHREAD_POP_FREE(1, listen_addr);
 #ifdef __WIN32__
 	pthread_exit(NULL);
 #endif
