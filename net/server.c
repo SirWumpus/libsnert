@@ -877,8 +877,6 @@ serverWorker(void *_worker)
 		if (0 < server->debug.level)
 			syslog(LOG_DEBUG, "server-id=%u worker-id=%u session-id=%u done", server->id, worker->id, sess_id);
 		VALGRIND_PRINTF("server-id=%u worker-id=%u session-id=%u done", server->id, worker->id, sess_id);
-		if (1 < server->debug.valgrind)
-			VALGRIND_DO_LEAK_CHECK;
 	}
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_pop(1);
@@ -887,6 +885,8 @@ serverWorker(void *_worker)
 	serverWorkerRemove(worker);
 	serverWorkerFree(worker);
 #endif
+	if (0 < server->debug.valgrind)
+		VALGRIND_DO_LEAK_CHECK;
 #ifdef __WIN32__
 	pthread_exit(NULL);
 #endif
@@ -959,7 +959,7 @@ serverAccept(void *_server)
 					if ((session = sessionCreate(server)) != NULL) {
 						session->iface = (ServerInterface *) VectorGet(server->interfaces, i);
 						if (sessionAccept(session)) {
-							sessionFinish(session);
+							sessionFree(session);
 							continue;
 						}
 						queueEnqueue(&server->sessions_queued, &session->node);
@@ -1120,6 +1120,7 @@ serverStop(Server *server, int slow_quit)
 	/* Signal the remaining worker threads to stop. */
 	if (0 < server->debug.level)
 		syslog(LOG_INFO, "server-id=%u th=%lu cancel", server->id, (unsigned long) queueLength(&server->workers));
+
 	queueWalk(&server->workers, serverWorkerCancel, server);
 	queueWalk(&server->workers, serverWorkerJoin, server);
 
