@@ -49,9 +49,12 @@ is no set schedule for releases.
 
    !	aclocal.m4, configure.in, version.h.in.in: added termios checks.
 
+   ! 	Fixed server stop memory leak in mcc_listener_thread.
+
    !	Fix pthreadSleep() to PTHREAD_MUTEX_LOCK / UNLOCK macros that
 	provide pthread_cleanup_push/pop handling in the event of a
-	pthread_cancel.
+	pthread_cancel. Sometimes it would seg. fault when an
+	application terminates
 
    +	Added nap().
 
