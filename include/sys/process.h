@@ -103,6 +103,8 @@ extern int processDumpCore(int flag);
 extern int alt_daemon(int nochdir, int noclose);
 #endif /* !defined(HAVE_DAEMON) */
 
+extern void nap(unsigned seconds, unsigned nanoseconds);
+
 /***********************************************************************
  *** System Information Routines
  ***********************************************************************/
