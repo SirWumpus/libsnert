@@ -196,10 +196,8 @@ queueEnqueue(Queue *queue, ListItem *item)
 	int rc = -1;
 
 	PTHREAD_MUTEX_LOCK(&queue->mutex);
-
 	listInsertAfter(&queue->list, queue->list.tail, item);
 	rc = pthread_cond_signal(&queue->cv_more);
-
 	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
 
 	return rc;
@@ -233,7 +231,6 @@ queueRemoveFn(List *list, ListItem *node, void *queue)
 	listDelete(list, node);
 	if (node->free != NULL)
 		(*node->free)(node->data);
-	(void) pthread_cond_signal(&((Queue *) queue)->cv_less);
 	return 0;
 }
 
@@ -242,9 +239,25 @@ queueRemove(Queue *queue, ListItem *node)
 {
 	PTHREAD_MUTEX_LOCK(&queue->mutex);
 	(void) queueRemoveFn(&queue->list, node, queue);
+	(void) pthread_cond_signal(&queue->cv_less);
 	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
 }
 
+void
+queueRemoveAll(Queue *queue)
+{
+	PTHREAD_MUTEX_LOCK(&queue->mutex);
+	(void) listFind(&queue->list, queueRemoveFn, queue);
+	(void) pthread_cond_signal(&queue->cv_less);
+	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
+}
+
+/***
+ *** Do NOT use a find_fn that releases the queue's mutex; this includes
+ *** pthread_cond_wait and pthread_cond_timedwait, otherwise the local
+ *** state of listFind can become invalid, as other threads control the
+ *** queue mutex and modify the list.
+ ***/
 ListItem *
 queueWalk(Queue *queue, ListFindFn find_fn, void *data)
 {
@@ -256,7 +269,12 @@ queueWalk(Queue *queue, ListFindFn find_fn, void *data)
 }
 
 void
-queueRemoveAll(Queue *queue)
+queueWaitEmpty(Queue *queue)
 {
-	(void) queueWalk(queue, queueRemoveFn, queue);
+	PTHREAD_MUTEX_LOCK(&queue->mutex);
+	while (queue->list.head != NULL) {
+		if (pthread_cond_wait(&queue->cv_less, &queue->mutex))
+			break;
+	}
+	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
 }

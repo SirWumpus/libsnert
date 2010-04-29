@@ -66,6 +66,7 @@ extern int queueEnqueue(Queue *queue, ListItem *item);
 extern void queueRemove(Queue *queue, ListItem *item);
 extern void queueRemoveAll(Queue *queue);
 extern ListItem *queueWalk(Queue *queue, ListFindFn find_fn, void *data);
+extern void queueWaitEmpty(Queue *queue);
 
 /***********************************************************************
  ***
