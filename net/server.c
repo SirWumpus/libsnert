@@ -781,19 +781,15 @@ serverWorkerIsTerminated(ServerWorker *worker)
 }
 
 static void
-serverWorkerRemove(void *_worker)
-{
-	queueRemove(&((ServerWorker *) _worker)->server->workers, &((ServerWorker *) _worker)->node);
-}
-
-static void
 serverWorkerFree(void *_worker)
 {
 	ServerWorker *worker = (ServerWorker *) _worker;
 
 	if (worker != NULL) {
+		queueRemove(&worker->server->workers, &worker->node);
+
 		/* Free thread persistent application data. */
-		if (worker->server->hook.worker_create != NULL)
+		if (worker->server->hook.worker_free != NULL)
 			(void) (*worker->server->hook.worker_free)(worker);
 
 		if (0 < worker->server->debug.level) {
@@ -819,7 +815,6 @@ serverWorker(void *_worker)
 
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_push(serverWorkerFree, worker);
-	pthread_cleanup_push(serverWorkerRemove, worker);
 #endif
 	server = worker->server;
 
@@ -880,9 +875,7 @@ serverWorker(void *_worker)
 	}
 #ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_pop(1);
-	pthread_cleanup_pop(1);
 #else
-	serverWorkerRemove(worker);
 	serverWorkerFree(worker);
 #endif
 	if (0 < server->debug.valgrind)
@@ -1018,16 +1011,6 @@ serverStart(Server *server)
 	return pthread_detach(server->accept_thread);
 }
 
-#if defined(HAVE_CLOCK_GETTIME) && defined(HAVE_PTHREAD_COND_TIMEDWAIT)
-static void
-timerSetAbstime(struct timespec *abstime, struct timespec *delay)
-{
-	MEMSET(abstime, 0, sizeof (*abstime));
-	CLOCK_GET(abstime);
-	CLOCK_ADD(abstime, delay);
-}
-#endif
-
 static int
 serverWorkerCancel(List *list, ListItem *node, void *data)
 {
@@ -1045,38 +1028,6 @@ serverWorkerCancel(List *list, ListItem *node, void *data)
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u worker-id=%u cancel (%lx, %lu)", server->id, worker->id, (unsigned long) worker, (unsigned long) worker->thread);
 
-	return 0;
-}
-
-/*
- * Poor man's pthread_join() for detached worker threads.
- * Wait for the list to empty.
- */
-static int
-serverWorkerJoin(List *list, ListItem *node, void *data)
-{
-	Server *server = data;
-
-#if defined(HAVE_CLOCK_GETTIME) && defined(HAVE_PTHREAD_COND_TIMEDWAIT)
-{
-	CLOCK max_wait, max_delay = { SERVER_STOP_TIMEOUT, 0 };
-
-	timerSetAbstime(&max_wait, &max_delay);
-	if (0 < list->length) {
-		if (0 < server->debug.level)
-			syslog(LOG_DEBUG, "server-id=%u workers-remaining=%lu", server->id, (unsigned long) list->length);
-		if (pthread_cond_timedwait(&server->workers.cv_less, &server->workers.mutex, &max_wait))
-			return -1;
-	}
-}
-#else
-	if (0 < list->length) {
-		if (0 < server->debug.level)
-			syslog(LOG_DEBUG, "server-id=%u workers-remaining=%lu", server->id, list->length);
-		if (pthread_cond_wait(&server->workers.cv_less, &server->workers.mutex))
-			return -1;
-	}
-#endif
 	return 0;
 }
 
@@ -1122,7 +1073,7 @@ serverStop(Server *server, int slow_quit)
 		syslog(LOG_INFO, "server-id=%u th=%lu cancel", server->id, (unsigned long) queueLength(&server->workers));
 
 	queueWalk(&server->workers, serverWorkerCancel, server);
-	queueWalk(&server->workers, serverWorkerJoin, server);
+	queueWaitEmpty(&server->workers);
 
 	if (server->hook.server_stop != NULL)
 		(void) (*server->hook.server_stop)(server);

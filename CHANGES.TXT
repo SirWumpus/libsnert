@@ -49,6 +49,26 @@ is no set schedule for releases.
 
    !	aclocal.m4, configure.in, version.h.in.in: added termios checks.
 
+   !	Fix pthreadSleep() to PTHREAD_MUTEX_LOCK / UNLOCK macros that
+	provide pthread_cleanup_push/pop handling in the event of a
+	pthread_cancel.
+
+   +	Added nap().
+
+   !	queue.c: Do NOT use a find_fn that releases the queue's mutex;
+	this includes pthread_cond_wait and pthread_cond_timedwait,
+	otherwise the local state of listFind can become invalid, as
+	other threads control the queue mutex and modify the list.
+
+   +	Added queueWaitEmpty().
+
+   !	serverAccept: Fix memory leak when a client connects and
+	immediately disconnects before the connection is accept().
+
+  !!	serverStop: Fix occasional segmentation fault on server stop
+	while waiting for the worker thread queue to empty. Also
+	simplifed serverWorker() thread clean-up.
+
 --1.74.1--
 
    !	mcc.h: Rewind cache key size change to avoid upgrade problems for
