@@ -1,7 +1,7 @@
 /*
- * pthread_sleep.c
+ * pthreadSleep.c
  *
- * Copyright 2007 by Anthony Howe.  All rights reserved.
+ * Copyright 2007, 2010 by Anthony Howe.  All rights reserved.
  */
 
 #include <com/snert/lib/version.h>
@@ -77,12 +77,12 @@ pthreadSleep(unsigned seconds, unsigned nanoseconds)
 	abstime.tv_nsec += nanoseconds;
 	abstime.tv_sec += seconds;
 
-	if (1000000000L <= abstime.tv_nsec) {
-		abstime.tv_nsec -= 1000000000L;
+	if (1000000000UL <= abstime.tv_nsec) {
+		abstime.tv_nsec -= 1000000000UL;
 		abstime.tv_sec++;
 	}
 
-	(void) pthread_mutex_lock(&thread_sleep_mutex);
+	PTHREAD_MUTEX_LOCK(&thread_sleep_mutex);
 
 	/* Beware of possible infinite loops if something other than
 	 * EINVAL or ETIMEDOUT are returned. What of EINTR?
@@ -92,7 +92,7 @@ pthreadSleep(unsigned seconds, unsigned nanoseconds)
 			break;
 	}
 
-	(void) pthread_mutex_unlock(&thread_sleep_mutex);
+	PTHREAD_MUTEX_UNLOCK(&thread_sleep_mutex);
 
 	return -(error != ETIMEDOUT);
 }
