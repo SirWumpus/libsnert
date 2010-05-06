@@ -351,36 +351,6 @@ discard_echo_input(SOCKET fd, fd_data *data)
 #include <com/snert/lib/mail/limits.h>
 
 #ifdef ENABLE_SLOW_REPLY
-void
-nap(unsigned seconds, unsigned nanoseconds)
-{
-#if defined(__WIN32__)
-	Sleep(seconds * 1000 + nanoseconds / 1000000);
-#elif defined (HAVE_NANOSLEEP)
-{
-	struct timespec ts0, ts1, *sleep_time, *unslept_time, *tmp;
-
-	sleep_time = &ts0;
-	unslept_time = &ts1;
-	ts0.tv_sec = seconds;
-	ts0.tv_nsec = nanoseconds;
-
-	while (nanosleep(sleep_time, unslept_time)) {
-		tmp = sleep_time;
-		sleep_time = unslept_time;
-		unslept_time = tmp;
-	}
-}
-#else
-{
-	unsigned unslept;
-
-	while (0 < (unslept = sleep(seconds)))
-		seconds = unslept;
-}
-#endif
-}
-
 ssize_t
 slow_send(fd_data *data, unsigned char *buffer, long length)
 {
