@@ -44,6 +44,11 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
+--1.74.3--
+
+   !	uriParse2: Fix implicit URL detection and parsing when the
+	implicit URL contains a path element. Reported by Alex Broens.
+
 
 --1.74.2--
 
