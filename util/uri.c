@@ -527,10 +527,24 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	/* This used to be spanDomain, but it is useful to also
 	 * try and find either IPv4 or IPv6 addresses.
 	 */
-	else if (0 < (span = spanHost(value, implicit_domain_min_dots)) && value[span] == '\0'
-	&& 0 < TextInsensitiveStartsWith(value, "www.") && 0 < indexValidTLD(value)) {
-		uri->scheme = "http";
-		uri->host = value;
+	else if (0 < (span = spanHost(value, implicit_domain_min_dots))
+	&& 0 < TextInsensitiveStartsWith(value, "www.")) {
+		if (value[span] == '/') {
+			/* Shift the host left one byte to retain the
+			 * leading slash in path and to make room for
+			 * a null byte after the host name.
+			 */
+			memmove(value-1, value, span);
+			uri->path = value + span;
+			uri->path[-1] = '\0';
+			value--;
+
+		}
+
+		if (0 < indexValidTLD(value)) {
+			uri->scheme = "http";
+			uri->host = value;
+		}
 	}
 
 	else if ((uri->scheme == NULL || uriGetSchemePort(uri) == 25) && (uri->host = strchr(value, '@')) != NULL && value < uri->host) {
