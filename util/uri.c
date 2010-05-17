@@ -11,7 +11,7 @@
 #endif
 
 #ifndef IMPLICIT_DOMAIN_MIN_DOTS
-#define IMPLICIT_DOMAIN_MIN_DOTS	2
+#define IMPLICIT_DOMAIN_MIN_DOTS	1
 #endif
 
 #define TEXT_VS_INLINE
@@ -527,8 +527,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	/* This used to be spanDomain, but it is useful to also
 	 * try and find either IPv4 or IPv6 addresses.
 	 */
-	else if (0 < (span = spanHost(value, implicit_domain_min_dots))
-	&& 0 < TextInsensitiveStartsWith(value, "www.")) {
+	else if (0 < (span = spanHost(value, implicit_domain_min_dots))) {
 		if (value[span] == '/') {
 			/* Shift the host left one byte to retain the
 			 * leading slash in path and to make room for
