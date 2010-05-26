@@ -542,6 +542,9 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		}
 
 		if (0 < indexValidTLD(value)) {
+#ifdef NOT_YET
+			uri->schemeInfo = uri->uriDecoded;
+#endif
 			uri->scheme = "http";
 			uri->host = value;
 		}
