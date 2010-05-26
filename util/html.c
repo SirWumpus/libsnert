@@ -250,7 +250,7 @@ stripMimeHeader(Mime *m)
 	const char **hdr;
 	StripMime *ctx = m->mime_data;
 
-	if (0 <= TextFind(m->source.buffer, "Content-Type:*text/html*", m->source.length, 1)) {
+	if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*text/html*", m->source.length, 1)) {
 		ctx->text_html++;
 		ctx->tag = NULL;
 	}
@@ -259,14 +259,14 @@ stripMimeHeader(Mime *m)
 	 * Content-Transfer-Encoding to reflect the defcoded
 	 * output.
 	 */
-	if (ctx->text_html && 0 < TextInsensitiveStartsWith(m->source.buffer, "Content-Transfer-Encoding:")) {
+	if (ctx->text_html && 0 < TextInsensitiveStartsWith((char *) m->source.buffer, "Content-Transfer-Encoding:")) {
 		printf("Content-Transfer-Encoding: 8bit\r\n");
 		return;
 	}
 
 	if (headers != NULL) {
 		for (hdr = (const char **) VectorBase(headers); *hdr != NULL; hdr++) {
-			if (0 < (length = TextInsensitiveStartsWith(m->source.buffer, *hdr)) && (*hdr)[length] == ':') {
+			if (0 < (length = TextInsensitiveStartsWith((char *) m->source.buffer, *hdr)) && (*hdr)[length] == ':') {
 				mimeSourceFlush(m);
 				return;
 			}

@@ -44,6 +44,12 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
+
+--1.74.5--
+
+   !	Fixed more gcc 4 anal signedness warnings.
+
+
 --1.74.4-- (branch domain_implicit_uri)
 
    !	Experimental test of changing the implicit URI parser to include
