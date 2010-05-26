@@ -44,6 +44,29 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
+--1.74.4-- (branch domain_implicit_uri)
+
+   !	Experimental test of changing the implicit URI parser to include
+	stand alone domain names.
+
+	The previous rule of thumb for implicit URI parsing was that if
+	Thunderbird and/or Outlook Express would highlight a string as a
+	link, then the URI API should also catch it. Domain names are
+	not links and would require a user to copy/paste the domain from
+	a message to a browser.
+
+	The previous implicit URI rule requires that a host name start
+	with "www.", has min. 2 dots, and a valid TLD. My concern is
+	that weakening the www. and 2 min-dot requirements will lead to
+	false positives, particularly in legitimate mail discussing
+	spammy domains and/or reports.
+
+	However SpamAssassin does detect spammy stand alone domains.
+	After discussion with Steve F. he thinks that the simplified
+	implicit URI rule (a host or domain name with at least one dot
+	and a valid TLD) will be safe based on SpamAssassin URI_* rule
+	hits seen on a client's server.
+
 --1.74.3--
 
    !	uriParse2: Fix implicit URL detection and parsing when the
