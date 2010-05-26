@@ -309,7 +309,7 @@ stripDecodeFlush(Mime *m)
 	if (all_tags || m->decode.length <= 0)
 		return;
 
-	for (start = m->decode.buffer; htmlTokenRange(&start, &stop, &ctx->html_state); start = stop) {
+	for (start = (const char *) m->decode.buffer; htmlTokenRange(&start, &stop, &ctx->html_state); start = stop) {
 		if (tags != NULL && *start == '<') {
 			if (0 < debug) {
 				int ch;

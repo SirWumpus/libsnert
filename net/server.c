@@ -1407,7 +1407,7 @@ send_fd(int unix_stream_socket, int fd, unsigned short port, short state, char t
 
 	*(uint16_t *) &service[0] = port;
 	*(int16_t *) &service[sizeof (uint16_t)] = state;
-	(void) TextCopy(&service[2 * sizeof (uint16_t)], 20, token);
+	(void) TextCopy((char *) &service[2 * sizeof (uint16_t)], 20, token);
 
 	return -(sendmsg(unix_stream_socket, &msg, 0) < 0);
 }

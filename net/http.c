@@ -441,7 +441,7 @@ getURL(const char *url)
 		return;
 	}
 
-	fputs(BufBytes(response.content), stdout);
+	fputs((char *) BufBytes(response.content), stdout);
 
 	httpResponseFree(&response);
 }
