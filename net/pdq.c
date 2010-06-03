@@ -1898,7 +1898,7 @@ pdq_name_skip(struct udp_packet *packet, unsigned char *ptr)
 			packet->header.id, (long) packet, (long) packet_start
 		);
 		pdqLogPacket(packet, 0);
-		errno = EINVAL;
+		errno = EFAULT;
 		return NULL;
 	}
 
@@ -1919,7 +1919,7 @@ pdq_name_skip(struct udp_packet *packet, unsigned char *ptr)
 			packet->header.id, (long) packet, (long) packet_start
 		);
 		pdqLogPacket(packet, 0);
-		errno = EINVAL;
+		errno = EFAULT;
 		return NULL;
 	}
 
@@ -2308,8 +2308,10 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 
 	if (rcode != PDQ_RCODE_OK) {
 		/* Return a record reporting the failed query. */
-		if ((record = pdq_reply_rr(packet, ptr, NULL)) == NULL)
+		if ((record = pdq_reply_rr(packet, ptr, NULL)) == NULL) {
+			syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
 			return PDQ_RCODE_ERRNO;
+		}
 
 		record->rcode = rcode;
 		*list = record;
@@ -2335,16 +2337,20 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 #endif
 	for (i = 0; i < j; i++) {
 		if ((record = pdq_reply_rr(packet, ptr, &ptr)) == NULL) {
-			/* Skip TTL field. */
-			ptr += NET_LONG_BYTE_LENGTH;
+			/* We're either off the end of the packet (EFAULT,
+			 * see pdq_name_skip) or out of memory (ENOMEM) for
+			 * creating an RR. Stop parsing!
+			 */
+			if (errno == EFAULT) {
+				/* This should have already been logged by
+				 * pdq_name_skip.
+				 */
+				break;
+			}
 
-			/* Get length field for remainder of RR. */
-			length = NET_GET_SHORT(ptr);
-			ptr += NET_SHORT_BYTE_LENGTH;
-
-			/* Skip this RR. */
-			ptr += length;
-			continue;
+			syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
+			pdqListFree(head);
+			return PDQ_RCODE_ERRNO;
 		}
 
 		if (i < packet->header.ancount)
