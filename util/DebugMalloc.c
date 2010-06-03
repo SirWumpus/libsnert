@@ -21,7 +21,7 @@
  */
 
 #ifndef MAX_STATIC_MEMORY
-#define MAX_STATIC_MEMORY	(32 * 1024)
+#define MAX_STATIC_MEMORY	(64 * 1024)
 #endif
 
 #ifndef DOH_BYTE
@@ -48,6 +48,10 @@
  */
 #ifndef ALIGNMENT_SIZE
 #define ALIGNMENT_SIZE 		32	/* Must be a power of 2. */
+#endif
+
+#ifndef ALIGNMENT_SIZE_MIN
+#define ALIGNMENT_SIZE_MIN	8	/* Must be a power of 2. */
 #endif
 
 #ifndef SIGNAL_MEMORY
@@ -117,21 +121,20 @@ extern ssize_t write(int, const void *, size_t);
 
 enum { MEMORY_INITIALISE, MEMORY_INITIALISING, MEMORY_INITIALISED };
 
-typedef struct memory_marker {
+typedef struct block_data {
 	char *base;
 	size_t size;
 	unsigned line;
 	const char *file;
 #if defined(DEBUG_MALLOC_THREAD_REPORT)
-	struct memory_marker *prev;
-	struct memory_marker *next;
+	struct block_data *prev;
+	struct block_data *next;
 #endif
 	unsigned long crc;
-} MemoryMarker;
+} BlockData;
 
-#define ALIGNMENT_MASK 		(alignment_size-1)
-#define ALIGNMENT_OVERHEAD(s)	(((s) | alignment_mask) + 1 + alignment_size)
-#define CHUNK_OFFSET		((sizeof (MemoryMarker) | alignment_mask)+1)
+#define ALIGNED_SIZE(s)		(((s) | alignment_mask) + 1 + alignment_size)
+#define CHUNK_OFFSET		((sizeof (BlockData) | alignment_mask)+1)
 
 extern void  DebugFree(void *);
 extern void *DebugMalloc(size_t, const char *file, unsigned line);
@@ -167,8 +170,8 @@ static volatile unsigned long memory_allocation_count = 0;
 static size_t static_used;
 static char static_memory[MAX_STATIC_MEMORY];
 
-long alignment_mask = ALIGNMENT_SIZE-1;
-long alignment_size = ALIGNMENT_SIZE;
+unsigned long alignment_mask = ALIGNMENT_SIZE-1;
+unsigned long alignment_size = ALIGNMENT_SIZE;
 
 int memory_show_free = 0;
 int memory_show_malloc = 0;
@@ -199,7 +202,7 @@ DebugMallocThreadReport(void *data)
 {
 	void *chunk;
 	unsigned count = 0;
-	MemoryMarker *block = data;
+	BlockData *block = data;
 
 	if (block != NULL) {
 		for ( ; block != NULL; block = block->next, count++) {
@@ -352,7 +355,7 @@ _malloc(size_t size)
 
 	/* Advance to next aligned chunk. */
 	if ((aligned_used & alignment_mask) != 0)
-		aligned_used = ALIGNMENT_OVERHEAD(aligned_used);
+		aligned_used = ALIGNED_SIZE(aligned_used);
 
 	if (sizeof (static_memory) <= aligned_used + size) {
 		errno = ENOMEM;
@@ -371,11 +374,11 @@ init_common(void)
 	char *value;
 
 	if ((value = getenv("MEMORY_ALIGNMENT_SIZE")) != NULL) {
-		alignment_size = strtol(value, NULL, 0);
+		alignment_size = (unsigned long) strtol(value, NULL, 0);
 
 		/* If the number is too small or NOT a power of two, then use the default. */
-		if (alignment_size < 8 || (alignment_size & -alignment_size) != alignment_size)
-			alignment_size = ALIGNMENT_SIZE;
+		if (alignment_size < ALIGNMENT_SIZE_MIN || (alignment_size & -alignment_size) != alignment_size)
+			alignment_size = ALIGNMENT_SIZE_MIN;
 		alignment_mask = alignment_size - 1;
 	}
 
@@ -601,7 +604,7 @@ realloc(void *chunk, size_t size)
 }
 
 static void
-DebugCheckBoundaries(MemoryMarker *block, unsigned char *chunk, size_t size)
+DebugCheckBoundaries(BlockData *block, unsigned char *chunk, size_t size)
 {
 	unsigned char *p, *q;
 
@@ -613,7 +616,7 @@ DebugCheckBoundaries(MemoryMarker *block, unsigned char *chunk, size_t size)
 		}
 	}
 
-	/* Check the boundary marker between base and block, might be zero length. */
+	/* Check the boundary marker between base and block. */
 	for (p = (unsigned char *) block->base; p < (unsigned char *) block; p++) {
 		if (*p != DAH_BYTE) {
 			signal_error("memory underun (b) chunk=0x%lx size=%lu\r\n", (long) chunk, size);
@@ -622,7 +625,7 @@ DebugCheckBoundaries(MemoryMarker *block, unsigned char *chunk, size_t size)
 	}
 
 	/* Check the boundary marker between end of chunk and end of block. */
-	q = (unsigned char *) chunk + ALIGNMENT_OVERHEAD(size);
+	q = (unsigned char *) chunk + ALIGNED_SIZE(size);
 	for (p = (unsigned char *) chunk + size; p < q; p++) {
 		if (*p != DOH_BYTE) {
 			signal_error("memory overrun chunk=0x%lx size=%lu\r\n", (long) chunk, size);
@@ -635,9 +638,9 @@ void
 DebugFree(void *chunk)
 {
 	char *base;
-	size_t size;
-	MemoryMarker *block;
+	BlockData *block;
 	unsigned char *p, *q;
+	size_t size, base_size;
 
 	if (chunk == NULL)
 		return;
@@ -648,17 +651,18 @@ DebugFree(void *chunk)
 		return;
 	}
 
-	/* Compute location of the marker. */
-	block = (MemoryMarker *)((char *) chunk - CHUNK_OFFSET);
+	/* Compute location of the block data. */
+	block = (BlockData *)((char *) chunk - CHUNK_OFFSET);
 
 	/* Remember this for later for after the libc_free call, when
-	 * the marker structure may have been overwritten.
+	 * the block structure may have been overwritten.
 	 */
 	size = block->size;
 	base = block->base;
+	base_size = alignment_size + CHUNK_OFFSET + ALIGNED_SIZE(size);
 
 	if (block->crc != ((unsigned long) base ^ size)) {
-		signal_error("memory marker corruption chunk=0x%lx size=%lu\r\n", (long) chunk, size);
+		signal_error("memory corruption chunk=0x%lx size=%lu\r\n", (long) chunk, size);
 		return;
 	}
 
@@ -688,7 +692,7 @@ DebugFree(void *chunk)
 #endif
 
 	if (memory_test_double_free) {
-		/* Look for double-free first, since the marker structure
+		/* Look for double-free first, since the block structure
 		 * may have been overwritten by a previous free() causing
 		 * a false positive for a memory underrun.
 		 */
@@ -706,11 +710,22 @@ DebugFree(void *chunk)
 
 	DebugCheckBoundaries(block, chunk, size);
 
-	if (memory_test_double_free)
+	if (memory_test_double_free) {
+		/* Attempt to detect overwriting active memory. */
+		q = base + base_size - 1;
+		for (p = (unsigned char *) base; p < q; p++) {
+			if ((p[0] == DAH_BYTE && p[1] == DAH_BYTE)
+			||  (p[0] == DOH_BYTE && p[1] == DOH_BYTE)) {
+				signal_error("free overrun active chunk, chunk=0x%lx size=%lu\r\n", (long) chunk, size);
+				return;
+			}
+		}
+
 		/* Wipe from the WHOLE memory area including the space
 		 * for the lower and upper boundaries.
 		 */
-		memset(base, FREED_BYTE, alignment_size + CHUNK_OFFSET + ALIGNMENT_OVERHEAD(size));
+		memset(base, FREED_BYTE, base_size);
+	}
 
 	(*libc_free)(base);
 	memory_free_count++;
@@ -733,24 +748,42 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 {
 	char *base;
 	void *chunk;
-	size_t adjust;
-	MemoryMarker *block;
+	BlockData *block;
+	size_t adjust, base_size;
 
-	/* Allocate enough space to include some boundary markers. */
-	base = (*libc_malloc)(alignment_size + CHUNK_OFFSET + ALIGNMENT_OVERHEAD(size));
+	/* Allocate enough space to include some boundary markers.
+	 *
+	 * base		| DA DA DA DA DA DA DA DA ...
+	 * block	| ...
+	 * 		| D0 D0 D0 D0 D0 D0 D0 D0 ...
+	 * chunk	| FF ?? ?? ?? ?? ?? ?? ?? ...
+	 * chunk+size	| D0 D0 D0 DO D0 D0 D0 D0 ...
+	 */
+	base_size = alignment_size + CHUNK_OFFSET + ALIGNED_SIZE(size);
+	base = (*libc_malloc)(base_size);
 	if (base == NULL)
 		return NULL;
 
 	memory_allocation_count++;
 
-	/* The returned ``base'' may be on a different alignment from ours. */
-	if ((unsigned long) base & alignment_mask)
+	if ((unsigned long) base & alignment_mask) {
+		/* The returned base is on a different alignment
+		 * from ours.
+		 */
 		adjust = alignment_size - ((unsigned long) base & alignment_mask);
-	else
-		adjust = 0;
+	} else {
+		/* This used to be zero, but now we assert that
+		 * there is a leading boundary before the block
+		 * so that DebugFree() can detect when it over-
+		 * writes an active allocated block at the time
+		 * of the free(). This would imply a corruption
+		 * of the size in block at time of free().
+		 */
+		adjust = ALIGNMENT_SIZE_MIN;
+	}
 
-	/* Compute the location of our aligned marker. */
-	block = (MemoryMarker *)(base + adjust);
+	/* Compute the location of our aligned block. */
+	block = (BlockData *)(base + adjust);
 	block->crc = (unsigned long) base ^ size;
 	block->base = base;
 	block->size = size;
@@ -761,7 +794,7 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 	block->prev = block->next = NULL;
 
 	if (thread_key_state == THREAD_KEY_READY) {
-		MemoryMarker *head = pthread_getspecific(thread_malloc_list);
+		BlockData *head = pthread_getspecific(thread_malloc_list);
 
 		if (!IS_NULL(head)) {
 			block->prev = NULL;
@@ -785,12 +818,12 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 
 	/* Add the boundary markers. */
 	memset(base, DAH_BYTE, adjust);
-	memset(block+1, DOH_BYTE, CHUNK_OFFSET - sizeof (MemoryMarker));
-	memset((char *) chunk + size, DOH_BYTE, ALIGNMENT_OVERHEAD(size) - size);
+	memset(block+1, DOH_BYTE, CHUNK_OFFSET - sizeof (BlockData));
+	memset((char *) chunk + size, DOH_BYTE, ALIGNED_SIZE(size) - size);
 
 	/* When we allocate a previously freed chunk, write a single value
 	 * to the start of the chunk to prevent inadvertant double-free
-	 * detection in case the caller never writes anything into the chunk.
+	 * detection in case the caller never writes anything into this chunk.
 	 */
 	if (0 < size)
 		*(unsigned char *) chunk = MALLOC_BYTE;
@@ -805,13 +838,13 @@ void *
 DebugRealloc(void *chunk, size_t size, const char *file, unsigned line)
 {
 	void *replacement;
-	MemoryMarker *block;
+	BlockData *block;
 
 	if ((replacement = debug_malloc(size, file, line)) == NULL)
 		return NULL;
 
 	if (chunk != NULL) {
-		block = (MemoryMarker *)((char *) chunk - CHUNK_OFFSET);
+		block = (BlockData *)((char *) chunk - CHUNK_OFFSET);
 		memcpy(replacement, chunk, block->size < size ? block->size : size);
 		free(chunk);
 	}
