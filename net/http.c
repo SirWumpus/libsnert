@@ -3,7 +3,7 @@
  *
  * RFC 2616 HTTP/1.1 Support Functions
  *
- * Copyright 2009 by Anthony Howe. All rights reserved.
+ * Copyright 2009, 2010 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -41,12 +41,35 @@ httpSetDebug(int level)
 	httpDebug = level;
 }
 
-void
+char *
+httpGetHeader(Buf *buf, const char *hdr_pat, size_t hdr_len)
+{
+	long offset;
+	int span, ch;
+	char *string = NULL;
+
+	if (0 < (offset = TextFind((char *) buf->bytes, hdr_pat, -1, 1))) {
+		offset += hdr_len;
+		offset += strspn((char *) buf->bytes+offset, " \t");
+		span = strcspn((char *) buf->bytes+offset, ";\r\n");
+		ch = buf->bytes[offset+span];
+		buf->bytes[offset+span] = '\0';
+		string = strdup((char *) buf->bytes+offset);
+		buf->bytes[offset+span] = ch;
+	}
+
+	return string;
+}
+
+int
 httpResponseInit(HttpResponse *response)
 {
-
 	memset(response, 0, sizeof (*response));
+
 	response->debug = httpDebug;
+	response->content = BufCreate(HTTP_BUFFER_SIZE);
+
+	return -(response->content == NULL);
 }
 
 void
@@ -54,8 +77,90 @@ httpResponseFree(HttpResponse *response)
 {
 	if (response != NULL) {
 		BufDestroy(response->content);
-		free(response->content_type);
-		free(response->content_encoding);
+	}
+}
+
+static HttpCode
+httpParseHeaderEnd(HttpResponse *response, unsigned char *input, size_t length)
+{
+	char *string;
+	Buf *buf = response->content;
+	HttpContent *content = response->data;
+
+	content->expires = 0;
+	content->last_modified = 0;
+	content->content_length = 0;
+	content->content_type = httpGetHeader(buf, "*Content-Type:*", sizeof ("Content-Type:")-1);
+	content->content_encoding = httpGetHeader(buf, "*Content-Encoding:*", sizeof ("Content-Encoding:")-1);
+
+	if (0 < response->debug && content->content_type != NULL)
+		syslog(LOG_DEBUG, "%s content-type=%s", response->id_log, content->content_type);
+	if (0 < response->debug && content->content_encoding != NULL)
+		syslog(LOG_DEBUG, "%s content-encoding=%s", response->id_log, content->content_encoding);
+
+	if ((string = httpGetHeader(buf, "*Content-Length:*", sizeof ("Content-Length:")-1)) != NULL) {
+		content->content_length = strtol(string, NULL, 10);
+
+		if (0 < response->debug)
+			syslog(LOG_DEBUG, "%s content-length=%s", response->id_log, string);
+
+		free(string);
+	}
+
+	if ((string = httpGetHeader(buf, "*Last-Modified:*", sizeof ("Last-Modified:")-1)) != NULL) {
+		/* NOTE that this is in GMT. */
+		(void) convertDate(string, &content->last_modified, NULL);
+
+		if (0 < response->debug)
+			syslog(LOG_DEBUG, "%s last-modified=%s", response->id_log, string);
+
+		free(string);
+	}
+
+	if ((string = httpGetHeader(buf, "*Expires:*", sizeof ("Expires:")-1)) != NULL) {
+		/* NOTE that this is in GMT. */
+		(void) convertDate(string, &content->expires, NULL);
+
+		if (0 < response->debug)
+			syslog(LOG_DEBUG, "%s expires=%s", response->id_log, string);
+
+		free(string);
+	}
+
+	if ((string = httpGetHeader(buf, "*Date:*", sizeof ("Date:")-1)) != NULL) {
+		/* NOTE that this is in GMT. */
+		(void) convertDate(string, &content->date, NULL);
+
+		if (0 < response->debug)
+			syslog(LOG_DEBUG, "%s date=%s", response->id_log, string);
+
+		free(string);
+	}
+
+	return HTTP_CONTINUE;
+}
+
+int
+httpContentInit(HttpContent *content)
+{
+	memset(content, 0, sizeof (*content));
+
+	if (httpResponseInit(&content->response))
+		return -1;
+
+	content->response.data = content;
+	content->response.hook.header_end = httpParseHeaderEnd;
+
+	return 0;
+}
+
+void
+httpContentFree(HttpContent *content)
+{
+	if (content != NULL) {
+		free(content->content_type);
+		free(content->content_encoding);
+		httpResponseFree(&content->response);
 	}
 }
 
@@ -219,33 +324,11 @@ httpReadLine(Socket2 *socket, Buf *buf, const char *id_log)
 	return offset;
 }
 
-char *
-httpGetHeader(Buf *buf, const char *hdr_pat, size_t hdr_len)
-{
-	long offset;
-	int span, ch;
-	char *string = NULL;
-
-	if (0 < (offset = TextFind((char *) buf->bytes, hdr_pat, -1, 1))) {
-		offset += hdr_len;
-		offset += strspn((char *) buf->bytes+offset, " \t");
-		span = strcspn((char *) buf->bytes+offset, ";\r\n");
-		ch = buf->bytes[offset+span];
-		buf->bytes[offset+span] = '\0';
-		string = strdup((char *) buf->bytes+offset);
-		buf->bytes[offset+span] = ch;
-	}
-
-	return string;
-}
-
 HttpCode
 httpRead(Socket2 *socket, HttpResponse *response, const char *id_log)
 {
 	Buf *buf;
-	char *string;
-	size_t offset;
-	HttpCode code = HTTP_INTERNAL;
+	long offset, eoh;
 
 	if (socket == NULL)
 		goto error0;
@@ -253,86 +336,55 @@ httpRead(Socket2 *socket, HttpResponse *response, const char *id_log)
 	if (response == NULL)
 		goto error1;
 
-	if (response->content == NULL
-	&& (response->content = BufCreate(HTTP_BUFFER_SIZE)) == NULL)
-		goto error1;
 	buf = response->content;
-
-	/* Read HTTP response line and headers. */
 	BufSetLength(buf, 0);
 
-	do {
+	/* Read HTTP response line. */
+	if (httpReadLine(socket, buf, id_log) < 0)
+		goto error1;
+
+	response->result = HTTP_INTERNAL;
+	(void) sscanf((char *) buf->bytes, "HTTP/%*s %d", (int *) &response->result);
+	if (0 < response->debug)
+		syslog(LOG_DEBUG, "%s http-code=%d", id_log, response->result);
+
+	if (response->hook.status != NULL
+	&& (*response->hook.status)(response, buf->bytes, buf->length) != HTTP_CONTINUE)
+		goto error1;
+
+	/* Read HTTP response headers. */
+	for (;;) {
 		if ((offset = httpReadLine(socket, buf, id_log)) < 0)
 			goto error1;
-	} while (buf->length - offset != 2 || buf->bytes[offset] != '\r' || buf->bytes[offset+1] != '\n');
 
-	/* Parse headers. */
-	if (sscanf((char *) buf->bytes, "HTTP/%*s %d", (int *) &code) != 1)
+		if (buf->length-offset == 2 && buf->bytes[offset] == '\r' && buf->bytes[offset+1] == '\n')
+			break;
+
+		if (response->hook.header != NULL
+		&& (*response->hook.header)(response, buf->bytes+offset, buf->length-offset) != HTTP_CONTINUE)
+			goto error1;
+	}
+
+	eoh = buf->length;
+
+	if (response->hook.header_end != NULL
+	&& (*response->hook.header_end)(response, buf->bytes, eoh-2) != HTTP_CONTINUE)
 		goto error1;
-	response->result = code;
 
-#ifdef REMOVE
-	if (0 < response->debug)
-		syslog(LOG_DEBUG, "%s http-code=%d", id_log, code);
-#endif
-	response->expires = 0;
-	response->last_modified = 0;
-	response->content_length = 0;
-	response->content_type = httpGetHeader(buf, "*Content-Type:*", sizeof ("Content-Type:")-1);
-	response->content_encoding = httpGetHeader(buf, "*Content-Encoding:*", sizeof ("Content-Encoding:")-1);
-
-#ifdef REMOVE
-	if (0 < response->debug && response->content_type != NULL)
-		syslog(LOG_DEBUG, "%s content-type=%s", id_log, response->content_type);
-	if (0 < response->debug && response->content_encoding != NULL)
-		syslog(LOG_DEBUG, "%s content-encoding=%s", id_log, response->content_encoding);
-#endif
-	if ((string = httpGetHeader(buf, "*Content-Length:*", sizeof ("Content-Length:")-1)) != NULL) {
-		response->content_length = strtol(string, NULL, 10);
-#ifdef REMOVE
-		if (0 < response->debug)
-			syslog(LOG_DEBUG, "%s content-length=%s", id_log, string);
-#endif
-		free(string);
+	/* Read HTTP body content. */
+	while (0 <= (offset = httpReadLine(socket, buf, id_log))) {
+		if (response->hook.body != NULL
+		&& (*response->hook.body)(response, buf->bytes+offset, buf->length-offset) != HTTP_CONTINUE)
+			goto error1;
 	}
 
-	if ((string = httpGetHeader(buf, "*Last-Modified:*", sizeof ("Last-Modified:")-1)) != NULL) {
-		/* NOTE that this is in GMT. */
-		(void) convertDate(string, &response->last_modified, NULL);
-#ifdef REMOVE
-		if (0 < response->debug)
-			syslog(LOG_DEBUG, "%s last-modified=%s", id_log, string);
-#endif
-		free(string);
-	}
-
-	if ((string = httpGetHeader(buf, "*Expires:*", sizeof ("Expires:")-1)) != NULL) {
-		/* NOTE that this is in GMT. */
-		(void) convertDate(string, &response->expires, NULL);
-#ifdef REMOVE
-		if (0 < response->debug)
-			syslog(LOG_DEBUG, "%s expires=%s", id_log, string);
-#endif
-		free(string);
-	}
-
-	if ((string = httpGetHeader(buf, "*Date:*", sizeof ("Date:")-1)) != NULL) {
-		/* NOTE that this is in GMT. */
-		(void) convertDate(string, &response->date, NULL);
-#ifdef REMOVE
-		if (0 < response->debug)
-			syslog(LOG_DEBUG, "%s date=%s", id_log, string);
-#endif
-		free(string);
-	}
-
-	/* Read body content. */
-	while (0 < httpReadLine(socket, buf, id_log))
-		;
+	if (response->hook.body_end != NULL
+	&& (*response->hook.body_end)(response, buf->bytes+eoh, buf->length-eoh) != HTTP_CONTINUE)
+		goto error1;
 error1:
 	socketClose(socket);
 error0:
-	return code;
+	return response->result;
 }
 
 HttpCode
@@ -340,7 +392,6 @@ httpDo(const char *method, const char *url, time_t modified_since, unsigned char
 {
 	int length;
 	time_t now;
-	char id_log[20];
 	Socket2 *socket;
 	HttpRequest request;
 
@@ -353,10 +404,10 @@ httpDo(const char *method, const char *url, time_t modified_since, unsigned char
 		http_counter = 1;
 
 	now = time(NULL);
-	time62Encode(now, id_log);
+	time62Encode(now, response->id_log);
 	length = snprintf(
-		id_log+TIME62_BUFFER_SIZE,
-		sizeof (id_log)-TIME62_BUFFER_SIZE,
+		response->id_log+TIME62_BUFFER_SIZE,
+		sizeof (response->id_log)-TIME62_BUFFER_SIZE,
 		"%05u%05u00", getpid(), http_counter
 	);
 
@@ -367,10 +418,10 @@ httpDo(const char *method, const char *url, time_t modified_since, unsigned char
 	request.post_buffer = post;
 	request.post_size = size;
 
-	socket = httpSend(&request, id_log);
+	socket = httpSend(&request, response->id_log);
 	free(request.url);
 
-	return httpRead(socket, response, id_log);
+	return httpRead(socket, response, response->id_log);
 }
 
 HttpCode
@@ -400,14 +451,18 @@ httpDoPost(const char *url, time_t modified_since, unsigned char *post, size_t s
 #include <stdio.h>
 #include <com/snert/lib/sys/sysexits.h>
 #include <com/snert/lib/util/getopt.h>
+#include <com/snert/lib/util/md5.h>
 
+int body_only;
 time_t if_modified_since;
 const char *http_method = "GET";
 
 const char usage[] =
-"usage: geturl [-hv][-s seconds] url ...\n"
+"usage: geturl [-bhmv][-s seconds] url ...\n"
 "\n"
-"-h\t\tperform a HEAD request instead of GET\n"
+"-b\t\toutput body only\n"
+"-h\t\toutput headers only; perform a HEAD request instead of GET\n"
+"-m\t\tgenerate MD5 hash of returned content\n"
 "-s seconds\tcheck if modified since timestamp seconds\n"
 "-v\t\tverbose logging to standard output\n"
 "\n"
@@ -429,19 +484,81 @@ syslog(int level, const char *fmt, ...)
 }
 #endif
 
-void
-getURL(const char *url)
+typedef void (*get_url_fn)(const char *);
+
+HttpCode
+response_header_end(HttpResponse *response, unsigned char *input, size_t length)
 {
+	BufSetLength(response->content, 0);
+
+	return HTTP_CONTINUE;
+}
+
+void
+get_url(const char *url)
+{
+	HttpContent content;
+
+	httpContentInit(&content);
+
+	if (body_only)
+		content.response.hook.header_end = response_header_end;
+
+	if (httpDo(http_method, url, if_modified_since, NULL, 0, &content.response) == HTTP_INTERNAL) {
+		fprintf(stderr, "%s: %d internal error\n", url, HTTP_INTERNAL);
+		return;
+	}
+
+	fputs((char *) BufBytes(content.response.content), stdout);
+
+	httpContentFree(&content);
+}
+
+HttpCode
+response_body(HttpResponse *response, unsigned char *input, size_t length)
+{
+	md5_append((md5_state_t *) response->data, input, length);
+	BufSetLength(response->content, 0);
+
+	return HTTP_CONTINUE;
+}
+
+static void
+digestToString(unsigned char digest[16], char digest_string[33])
+{
+	int i;
+	static const char hex_digit[] = "0123456789abcdef";
+
+	for (i = 0; i < 16; i++) {
+		digest_string[i << 1] = hex_digit[(digest[i] >> 4) & 0x0F];
+		digest_string[(i << 1) + 1] = hex_digit[digest[i] & 0x0F];
+	}
+	digest_string[32] = '\0';
+}
+
+void
+get_url_md5(const char *url)
+{
+	md5_state_t md5;
 	HttpResponse response;
+	char digest_string[33];
+	unsigned char digest[16];
 
 	httpResponseInit(&response);
+
+	md5_init(&md5);
+	response.data = &md5;
+	response.hook.header_end = response_header_end;
+	response.hook.body = response_body;
 
 	if (httpDo(http_method, url, if_modified_since, NULL, 0, &response) == HTTP_INTERNAL) {
 		fprintf(stderr, "%s: %d internal error\n", url, HTTP_INTERNAL);
 		return;
 	}
 
-	fputs((char *) BufBytes(response.content), stdout);
+	md5_finish(&md5, digest);
+	digestToString(digest, digest_string);
+	printf("%s %s\n", digest_string, url);
 
 	httpResponseFree(&response);
 }
@@ -450,11 +567,20 @@ int
 main(int argc, char **argv)
 {
 	int argi, ch;
+	get_url_fn get_fn = get_url;
 
-	while ((ch = getopt(argc, argv, "hvs:")) != -1) {
+	while ((ch = getopt(argc, argv, "bhmvs:")) != -1) {
 		switch (ch) {
+		case 'b':
+			body_only = 1;
+			break;
+
 		case 'h':
 			http_method = "HEAD";
+			break;
+
+		case 'm':
+			get_fn = get_url_md5;
 			break;
 
 		case 's':
@@ -484,8 +610,14 @@ main(int argc, char **argv)
 		return EX_USAGE;
 	}
 
+	/* If both -h and -b given, then return both headers and body. */
+	if (body_only && *http_method == 'H') {
+		body_only = 0;
+		http_method = "GET";
+	}
+
 	for (argi = optind; argi < argc; argi++) {
-		getURL(argv[argi]);
+		(*get_fn)(argv[argi]);
 	}
 
 	return EXIT_SUCCESS;

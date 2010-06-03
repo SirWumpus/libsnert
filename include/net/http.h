@@ -3,7 +3,7 @@
  *
  * RFC 2616 HTTP/1.1 Support Routines
  *
- * Copyright 2009 by Anthony Howe. All rights reserved.
+ * Copyright 2009, 2010 by Anthony Howe. All rights reserved.
  */
 
 #ifndef __com_snert_lib_net_http_h__
@@ -95,17 +95,35 @@ typedef struct {
 	size_t post_size;
 } HttpRequest;
 
+typedef struct http_response HttpResponse;
+typedef HttpCode (*HttpInput)(HttpResponse *response, unsigned char *input, size_t length);
+
 typedef struct {
+	HttpInput status;		/* Parse the status line. */
+	HttpInput header;		/* Parse a header line, includes CRLF. */
+	HttpInput header_end;		/* End of headers, parse accumulated headers. */
+	HttpInput body;			/* Parse body chunk (line unit). */
+	HttpInput body_end;		/* End of body, parse accumulated body. */
+} HttpHooks;
+
+struct http_response {
 	int debug;
+	void *data;
+	Buf *content;
+	HttpHooks hook;
 	HttpCode result;
-	Buf *content;			/* If NULL, Buf * will be created. */
+	char id_log[20];
+};
+
+typedef struct {
 	time_t date;			/* Ignore if zero; else GMT seconds since epoch. */
 	time_t expires;			/* Ignore if zero; else GMT seconds since epoch. */
 	time_t last_modified;		/* Ignore if zero; else GMT seconds since epoch. */
 	size_t content_length;		/* Content-Length: header or length of file. */
 	char *content_type;		/* Content-Type: header. */
 	char *content_encoding;		/* Content-Encoding: header. */
-} HttpResponse;
+	HttpResponse response;
+} HttpContent;
 
 /***********************************************************************
  ***
@@ -113,7 +131,9 @@ typedef struct {
 
 extern void httpSetDebug(int level);
 
-extern void httpResponseInit(HttpResponse *);
+extern int httpContentInit(HttpContent *);
+extern void httpContentFree(HttpContent *);
+extern int httpResponseInit(HttpResponse *);
 extern void httpResponseFree(HttpResponse *);
 
 extern Socket2 *httpSend(HttpRequest *, const char *id_log);
@@ -123,6 +143,7 @@ extern char *httpGetHeader(Buf *buf, const char *hdr_pat, size_t hdr_len);
 extern HttpCode httpDoGet(const char *url, time_t modified_since, HttpResponse *response);
 extern HttpCode httpDoHead(const char *url, time_t modified_since, HttpResponse *response);
 extern HttpCode httpDoPost(const char *url, time_t modified_since, unsigned char *post, size_t size, HttpResponse *response);
+extern HttpCode httpDo(const char *method, const char *url, time_t modified_since, unsigned char *post, size_t size, HttpResponse *response);
 
 /***********************************************************************
  ***
