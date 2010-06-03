@@ -45,9 +45,48 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+
+
 --1.74.5--
 
    !	Fixed more gcc 4 anal signedness warnings.
+
+   !	geturl, http.c: Modifed the HTTP API code to provide a more
+   	general call-back mechanism.
+
+  !!	Fixed PDQ segmentation fault caused by parsing an answer packet
+  	that is TOO LARGE. This bug is due to several factors:
+
+  	a) The query for "MX hotmail.com" yields an answer that is TOO
+	LARGE to fit in a 512 byte UDP packet based on RFC 1035 limits
+	(RFC 2671 EDNS0 is not supported and requires that the DNS
+	client signal the DNS server that EDNS0 is supported). Hotmail
+	reports 4 MX "hosts" each of which is multihomed with 12 A
+	records.
+
+  	b) "PowerDNS Recursor 3.2" (possible others) either assumes
+	EDNS0, fails to set the TC bit (truncated) to indicate an answer
+	too big to fit in a single 512 byte UDP packet and/or limit the
+	number of additional records returned to fit in 512 byte UDP
+	packet. ISC Bind does behaves correctly, which is why this error
+	was not previously discovered.
+
+	c) The PDQ parsing code detected falling off the end of the
+	packet, but failed to correctly act on the error higher up the
+	call chain, thus causing the application to seg.fault.
+
+	The implemented fix simply aims to stop the segmentation fault
+	by breaking out of the parsing loop and returning only those
+	records that have been parsed. This could mean an incomplete set
+	of records when there is a large number of multihomed hosts, ie.
+	MX hotmail.com; but sufficient information to work with.
+
+	Steve Freegard suggested that the fix should actually "back-out"
+	and perform a TCP query instead, especially for certain types of
+	tests like detecting if a SMTP connection is coming from a known
+	MX or not. For performance reasons, this alternate fix has not
+	been implemented, until it can be shown that "completeness of the
+	answer" is more important, than performance.
 
 
 --1.74.4-- (branch domain_implicit_uri)
