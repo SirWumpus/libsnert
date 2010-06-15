@@ -46,6 +46,22 @@ is no set schedule for releases.
 
 
 
+--1.74.6--
+
+   !	Fix PDQ to ignore unknown / unsupported DNS RR types. The change in
+   	1.74.5 lost this aspect of the old code.
+
+   !	spanDomain, spanHost: The underscore (_) character is not
+	allowed in host/domain names (RFC 1035). This is a carry over
+	from Windows stupidity. Note though that underscore can be part
+	of a DNS label, but for resource records that don't necessarily
+	correspond to a host/domain name, such as special names for SPF
+	or DomainKeys records.
+
+   !	uriMimeDecodedOctet: Skip leading underscore (_) characters in
+	the URI hold buffer. Underscores are not allowed as part of the
+	scheme in an explicit URI (RFC 3986), nor as part of host/domain
+	name (RFC 1035) in an implicit URI. Reported by Alex Broens.
 
 --1.74.5--
 
