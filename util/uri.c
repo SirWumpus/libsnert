@@ -1062,13 +1062,23 @@ uriMimeDecodedOctet(Mime *m, int ch)
 		/* RFC 2396 lists parens and single quotes as unreserved mark
 		 * characters that can appear in a URI (how stupid). If the
 		 * hold buffer looks to be bracketed by these characters, then
-		 * strip them off.
+		 * strip them off. RFC 3986 has them as reserved.
 		 */
 		if ((hold->buffer[value] == '('  && hold->buffer[hold->length-1] == ')')
 		||  (hold->buffer[value] == '\'' && hold->buffer[hold->length-1] == '\'')) {
 			hold->length--;
 			value++;
 		}
+
+		/* RFC 3986 and 1035 does not allow underscore in a URI scheme
+		 * nor in a domain/host name.
+		 */
+		while (hold->buffer[hold->length-1] == '_') {
+			hold->length--;
+			hold->buffer[hold->length] = '\0';
+		}
+		while (hold->buffer[value] == '_')
+			value++;
 
 		/* Discard previous URI before parsing a new one. */
 		uriMimeFreeUri(m);

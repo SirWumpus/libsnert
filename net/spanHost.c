@@ -55,7 +55,7 @@ spanDomain(const char *domain, int minDots)
 				dots++;
 			}
 			break;
-		case '-': case '_':
+		case '-':
 			/* A domain segment cannot start with a hyphen. */
 			if (previous == '.')
 				goto stop;

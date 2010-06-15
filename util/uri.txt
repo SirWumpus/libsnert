@@ -286,6 +286,12 @@ Comment: Problem in parsing implicit URL with a path and query parts.
 
 www.newtwix.org/twixtel42/?portofrei
 
+----=_test_boundary
+Content-type: text/plain
+Comment: Underscore is not part of domain/host name.
+
+___geegeesoe.com___
+
 ----=_test_boundary--
 
 
