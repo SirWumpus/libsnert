@@ -2221,6 +2221,7 @@ pdq_reply_rr(struct udp_packet *packet, unsigned char *ptr, unsigned char **stop
 	PDQ_rr *record;
 	unsigned char *name;
 
+	errno = 0;
 	name = ptr;
 	if ((ptr = pdq_name_skip(packet, ptr)) == NULL) {
 		syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
@@ -2346,6 +2347,20 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 				 * pdq_name_skip.
 				 */
 				break;
+			}
+
+			/* Skip unknown DNS RR types. */
+			if (errno == EINVAL) {
+				/* Skip TTL field. */
+				ptr += NET_LONG_BYTE_LENGTH;
+
+				/* Get length field for remainder of RR. */
+				length = NET_GET_SHORT(ptr);
+				ptr += NET_SHORT_BYTE_LENGTH;
+
+				/* Skip this RR. */
+				ptr += length;
+				continue;
 			}
 
 			syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
