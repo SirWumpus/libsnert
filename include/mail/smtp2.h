@@ -3,7 +3,7 @@
  *
  * A simple SMTP engine.
  *
- * Copyright 2007 by Anthony Howe. All rights reserved.
+ * Copyright 2007, 2010 by Anthony Howe. All rights reserved.
  */
 
 #ifndef __com_snert_lib_mail_smtp2_h__
@@ -47,49 +47,52 @@ extern "C" {
 #undef SMTP_ISS_VALID
 #endif
 
-/*
- * RFC 821, 2821, 5321 Reply Codes.
- */
-#define SMTP_STATUS			211
-#define SMTP_HELP			214
-#define SMTP_WELCOME			220
-#define SMTP_GOODBYE			221
-#define SMTP_AUTH_OK			235	/* RFC 4954 section 6 */
-#define SMTP_OK				250
-#define SMTP_USER_NOT_LOCAL		251
+#undef SMTP_OK
+typedef enum {
+	/*
+	 * RFC 821, 2821, 5321 Reply Codes.
+	 */
+	SMTP_STATUS			= 211,
+	SMTP_HELP			= 214,
+	SMTP_WELCOME			= 220,
+	SMTP_GOODBYE			= 221,
+	SMTP_AUTH_OK			= 235,	/* RFC 4954 section 6 */
+	SMTP_OK				= 250,
+	SMTP_USER_NOT_LOCAL		= 251,
 
-#define SMTP_WAITING			354
+	SMTP_WAITING			= 354,
 
-#define SMTP_CLOSING			421
-#define SMTP_AUTH_MECHANISM		432	/* RFC 4954 section 6 */
-#define SMTP_BUSY			450
-#define SMTP_TRY_AGAIN_LATER		451
-#define SMTP_NO_STORAGE			452
-#define SMTP_AUTH_TEMP			454	/* RFC 4954 section 6 */
+	SMTP_CLOSING			= 421,
+	SMTP_AUTH_MECHANISM		= 432,	/* RFC 4954 section 6 */
+	SMTP_BUSY			= 450,
+	SMTP_TRY_AGAIN_LATER		= 451,
+	SMTP_NO_STORAGE			= 452,
+	SMTP_AUTH_TEMP			= 454,	/* RFC 4954 section 6 */
 
-#define SMTP_BAD_SYNTAX			500
-#define SMTP_BAD_ARGUMENTS		501
-#define SMTP_UNKNOWN_COMMAND		502
-#define SMTP_BAD_SEQUENCE		503
-#define SMTP_UNKNOWN_PARAM		504
-#define SMTP_AUTH_REQUIRED		530	/* RFC 4954 section 6 */
-#define SMTP_AUTH_WEAK			534	/* RFC 4954 section 6 */
-#define SMTP_AUTH_FAIL			535	/* RFC 4954 section 6 */
-#define SMTP_AUTH_ENCRYPT		538	/* RFC 4954 section 6 */
-#define SMTP_REJECT			550
-#define SMTP_UNKNOWN_USER		551
-#define SMTP_OVER_QUOTA			552
-#define SMTP_BAD_ADDRESS		553
-#define SMTP_TRANSACTION_FAILED		554
+	SMTP_BAD_SYNTAX			= 500,
+	SMTP_BAD_ARGUMENTS		= 501,
+	SMTP_UNKNOWN_COMMAND		= 502,
+	SMTP_BAD_SEQUENCE		= 503,
+	SMTP_UNKNOWN_PARAM		= 504,
+	SMTP_AUTH_REQUIRED		= 530,	/* RFC 4954 section 6 */
+	SMTP_AUTH_WEAK			= 534,	/* RFC 4954 section 6 */
+	SMTP_AUTH_FAIL			= 535,	/* RFC 4954 section 6 */
+	SMTP_AUTH_ENCRYPT		= 538,	/* RFC 4954 section 6 */
+	SMTP_REJECT			= 550,
+	SMTP_UNKNOWN_USER		= 551,
+	SMTP_OVER_QUOTA			= 552,
+	SMTP_BAD_ADDRESS		= 553,
+	SMTP_TRANSACTION_FAILED		= 554,
 
-/*
- * Error conditions indicated like SMTP Reply Codes.
- */
-#define SMTP_ERROR			100
-#define SMTP_ERROR_CONNECT		110
-#define SMTP_ERROR_TIMEOUT		120
-#define SMTP_ERROR_EOF			130
-#define SMTP_ERROR_IO			140
+	/*
+	 * Error conditions indicated like SMTP Reply Codes.
+	 */
+	SMTP_ERROR			= 100,
+	SMTP_ERROR_CONNECT		= 110,
+	SMTP_ERROR_TIMEOUT		= 120,
+	SMTP_ERROR_EOF			= 130,
+	SMTP_ERROR_IO			= 140,
+} SMTP_Reply_Code;
 
 #define SMTP_IS_ERROR(x)		(100 <= (x) && (x) < 200)
 #define SMTP_IS_OK(x)			(200 <= (x) && (x) < 300)
