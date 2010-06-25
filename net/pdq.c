@@ -1498,7 +1498,7 @@ pdqDump(FILE *fp, PDQ_rr *record)
 	(void) fprintf(fp, PDQ_LOG_FMT_END, PDQ_LOG_ARG_END(record));
 
 	if (record->rcode != PDQ_RCODE_OK)
-		(void) fprintf(fp, " %s", pdqRcodeName(record->rcode));
+		(void) fprintf(fp, " rcode=%s", pdqRcodeName(record->rcode));
 
 	(void) fputc('\n', fp);
 }
