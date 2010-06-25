@@ -45,6 +45,16 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+--1.74.7--
+
+   !	Tweeked pdqDump() output to denote the rcode error field from
+	the section name after the comment. "... ; UNKNOWN SERVER" for
+	SERVFAIL was confusing to some (UNKNOWN was the section name,
+	not the error). Now have "... ; UNKNOWN rcode=SERVER".
+
+   !	smtp2.h: Change the SMTP_ constants from #define to an enum,
+	which is better for type checking by the compiler.
+
 
 --1.74.6--
 
