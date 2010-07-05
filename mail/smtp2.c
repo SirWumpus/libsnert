@@ -629,7 +629,7 @@ smtp2Print(SMTP2 *smtp, const char *line, size_t length)
 			smtp->flags |= SMTP_FLAG_EOH;
 
 			if (!(smtp->flags & SMTP_FLAG_DATE)) {
-				char timestamp[40];
+				char timestamp[TIME_STAMP_MIN_SIZE];
 				TimeStamp(&smtp->start, timestamp, sizeof (timestamp));
 				(void) smtp2Printf(smtp, "Date: %s\r\n", timestamp);
 			}

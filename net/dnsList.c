@@ -99,7 +99,7 @@ dnsListLogClose(void)
 void
 dnsListLog(const char *id, const char *name, const char *list_name)
 {
-	char timestamp[40];
+	char timestamp[TIME_STAMP_MIN_SIZE];
 
 	if (log_file != NULL && name != NULL) {
 		TimeStampAdd(timestamp, sizeof (timestamp));
@@ -114,7 +114,7 @@ dnsListLog(const char *id, const char *name, const char *list_name)
 void
 dnsListLogSys(const char *id, const char *name, const char *list_name)
 {
-	char timestamp[40];
+	char timestamp[TIME_STAMP_MIN_SIZE];
 
 	if (name != NULL) {
 		TimeStampAdd(timestamp, sizeof (timestamp));
