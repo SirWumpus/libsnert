@@ -45,6 +45,24 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+--1.74.8--
+
+   !	uri.c: Decouple URI hold buffer flush from the MIME decode
+	buffer flush, otherwise a URI that straddles MIME buffers would
+	be truncated when the MIME buffer is flushed causing the URI to
+	parse incorrectly, and cause an implicit URI parse given the
+	recent change to implicit URI rule in 1.74.4.
+
+   !	aclocal.m4: SNERT_CHECK_DEFINE now defines HAVE_MACRO_symbol
+	when the macro symbol is found.
+
+   !	aclocal.m4: Added check for stdarg.h va_copy() macro that was
+	added by ANSI C99.
+
+   !	mailPrintfV: Use va_copy() when available. On some platforms,
+	like Linux 64 bit, assuming va_list is a pointer to a list of
+	args causes a crash when the list of args is reused.
+
 --1.74.7--
 
    !	Tweeked pdqDump() output to denote the rcode error field from
