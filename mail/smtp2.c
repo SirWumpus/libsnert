@@ -848,8 +848,16 @@ mailPrintfV(Mail *mail, const char *fmt, va_list args)
 	SMTP2 *smtp;
 	int rc = SMTP_ERROR;
 
-	for (smtp = mail->list; smtp != NULL; smtp = smtp->next)
+	for (smtp = mail->list; smtp != NULL; smtp = smtp->next) {
+#ifdef HAVE_MACRO_VA_COPY
+		va_list copy_args;
+		va_copy(copy_args, args);
+		rc = smtp2PrintfV(smtp, fmt, copy_args);
+		va_end(args);
+#else
 		rc = smtp2PrintfV(smtp, fmt, args);
+#endif
+	}
 
 	return rc;
 }

@@ -151,6 +151,10 @@ dnl	COMPILE='${CC} ${CFLAGS} -c $<'
 	AC_SUBST(LIBSNERT)
 
 	AC_CHECK_TOOL(RANLIB, ranlib, true)
+
+	dnl Check for recent ANSI C additions that HAVE_HEADER_STDC check
+	dnl doesn't distinguish between C89 and C99.
+	SNERT_CHECK_DEFINE([va_copy], [stdarg.h])
 ])
 
 AC_DEFUN([SNERT_TAR_SETTINGS],[
@@ -194,6 +198,9 @@ int main()
 }
 		],ac_cv_define_$1=yes, ac_cv_define_$1=no)
 	])
+	if test $ac_cv_define_$1 = 'yes'; then
+		AC_DEFINE_UNQUOTED([HAVE_MACRO_]translit($1, [a-z], [A-Z]))
+	fi
 ])
 
 
@@ -213,6 +220,9 @@ int main()
 }
 		],ac_cv_define_$1=yes, ac_cv_define_$1=no)
 	])
+	if test $ac_cv_define_$1 = 'yes'; then
+		AC_DEFINE_UNQUOTED([HAVE_MACRO_]translit($1, [a-z], [A-Z]))
+	fi
 ])
 
 
@@ -1451,7 +1461,7 @@ AC_DEFUN(SNERT_REGEX,[
 ])
 
 dnl
-dnl SNERT_REGEX
+dnl SNERT_TERMIOS
 dnl
 AC_DEFUN(SNERT_TERMIOS,[
 	echo

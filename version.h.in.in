@@ -195,6 +195,9 @@ typedef unsigned long time_t;
 #undef HAVE_STDIO_H
 #undef HAVE_LIMITS_H
 
+/* Added in C99 */
+#undef HAVE_MACRO_VA_COPY
+
 /*
  * POSIX I/O
  */
