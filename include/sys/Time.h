@@ -80,6 +80,11 @@ extern size_t TimeStampAdd(char *buffer, size_t size);
 extern size_t TimeStamp(time_t *now, char *buffer, size_t size);
 extern size_t TimeStampGMT(time_t *now, char *buffer, size_t size);
 
+/*
+ * www, dd MMM yyyy hh:mm:ss -zzzz\0 32 bytes long
+ */
+#define TIME_STAMP_MIN_SIZE	32
+
 #if ! defined(HAVE_GMTIME_R)
 extern struct tm *gmtime_r(const time_t *, struct tm *);
 #endif
