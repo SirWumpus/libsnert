@@ -243,7 +243,7 @@ Content-Transfer-Encoding: quoted-printable
 Comment: Russian encoded URL doesn't parse correctly, since
 	 RFC 3986 excludes octets with the high bit from a URI.
 
- Y  -  N  -	http://www.f=C1v=CFrit=C5-s=C5ri=C1ls.ru/
+ N  -  N  -	http://www.f=C1v=CFrit=C5-s=C5ri=C1ls.ru/
 
 ----=_test_boundary
 Content-type: text/plain; charset=iso-8859-1

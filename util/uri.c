@@ -527,7 +527,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	/* This used to be spanDomain, but it is useful to also
 	 * try and find either IPv4 or IPv6 addresses.
 	 */
-	else if (0 < (span = spanHost(value, implicit_domain_min_dots))) {
+	else if (uri->scheme == NULL && 0 < (span = spanHost(value, implicit_domain_min_dots))) {
 		if (value[span] == '/') {
 			/* Shift the host left one byte to retain the
 			 * leading slash in path and to make room for
@@ -1091,13 +1091,6 @@ uriMimeDecodedOctet(Mime *m, int ch)
 	}
 }
 
-void
-uriMimeFlush(Mime *m)
-{
-	/* Force parse of hold before flush. */
-	uriMimeDecodedOctet(m, '\n');
-}
-
 /**
  * @param include_headers
  *	When true, parse both the message headers and body for URI.
@@ -1121,7 +1114,6 @@ uriMimeCreate(int include_headers)
 		return NULL;
 	}
 
-	mime->mime_decode_flush = uriMimeFlush;
 	mime->mime_body_start = uriMimeBodyStart;
 	mime->mime_body_finish = uriMimeBodyStart;
 	mime->mime_decoded_octet = uriMimeDecodedOctet;
@@ -1305,6 +1297,7 @@ syslog(int level, const char *fmt, ...)
 #endif
 
 PDQ *pdq;
+int debug;
 int check_soa;
 DnsList *d_bl_list;
 DnsList *ip_bl_list;
@@ -1473,12 +1466,19 @@ process_input(Mime *m, FILE *fp, const char *filename)
 {
 	int ch;
 	URI *uri;
+	unsigned lineno = 1;
 
 	if (fp != NULL) {
 		mimeReset(m);
 
+		if (debug)
+			syslog(LOG_DEBUG, "file=%s line=%u", filename, lineno);
 		do {
 			ch = fgetc(fp);
+			if (debug && ch == '\n') {
+				lineno++;
+				syslog(LOG_DEBUG, "file=%s line=%u", filename, lineno);
+			}
 			(void) mimeNextCh(m, ch);
 
 			/* Is there a URI ready to check? */
@@ -1610,6 +1610,7 @@ main(int argc, char **argv)
 			socketSetDebug(1);
 			uriSetDebug(4);
 			pdqSetDebug(1);
+			debug++;
 			break;
 		default:
 			(void) fputs(usage, stderr);
