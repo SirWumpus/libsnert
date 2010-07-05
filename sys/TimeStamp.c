@@ -42,6 +42,7 @@ TimeStamp(time_t *now, char *buffer, size_t size)
 	if (localtime_r(now, &local) == NULL)
 		return 0;
 
+	/* "www, dd MMM yyyy hh:mm:ss -zzzz" 32 bytes long */
 	length = strftime(buffer, size, "%a, %d %b %Y %H:%M:%S +0000", &local);
 
 	/* Reformat the numerical time zone. */
