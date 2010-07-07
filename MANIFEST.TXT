@@ -190,6 +190,7 @@ com/snert/src/lib/util/html.c
 com/snert/src/lib/util/makefile.in
 com/snert/src/lib/util/md4.c
 com/snert/src/lib/util/md5.c
+com/snert/src/lib/util/playfair.c
 com/snert/src/lib/util/properties.txt
 com/snert/src/lib/util/setBitWord.c
 com/snert/src/lib/util/strlrcspn.c
@@ -275,6 +276,7 @@ com/snert/src/lib/include/util/getopt.h
 com/snert/src/lib/include/util/html.h
 com/snert/src/lib/include/util/md4.h
 com/snert/src/lib/include/util/md5.h
+com/snert/src/lib/include/util/playfair.h
 com/snert/src/lib/include/util/setBitWord.h
 com/snert/src/lib/include/util/uri.h
 com/snert/src/lib/include/util/option.h

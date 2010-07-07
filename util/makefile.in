@@ -69,7 +69,7 @@ $O$E :
 #######################################################################
 
 OBJS = \
-	md4$O md5$O b64$O convertDate$O BigInt$O JavaTime$O getopt$O Memory$O Rotate$O Buf$O \
+	md4$O md5$O b64$O playfair$O convertDate$O BigInt$O JavaTime$O getopt$O Memory$O Rotate$O Buf$O \
 	TextBackslash$O TextEscape$O TextInputLine$O TextReadLine$O TextCopy$O \
 	TextCat$O TextDup$O TextDupN$O TokenCount$O TokenNext$O TokenSplitA$O TokenSplit$O TokenQuote$O \
 	TextJoin$O TextSplit$O TextSensitiveCompare$O TextTransliterate$O \
@@ -80,12 +80,12 @@ OBJS = \
 	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O html$O \
 	uriIsDomainBL$O uri$O option$O time62$O timespec$O timeval$O timer$O
 
-TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
-       DebugMallocTest$E uri$E convertDate$E TextCopy$E TextTransliterate$E \
+TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E playfair$E \
+       DebugMallocTest$E playfair$Euri$E convertDate$E TextCopy$E TextTransliterate$E \
        TextSensitiveEndsWith$E TextInsensitiveEndsWith$E TextMatch$E ProcTitle$E \
        timer$E
 
-CLI = b64$E convertDate$E md4$E md5$E htmlstrip$E uri$E
+CLI = b64$E convertDate$E md4$E md5$E playfair$E htmlstrip$E uri$E
 
 .MAIN : build
 
@@ -122,7 +122,7 @@ add-lib:
 
 clean : title
 	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.stackdump core core *.core core.*.*
-	-rm -f BigInt$E b64$E md4$E md5$E htmlstrip$E uri$E convertDate$E ${TEST} cache.* properties.out
+	-rm -f BigInt$E b64$E md4$E md5$E htmlstrip$E playfair$E uri$E convertDate$E ${TEST} cache.* properties.out
 
 distclean: clean
 	-rm -f makefile
@@ -209,6 +209,9 @@ md4$E: md4.c
 
 md5$E: md5.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)md5$E md5.c
+
+playfair$E: playfair.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)playfair$E playfair.c
 
 time62$E : time62.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)time62$E time62.c
