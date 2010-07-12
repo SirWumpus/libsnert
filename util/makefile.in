@@ -69,7 +69,8 @@ $O$E :
 #######################################################################
 
 OBJS = \
-	md4$O md5$O b64$O playfair$O convertDate$O BigInt$O JavaTime$O getopt$O Memory$O Rotate$O Buf$O \
+	md4$O md5$O b64$O playfair$O victor$O convertDate$O \
+	BigInt$O JavaTime$O getopt$O Memory$O Rotate$O Buf$O \
 	TextBackslash$O TextEscape$O TextInputLine$O TextReadLine$O TextCopy$O \
 	TextCat$O TextDup$O TextDupN$O TokenCount$O TokenNext$O TokenSplitA$O TokenSplit$O TokenQuote$O \
 	TextJoin$O TextSplit$O TextSensitiveCompare$O TextTransliterate$O \
@@ -80,7 +81,7 @@ OBJS = \
 	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O html$O \
 	uriIsDomainBL$O uri$O option$O time62$O timespec$O timeval$O timer$O
 
-TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E playfair$E \
+TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E playfair$E victor$E \
        DebugMallocTest$E playfair$Euri$E convertDate$E TextCopy$E TextTransliterate$E \
        TextSensitiveEndsWith$E TextInsensitiveEndsWith$E TextMatch$E ProcTitle$E \
        timer$E
@@ -212,6 +213,9 @@ md5$E: md5.c
 
 playfair$E: playfair.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)playfair$E playfair.c
+
+victor$E: victor.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)victor$E victor.c
 
 time62$E : time62.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)time62$E time62.c
