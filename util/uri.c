@@ -377,6 +377,30 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	if (length < 0)
 		length = (int) strlen(u);
 
+	/* Deal with instances of:
+	 *
+	 * 	Visit us at http://some.domain.tld/file.html.
+	 *
+	 *	Contact us at achowe@snert.com.
+	 *
+	 * Note that dot is not a reserved character in the path,
+	 * query, or fragment elements, so dot at the end of the
+	 * URI is valid.
+	 *
+	 * However, common occurrences of URI appear in mail or
+	 * documentation, possibly as part of a sentence, where
+	 * the average author is not aware the end of sentence
+	 * period could be confused as part of the URI itself.
+	 * Thus popular wisdom suggests removing one trailing dot.
+	 *
+	 * In the case of a trailing dot at the end of an mail
+	 * address, the trailing dot could signify the domain
+	 * root. Removing the trailing dot will not invalidate
+	 * the mail address.
+	 */
+	if (u[length-1] == '.')
+		length--;
+
 	/* Allocate space for the structure, two copies of the URI
 	 * string, and an extra byte used for a '\0'.
 	 */
@@ -978,8 +1002,18 @@ error0:
 typedef struct {
 	URI *uri;
 	int length;
+	int is_text_part;
 	char buffer[URI_MIME_BUFFER_SIZE];
 } UriMime;
+
+void
+uriMimeHeader(Mime *m)
+{
+	if (TextMatch((char *) m->source.buffer, "Content-Type:*text/*", m->source.length, 1)) {
+		UriMime *hold = m->mime_data;
+		hold->is_text_part = 1;
+	}
+}
 
 void
 uriMimeBodyStart(Mime *m)
@@ -990,11 +1024,27 @@ uriMimeBodyStart(Mime *m)
 }
 
 void
+uriMimeBodyFinish(Mime *m)
+{
+	UriMime *hold = m->mime_data;
+	hold->is_text_part = 0;
+	uriMimeFreeUri(m);
+	hold->length = 0;
+}
+
+void
 uriMimeDecodedOctet(Mime *m, int ch)
 {
 	UriMime *hold;
 
 	hold = m->mime_data;
+
+	/* Only process text only parts. Otherwise with simplified
+	 * implicit URI rules, decoding binary attachments like
+	 * images can result in false positives.
+	 */
+	if (!hold->is_text_part)
+		return;
 
         /* Ignore CR as it does not help us with parsing.
          * Assume LF will follow.
@@ -1114,8 +1164,9 @@ uriMimeCreate(int include_headers)
 		return NULL;
 	}
 
+	mime->mime_header = uriMimeHeader;
 	mime->mime_body_start = uriMimeBodyStart;
-	mime->mime_body_finish = uriMimeBodyStart;
+	mime->mime_body_finish = uriMimeBodyFinish;
 	mime->mime_decoded_octet = uriMimeDecodedOctet;
 
 	if (include_headers)
