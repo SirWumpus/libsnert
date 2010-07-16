@@ -93,3 +93,5 @@ util/time62
 util/convertDate
 util/TextFind
 util/uri-samples/*
+util/playfair
+util/victor

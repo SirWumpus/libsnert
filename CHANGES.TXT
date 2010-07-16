@@ -45,6 +45,37 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+--1.74.9--
+
+   +	Added Playfair cipher API and CLI.
+
+   +	Added Victor cipher API and CLI.
+
+   !	uri: Deal with instances of:
+
+		Visit us at http://some.domain.tld/file.html.
+
+		Contact us at achowe@snert.com.
+
+	Note that dot is not a reserved character in the path,
+	query, or fragment elements, so dot at the end of the
+	URI is valid.
+
+	However, common occurrences of URI appear in mail or
+	documentation, possibly as part of a sentence, where
+	the average author is not aware the end of sentence
+	period could be confused as part of the URI itself.
+	Thus popular wisdom suggests removing one trailing dot.
+
+	In the case of a trailing dot at the end of an mail
+	address, the trailing dot could signify the domain
+	root. Removing the trailing dot will not invalidate
+	the mail address.
+
+   !	uri: Only process text/* only parts. Otherwise with simplified
+	implicit URI rules, decoding binary attachments like images
+	can result in false positives. Reported by Steve Freegard.
+
 --1.74.8--
 
    !	uri.c: Decouple URI hold buffer flush from the MIME decode
