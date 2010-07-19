@@ -34,7 +34,7 @@
 # endif
 #endif
 
-typedef char *(*playfair_fn)(const playfair_table, const char *);
+typedef char *(*playfair_fn)(Playfair *, const char *);
 
 void
 playfair_print(FILE *fp, const char *message)
@@ -45,26 +45,26 @@ playfair_print(FILE *fp, const char *message)
 }
 
 void
-playfair_dump(FILE *fp, const playfair_table key_table)
+playfair_dump(FILE *fp, Playfair *pf)
 {
 	int row, col, order;
 
-	order = strlen(key_table) == 25 ? 5 : 6;
+	order = strlen(pf->table) == 25 ? 5 : 6;
 
 	for (row = 0; row < order; row++) {
 		for (col = 0; col < order; col++) {
-			fprintf(fp, "%c ", key_table[row * order + col]);
+			fprintf(fp, "%c ", pf->table[row * order + col]);
 		}
 		fputc('\n', fp);
 	}
 }
 
 int
-playfair_build(const char *alphabet, const char *key, playfair_table key_table)
+playfair_init(Playfair *pf, const char *alphabet, const char *key)
 {
 	int i, ch, map[2];
 	size_t set_length;
-	char set[sizeof (ALPHABET36)], *member;
+	char set[sizeof (ALPHABET36)], *member, *key_table;
 
 	if (key == NULL)
 		key = "";
@@ -101,21 +101,22 @@ playfair_build(const char *alphabet, const char *key, playfair_table key_table)
 	/* Copy the key into key_table, removing key characters
 	 * from the set of unused alphabet characters.
 	 */
-	for (i = 0; i < set_length && key[i] != '\0'; i++) {
-		ch = toupper(key[i]);
+	key_table = pf->table;
+	for (i = 0; i < set_length && *key != '\0'; key++) {
+		ch = toupper(*key);
 
 		if (set_length == 25 && ch == map[0])
 			ch = map[1];
 
 		if ((member = strchr(set, ch)) != NULL) {
 			*key_table++ = ch;
-			*member = ' ';
+			*member = 0x7F;
 		}
 	}
 
 	/* Copy remaining unused alphabet to key_table. */
 	for (i = 0; i < set_length; i++) {
-		if (set[i] != ' ')
+		if (set[i] != 0x7F)
 			*key_table++ = set[i];
 	}
 	*key_table = '\0';
@@ -124,23 +125,23 @@ playfair_build(const char *alphabet, const char *key, playfair_table key_table)
 }
 
 char *
-playfair_encode(const playfair_table key_table, const char *message)
+playfair_encode(Playfair *pf, const char *message)
 {
 	size_t length;
 	char *out, *op;
 	div_t pos1, pos2;
 	int m1, m2, span1, span2, order, map[2];
 
-	if (key_table == NULL || message == NULL)
+	if (pf == NULL || message == NULL)
 		return NULL;
 
-	order = strlen(key_table) == 25 ? 5 : 6;
+	order = strlen(pf->table) == 25 ? 5 : 6;
 
 	if (order == 5) {
-		if (strchr(key_table, 'I') == NULL && strchr(key_table, 'J') != NULL) {
+		if (strchr(pf->table, 'I') == NULL && strchr(pf->table, 'J') != NULL) {
 			map[0] = 'I';
 			map[1] = 'J';
-		} else if (strchr(key_table, 'I') != NULL && strchr(key_table, 'J') == NULL) {
+		} else if (strchr(pf->table, 'I') != NULL && strchr(pf->table, 'J') == NULL) {
 			map[0] = 'J';
 			map[1] = 'I';
 		}
@@ -191,8 +192,8 @@ playfair_encode(const playfair_table key_table, const char *message)
 			message--;
 		}
 
-		span1 = strchr(key_table, m1) - key_table;
-		span2 = strchr(key_table, m2) - key_table;
+		span1 = strchr(pf->table, m1) - pf->table;
+		span2 = strchr(pf->table, m2) - pf->table;
 		pos1 = div(span1, order);
 		pos2 = div(span2, order);
 
@@ -204,20 +205,20 @@ playfair_encode(const playfair_table key_table, const char *message)
 #endif
 		/* Same row? */
 		if (pos1.quot == pos2.quot) {
-			*op++ = key_table[pos1.quot * order + (pos1.rem+1) % order];
-			*op++ = key_table[pos2.quot * order + (pos2.rem+1) % order];
+			*op++ = pf->table[pos1.quot * order + (pos1.rem+1) % order];
+			*op++ = pf->table[pos2.quot * order + (pos2.rem+1) % order];
 		}
 
 		/* Same column? */
 		else if (pos1.rem == pos2.rem) {
-			*op++ = key_table[(pos1.quot+1) % order * order + pos1.rem];
-			*op++ = key_table[(pos2.quot+1) % order * order + pos2.rem];
+			*op++ = pf->table[(pos1.quot+1) % order * order + pos1.rem];
+			*op++ = pf->table[(pos2.quot+1) % order * order + pos2.rem];
 		}
 
 		/* Opposing corners. */
 		else {
-			*op++ = key_table[pos1.quot * order + pos2.rem];
-			*op++ = key_table[pos2.quot * order + pos1.rem];
+			*op++ = pf->table[pos1.quot * order + pos2.rem];
+			*op++ = pf->table[pos2.quot * order + pos1.rem];
 		}
 	}
 	*op = '\0';
@@ -229,17 +230,17 @@ playfair_encode(const playfair_table key_table, const char *message)
 }
 
 char *
-playfair_decode(const playfair_table key_table, const char *message)
+playfair_decode(Playfair *pf, const char *message)
 {
 	size_t length;
 	char *out, *op;
 	div_t pos1, pos2;
 	int m1, m2, span1, span2, order;
 
-	if (key_table == NULL || message == NULL)
+	if (pf == NULL || message == NULL)
 		return NULL;
 
-	order = strlen(key_table) == 25 ? 5 : 6;
+	order = strlen(pf->table) == 25 ? 5 : 6;
 
 	length = strlen(message);
 	if ((out = malloc(length+1)) == NULL)
@@ -271,8 +272,8 @@ playfair_decode(const playfair_table key_table, const char *message)
 		m2 = *message++;
 		m2 = toupper(m2);
 
-		span1 = strchr(key_table, m1) - key_table;
-		span2 = strchr(key_table, m2) - key_table;
+		span1 = strchr(pf->table, m1) - pf->table;
+		span2 = strchr(pf->table, m2) - pf->table;
 
 		pos1 = div(span1, order);
 		pos2 = div(span2, order);
@@ -285,20 +286,20 @@ playfair_decode(const playfair_table key_table, const char *message)
 #endif
 		/* Same row? */
 		if (pos1.quot == pos2.quot) {
-			*op++ = key_table[pos1.quot * order + (pos1.rem+order-1) % order];
-			*op++ = key_table[pos2.quot * order + (pos2.rem+order-1) % order];
+			*op++ = pf->table[pos1.quot * order + (pos1.rem+order-1) % order];
+			*op++ = pf->table[pos2.quot * order + (pos2.rem+order-1) % order];
 		}
 
 		/* Same column? */
 		else if (pos1.rem == pos2.rem) {
-			*op++ = key_table[(pos1.quot+order-1) % order * order + pos1.rem];
-			*op++ = key_table[(pos2.quot+order-1) % order * order + pos2.rem];
+			*op++ = pf->table[(pos1.quot+order-1) % order * order + pos1.rem];
+			*op++ = pf->table[(pos2.quot+order-1) % order * order + pos2.rem];
 		}
 
 		/* Opposing corners. */
 		else {
-			*op++ = key_table[pos1.quot * order + pos2.rem];
-			*op++ = key_table[pos2.quot * order + pos1.rem];
+			*op++ = pf->table[pos1.quot * order + pos2.rem];
+			*op++ = pf->table[pos2.quot * order + pos1.rem];
 		}
 	}
 	*op = '\0';
@@ -325,9 +326,9 @@ static char usage[] =
 int
 main(int argc, char **argv)
 {
+	Playfair pf;
 	playfair_fn fn;
 	char *out, *alphabet;
-	playfair_table key_table;
 	int argi, show_key_table;
 
 	show_key_table = 0;
@@ -365,18 +366,18 @@ main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	if (playfair_build(alphabet, argv[argi], key_table)) {
+	if (playfair_init(&pf, alphabet, argv[argi])) {
 		fprintf(stderr, "alphabet invalid\n");
 		return EXIT_FAILURE;
 	}
 
-	if ((out = (*fn)(key_table, argv[argi+1])) == NULL) {
+	if ((out = (*fn)(&pf, argv[argi+1])) == NULL) {
 		fprintf(stderr, "out of memory\n");
 		return EXIT_FAILURE;
 	}
 
 	if (show_key_table) {
-		playfair_dump(stdout, key_table);
+		playfair_dump(stdout, &pf);
 		fputc('\n', stdout);
 	}
 

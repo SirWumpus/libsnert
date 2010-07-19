@@ -81,12 +81,12 @@ OBJS = \
 	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O html$O \
 	uriIsDomainBL$O uri$O option$O time62$O timespec$O timeval$O timer$O
 
-TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E playfair$E victor$E \
-       DebugMallocTest$E playfair$Euri$E convertDate$E TextCopy$E TextTransliterate$E \
-       TextSensitiveEndsWith$E TextInsensitiveEndsWith$E TextMatch$E ProcTitle$E \
-       timer$E
+TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
+       DebugMallocTest$E md4$E md5$E htmlstrip$E TextCopy$E TextMatch$E \
+       TextTransliterate$E TextSensitiveEndsWith$E TextInsensitiveEndsWith$E \
+       ProcTitle$E timer$E
 
-CLI = b64$E convertDate$E md4$E md5$E playfair$E htmlstrip$E uri$E
+CLI = b64$E convertDate$E playfair$E uri$E victor$E
 
 .MAIN : build
 
@@ -129,7 +129,7 @@ distclean: clean
 	-rm -f makefile
 
 install: build-cli
-	-cp -p b64$E convertDate$E uri$E ${bindir}
+	-cp -p ${CLI} ${bindir}
 
 
 ${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c

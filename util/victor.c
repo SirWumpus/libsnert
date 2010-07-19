@@ -212,13 +212,13 @@ victor_init(Victor *vic)
 		ch = toupper(vic->key[i]);
 		if ((member = strchr(set, ch)) != NULL) {
 			vic->table[0][j++] = ch;
-			*member = ' ';
+			*member = 0x7F;
 		}
 	}
 
 	/* Copy remaining unused alphabet to table. */
 	for (i = 0; i < sizeof (alphabet)-1; i++) {
-		if (set[i] != ' ')
+		if (set[i] != 0x7F)
 			vic->table[0][j++] = set[i];
 	}
 	vic->table[0][j] = '\0';
