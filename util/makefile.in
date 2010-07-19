@@ -69,7 +69,7 @@ $O$E :
 #######################################################################
 
 OBJS = \
-	md4$O md5$O b64$O playfair$O victor$O convertDate$O \
+	ixhash$O md4$O md5$O b64$O playfair$O victor$O convertDate$O \
 	BigInt$O JavaTime$O getopt$O Memory$O Rotate$O Buf$O \
 	TextBackslash$O TextEscape$O TextInputLine$O TextReadLine$O TextCopy$O \
 	TextCat$O TextDup$O TextDupN$O TokenCount$O TokenNext$O TokenSplitA$O TokenSplit$O TokenQuote$O \
@@ -82,7 +82,7 @@ OBJS = \
 	uriIsDomainBL$O uri$O option$O time62$O timespec$O timeval$O timer$O
 
 TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
-       DebugMallocTest$E md4$E md5$E htmlstrip$E TextCopy$E TextMatch$E \
+       DebugMallocTest$E ixhash$E md4$E md5$E htmlstrip$E TextCopy$E TextMatch$E \
        TextTransliterate$E TextSensitiveEndsWith$E TextInsensitiveEndsWith$E \
        ProcTitle$E timer$E
 
@@ -101,7 +101,7 @@ title :
 
 build : title $(LIB) add-lib
 
-build-cli: ${CLI}
+build-cli: title ${CLI}
 
 build-debug : title DebugMalloc$O $(LIB) add-lib
 
@@ -225,3 +225,7 @@ timer$E : timer.c
 
 htmlstrip$E : html.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)htmlstrip$E html.c $(LIBSNERT)
+
+ixhash$E : ixhash.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)ixhash$E ixhash.c $(LIBSNERT) ${LIBS_PREFIX}
+

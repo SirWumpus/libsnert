@@ -1,0 +1,21 @@
+From: "iXhash plugin test mail" <spamtrap@ixhash.net>
+Message-ID: <mEsSaGeId@sOmEwHeRe.CoM>
+To: admin@testsite.com
+Subject: iXhash plugin test mail
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+<HEAD>
+<META http-equiv=Content-Type content="text/html; charset=iso-8859-1">
+</HEAD>
+<body>
+  <font face="Verdana"><strong>This is an e-mail designed to test the iXhash plugin's functionality.</strong><br>
+  <br>
+  If you run this mail through SpamAssassin (using 'spamassassin -D IXHASH < iXhash.eml', you should see the plugin score with the list 'generic.ixhash.net'.<br>
+  This is because the hashes this mail generates ( cbdc00eaaf002aad4448b75f47a9784f and 464d43b6999bdbdf6071b8b1d3f9a525 ) are permanently listed on that list.<br>
+  Apart from that this mail is of no use.<br>
+  <br>
+
+</body>
+</html>
+

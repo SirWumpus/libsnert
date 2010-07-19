@@ -62,7 +62,6 @@ tools/echo
 tools/echod
 tools/flip
 tools/here-i-am
-tools/ixhash
 tools/kat
 tools/mailgroup
 tools/mimepart
@@ -87,6 +86,7 @@ type/mcc
 util/uri
 util/b64
 util/htmlstrip
+util/ixhash
 util/md4
 util/md5
 util/time62

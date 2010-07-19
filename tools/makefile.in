@@ -70,7 +70,7 @@ $O$E :
 ORIGINAL	= ansi$E flip$E popin$E uue$E show$E range$E sqlargs$E \
 		  counter$E  mimepart$E clamstream$E
 MEH_TOOLS	= sendform$E nph-download.cgi here-i-am$E where-are-you$E \
-		  ixhash$E ziplist$E rarlist$E taglengths$E rsleep$E
+		  ziplist$E rarlist$E taglengths$E rsleep$E
 MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E echod$E
 DAEMONS 	= filed zoned
 UNIX 		= mailgroup socketsink$E
@@ -162,9 +162,6 @@ cmp$E : cmp.c
 
 echo$E : echo.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)echo$E echo.c $(LIBSNERT) ${LIBS_PREFIX}
-
-ixhash$E : ixhash.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)ixhash$E ixhash.c $(LIBSNERT) ${LIBS_PREFIX}
 
 range$E : range.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)range$E range.c ${LIBS_PREFIX}

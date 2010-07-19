@@ -188,6 +188,8 @@ com/snert/src/lib/util/escape.c
 com/snert/src/lib/util/getopt.c
 com/snert/src/lib/util/html.c
 com/snert/src/lib/util/makefile.in
+com/snert/src/lib/util/ixhash.c
+com/snert/src/lib/util/ixhash.eml
 com/snert/src/lib/util/md4.c
 com/snert/src/lib/util/md5.c
 com/snert/src/lib/util/playfair.c
@@ -275,6 +277,7 @@ com/snert/src/lib/include/util/bs.h
 com/snert/src/lib/include/util/convertDate.h
 com/snert/src/lib/include/util/getopt.h
 com/snert/src/lib/include/util/html.h
+com/snert/src/lib/include/util/ixhash.h
 com/snert/src/lib/include/util/md4.h
 com/snert/src/lib/include/util/md5.h
 com/snert/src/lib/include/util/playfair.h
@@ -333,8 +336,6 @@ com/snert/src/lib/tools/time2date.c
 com/snert/src/lib/tools/uue.c
 com/snert/src/lib/tools/where-are-you.c
 com/snert/src/lib/tools/zoned.c
-com/snert/src/lib/tools/ixhash.c
-com/snert/src/lib/tools/ixhash.sh
 com/snert/src/lib/tools/ziplist.c
 com/snert/src/lib/tools/ZipFormat-6.3.2.txt
 com/snert/src/lib/tools/RAR-3.80.txt
