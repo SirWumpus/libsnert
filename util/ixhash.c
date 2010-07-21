@@ -93,7 +93,7 @@ ixhash_hash1(md5_state_t *md5, const unsigned char *body, size_t size)
 		 * original procmail script was feed messages with LF
 		 * newlines, not the original SMTP data that use CRLF.
 		 */
-		if (prev == '\r' && ch == '\n')
+		if (ch == '\r' && 0 < size && body[1] == '\n')
 			continue;
 		if (isspace(ch) && prev == ch)
 			continue;
@@ -259,6 +259,13 @@ ixhash_file(FILE *fp)
 		md5_init(&hash1);
 		md5_init(&hash2);
 		md5_init(&hash3);
+
+		printf(
+			"lf=%lu ws=%lu html-chars=%lu\n",
+			(unsigned long) ixhash_count_lf(body, size),
+			(unsigned long) ixhash_count_space_tab(body, size),
+			(unsigned long) ixhash_count_delims_or_abs_url(body, size)
+		);
 
 		do {
 			ixhash_hash1(&hash1, body, size);
