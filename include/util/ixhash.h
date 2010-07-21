@@ -14,11 +14,27 @@
 extern "C" {
 #endif
 
+#include <com/snert/lib/util/md5.h>
+
 /***********************************************************************
  ***
  ***********************************************************************/
 
 typedef void (*ixhash_fn)(md5_state_t *, const unsigned char *, size_t);
+
+/**
+ * @param body
+ *	A pointer to the initial body chunk of a mail message.
+ *
+ * @param size
+ *	The length of the initial body chunk.
+ *
+ * @return
+ *	Number of occurences.
+ */
+extern size_t ixhash_count_lf(const unsigned char *body, size_t size);
+extern size_t ixhash_count_space_tab(const unsigned char *body, size_t size);
+extern size_t ixhash_count_delims_or_abs_url(const unsigned char *body, size_t size);
 
 /**
  * @param body

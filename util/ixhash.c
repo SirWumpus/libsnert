@@ -21,12 +21,12 @@
 static const char abs_url[] = ":/";
 static const char special_glyphs[] = "<>()|@*'!?,";
 
-static unsigned
-count_newlines(const unsigned char *body, size_t size, unsigned min)
+size_t
+ixhash_count_lf(const unsigned char *body, size_t size)
 {
-	unsigned count;
+	size_t count;
 
-	for (count = 0; 0 < size && count < min; size--, body++) {
+	for (count = 0; 0 < size; size--, body++) {
 		if (*body == '\n')
 			count++;
 	}
@@ -34,12 +34,12 @@ count_newlines(const unsigned char *body, size_t size, unsigned min)
 	return count;
 }
 
-static unsigned
-count_horizontal_whitespace(const unsigned char *body, size_t size, unsigned min)
+size_t
+ixhash_count_space_tab(const unsigned char *body, size_t size)
 {
-	unsigned count;
+	size_t count;
 
-	for (count = 0; 0 < size && count < min; size--, body++) {
+	for (count = 0; 0 < size; size--, body++) {
 		if (*body == ' ' || *body == '\t')
 			count++;
 	}
@@ -47,12 +47,12 @@ count_horizontal_whitespace(const unsigned char *body, size_t size, unsigned min
 	return count;
 }
 
-static unsigned
-count_delims_or_abs_url(const unsigned char *body, size_t size, int min)
+size_t
+ixhash_count_delims_or_abs_url(const unsigned char *body, size_t size)
 {
-	unsigned count;
+	size_t count;
 
-	for (count = 0; 0 < size && count < min; size--, body++) {
+	for (count = 0; 0 < size; size--, body++) {
 		if ((*body == ':' && 0 < size && body[1] == '/'))
 			count++;
 		else if (strchr(special_glyphs, *body) != NULL)
@@ -69,7 +69,7 @@ count_delims_or_abs_url(const unsigned char *body, size_t size, int min)
 int
 ixhash_condition1(const unsigned char *body, size_t size)
 {
-	return 2 <= count_newlines(body, size, 2) && 20 <= count_horizontal_whitespace(body, size, 20);
+	return 2 <= ixhash_count_lf(body, size) && 20 <= ixhash_count_space_tab(body, size);
 }
 
 /*
@@ -118,7 +118,7 @@ ixhash_hash1(md5_state_t *md5, const unsigned char *body, size_t size)
 int
 ixhash_condition2(const unsigned char *body, size_t size)
 {
-	return 3 <= count_delims_or_abs_url(body, size, 3);
+	return 3 <= ixhash_count_delims_or_abs_url(body, size);
 }
 
 /*
