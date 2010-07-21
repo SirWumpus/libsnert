@@ -59,6 +59,9 @@ Option *smdbOptTable[] = {
 smdb *smdbAccess;
 smdb *smdbVuser;
 
+static const char log_lookup[] = "map=\"%s\" key=%lu:\"%s\" value=\"%s\"";
+static const char log_found[] = "found map=\"%s\" key=%lu:\"%s\" value=\"%s\"";
+
 /***********************************************************************
  *** Internal API for single and double key lookups.
  ***********************************************************************/
@@ -305,11 +308,13 @@ singleKey(smdb *sm, char **keyp, char **valuep, const char *tag1, const char *ke
 		memset(&v, 0, sizeof (v));
 
 		rc = (smdb_result) sm->fetch(sm, &k, &v);
-		if (0 < smdbOptDebug.value)
-			syslog(LOG_DEBUG, "map=\"%s\" key=%lu:\"%s\" value=\"%s\"", sm->_table, k.size, k.data, TextEmpty((char *) v.data));
+		if (1 < smdbOptDebug.value)
+			syslog(LOG_DEBUG, log_lookup, sm->_table, k.size, k.data, TextEmpty((char *) v.data));
 		if (rc == SMDB_ERROR)
 			break;
 		if (rc == SMDB_OK) {
+			if (0 < smdbOptDebug.value)
+				syslog(LOG_DEBUG, log_found, sm->_table, k.size, k.data, TextEmpty((char *) v.data));
 			if (keyp != NULL)
 				*keyp = strdup((char *) k.data);
 			*valuep = (char *) v.data;
@@ -517,7 +522,7 @@ smdbOpen(const char *dbfile, int rdonly)
 error1:
 	free(file);
 error0:
-	if (1 < smdbOptDebug.value)
+	if (0 < smdbOptDebug.value)
 		syslog(LOG_ERR, "smdbOpen(%s, %d) failed: %s (%d)", dbfile, rdonly, strerror(errno), errno);
 
 	return NULL;
@@ -670,15 +675,18 @@ smdbFetchValue(smdb *sm, const char *key, char **value)
 	k.data = (unsigned char *) key;
 	memset(&v, 0, sizeof (v));
 
-	if ((rc = (smdb_result) sm->fetch(sm, &k, &v)) == SMDB_OK) {
+	rc = (smdb_result) sm->fetch(sm, &k, &v);
+	if (1 < smdbOptDebug.value)
+		syslog(LOG_DEBUG, log_lookup, sm->_table, k.size, key, TextEmpty((char *) v.data));
+
+	if (rc == SMDB_OK) {
+		if (0 < smdbOptDebug.value)
+			syslog(LOG_DEBUG, log_found, sm->_table, k.size, key, TextEmpty((char *) v.data));
 		*value = (char *) v.data;
 	} else {
 		*value = NULL;
 		free(v.data);
 	}
-
-	if (0 < smdbOptDebug.value)
-		syslog(LOG_DEBUG, "map=\"%s\" key=%lu:\"%s\" value=\"%s\" rc=%d", sm->_table, k.size, key, TextEmpty(*value), rc);
 
 	return rc;
 }
