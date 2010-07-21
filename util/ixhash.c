@@ -20,6 +20,7 @@
 
 static const char abs_url[] = ":/";
 static const char special_glyphs[] = "<>()|@*'!?,";
+
 static unsigned
 count_newlines(const unsigned char *body, size_t size, unsigned min)
 {
@@ -188,15 +189,22 @@ ixhash_hash3(md5_state_t *md5, const unsigned char *body, size_t size)
  ***********************************************************************/
 
 #ifdef TEST
+#include <errno.h>
 #include <com/snert/lib/util/getopt.h>
 
 #define CHUNK_SIZE		(64 * 1024)
 
+int debug;
+int is_mail_message = 1;
+
 const char usage[] =
-"usage: ixhash [-av] < message\n"
+"usage: ixhash [-av] file ...\n"
 "\n"
-"-a\t\thash the whole file (otherwise assume mail message body only)\n"
+"-a\t\thash the whole file (otherwise mail message body only)\n"
 "-v\t\tverbose debug output\n"
+"\n"
+"A file argument can be hyphen (-) to indicate reading from standard\n"
+"input.\n"
 "\n"
 "Copyright 2007, 2010 by Anthony Howe. All rights reserved.\n"
 ;
@@ -204,63 +212,33 @@ const char usage[] =
 static const char hex_digit[] = "0123456789abcdef";
 
 static void
-digestToString(unsigned char digest[16], char digest_string[33])
-{
-	int i;
-
-	for (i = 0; i < 16; i++) {
-		digest_string[i << 1] = hex_digit[(digest[i] >> 4) & 0x0F];
-		digest_string[(i << 1) + 1] = hex_digit[digest[i] & 0x0F];
-	}
-	digest_string[32] = '\0';
-}
-
-static void
 print_result(md5_state_t *md5)
 {
 	unsigned char digest[16], digest_string[33];
 
 	md5_finish(md5, (md5_byte_t *) digest);
-	digestToString(digest, digest_string);
+	md5_digest_to_string(digest, digest_string);
 	fputs(digest_string, stdout);
 	fputc('\n', stdout);
 }
 
-int
-main(int argc, char **argv)
+static void
+ixhash_file(FILE *fp)
 {
 	ssize_t size;
 	ixhash_fn filter;
-	int ch, is_mail_message, debug;
 	md5_state_t hash1, hash2, hash3;
 	unsigned char chunk[CHUNK_SIZE], *body;
 
-	debug = 0;
-	is_mail_message = 1;
-
-	while ((ch = getopt(argc, argv, "av")) != -1) {
-		switch (ch) {
-		case 'a':
-			is_mail_message = 0;
-			break;
-		case 'v':
-			debug++;
-			break;
-		default:
-			(void) fprintf(stderr, usage);
-			exit(EXIT_FAILURE);
-		}
-	}
-
-	if ((size = fread(chunk, 1, sizeof (chunk), stdin)) <= 0) {
-		fprintf(stderr, feof(stdin) ? "premature EOF\n" : "read error\n");
+	if ((size = fread(chunk, 1, sizeof (chunk), fp)) <= 0) {
+		fprintf(stderr, feof(fp) ? "premature EOF\n" : "read error\n");
 		exit(EXIT_FAILURE);
 	}
 
 	body = chunk;
 
 	if (is_mail_message) {
-		ch = chunk[size];
+		int ch = chunk[size];
 		chunk[sizeof (chunk)-1] = '\0';
 
 		/* Find end of headers. */
@@ -286,7 +264,7 @@ main(int argc, char **argv)
 			ixhash_hash1(&hash1, body, size);
 			ixhash_hash2(&hash2, body, size);
 			ixhash_hash3(&hash3, body, size);
-			size = fread(chunk, 1, sizeof (chunk), stdin);
+			size = fread(chunk, 1, sizeof (chunk), fp);
 			body = chunk;
 		} while (0 < size);
 
@@ -301,17 +279,54 @@ main(int argc, char **argv)
 		else if (ixhash_condition3(body, size))
 			filter = ixhash_hash3;
 		else
-			return EXIT_FAILURE;
+			exit(EXIT_FAILURE);
 
 		md5_init(&hash1);
 
 		do {
 			(*filter)(&hash1, body, size);
-			size = fread(chunk, 1, sizeof (chunk), stdin);
+			size = fread(chunk, 1, sizeof (chunk), fp);
 			body = chunk;
 		} while (0 < size);
 
 		print_result(&hash1);
+	}
+}
+
+int
+main(int argc, char **argv)
+{
+	int ch;
+	FILE *fp;
+
+	while ((ch = getopt(argc, argv, "av")) != -1) {
+		switch (ch) {
+		case 'a':
+			is_mail_message = 0;
+			break;
+		case 'v':
+			debug++;
+			break;
+		default:
+			(void) fprintf(stderr, usage);
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	if (argc <= optind) {
+		(void) fprintf(stderr, usage);
+		exit(EXIT_FAILURE);
+	}
+
+	for ( ; optind < argc; optind++) {
+		if (argv[optind][0] == '-' && argv[optind][1] == '\0') {
+			ixhash_file(stdin);
+		} else if ((fp = fopen(argv[optind], "r")) == NULL) {
+			fprintf(stderr, "%s: %s (%d)\n", argv[optind], strerror(errno), errno);
+		} else {
+			ixhash_file(fp);
+			fclose(fp);
+		}
 	}
 
 	return EXIT_SUCCESS;
