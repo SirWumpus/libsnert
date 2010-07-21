@@ -906,7 +906,8 @@ Mail *message;
 SMTP2 *session;
 char *mail_from;
 char *smart_host;
-unsigned command_to = SMTP_COMMAND_TO;
+unsigned connect_to = SMTP_WELCOME_TO*1000;
+unsigned command_to = SMTP_COMMAND_TO*1000;
 char text[SMTP_TEXT_LINE_LENGTH+1];
 char headers[SMTP_MAX_SIZEOF_HEADERS];
 
@@ -1090,12 +1091,12 @@ main(int argc, char **argv)
 
 	if (smart_host == NULL) {
 		sendMessage(
-			message = mailOpen(SMTP_CONNECT_TO, command_to, flags), &mail_cmds,
+			message = mailOpen(connect_to, command_to, flags), &mail_cmds,
 			mail_from, argc-optind+1, argv+optind-1
 		);
 	} else {
 		sendMessage(
-			session = smtp2Open(smart_host, SMTP_CONNECT_TO, command_to, flags), &smtp2_cmds,
+			session = smtp2Open(smart_host, connect_to, command_to, flags), &smtp2_cmds,
 			mail_from, argc-optind+1, argv+optind-1
 		);
 	}

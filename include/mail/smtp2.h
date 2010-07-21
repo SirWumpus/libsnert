@@ -107,14 +107,6 @@ typedef enum {
 #define SMTP_ISS_PERM(x)		(*(x) == '5')
 #define SMTP_ISS_VALID(x)		(strchr("2345", *(x)) != NULL)
 
-#ifndef SMTP_CONNECT_TO
-#define SMTP_CONNECT_TO			30000
-#endif
-
-#ifndef SMTP_COMMAND_TO
-#define SMTP_COMMAND_TO			300000
-#endif
-
 /***********************************************************************
  *** SMTP Protocol API (multiple recipients, same destination)
  ***********************************************************************/
