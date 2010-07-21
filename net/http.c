@@ -523,19 +523,6 @@ response_body(HttpResponse *response, unsigned char *input, size_t length)
 	return HTTP_CONTINUE;
 }
 
-static void
-digestToString(unsigned char digest[16], char digest_string[33])
-{
-	int i;
-	static const char hex_digit[] = "0123456789abcdef";
-
-	for (i = 0; i < 16; i++) {
-		digest_string[i << 1] = hex_digit[(digest[i] >> 4) & 0x0F];
-		digest_string[(i << 1) + 1] = hex_digit[digest[i] & 0x0F];
-	}
-	digest_string[32] = '\0';
-}
-
 void
 get_url_md5(const char *url)
 {
@@ -557,7 +544,7 @@ get_url_md5(const char *url)
 	}
 
 	md5_finish(&md5, digest);
-	digestToString(digest, digest_string);
+	md5_digest_to_string(digest, digest_string);
 	printf("%s %s\n", digest_string, url);
 
 	httpResponseFree(&response);

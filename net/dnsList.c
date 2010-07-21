@@ -737,19 +737,6 @@ ns_list_break:
 	return list_name;
 }
 
-static void
-digestToString(unsigned char digest[16], char digest_string[33])
-{
-	int i;
-	static const char hex_digit[] = "0123456789abcdef";
-
-	for (i = 0; i < 16; i++) {
-		digest_string[i << 1] = hex_digit[(digest[i] >> 4) & 0x0F];
-		digest_string[(i << 1) + 1] = hex_digit[digest[i] & 0x0F];
-	}
-	digest_string[32] = '\0';
-}
-
 /**
  * @param dns_list
  *	A pointer to a DnsList.
@@ -781,7 +768,7 @@ dnsListQueryMD5(DnsList *dns_list, PDQ *pdq, Vector already_seen, const char *st
 	md5_init(&md5);
 	md5_append(&md5, (md5_byte_t *) string, strlen(string));
 	md5_finish(&md5, (md5_byte_t *) digest);
-	digestToString(digest, digest_string);
+	md5_digest_to_string(digest, digest_string);
 
 	list_name = dnsListQueryString(dns_list, pdq, already_seen, digest_string);
 	if (list_name != NULL && 0 < debug)
