@@ -958,9 +958,9 @@ serverAccept(void *_server)
 						queueEnqueue(&server->sessions_queued, &session->node);
 
 						/* Do we have too few threads? */
-						(void) pthread_mutex_lock(&server->workers.mutex);
+						PTHREAD_MUTEX_LOCK(&server->workers.mutex);
 						active = server->workers_active;
-						(void) pthread_mutex_unlock(&server->workers.mutex);
+						PTHREAD_MUTEX_UNLOCK(&server->workers.mutex);
 						queued = queueLength(&server->sessions_queued);
 						threads = queueLength(&server->workers);
 						idle = threads - active;
