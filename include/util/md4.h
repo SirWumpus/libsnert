@@ -47,6 +47,9 @@ typedef struct {
 	uint8_t buffer[64];	/* input buffer */
 } md4_state_t;
 
+/* Convert a 128 bit digest to 32 digit hexadecimal string. */
+extern void md4_digest_to_string(unsigned char digest[16], char digest_string[33]);
+
 extern void md4_init(md4_state_t *state);
 
 extern void md4_append(md4_state_t *state, uint8_t *buffer, unsigned length);

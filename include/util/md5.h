@@ -75,6 +75,9 @@ extern "C"
 {
 #endif
 
+/* Convert a 128 bit digest to 32 digit hexadecimal string. */
+extern void md5_digest_to_string(unsigned char digest[16], char digest_string[33]);
+
 /* Initialize the algorithm. */
 extern void md5_init(md5_state_t *pms);
 

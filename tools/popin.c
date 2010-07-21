@@ -365,19 +365,6 @@ forEachArg(Socket2 *pop, int argc, char **argv, int start, int (*function)(Socke
 	return 0;
 }
 
-static void
-digestToString(unsigned char digest[16], char digest_string[33])
-{
-	int i;
-	static const char hex_digit[] = "0123456789abcdef";
-
-	for (i = 0; i < 16; i++) {
-		digest_string[i << 1] = hex_digit[(digest[i] >> 4) & 0x0F];
-		digest_string[(i << 1) + 1] = hex_digit[digest[i] & 0x0F];
-	}
-	digest_string[32] = '\0';
-}
-
 int
 main(int argc, char **argv)
 {
@@ -526,7 +513,7 @@ main(int argc, char **argv)
 		md5_finish(&md5, (md5_byte_t *) digest);
 
 		snprintf(line, sizeof (line), "APOP %s %n___32 ASCII hex digits of MD5___\r\n", argv[argi], &offset);
-		digestToString(digest, line+offset);
+		md5_digest_to_string(digest, line+offset);
 		line[offset+32] = '\r';
 		printline(pop, line);
 		if (getPopResponse(pop, line, sizeof (line))) {

@@ -80,6 +80,19 @@ static uint8_t PADDING[64] = {
     (a) = ROTATE_LEFT ((a), (s)); \
   }
 
+void
+md4_digest_to_string(unsigned char digest[16], char digest_string[33])
+{
+	int i;
+	static const char hex_digit[] = "0123456789abcdef";
+
+	for (i = 0; i < 16; i++) {
+		digest_string[i << 1] = hex_digit[(digest[i] >> 4) & 0x0F];
+		digest_string[(i << 1) + 1] = hex_digit[digest[i] & 0x0F];
+	}
+	digest_string[32] = '\0';
+}
+
 /* MD4 initialization. Begins an MD4 operation, writing a new context.
  */
 void
