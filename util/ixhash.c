@@ -225,21 +225,18 @@ print_result(md5_state_t *md5)
 static void
 ixhash_file(FILE *fp)
 {
-	ssize_t size;
+	size_t size;
 	ixhash_fn filter;
 	md5_state_t hash1, hash2, hash3;
 	unsigned char chunk[CHUNK_SIZE], *body;
 
-	if ((size = fread(chunk, 1, sizeof (chunk), fp)) <= 0) {
-		fprintf(stderr, feof(fp) ? "premature EOF\n" : "read error\n");
-		exit(EXIT_FAILURE);
-	}
-
 	body = chunk;
+	if ((size = fread(chunk, 1, sizeof (chunk)-1, fp)) == 0)
+		return;
 
 	if (is_mail_message) {
 		int ch = chunk[size];
-		chunk[sizeof (chunk)-1] = '\0';
+		chunk[size] = '\0';
 
 		/* Find end of headers. */
 		if ((body = strstr(chunk, "\n\n")) != NULL) {
@@ -286,7 +283,7 @@ ixhash_file(FILE *fp)
 		else if (ixhash_condition3(body, size))
 			filter = ixhash_hash3;
 		else
-			exit(EXIT_FAILURE);
+			return;
 
 		md5_init(&hash1);
 
