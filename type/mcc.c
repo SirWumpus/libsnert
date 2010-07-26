@@ -628,6 +628,7 @@ mccDeleteKey(mcc_handle *mcc, const unsigned char *key, unsigned length)
 	if (sqlite3_bind_text(mcc->remove, 1, (const char *) key, length, SQLITE_STATIC) == SQLITE_OK) {
 		if (mccSqlStep(mcc, mcc->remove, MCC_SQL_DELETE) == SQLITE_DONE)
 			rc = MCC_OK;
+		(void) sqlite3_clear_bindings(mcc->remove);
 	}
 
 	PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
@@ -700,22 +701,24 @@ mccPutRowLocal(mcc_handle *mcc, mcc_row *row, int touch)
 		goto error1;
 
 	if (sqlite3_bind_text(mcc->replace, 2, (const char *) row->value_data, row->value_size, SQLITE_TRANSIENT) != SQLITE_OK)
-		goto error1;
+		goto error2;
 
 	if (sqlite3_bind_int(mcc->replace, 3, (int) row->hits) != SQLITE_OK)
-		goto error1;
+		goto error2;
 
 	if (sqlite3_bind_int(mcc->replace, 4, (int) row->created) != SQLITE_OK)
-		goto error1;
+		goto error2;
 
 	if (sqlite3_bind_int(mcc->replace, 5, (int) row->touched) != SQLITE_OK)
-		goto error1;
+		goto error2;
 
 	if (sqlite3_bind_int(mcc->replace, 6, (int) row->expires) != SQLITE_OK)
-		goto error1;
+		goto error2;
 
 	if (mccSqlStep(mcc, mcc->replace, MCC_SQL_REPLACE) == SQLITE_DONE)
 		rc = MCC_OK;
+error2:
+	(void) sqlite3_clear_bindings(mcc->replace);
 error1:
 	PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
 error0:
@@ -1278,6 +1281,7 @@ mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *r
 		 */
 		(void) sqlite3_reset(mcc->select_one);
 	}
+	(void) sqlite3_clear_bindings(mcc->select_one);
 error1:
 	PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
 error0:
@@ -1339,9 +1343,9 @@ mccExpireRows(mcc_handle *mcc, time_t *when)
 
 	if (sqlite3_bind_int(mcc->expire, 1, (int)(uint32_t) *when) != SQLITE_OK)
 		goto error1;
-
 	if (mccSqlStep(mcc, mcc->expire, MCC_SQL_EXPIRE) == SQLITE_DONE)
 		rc = MCC_OK;
+	(void) sqlite3_clear_bindings(mcc->expire);
 
 	(void) mccSqlStep(mcc, mcc->commit, MCC_SQL_COMMIT);
 error1:
