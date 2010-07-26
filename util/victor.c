@@ -14,7 +14,7 @@
 #include <string.h>
 
 #if !defined(ALPHABET)
-# define ALPHABET		"ABCDEFGHIJKLMNOPQRSTUVWXYZ.0123456789"
+# define ALPHABET		"ABCDEFGHIJKLMNOPQRSTUVWXYZ/0123456789"
 #endif
 
 /*
@@ -147,9 +147,9 @@ victor_chain_add(const char *seed_number, char *buffer, size_t size)
 	*ep = '\0';
 
 	if (debug) {
-		printf("seed=%s\n", seed_number);
-		victor_dump_chain(stdout, buffer);
-		fputc('\n', stdout);
+		fprintf(stderr, "seed=%s\n", seed_number);
+		victor_dump_chain(stderr, buffer);
+		fputc('\n', stderr);
 	}
 
 	return 0;
@@ -172,7 +172,7 @@ victor_digit_order(const char source[10], char out[11])
 	out[10] = '\0';
 
 	if (debug)
-		printf("%s\n\n", out);
+		fprintf(stderr, "%s\n\n", out);
 }
 
 int
@@ -279,8 +279,10 @@ victor_char_to_code(char table[3][38], const char *message, char *out)
 	*op = '\0';
 
 	if (debug) {
-		victor_dump_table(stdout, table);
-		printf("\n\"%s\"\n%s\n\n", message, out);
+		victor_dump_table(stderr, table);
+		fputc('\n', stdout);
+		victor_dump_alphabet(stderr, table);
+		fprintf(stderr, "\n\"%s\"\n%s\n\n", message, out);
 	}
 }
 
@@ -298,8 +300,8 @@ victor_mask_code(const char *key_mask, char *out)
 	}
 
 	if (debug) {
-		printf("%s\n", out);
-		fputc('\n', stdout);
+		fprintf(stderr, "%s\n", out);
+		fputc('\n', stderr);
 	}
 }
 
@@ -352,8 +354,8 @@ victor_decode(Victor *vic, const char *message)
 		*out = (10 - *out + '0') % 10 + '0';
 
 	if (debug) {
-		victor_dump_chain(stdout, vic->chain);
-		fputc('\n', stdout);
+		victor_dump_chain(stderr, vic->chain);
+		fputc('\n', stderr);
 	}
 
 	out = victor_encode(vic, message);
@@ -429,7 +431,7 @@ main(int argc, char **argv)
 	}
 
 	if (show_key_table) {
-		victor_dump_alphabet(stdout, vic.table);
+		victor_dump_table(stdout, vic.table);
 		fputc('\n', stdout);
 	}
 
