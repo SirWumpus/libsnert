@@ -34,6 +34,10 @@
 # endif
 #endif
 
+#if !defined(ALPHABET64)
+# define ALPHABET64		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+#endif
+
 typedef char *(*playfair_fn)(Playfair *, const char *);
 
 void
@@ -49,7 +53,11 @@ playfair_dump(FILE *fp, Playfair *pf)
 {
 	int row, col, order;
 
-	order = strlen(pf->table) == 25 ? 5 : 6;
+	switch (strlen(pf->table)) {
+	case 25: order = 5; break;
+	case 36: order = 6; break;
+	case 64: order = 8; break;
+	}
 
 	for (row = 0; row < order; row++) {
 		for (col = 0; col < order; col++) {
@@ -64,7 +72,7 @@ playfair_init(Playfair *pf, const char *alphabet, const char *key)
 {
 	int i, ch, map[2];
 	size_t set_length;
-	char set[sizeof (ALPHABET36)], *member, *key_table;
+	char set[sizeof (ALPHABET64)], *member, *key_table;
 
 	if (key == NULL)
 		key = "";
@@ -72,14 +80,16 @@ playfair_init(Playfair *pf, const char *alphabet, const char *key)
 		return 1;
 
 	set_length = strlen(alphabet);
-	if (set_length != 25 && set_length != 36)
+	if (set_length != 25 && set_length != 36 && set_length != 64)
 		return 1;
 
 	/* Copy the alphabet. */
 	for (i = 0; i < set_length; i++) {
-		if (alphabet[i] == '\0')
+		ch = alphabet[i];
+		if (ch == '\0')
 			return 1;
-		ch = toupper(alphabet[i]);
+		if (set_length != 64)
+			ch = toupper(ch);
 		if (strchr(set, ch) != NULL)
 			return 2;
 		set[i] = ch;
@@ -103,7 +113,9 @@ playfair_init(Playfair *pf, const char *alphabet, const char *key)
 	 */
 	key_table = pf->table;
 	for (i = 0; i < set_length && *key != '\0'; key++) {
-		ch = toupper(*key);
+		ch = *key;
+		if (set_length != 64)
+			ch = toupper(ch);
 
 		if (set_length == 25 && ch == map[0])
 			ch = map[1];
@@ -124,6 +136,26 @@ playfair_init(Playfair *pf, const char *alphabet, const char *key)
 	return 0;
 }
 
+static int
+playfair_is_alphabet(int order, int ch)
+{
+	switch (order) {
+	case 8:
+		if (ch == '+' || ch == '/')
+			return 1;
+		/*@fallthrough@*/
+	case 6:
+		if (isdigit(ch))
+			return 1;
+		/*@fallthrough@*/
+	case 5:
+		if (isalpha(ch))
+			return 1;
+	}
+
+	return 0;
+}
+
 char *
 playfair_encode(Playfair *pf, const char *message)
 {
@@ -135,7 +167,11 @@ playfair_encode(Playfair *pf, const char *message)
 	if (pf == NULL || message == NULL)
 		return NULL;
 
-	order = strlen(pf->table) == 25 ? 5 : 6;
+	switch (strlen(pf->table)) {
+	case 25: order = 5; break;
+	case 36: order = 6; break;
+	case 64: order = 8; break;
+	}
 
 	if (order == 5) {
 		if (strchr(pf->table, 'I') == NULL && strchr(pf->table, 'J') != NULL) {
@@ -158,31 +194,25 @@ playfair_encode(Playfair *pf, const char *message)
 	op = out;
 	while (*message != '\0') {
 		m1 = *message++;
-		m1 = toupper(m1);
+		if (order != 8)
+			m1 = toupper(m1);
 
 		/* Ignore punctuation and spacing. */
-		if (order == 5) {
-			if (!isalpha(m1))
-				continue;
-		} else {
-			if (!isalnum(m1))
-				continue;
-		}
+		if (!playfair_is_alphabet(order, m1))
+			continue;
 
 		if (order == 5 && m1 == map[0])
 			m1 = map[1];
 
 		/* Ignore punctuation and spacing. */
-		if (order == 5) {
-			while (*message != '\0' && !isalpha(*message))
-				message++;
-		} else {
-			while (*message != '\0' && !isalnum(*message))
-				message++;
+		for ( ; *message != '\0'; message++) {
+			if (playfair_is_alphabet(order, *message))
+				break;
 		}
 
 		m2 = *message++;
-		m2 = toupper(m2);
+		if (order != 8)
+			m2 = toupper(m2);
 		if (order == 5 && m2 == map[0])
 			m2 = map[1];
 
@@ -240,7 +270,11 @@ playfair_decode(Playfair *pf, const char *message)
 	if (pf == NULL || message == NULL)
 		return NULL;
 
-	order = strlen(pf->table) == 25 ? 5 : 6;
+	switch (strlen(pf->table)) {
+	case 25: order = 5; break;
+	case 36: order = 6; break;
+	case 64: order = 8; break;
+	}
 
 	length = strlen(message);
 	if ((out = malloc(length+1)) == NULL)
@@ -249,28 +283,22 @@ playfair_decode(Playfair *pf, const char *message)
 	op = out;
 	while (*message != '\0') {
 		m1 = *message++;
-		m1 = toupper(m1);
+		if (order != 8)
+			m1 = toupper(m1);
 
 		/* Ignore punctuation and spacing. */
-		if (order == 5) {
-			if (!isalpha(m1))
-				continue;
-		} else {
-			if (!isalnum(m1))
-				continue;
-		}
+		if (!playfair_is_alphabet(order, m1))
+			continue;
 
 		/* Ignore punctuation and spacing. */
-		if (order == 5) {
-			while (*message != '\0' && !isalpha(*message))
-				message++;
-		} else {
-			while (*message != '\0' && !isalnum(*message))
-				message++;
+		for ( ; *message != '\0'; message++) {
+			if (playfair_is_alphabet(order, *message))
+				break;
 		}
 
 		m2 = *message++;
-		m2 = toupper(m2);
+		if (order != 8)
+			m2 = toupper(m2);
 
 		span1 = strchr(pf->table, m1) - pf->table;
 		span2 = strchr(pf->table, m2) - pf->table;
@@ -312,10 +340,11 @@ playfair_decode(Playfair *pf, const char *message)
 
 #ifdef TEST
 static char usage[] =
-"usage: playfair [-56dk][-a set] key message\n"
+"usage: playfair [-568dk][-a set] key message\n"
 "\n"
 "-5\t\tclassic playfair 25 character alphabet, where I=J (default)\n"
 "-6\t\tmodified playfair 36 character alphabet and digits\n"
+"-8\t\tmodified playfair 64 character alphabet (Base64 set)\n"
 "-a set\t\tset alphabet order\n"
 "-d\t\tdecode message\n"
 "-k\t\tdump key table\n"
@@ -345,6 +374,9 @@ main(int argc, char **argv)
 			break;
 		case '6':
 			alphabet = ALPHABET36;
+			break;
+		case '8':
+			alphabet = ALPHABET64;
 			break;
 		case 'd':
 			fn = playfair_decode;
