@@ -293,8 +293,8 @@ extern void networkGetMyDetails(char host[DOMAIN_STRING_LENGTH], char ip[IPV6_ST
 
 extern unsigned short networkGetShort(unsigned char *p);
 extern unsigned long networkGetLong(unsigned char *p);
-extern void networkSetShort(unsigned char *p, unsigned short n);
-extern void networkSetLong(unsigned char *p, unsigned long n);
+extern size_t networkSetShort(unsigned char *p, unsigned short n);
+extern size_t networkSetLong(unsigned char *p, unsigned long n);
 
 /**
  * @param ip

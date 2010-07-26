@@ -1,5 +1,5 @@
 org/sqlite/makefile
-org/sqlite/sqlite-amalgamation-3.6.23.tar.gz
+org/sqlite/sqlite-amalgamation-3.7.0.tar.gz
 com/snert/lib/Log.pm
 com/snert/src/tools
 com/snert/include/com/snert/lib
@@ -301,6 +301,7 @@ com/snert/src/lib/tools/comm.c
 com/snert/src/lib/tools/connect_test.c
 com/snert/src/lib/tools/counter.c
 com/snert/src/lib/tools/counter.shtml
+com/snert/src/lib/tools/dnsd.c
 com/snert/src/lib/tools/echo.c
 com/snert/src/lib/tools/echod.c
 com/snert/src/lib/tools/filed.c

@@ -68,7 +68,7 @@ $O$E :
 #######################################################################
 
 ORIGINAL	= ansi$E flip$E popin$E uue$E show$E range$E sqlargs$E \
-		  counter$E  mimepart$E clamstream$E
+		  counter$E  mimepart$E clamstream$E dnsd$E
 MEH_TOOLS	= sendform$E nph-download.cgi here-i-am$E where-are-you$E \
 		  ziplist$E rarlist$E taglengths$E rsleep$E
 MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E echod$E
@@ -226,3 +226,5 @@ pack-cgi:
 echod$E: ${top_srcdir}/io/socket2$O echod.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)echod$E echod.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT} ${LIB_PTHREAD}
 
+dnsd$E: ${top_srcdir}/io/socket2$O dnsd.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)dnsd$E dnsd.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT} ${LIB_SQLITE3} ${LIB_PTHREAD}

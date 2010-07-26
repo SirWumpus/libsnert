@@ -63,14 +63,16 @@ networkGetLong(unsigned char *p)
 	return NET_GET_LONG(p);
 }
 
-void
+size_t
 networkSetShort(unsigned char *p, unsigned short n)
 {
 	NET_SET_SHORT(p, n);
+	return 2;
 }
 
-void
+size_t
 networkSetLong(unsigned char *p, unsigned long n)
 {
 	NET_SET_LONG(p, n);
+	return 4;
 }

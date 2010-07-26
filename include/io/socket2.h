@@ -200,6 +200,9 @@ extern int socketGetError(Socket2 *s);
  */
 extern SocketAddress *socketAddressCreate(const char *host, unsigned port);
 
+/* Similar to socketAddressCreate(), but only for IP or domain sockets. */
+extern SocketAddress *socketAddressNew(const char *host, unsigned port);
+
 /**
  * @param addr
  *	A SocketAddress pointer.
