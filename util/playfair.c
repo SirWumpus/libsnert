@@ -20,20 +20,23 @@
 #define PLAYFAIR_UNCOMMON	'X'
 #endif
 
+/* Classic Playfair alphabet where I and J are equivalent. */
 #if !defined(ALPHABET25)
 # define ALPHABET25		"ABCDEFGHIKLMNOPQRSTUVWXYZ"
 #endif
 
+/* Various alpha-numeric alphabets using different orderings. */
 #if !defined(ALPHABET36)
 # if defined(ALPHABET36_SIMPLE)
 #  define ALPHABET36		"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-# elif defined(ALPHABET36_BETTER)
-#  define ALPHABET36		"A1B2C3D4E5F6G7H8I9J0KLMNOPQRSTUVWXYZ"
 # else /* defined(ALPHABET36_SPREAD) */
 #  define ALPHABET36		"A1BC2DEF3GHI4JKL5MN6OPQ7RST8UVW9XY0Z"
 # endif
 #endif
 
+/* Playfair 64 using the Base64 character set. Note the Base64
+ * padding character, equal-sign (=), is not used.
+ */
 #if !defined(ALPHABET64)
 # define ALPHABET64		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 #endif
@@ -330,8 +333,20 @@ playfair_decode(Playfair *pf, const char *message)
 			*op++ = pf->table[pos2.quot * order + pos1.rem];
 		}
 	}
+
+	/* Discard trailing padding of the uncommon character. */
+	if (out < op && op[-1] == PLAYFAIR_UNCOMMON)
+		op--;
 	*op = '\0';
 
+	if (out < op) {
+		/* Discard uncommon character separating double letters. */
+		length = op-out;
+		for (op = out+1; *op != '\0'; op++, length--) {
+			if (*op == PLAYFAIR_UNCOMMON && op[-1] == op[1])
+				memcpy(op, op+1, --length);
+		}
+	}
 #ifndef NDEBUG
 	fputc('\n', stdout);
 #endif
@@ -340,7 +355,7 @@ playfair_decode(Playfair *pf, const char *message)
 
 #ifdef TEST
 static char usage[] =
-"usage: playfair [-568dk][-a set] key message\n"
+"usage: playfair [-568dk][-a set] key [message]\n"
 "\n"
 "-5\t\tclassic playfair 25 character alphabet, where I=J (default)\n"
 "-6\t\tmodified playfair 36 character alphabet and digits\n"
@@ -349,8 +364,13 @@ static char usage[] =
 "-d\t\tdecode message\n"
 "-k\t\tdump key table\n"
 "\n"
+"If message is omitted from the command line, then read the message\n"
+"from standard input.\n"
+"\n"
 "Copyright 2010 by Anthony Howe.  All rights reserved.\n"
 ;
+
+static char input[256];
 
 int
 main(int argc, char **argv)
@@ -393,8 +413,8 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (argc < argi + 2) {
-		fprintf(stderr, "missing key and/or message\n%s", usage);
+	if (argc < argi + 1) {
+		fprintf(stderr, "missing key\n%s", usage);
 		return EXIT_FAILURE;
 	}
 
@@ -403,18 +423,29 @@ main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	if ((out = (*fn)(&pf, argv[argi+1])) == NULL) {
-		fprintf(stderr, "out of memory\n");
-		return EXIT_FAILURE;
-	}
-
 	if (show_key_table) {
 		playfair_dump(stdout, &pf);
 		fputc('\n', stdout);
 	}
 
-	playfair_print(stdout, out);
-	free(out);
+	if (argv[argi+1] != NULL) {
+		if ((out = (*fn)(&pf, argv[argi+1])) == NULL) {
+			fprintf(stderr, "out of memory\n");
+			return EXIT_FAILURE;
+		}
+
+		playfair_print(stdout, out);
+		free(out);
+	} else {
+		while (fgets(input, sizeof (input), stdin) != NULL) {
+			if ((out = (*fn)(&pf, input)) == NULL) {
+				fprintf(stderr, "out of memory\n");
+				return EXIT_FAILURE;
+			}
+			playfair_print(stdout, out);
+			free(out);
+		}
+	}
 
 	return EXIT_SUCCESS;
 }

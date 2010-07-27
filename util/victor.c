@@ -365,17 +365,22 @@ victor_decode(Victor *vic, const char *message)
 
 #ifdef TEST
 static char usage[] =
-"usage: victor [-dkv][-f set] key number message\n"
+"usage: victor [-dkv][-f set] key number [message]\n"
 "\n"
 "-f set\t\tseven most frequent alpha-numeric\n"
 "-d\t\tdecode message\n"
 "-k\t\tdump key table\n"
 "-v\t\tverbose debug\n"
 "\n"
+"If message is omitted from the command line, then read the message\n"
+"from standard input.\n"
+"\n"
 "Copyright 2010 by Anthony Howe.  All rights reserved.\n"
 ;
 
 typedef char *(*victor_fn)(Victor *, const char *);
+
+static char input[256];
 
 int
 main(int argc, char **argv)
@@ -413,7 +418,7 @@ main(int argc, char **argv)
 	}
 
 	if (argc < argi + 2) {
-		fprintf(stderr, "missing key and/or message\n%s", usage);
+		fprintf(stderr, "missing key and/or number\n%s", usage);
 		return EXIT_FAILURE;
 	}
 
@@ -425,18 +430,29 @@ main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	if ((out = (*fn)(&vic, argv[argi+2])) == NULL) {
-		fprintf(stderr, "out of memory\n");
-		return EXIT_FAILURE;
-	}
-
 	if (show_key_table) {
 		victor_dump_table(stdout, vic.table);
 		fputc('\n', stdout);
 	}
 
-	fprintf(stdout, "%s\n", out);
-	free(out);
+	if (argv[argi+2] != NULL) {
+		if ((out = (*fn)(&vic, argv[argi+2])) == NULL) {
+			fprintf(stderr, "out of memory\n");
+			return EXIT_FAILURE;
+		}
+
+		fprintf(stdout, "%s\n", out);
+		free(out);
+	} else {
+		while (fgets(input, sizeof (input), stdin) != NULL) {
+			if ((out = (*fn)(&vic, input)) == NULL) {
+				fprintf(stderr, "out of memory\n");
+				return EXIT_FAILURE;
+			}
+			fprintf(stdout, "%s\n", out);
+			free(out);
+		}
+	}
 
 	return EXIT_SUCCESS;
 }
