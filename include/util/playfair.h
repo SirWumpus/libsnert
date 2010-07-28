@@ -19,6 +19,8 @@ extern "C" {
 
 typedef struct {
 	char table[65];
+	int opt_show_table;
+	int opt_undo_uncommon;
 } Playfair;
 
 /**

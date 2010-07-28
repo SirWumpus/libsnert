@@ -17,7 +17,7 @@
 #include <com/snert/lib/util/playfair.h>
 
 #ifndef PLAYFAIR_UNCOMMON
-#define PLAYFAIR_UNCOMMON	'X'
+#define PLAYFAIR_UNCOMMON	'Q'		/* 'X' or 'Q' */
 #endif
 
 /* Classic Playfair alphabet where I and J are equivalent. */
@@ -135,6 +135,11 @@ playfair_init(Playfair *pf, const char *alphabet, const char *key)
 			*key_table++ = set[i];
 	}
 	*key_table = '\0';
+
+	if (pf->opt_show_table) {
+		playfair_dump(stdout, pf);
+		fputc('\n', stdout);
+	}
 
 	return 0;
 }
@@ -335,11 +340,11 @@ playfair_decode(Playfair *pf, const char *message)
 	}
 
 	/* Discard trailing padding of the uncommon character. */
-	if (out < op && op[-1] == PLAYFAIR_UNCOMMON)
+	if (pf->opt_undo_uncommon && out < op && op[-1] == PLAYFAIR_UNCOMMON)
 		op--;
 	*op = '\0';
 
-	if (out < op) {
+	if (pf->opt_undo_uncommon && out < op) {
 		/* Discard uncommon character separating double letters. */
 		length = op-out;
 		for (op = out+1; *op != '\0'; op++, length--) {
@@ -355,7 +360,7 @@ playfair_decode(Playfair *pf, const char *message)
 
 #ifdef TEST
 static char usage[] =
-"usage: playfair [-568dk][-a set] key [message]\n"
+"usage: playfair [-568dku][-a set] key [message]\n"
 "\n"
 "-5\t\tclassic playfair 25 character alphabet, where I=J (default)\n"
 "-6\t\tmodified playfair 36 character alphabet and digits\n"
@@ -363,6 +368,8 @@ static char usage[] =
 "-a set\t\tset alphabet order\n"
 "-d\t\tdecode message\n"
 "-k\t\tdump key table\n"
+"-u\t\twhen decoding remove uncommon padding between double letters;\n"
+"\t\tthe default is to leave them and let the user do this manually\n"
 "\n"
 "If message is omitted from the command line, then read the message\n"
 "from standard input.\n"
@@ -375,12 +382,13 @@ static char input[256];
 int
 main(int argc, char **argv)
 {
+	int argi;
 	Playfair pf;
 	playfair_fn fn;
 	char *out, *alphabet;
-	int argi, show_key_table;
 
-	show_key_table = 0;
+	pf.opt_show_table = 0;
+	pf.opt_undo_uncommon = 0;
 	fn = playfair_encode;
 	alphabet = ALPHABET25;
 
@@ -402,7 +410,10 @@ main(int argc, char **argv)
 			fn = playfair_decode;
 			break;
 		case 'k':
-			show_key_table = 1;
+			pf.opt_show_table = 1;
+			break;
+		case 'u':
+			pf.opt_undo_uncommon = 1;
 			break;
 		case 'a':
 			alphabet = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
@@ -421,11 +432,6 @@ main(int argc, char **argv)
 	if (playfair_init(&pf, alphabet, argv[argi])) {
 		fprintf(stderr, "alphabet invalid\n");
 		return EXIT_FAILURE;
-	}
-
-	if (show_key_table) {
-		playfair_dump(stdout, &pf);
-		fputc('\n', stdout);
 	}
 
 	if (argv[argi+1] != NULL) {
