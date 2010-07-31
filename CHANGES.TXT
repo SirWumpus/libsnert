@@ -45,6 +45,46 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+--1.74.10--
+
+   *    Upgraded SQLite to 3.7.0
+
+   +	playfair.c/h: Modified playfair to use a Playfair data structure
+	for better house keeping, similar to the Victor API.
+
+   !	playfair.c, victor.c: Fixed bug when transforming a key
+	containing spaces, would disrupt the transformation table.
+
+   !	ixhash: Second attempt to port ixhash from the original procmail
+	script and SpamAssassin plugin into an API and CLI tool. Move
+	from tools to util.
+
+   +	Add md4_digest_to_string() and md5_digest_to_string() to replace
+	multiple private copies of digestToString().
+
+   !	smdbSetDebug: Changed debug levels: 0 = off, 1 = only matches, 2 =
+   	all lookups.
+
+   !	mcc.c: Add sqlite3_clear_bindings() where required. sqlite3_reset()
+   	does not clear bindings, only resets a satement's state machine.
+
+   !	kvm.c: Add sqlite3_clear_bindings() where required. sqlite3_reset()
+   	does not clear bindings, only resets a satement's state machine.
+
+   !	kvm.c: Replace pthread_mutex_lock/unlock blocks with macros.
+
+   +	Add tool dnsd, a black/white list DNS server.
+
+   +	Added support for 64 character alphabet to Playfair API & CLI.
+
+   !	Changed Victor alphabet period (.) to slash (/) in order to better
+   	fit with Playfar -8 option (Base64) alphabet.
+
+   !	Enhanced Playfair decoding to remove "padding" characters.
+
+   !	Playfair, Victor: Modified to encode/decode messages from standard
+   	input.
+
 --1.74.9--
 
    +	Added Playfair cipher API and CLI.
