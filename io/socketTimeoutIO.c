@@ -3,7 +3,7 @@
  *
  * Socket Portability API
  *
- * Copyright 2001, 2008 by Anthony Howe. All rights reserved.
+ * Copyright 2001, 2010 by Anthony Howe. All rights reserved.
  */
 
 #ifndef PRE_ASSIGNED_SET_SIZE
@@ -33,9 +33,27 @@
 # endif
 #endif
 
+#ifdef HAVE_SYS_EPOLL_H
+# include <sys/epoll.h>
+#endif
+
+#ifdef HAVE_SYS_EVENT_H
+# include <sys/types.h>
+# include <sys/event.h>
+# include <sys/time.h>
+# ifndef INFTIM
+#  define INFTIM	(-1)
+# endif
+#endif
+
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
+
 #include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/util/timer.h>
 
+#if !defined(HAVE_EPOLL_CREATE) && !defined(HAVE_KQUEUE)
 static void
 socket_reset_set(SOCKET *array, int length, void *_set)
 {
@@ -69,22 +87,143 @@ socket_reset_set(SOCKET *array, int length, void *_set)
 }
 #endif
 }
+#endif /* !defined(HAVE_EPOLL_CREATE) && !defined(HAVE_KQUEUE) */
 
 int
 socketTimeouts(SOCKET *fd_table, SOCKET *fd_ready, int fd_length, long timeout, int is_input)
 {
 	int i;
-#if defined(HAVE_CLOCK_GETTIME)
-	struct timespec mark;
-	clock_gettime(CLOCK_REALTIME, &mark);
-#elif defined(HAVE_GETTIMEOFDAY)
-	struct timeval mark;
-	gettimeofday(&mark, NULL);
-#else
-	time_t mark;
-	(void) time(&mark);
-#endif
-#if defined(HAVE_POLL) && ! defined(HAS_BROKEN_POLL)
+	TIMER_DECLARE(mark);
+
+	TIMER_START(mark);
+#if defined(HAVE_KQUEUE)
+{
+	int kq, n;
+	struct timespec ts, *to = NULL;
+	struct kevent *ready, *set, pre_assigned_set[PRE_ASSIGNED_SET_SIZE];
+
+	if ((kq = kqueue()) < 0)
+		return 0;
+
+	if (fd_length <= PRE_ASSIGNED_SET_SIZE)
+		set = pre_assigned_set;
+	else if ((set = malloc(2 * sizeof (*set) * fd_length)) == NULL)
+		goto error1;
+
+	is_input = is_input ? EVFILT_READ : EVFILT_WRITE;
+
+	to = timeout < 0 ? NULL : &ts;
+	TIMER_SET_MS(&ts, timeout);
+
+	/* Add file desriptors to list. */
+	for (i = 0; i < fd_length; i++) {
+		EV_SET(&set[i], fd_table[i], is_input, EV_ADD|EV_ENABLE, 0, 0, &fd_ready[i]);
+		fd_ready[i] = INVALID_SOCKET;
+	}
+
+	do {
+		errno = 0;
+
+		/* Wait for some I/O or timeout. */
+		if (0 < (n = kevent(kq, set, fd_length, set+fd_length, fd_length, to))) {
+			errno = 0;
+		} else if (n == 0) {
+			errno = ETIMEDOUT;
+		} else if (errno == EINTR && timeout != INFTIM) {
+			/* Adjust the timeout in the event of I/O interrupt. */
+			TIMER_DIFF(mark);
+			timeout -= TIMER_GET_MS(&TIMER_DIFF_VAR(mark));
+			TIMER_SET_MS(&ts, timeout);
+			mark = TIMER_DIFF_VAR(mark);
+			if (timeout <= 0)
+				break;
+		}
+	} while (errno == EINTR);
+
+	ready = set+fd_length;
+	for (i = 0; i < n; i++) {
+		if (ready[i].flags & EV_ERROR) {
+			*(SOCKET *) ready[i].udata = ERROR_SOCKET;
+		} else if (ready[i].filter == EVFILT_READ || ready[i].filter == EVFILT_WRITE) {
+			/* Report which sockets are ready. */
+			*(SOCKET *) ready[i].udata = ready[i].ident;
+		}
+	}
+
+	if (set != pre_assigned_set)
+		free(set);
+error1:
+	(void) close(kq);
+}
+#elif defined(HAVE_EPOLL_CREATE)
+{
+	SOCKET ev_fd;
+	struct epoll_event *set, pre_assigned_set[PRE_ASSIGNED_SET_SIZE];
+
+	if ((ev_fd = epoll_create(fd_length)) < 0)
+		return 0;
+
+	if (fd_length <= PRE_ASSIGNED_SET_SIZE)
+		set = pre_assigned_set;
+	else if ((set = malloc(sizeof (*set) * fd_length)) == NULL)
+		goto error1;
+
+	is_input = is_input ? EPOLLIN : EPOLLOUT;
+
+	for (i = 0; i < fd_length; i++) {
+		set[i].data.fd = fd_table[i];
+		set[i].events = is_input | EPOLLERR | EPOLLHUP;
+		if (epoll_ctl(ev_fd, EPOLL_CTL_ADD, fd_table[i], &set[i]))
+			goto error2;
+	}
+
+	if (timeout < 0)
+		timeout = INFTIM;
+
+	do {
+		errno = 0;
+
+		/* Wait for some I/O or timeout. */
+		if (0 < (i = epoll_wait(ev_fd, set, fd_length, timeout))) {
+			errno = 0;
+		} else if (i == 0) {
+			errno = ETIMEDOUT;
+		} else if (errno == EINTR && timeout != INFTIM) {
+			/* Adjust the timeout in the event of I/O interrupt. */
+			TIMER_DIFF(mark);
+			timeout -= TIMER_GET_MS(&TIMER_DIFF_VAR(mark));
+			mark = TIMER_DIFF_VAR(mark);
+			if (timeout <= 0)
+				break;
+		}
+	} while (errno == EINTR);
+
+	for (i = 0; i < fd_length; i++) {
+		if (set[i].events & (EPOLLIN|EPOLLOUT)) {
+			/* Report which sockets are ready. */
+			fd_ready[i] = fd_table[i];
+		} else if ((set[i].events & ~(EPOLLIN|EPOLLOUT)) == 0) {
+			/* Report which sockets are NOT ready. */
+			fd_ready[i] = INVALID_SOCKET;
+		} else {
+			fd_ready[i] = ERROR_SOCKET;
+
+			if (errno == 0) {
+				/* Did something else happen? */
+				if (set[i].events & EPOLLHUP)
+					errno = EPIPE;
+				else if (set[i].events & EPOLLERR)
+					errno = EIO;
+			}
+		}
+	}
+error2:
+	if (set != pre_assigned_set)
+		free(set);
+error1:
+	(void) close(ev_fd);
+}
+#elif defined(HAVE_POLL) && ! defined(HAS_BROKEN_POLL)
 {
 	struct pollfd *set, pre_assigned_set[PRE_ASSIGNED_SET_SIZE];
 
@@ -109,7 +248,7 @@ socketTimeouts(SOCKET *fd_table, SOCKET *fd_ready, int fd_length, long timeout, 
 		timeout = INFTIM;
 
 	do {
-		errno = ETIMEDOUT;
+		errno = 0;
 		socket_reset_set(fd_table, fd_length, set);
 
 		/* Wait for some I/O or timeout. */
@@ -119,31 +258,9 @@ socketTimeouts(SOCKET *fd_table, SOCKET *fd_ready, int fd_length, long timeout, 
 			errno = ETIMEDOUT;
 		} else if (errno == EINTR && timeout != INFTIM) {
 			/* Adjust the timeout in the event of I/O interrupt. */
-#if defined(HAVE_CLOCK_GETTIME)
-			struct timespec now;
-
-			/* Have we gone back in time, ie. clock adjustment? */
-			if (clock_gettime(CLOCK_REALTIME, &now) || now.tv_sec < mark.tv_sec)
-				break;
-			timeout -= (now.tv_sec - mark.tv_sec) * UNIT_MILLI
-				 + (now.tv_nsec - mark.tv_nsec) / UNIT_MICRO;
-			mark = now;
-#elif defined(HAVE_GETTIMEOFDAY)
-			struct timeval now;
-
-			/* Have we gone back in time, ie. clock adjustment? */
-			if (gettimeofday(&now, NULL) || now.tv_sec < mark.tv_sec)
-				break;
-			timeout -= (now.tv_sec - mark.tv_sec) * UNIT_MILLI
-				 + (now.tv_usec - mark.tv_usec) / UNIT_MILLI;
-			mark = now;
-#else
-			time_t now;
-			if (time(&now) < mark)
-				break;
-			timeout -= (now - mark) * UNIT_MILLI;
-			mark = now;
-#endif
+			TIMER_DIFF(mark);
+			timeout -= TIMER_GET_MS(&TIMER_DIFF_VAR(mark));
+			mark = TIMER_DIFF_VAR(mark);
 			if (timeout <= 0)
 				break;
 		}
@@ -180,8 +297,8 @@ error1:
 {
 	SOCKET max_fd;
 	size_t set_size;
+	struct timeval tv, *to;
 	fd_set *set, *rd, *wr, *err_set;
-	struct timeval tv, tv2, *to;
 
 	max_fd = -1;
 	for (i = 0; i < fd_length; i++) {
@@ -203,52 +320,22 @@ error1:
 		wr = set;
 	}
 
-	tv2.tv_sec = timeout / UNIT_MILLI;
-	tv2.tv_usec = (timeout % UNIT_MILLI) * UNIT_MILLI;
+	TIMER_SET_MS(&tv, timeout);
 	to = timeout < 0 ? NULL : &tv;
 
 	do {
-		tv = tv2;
 		errno = 0;
 		memset(err_set, 0, set_size);
 		socket_reset_set(fd_table, fd_length, set);
 
 		if (select(max_fd + 1, rd, wr, err_set, to) == 0)
 			errno = ETIMEDOUT;
-		else if (0 <= timeout) {
-#if defined(HAVE_CLOCK_GETTIME)
-			struct timespec now;
-
-			/* Have we gone back in time, ie. clock adjustment? */
-			if (clock_gettime(CLOCK_REALTIME, &now) || now.tv_sec < mark.tv_sec)
-				break;
-			if (tv2.tv_nsec < now.tv_nsec - mark.tv_nsec) {
-				tv2.tv_usec += UNIT_MICRO;
-				tv2.tv_sec--;
-			}
-			tv2.tv_usec -= now.tv_nsec - mark.tv_nsec;
-			tv2.tv_sec -= now.tv_sec - mark.tv_sec;
-			mark = now;
-#elif defined(HAVE_GETTIMEOFDAY)
-			struct timeval now;
-			if (gettimeofday(&now, NULL) || now.tv_sec < mark.tv_sec)
-				break;
-			if (tv2.tv_usec < now.tv_usec - mark.tv_usec) {
-				tv2.tv_usec += UNIT_MICRO;
-				tv2.tv_sec--;
-			}
-			tv2.tv_usec -= now.tv_usec - mark.tv_usec;
-			tv2.tv_sec -= now.tv_sec - mark.tv_sec;
-			mark = now;
-#else
-			time_t now;
-			if (time(&now) < mark)
-				break;
-			tv2.tv_sec -= now - mark;
-			tv2.tv_usec = 0;
-			mark = now;
-#endif
-			if (tv2.tv_sec <= 0 && tv2.tv_usec <= 0)
+		else if (0 < tv.tv_sec && 0 < tv.tv_usec) {
+			TIMER_DIFF(mark);
+			timeout -= TIMER_GET_MS(&TIMER_DIFF_VAR(mark));
+			TIMER_SET_MS(&tv, timeout);
+			mark = TIMER_DIFF_VAR(mark);
+			if (tv.tv_sec <= 0 && tv.tv_usec <= 0)
 				break;
 		}
 	} while (errno == EINTR);
@@ -268,8 +355,8 @@ error1:
 # else /* not __unix__ */
 {
 	SOCKET max_fd;
+	struct timeval tv, *to;
 	fd_set set, *rd, *wr, err_set;
-	struct timeval tv, tv2, *to;
 
 	max_fd = -1;
 	for (i = 0; i < fd_length; i++) {
@@ -285,52 +372,23 @@ error1:
 		wr = &set;
 	}
 
-	tv2.tv_sec = timeout / UNIT_MILLI;
-	tv2.tv_usec = (timeout % UNIT_MILLI) * UNIT_MILLI;
+	TIMER_SET_MS(&tv, timeout);
 	to = timeout < 0 ? NULL : &tv;
 
 	do {
-		tv = tv2;
+		tv = tv;
 		errno = 0;
 		FD_ZERO(&err_set);
 		socket_reset_set(fd_table, fd_length, &set);
 
 		if (select(max_fd + 1, rd, wr, &err_set, to) == 0)
 			errno = ETIMEDOUT;
-		else if (0 <= timeout) {
-#if defined(HAVE_CLOCK_GETTIME)
-			struct timespec now;
-
-			/* Have we gone back in time, ie. clock adjustment? */
-			if (clock_gettime(CLOCK_REALTIME, &now) || now.tv_sec < mark.tv_sec)
-				break;
-			if (tv2.tv_usec < now.tv_nsec - mark.tv_nsec) {
-				tv2.tv_usec += UNIT_MICRO;
-				tv2.tv_sec--;
-			}
-			tv2.tv_usec -= now.tv_nsec - mark.tv_nsec;
-			tv2.tv_sec -= now.tv_sec - mark.tv_sec;
-			mark = now;
-#elif defined(HAVE_GETTIMEOFDAY)
-			struct timeval now;
-			if (gettimeofday(&now, NULL) || now.tv_sec < mark.tv_sec)
-				break;
-			if (tv2.tv_usec < now.tv_usec - mark.tv_usec) {
-				tv2.tv_usec += UNIT_MICRO;
-				tv2.tv_sec--;
-			}
-			tv2.tv_usec -= now.tv_usec - mark.tv_usec;
-			tv2.tv_sec -= now.tv_sec - mark.tv_sec;
-			mark = now;
-#else
-			time_t now;
-			if (time(&now) < mark)
-				break;
-			tv2.tv_sec -= now - mark;
-			tv2.tv_usec = 0;
-			mark = now;
-#endif
-			if (tv2.tv_sec <= 0 && tv2.tv_usec <= 0)
+		else if (0 < tv.tv_sec && 0 < tv.tv_usec) {
+			TIMER_DIFF(mark);
+			timeout -= TIMER_GET_MS(&TIMER_DIFF_VAR(mark));
+			TIMER_SET_MS(&tv, timeout);
+			mark = TIMER_DIFF_VAR(mark);
+			if (tv.tv_sec <= 0 && tv.tv_usec <= 0)
 				break;
 		}
 	} while (errno == EINTR);
