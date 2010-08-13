@@ -59,12 +59,17 @@ struct timespec {
 
 extern void timespecAdd(struct timespec *acc, struct timespec *b);
 extern void timespecSubtract(struct timespec *acc, struct timespec *b);
+extern void timespecToTimeval(struct timespec *a, struct timeval *b);
 
 extern void timevalAdd(struct timeval *acc, struct timeval *b);
 extern void timevalSubtract(struct timeval *acc, struct timeval *b);
+extern void timevalToTimespec(struct timeval *a, struct timespec *b);
 
 extern void timeAdd(time_t *acc, time_t *b);
 extern void timeSubtract(time_t *acc, time_t *b);
+
+#define timeToTimespec(a, b)		(b)->tv_tv_sec = *(a); (b)->tv_nsec = 0
+#define timeToTimeval(a, b)		(b)->tv_tv_sec = *(a); (b)->tv_usec = 0
 
 #if defined(HAVE_CLOCK_GETTIME)
 /* 10^-9 (nano-second) resolution */
@@ -86,6 +91,7 @@ extern void timeSubtract(time_t *acc, time_t *b);
 # define TIMER_LE_CONST(t,s,ns)		((t).tv_sec <= (s) && (t).tv_nsec <= (ns))
 
 # define TIMER_GET_MS(a)		((a)->tv_sec * UNIT_MILLI + (a)->tv_nsec / 1000000L)
+# define TIMER_SET_MS(a,ms)		(a)->tv_sec = ms / UNIT_MILLI; (a)->tv_nsec = (ms % UNIT_MILLI) * UNIT_MICRO;
 
 #elif defined(HAVE_GETTIMEOFDAY)
 /* 10^-6 (micro-second) resolution */
@@ -107,6 +113,7 @@ extern void timeSubtract(time_t *acc, time_t *b);
 # define TIMER_LE_CONST(t,s,ns)		((t).tv_sec <= (s) && (t).tv_usec <= (ns))
 
 # define TIMER_GET_MS(a)		((a)->tv_sec * UNIT_MILLI + (a)->tv_usec / 1000L)
+# define TIMER_SET_MS(a,ms)		(a)->tv_sec = ms / UNIT_MILLI; (a)->tv_usec = (ms % UNIT_MILLI) * UNIT_MILLI;
 
 #else
 /* 1 second resolution */
@@ -123,7 +130,7 @@ struct timesec {
 # define CLOCK_FMT			"%ld"
 # define CLOCK_FMT_DOT(a)		(long)(a).tv_sec
 # define CLOCK_FMT_PTR(a)		(long)(a)->tv_sec
-# define CLOCK_SET_TIMESPEC(a,b)	(a)->tv_sec = (b)->tv_sec; (a)->tv_nsec = 0
+# define CLOCK_SET_TIMESPEC(a,b)	(a)->tv_sec = (b)->tv_sec; (a)->tv_ignored = 0
 
 # define TIMER_EQ_CONST(t,s,ns)		((t) == (s))
 # define TIMER_NE_CONST(t,s,ns)		!TIMER_EQ_CONST(t,s,ns)
@@ -133,6 +140,7 @@ struct timesec {
 # define TIMER_LE_CONST(t,s,ns)		((t) <= (s))
 
 # define TIMER_GET_MS(a)		((a)->tv_sec * UNIT_MILLI)
+# define TIMER_SET_MS(a,ms)		(a)->tv_sec = ms / UNIT_MILLI; (a)->tv_ignored = 0
 
 #endif
 
