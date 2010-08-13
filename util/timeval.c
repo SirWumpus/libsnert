@@ -40,3 +40,13 @@ timevalAdd(struct timeval *acc, struct timeval *b)
 		}
 	}
 }
+
+
+#ifdef HAVE_STRUCT_TIMESPEC
+void
+timevalToTimespec(struct timeval *a, struct timespec *b)
+{
+	b->tv_sec = a->tv_sec;
+	b->tv_nsec = a->tv_usec * UNIT_MILLI;
+}
+#endif
