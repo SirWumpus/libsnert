@@ -1650,14 +1650,26 @@ AC_DEFUN(SNERT_NETWORK,[
 		AC_SEARCH_LIBS([inet_aton], [socket nsl resolv])
 
 		AC_CHECK_HEADERS([ \
-			sys/socket.h netinet/in.h netinet/in6.h netinet6/in6.h netinet/tcp.h \
-			poll.h sys/poll.h sys/select.h sys/un.h arpa/inet.h \
+			sys/socket.h netinet/in.h netinet/in6.h netinet6/in6.h \
+			netinet/tcp.h poll.h sys/poll.h sys/select.h sys/un.h \
+			arpa/inet.h \
 		])
 
 dnl When using poll() use this block.
 dnl
 dnl #ifdef HAVE_POLL_H
 dnl # include <poll.h>
+dnl # ifndef INFTIM
+dnl #  define INFTIM	(-1)
+dnl # endif
+dnl #endif
+
+dnl When using kqueue() use this block.
+dnl
+dnl #ifdef HAVE_SYS_EVENT_H
+dnl # include <sys/types.h>
+dnl # include <sys/event.h>
+dnl # include <sys/time.h>
 dnl # ifndef INFTIM
 dnl #  define INFTIM	(-1)
 dnl # endif
@@ -1670,6 +1682,9 @@ dnl #endif
 			recv recvfrom recvmsg send sendmsg sendto \
 			htonl htons ntohl ntohs \
 		])
+
+		AC_CHECK_HEADERS([sys/event.h],[AC_CHECK_FUNCS([kqueue kevent])])
+		AC_CHECK_HEADERS([sys/epoll.h],[AC_CHECK_FUNCS([epoll_create epoll_ctl epoll_wait])])
 
 		AC_CHECK_HEADERS([netdb.h],[
 			AC_CHECK_FUNCS([ \

@@ -1,7 +1,7 @@
 /*
  * version.h
  *
- * Copyright 2002, 2007 by Anthony Howe. All rights reserved.
+ * Copyright 2002, 2010 by Anthony Howe. All rights reserved.
  */
 
 #ifndef __com_snert_lib_version_h__
@@ -617,6 +617,21 @@ union semun {
 #undef HAVE_SETSOCKOPT
 #undef HAVE_SHUTDOWN
 #undef HAVE_SOCKET
+
+/*
+ * Linux I/O Events
+ */
+#undef HAVE_SYS_EPOLL_H
+#undef HAVE_EPOLL_CREATE
+#undef HAVE_EPOLL_CTL
+#undef HAVE_EPOLL_WAIT
+
+/*
+ * FreeBSD, OpenBSD Kernel Events
+ */
+#undef HAVE_SYS_EVENT_H
+#undef HAVE_KQUEUE
+#undef HAVE_KEVENT
 
 /* Windows does not provide an sa_len field and some
  * older Linux implementations also skimp on this field.
