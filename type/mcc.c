@@ -694,7 +694,7 @@ mccPutRowLocal(mcc_handle *mcc, mcc_row *row, int touch)
 
 	if (touch) {
 		row->hits++;
-		row->touched = time(NULL);
+		row->touched = (uint32_t) time(NULL);
 	}
 
 	if (sqlite3_bind_text(mcc->replace, 1, (const char *) row->key_data, row->key_size, SQLITE_TRANSIENT) != SQLITE_OK)
@@ -1843,7 +1843,7 @@ main(int argc, char **argv)
 				}
 
 				old_row.hits = 0;
-				old_row.created = time(NULL);
+				old_row.created = (uint32_t) time(NULL);
 				old_row.touched = old_row.created;
 			}
 		}
