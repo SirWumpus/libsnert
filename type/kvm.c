@@ -1679,7 +1679,7 @@ kvm_open_db(kvm *self, const char *location, int mode)
  ***********************************************************************/
 
 /*
- * The original socket map protocol assumes a simple FETCH oepration.
+ * The original socket map protocol assumes a simple FETCH operation.
  * In order to be more generic, we need additional operations such as
  * GET, PUT, LIST, and REMOVE that can operate on binary data.
  *
@@ -1784,31 +1784,51 @@ kvm_recv(Socket2 *s, unsigned char **data, unsigned long *length)
 	unsigned long size;
 	unsigned char *buf;
 	long i, timeout, bytes;
-	unsigned char number[20];
+	char number[20], *stop;
 
 	*data = NULL;
 	*length = 0;
 	timeout = socketGetTimeout(s);
 
 	bytes = -1;
+
+	/* Read leading decimal length. */
 	for (i = 0; i < sizeof (number)-1; i++) {
-		if (!socketHasInput(s, timeout) || (bytes = socketRead(s, number + i, 1)) != 1) {
+		if (!socketHasInput(s, timeout)) {
+			/* No input ready. */
 			goto error0;
 		}
-		if (number[i] == ':')
+		if ((bytes = socketRead(s, (unsigned char *) number + i, 1)) != 1) {
+			/* Read error. */
+			goto error0;
+		}
+		if (!isdigit(number[i])) {
+			/* Not a decimal digit or colon found. */
 			break;
+		}
 	}
 
-	size = (unsigned long) strtol((char *) number, NULL, 10);
-	if ((buf = malloc(size + 1)) == NULL)
+	if (i <= 0 || number[i] != ':') {
+		/* No input or invalid format. */
 		goto error0;
+	}
+
+	size = (unsigned long) strtol((char *) number, &stop, 10);
+
+	if (stop-number != i || (buf = malloc(size + 1)) == NULL) {
+		/* Invalid decimal number or allocation failure? */
+		goto error0;
+	}
 
 	if (!socketHasInput(s, timeout) || (bytes = socketRead(s, buf, size + 1)) != size + 1) {
+		/* No input or read error. */
 		goto error1;
 	}
 
-	if (buf[size] != ',')
+	if (buf[size] != ',') {
+		/* Invalid format. */
 		goto error1;
+	}
 
 	buf[size] = '\0';
 	*length = size;
@@ -1867,20 +1887,35 @@ kvm_fetch_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 	if (socketWrite(self->_kvm, (unsigned char *) ",", 1) != 1)
 		goto error2;
 
+	/* Read leading decimal length. */
 	for (i = 0; i < sizeof (number)-1; i++) {
-		if (!socketHasInput(self->_kvm, timeout) || socketRead(self->_kvm, number + i, 1) != 1)
+		if (!socketHasInput(self->_kvm, timeout) || socketRead(self->_kvm, number + i, 1) != 1) {
+			/* No input or read error. */
 			goto error2;
-		if (number[i] == ':')
+		}
+		if (!isdigit(number[i])) {
+			/* Not a decimal digit or colon found. */
 			break;
+		}
+	}
+
+	if (i <= 0 || number[i] != ':') {
+		/* No input or invalid format. */
+		goto error2;
 	}
 
 	value->size = (unsigned long) strtol((char *) number, NULL, 10);
-	if (value->size < 3 || (value->data = malloc(value->size + 1)) == NULL)
+
+	if (value->size < 3 || (value->data = malloc(value->size + 1)) == NULL) {
+		/* Too short for a Sendmail fetch or allocation error. */
 		goto error2;
+	}
 
 	/* Try to read leading "OK ". */
-	if (!socketHasInput(self->_kvm, timeout) || socketRead(self->_kvm, value->data, 3) != 3)
+	if (!socketHasInput(self->_kvm, timeout) || socketRead(self->_kvm, value->data, 3) != 3) {
+		/* No input or read error. */
 		goto error2;
+	}
 
 	if (*value->data == 'O') {
 		/* The query/response was "OK"; remove
@@ -1893,11 +1928,16 @@ kvm_fetch_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 		i = 3;
 	}
 
-	if (!socketHasInput(self->_kvm, timeout) || socketRead(self->_kvm, value->data+i, value->size-i+1) != value->size-i+1)
+	/* Read remainder of input. */
+	if (!socketHasInput(self->_kvm, timeout) || socketRead(self->_kvm, value->data+i, value->size-i+1) != value->size-i+1) {
+		/* No input or read error. */
 		goto error2;
+	}
 
-	if (value->data[value->size] != ',')
+	if (value->data[value->size] != ',') {
+		/* Invalid format. */
 		goto error2;
+	}
 
 	value->data[value->size] = '\0';
 
