@@ -45,6 +45,15 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+--1.74.11--
+
+   *    Upgraded SQLite to 3.7.2
+
+   !	aclocal.m4, version.h.in.in: Added detection of epoll or kqueue related
+   	headers and functions.
+
+   !	socketTimeout(): Added support for epoll and kqueue.
+
 --1.74.10--
 
    *    Upgraded SQLite to 3.7.0

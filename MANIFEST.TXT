@@ -75,6 +75,7 @@ com/snert/src/lib/mail/tlds.c
 com/snert/src/lib/mail/tlds.sed
 com/snert/src/lib/mail/two-level-tlds.txt
 com/snert/src/lib/net/dnsList.c
+com/snert/src/lib/net/dnsList-api.txt
 com/snert/src/lib/net/findIP.c
 com/snert/src/lib/net/formatIP.c
 com/snert/src/lib/net/formatIP.txt
@@ -91,6 +92,7 @@ com/snert/src/lib/net/network.c
 com/snert/src/lib/net/networkGetMyDetails.c
 com/snert/src/lib/net/parseIPv6.c
 com/snert/src/lib/net/pdq.c
+com/snert/src/lib/net/pdq-api.txt
 com/snert/src/lib/net/pdq.txt
 com/snert/src/lib/net/reverse.c
 com/snert/src/lib/net/spanIP.c
