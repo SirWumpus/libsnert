@@ -22,6 +22,10 @@
 #define MAX_SPR_ATTEMPTS	5
 #endif
 
+#ifndef PDQ_POLL_NEXT_PACKET_TIMEOUT_MS
+#define PDQ_POLL_NEXT_PACKET_TIMEOUT_MS		5
+#endif
+
 #ifndef ETC_HOSTS
 # ifdef __WIN32__
 #  define ETC_HOSTS		"/WINDOWS/system32/drivers/etc/hosts"
@@ -2977,7 +2981,7 @@ pdqPoll(PDQ *pdq, unsigned ms)
 					(void) formatIP((unsigned char *) &reply->from.in.sin_addr, IPV4_BYTE_LENGTH, 1, ipv6, sizeof (ipv6));
 				syslog(LOG_DEBUG, "< recv id=%u rcode=%d length=%u from=%s", ntohs(reply->packet.header.id), ntohs(reply->packet.header.bits) & BITS_RCODE, reply->packet.length, ipv6);
 			}
-		} while (socketTimeoutIO(pdq->fd, 1, 1));
+		} while (socketTimeoutIO(pdq->fd, PDQ_POLL_NEXT_PACKET_TIMEOUT_MS, 1));
 
 		/* Restore the errno related to recvfrom, since we know
 		 * that socketTimeoutIO will more than likely set errno
