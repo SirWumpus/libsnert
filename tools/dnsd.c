@@ -22,6 +22,8 @@
 
 #include <com/snert/lib/version.h>
 
+#ifdef HAVE_SQLITE3_H
+
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,14 +41,10 @@
 # endif
 #endif
 
-#ifdef HAVE_SQLITE3_H
 # include <sqlite3.h>
-# if SQLITE_VERSION_NUMBER < 3003008
-#  error "Thread safe SQLite3 version 3.3.8 or better required."
+# if SQLITE_VERSION_NUMBER < 3007000
+#  error "Thread safe SQLite3 version 3.7.0 or better required."
 # endif
-#else
-# error "SQLite3 required."
-#endif
 
 #if defined(__MINGW32__)
 # define HAVE_PTHREAD_CREATE
@@ -201,7 +199,7 @@ typedef struct rr {
 	DNS_type type;
 	size_t name_length;
 	size_t data_length;
-	char name[DOMAIN_STRING_LENGTH];
+	unsigned char name[DOMAIN_STRING_LENGTH];
 	unsigned char data[DOMAIN_STRING_LENGTH];
 } DNS_rr;
 
@@ -703,7 +701,7 @@ parse_query(DNS_query *query, DNS_rr *rr)
 	if (0 < debug)
 		syslog(LOG_DEBUG, "query %d %lu:%s", rr->type, (unsigned long) rr->name_length, rr->name);
 
-	if (0 <= (offset = TextInsensitiveEndsWith(rr->name, domain_suffix))) {
+	if (0 <= (offset = TextInsensitiveEndsWith((char *) rr->name, domain_suffix))) {
 		rr->name_length = offset;
 		rr->name[offset] = '\0';
 	}
@@ -759,12 +757,12 @@ append_answer(DNS_query *query, DNS_rr *answer)
 
 	switch (answer->type) {
 	case DNS_TYPE_A:
-		(void) parseIPv6(answer->data, ipv6);
+		(void) parseIPv6((char *) answer->data, ipv6);
 		memcpy(eom, ipv6+IPV6_OFFSET_IPV4, 4);
 		break;
 
 	case DNS_TYPE_AAAA:
-		(void) parseIPv6(answer->data, eom);
+		(void) parseIPv6((char *) answer->data, eom);
 		break;
 
 	case DNS_TYPE_TXT:
@@ -1251,3 +1249,16 @@ main(int argc, char **argv)
 }
 
 # endif /* __WIN32__ */
+
+#else /* no HAVE_SQLITE3_H */
+
+#include <stdio.h>
+
+int
+main(int argc, char **argv)
+{
+	printf("This program requires threaded SQLite3 support.\n");
+	return 1;
+}
+
+#endif /* HAVE_SQLITE3_H */

@@ -64,7 +64,7 @@ pthreadSleepInit(void)
 int
 pthreadSleep(unsigned seconds, unsigned nanoseconds)
 {
-	int error;
+	int error = 0;
 	struct timespec abstime;
 
 	if (!thread_sleep_ready) {

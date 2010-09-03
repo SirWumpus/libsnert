@@ -60,6 +60,7 @@ playfair_dump(FILE *fp, Playfair *pf)
 	case 25: order = 5; break;
 	case 36: order = 6; break;
 	case 64: order = 8; break;
+	default: order = 0; break;
 	}
 
 	for (row = 0; row < order; row++) {
@@ -175,10 +176,13 @@ playfair_encode(Playfair *pf, const char *message)
 	if (pf == NULL || message == NULL)
 		return NULL;
 
+	map[0] = map[1] = 0;
+
 	switch (strlen(pf->table)) {
 	case 25: order = 5; break;
 	case 36: order = 6; break;
 	case 64: order = 8; break;
+	default: order = 0; break;
 	}
 
 	if (order == 5) {
@@ -282,6 +286,7 @@ playfair_decode(Playfair *pf, const char *message)
 	case 25: order = 5; break;
 	case 36: order = 6; break;
 	case 64: order = 8; break;
+	default: order = 0; break;
 	}
 
 	length = strlen(message);

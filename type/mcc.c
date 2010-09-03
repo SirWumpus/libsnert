@@ -1899,10 +1899,12 @@ error0:
 
 #elif !defined(HAVE_SQLITE3_H) && defined(TEST)
 
+#include <stdio.h>
+
 int
 main(int argc, char **argv)
 {
-	printf("This programs requires threaded SQLite3 support.\n");
+	printf("This program requires threaded SQLite3 support.\n");
 	return EXIT_FAILURE;
 }
 

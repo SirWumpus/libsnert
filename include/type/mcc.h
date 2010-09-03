@@ -157,8 +157,8 @@ typedef struct {
 #endif
 } mcc_network;
 
-typedef struct mcc mcc_handle;
-typedef struct mcc mcc_context;
+typedef struct mcc_ctx mcc_handle;
+typedef struct mcc_ctx mcc_context;
 typedef int (*mcc_hook)(mcc_context *, void *data);
 typedef int (*mcc_hook_row)(mcc_context *, void *data, mcc_row *old_row, mcc_row *new_row);
 
@@ -205,7 +205,7 @@ typedef struct {
 	mcc_string *notes;
 } mcc_active_host;
 
-struct mcc {
+struct mcc_ctx {
 	int flags;
 	char *path;
 	char *secret;

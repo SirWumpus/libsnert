@@ -75,8 +75,8 @@ SocketAddress *
 socketAddressNew(const char *host, unsigned port)
 {
 	char *stop;
-	long length, value;
 	SocketAddress *addr;
+	long length = 0, value;
 	unsigned char ipv6[IPV6_BYTE_LENGTH];
 
 	if (host == NULL)

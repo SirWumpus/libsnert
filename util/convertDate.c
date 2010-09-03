@@ -676,7 +676,7 @@ main(int argc, char **argv)
 			LogStderr(LOG_ERR, "\"%s\" does not conform to RFC 2822 section 3.3. Date and Time Specification", argv[i]);
 			exit(1);
 		}
-		printf("%lu\t \"%s\"\t %ld\n", (unsigned long) gmt, argv[i], (ptrdiff_t) (stop - argv[i]));
+		printf("%lu\t \"%s\"\t %ld\n", (unsigned long) gmt, argv[i], (long) (stop - argv[i]));
 	}
 
 	exit(0);
