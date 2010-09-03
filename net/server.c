@@ -948,7 +948,7 @@ serverAccept(void *_server)
 		if (socketTimeouts(server->interfaces_fd, server->interfaces_ready, server->interfaces->_length, server->option.accept_to, 1)) {
 			pthread_testcancel();
 			for (i = 0; i < server->interfaces->_length; i++) {
-				if (server->interfaces_fd[i] == server->interfaces_ready[i]) {
+				if (0 < server->interfaces_ready[i]) {
 					if ((session = sessionCreate(server)) != NULL) {
 						session->iface = (ServerInterface *) VectorGet(server->interfaces, i);
 						if (sessionAccept(session)) {
