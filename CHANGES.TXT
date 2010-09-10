@@ -44,6 +44,17 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
+--1.74.12--
+
+   !	pdqPoll: Some NS hosts return REFUSED instead of SERVFAIL when
+	there is a problem with the server. By ignoring REFUSED replies,
+	other NS hosts have a chance to reply. If they all reply
+	REFUSED, a query will time out instead. The calling application
+	such as smtpf can then temp.fail instead of rejecting. Requested
+	by Steve Freegard.
+
+  !	socketTimeoutIO: Fixed timeout difference code that was altered
+	when epoll and kqueue support was added (1.74.11)
 
 --1.74.11--
 
