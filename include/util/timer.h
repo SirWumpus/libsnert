@@ -126,7 +126,7 @@ struct timesec {
 # define CLOCK				struct timesec
 # define CLOCK_ADD(a, b)		timeAdd(a, b)
 # define CLOCK_SUB(a, b)		timeSub(a, b)
-# define CLOCK_GET(a)			(void) time((a)->tv_sec); (a)->tv_ignored = 0
+# define CLOCK_GET(a)			(void) time(&(a)->tv_sec); (a)->tv_ignored = 0
 # define CLOCK_FMT			"%ld"
 # define CLOCK_FMT_DOT(a)		(long)(a).tv_sec
 # define CLOCK_FMT_PTR(a)		(long)(a)->tv_sec

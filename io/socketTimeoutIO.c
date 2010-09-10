@@ -53,7 +53,7 @@
 #include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/util/timer.h>
 
-#if !defined(HAVE_EPOLL_CREATE) && !defined(HAVE_KQUEUE)
+#if !defined(HAVE_EPOLL_CREATE) && !(defined(HAVE_KQUEUE) && defined(HAVE_CLOCK_GETTIME))
 static void
 socket_reset_set(SOCKET *array, int length, void *_set)
 {
@@ -93,10 +93,11 @@ int
 socketTimeouts(SOCKET *fd_table, SOCKET *fd_ready, int fd_length, long timeout, int is_input)
 {
 	int i;
+	CLOCK now;
 	TIMER_DECLARE(mark);
 
 	TIMER_START(mark);
-#if defined(HAVE_KQUEUE)
+#if defined(HAVE_KQUEUE) && defined(HAVE_CLOCK_GETTIME)
 {
 	int kq, n;
 	struct timespec ts, *to = NULL;
@@ -131,10 +132,12 @@ socketTimeouts(SOCKET *fd_table, SOCKET *fd_ready, int fd_length, long timeout, 
 			errno = ETIMEDOUT;
 		} else if (errno == EINTR && timeout != INFTIM) {
 			/* Adjust the timeout in the event of I/O interrupt. */
-			TIMER_DIFF(mark);
+			CLOCK_GET(&now);
+			TIMER_DIFF_VAR(mark) = now;
+			CLOCK_SUB(&TIMER_DIFF_VAR(mark), &mark);
 			timeout -= TIMER_GET_MS(&TIMER_DIFF_VAR(mark));
 			TIMER_SET_MS(&ts, timeout);
-			mark = TIMER_DIFF_VAR(mark);
+			mark = now;
 			if (timeout <= 0)
 				break;
 		}
@@ -190,9 +193,11 @@ error1:
 			errno = ETIMEDOUT;
 		} else if (errno == EINTR && timeout != INFTIM) {
 			/* Adjust the timeout in the event of I/O interrupt. */
-			TIMER_DIFF(mark);
+			CLOCK_GET(&now);
+			TIMER_DIFF_VAR(mark) = now;
+			CLOCK_SUB(&TIMER_DIFF_VAR(mark), &mark);
 			timeout -= TIMER_GET_MS(&TIMER_DIFF_VAR(mark));
-			mark = TIMER_DIFF_VAR(mark);
+			mark = now;
 			if (timeout <= 0)
 				break;
 		}
@@ -258,9 +263,11 @@ error1:
 			errno = ETIMEDOUT;
 		} else if (errno == EINTR && timeout != INFTIM) {
 			/* Adjust the timeout in the event of I/O interrupt. */
-			TIMER_DIFF(mark);
+			CLOCK_GET(&now);
+			TIMER_DIFF_VAR(mark) = now;
+			CLOCK_SUB(&TIMER_DIFF_VAR(mark), &mark);
 			timeout -= TIMER_GET_MS(&TIMER_DIFF_VAR(mark));
-			mark = TIMER_DIFF_VAR(mark);
+			mark = now;
 			if (timeout <= 0)
 				break;
 		}
@@ -331,10 +338,12 @@ error1:
 		if (select(max_fd + 1, rd, wr, err_set, to) == 0)
 			errno = ETIMEDOUT;
 		else if (0 < tv.tv_sec && 0 < tv.tv_usec) {
-			TIMER_DIFF(mark);
+			CLOCK_GET(&now);
+			TIMER_DIFF_VAR(mark) = now;
+			CLOCK_SUB(&TIMER_DIFF_VAR(mark), &mark);
 			timeout -= TIMER_GET_MS(&TIMER_DIFF_VAR(mark));
 			TIMER_SET_MS(&tv, timeout);
-			mark = TIMER_DIFF_VAR(mark);
+			mark = now;
 			if (tv.tv_sec <= 0 && tv.tv_usec <= 0)
 				break;
 		}
@@ -384,10 +393,12 @@ error1:
 		if (select(max_fd + 1, rd, wr, &err_set, to) == 0)
 			errno = ETIMEDOUT;
 		else if (0 < tv.tv_sec && 0 < tv.tv_usec) {
-			TIMER_DIFF(mark);
+			CLOCK_GET(&now);
+			TIMER_DIFF_VAR(mark) = now;
+			CLOCK_SUB(&TIMER_DIFF_VAR(mark), &mark);
 			timeout -= TIMER_GET_MS(&TIMER_DIFF_VAR(mark));
 			TIMER_SET_MS(&tv, timeout);
-			mark = TIMER_DIFF_VAR(mark);
+			mark = now;
 			if (tv.tv_sec <= 0 && tv.tv_usec <= 0)
 				break;
 		}
