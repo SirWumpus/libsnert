@@ -2677,8 +2677,6 @@ pdq_query_reply(PDQ *pdq, struct udp_packet *packet, SocketAddress *address, PDQ
 		return PDQ_RCODE_ERRNO;
 	}
 
-	packet->header.bits = ntohs(packet->header.bits);
-
 	if (packet->header.bits & BITS_TC)
 		rcode = pdq_query_tcp(pdq, query, address, list);
 	else
@@ -2969,7 +2967,7 @@ pdqPoll(PDQ *pdq, unsigned ms)
 				(struct sockaddr *) &reply->from, &reply->fromlen
 			);
 			saved_errno = errno;
-			pdq_link_add(&replies, reply);
+			reply->packet.header.bits = ntohs(reply->packet.header.bits);
 			if (0 < debug) {
 				char ipv6[IPV6_STRING_LENGTH];
 				*ipv6 = '\0';
@@ -2979,8 +2977,13 @@ pdqPoll(PDQ *pdq, unsigned ms)
 				else
 #endif
 					(void) formatIP((unsigned char *) &reply->from.in.sin_addr, IPV4_BYTE_LENGTH, 1, ipv6, sizeof (ipv6));
-				syslog(LOG_DEBUG, "< recv id=%u rcode=%d length=%u from=%s", ntohs(reply->packet.header.id), ntohs(reply->packet.header.bits) & BITS_RCODE, reply->packet.length, ipv6);
+				syslog(LOG_DEBUG, "< recv id=%u rcode=%d length=%u from=%s", ntohs(reply->packet.header.id), reply->packet.header.bits & BITS_RCODE, reply->packet.length, ipv6);
 			}
+
+			if ((reply->packet.header.bits & BITS_RCODE) == PDQ_RCODE_REFUSED)
+				free(reply);
+			else
+				pdq_link_add(&replies, reply);
 		} while (socketTimeoutIO(pdq->fd, PDQ_POLL_NEXT_PACKET_TIMEOUT_MS, 1));
 
 		/* Restore the errno related to recvfrom, since we know
