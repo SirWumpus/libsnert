@@ -645,12 +645,13 @@ DebugFree(void *chunk)
 	if (chunk == NULL)
 		return;
 
+#ifdef BROKEN
 	/* Correctly aligned pointer? */
 	if ((unsigned long) chunk & alignment_mask) {
 		signal_error("memory alignment error chunk=0x%lx\r\n", (long) chunk);
 		return;
 	}
-
+#endif
 	/* Compute location of the block data. */
 	block = (BlockData *)((char *) chunk - CHUNK_OFFSET);
 
@@ -711,17 +712,7 @@ DebugFree(void *chunk)
 	DebugCheckBoundaries(block, chunk, size);
 
 	if (memory_test_double_free) {
-		/* Attempt to detect overwriting active memory. */
-		q = base + base_size - 1;
-		for (p = (unsigned char *) base; p < q; p++) {
-			if ((p[0] == DAH_BYTE && p[1] == DAH_BYTE)
-			||  (p[0] == DOH_BYTE && p[1] == DOH_BYTE)) {
-				signal_error("free overrun active chunk, chunk=0x%lx size=%lu\r\n", (long) chunk, size);
-				return;
-			}
-		}
-
-		/* Wipe from the WHOLE memory area including the space
+		/* Wipe the WHOLE memory area including the space
 		 * for the lower and upper boundaries.
 		 */
 		memset(base, FREED_BYTE, base_size);
