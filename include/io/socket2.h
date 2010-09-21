@@ -155,6 +155,30 @@ typedef struct {
 	unsigned char readBuffer[SOCKET_BUFSIZ];
 } Socket2;
 
+#if defined(HAVE_KQUEUE)
+# include <sys/types.h>
+# include <sys/event.h>
+# include <sys/time.h>
+# ifndef INFTIM
+#  define INFTIM	(-1)
+# endif
+
+typedef struct {
+	int in_length;
+	int out_length;
+	struct kevent *in_list;
+	struct kevent *out_list;
+} SocketEvent;
+
+#elif defined(HAVE_EPOLL_CREATE)
+# include <sys/epoll.h>
+
+#elif defined(HAVE_POLL)
+#elif defined(HAVE_SELECT)
+#else
+# error " No suitable IO Event API"
+#endif
+
 #define socketGetFd(s)		(s)->fd
 
 /**
@@ -350,6 +374,15 @@ extern long socketAddressGetName(SocketAddress *addr, char *buffer, long size);
  *	True if the address family, port, and IP are equal.
  */
 extern int socketAddressEqual(SocketAddress *a, SocketAddress *b);
+
+/**
+ * @param addr
+ *	A SocketAddress pointer.
+ *
+ * @return
+ *	True if the address is a local interface.
+ */
+extern int socketAddressIsLocal(SocketAddress *addr);
 
 /**
  * @param addr

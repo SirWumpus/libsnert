@@ -66,7 +66,8 @@ $O$E :
 
 REPLACED = URI$O
 
-OBJS = Error$O Log$O mkpath$O socketTimeoutIO$O socketAddress$O socket2$O Dns$O flock$O file$O
+OBJS =	Error$O Log$O mkpath$O socketTimeoutIO$O socketAddress$O \
+	socketAddressIsLocal$O socket2$O Dns$O flock$O file$O
 
 .MAIN : build
 
@@ -91,7 +92,7 @@ add-lib:
 
 clean : title
 	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.stackdump core *.core core.* *.log
-	-rm -f output*.dat Dns$E
+	-rm -f output*.dat Dns$E socketAddressIsLocal$E socket2$E
 
 distclean: clean
 	-rm -f makefile
@@ -112,3 +113,6 @@ Dns$E :  Dns.c
 
 socket2$E : socketAddress$O socket2.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)socket2$E socket2.c $(LIBSNERT) $(LIBS) ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+
+socketAddressIsLocal$E : socketAddress$O socket2$O socketAddressIsLocal.c
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)socketAddressIsLocal$E socketAddressIsLocal.c socketAddress$O socket2$O $(LIBSNERT) $(LIBS) ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
