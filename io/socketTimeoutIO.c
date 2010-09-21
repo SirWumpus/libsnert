@@ -7,7 +7,7 @@
  */
 
 #ifndef PRE_ASSIGNED_SET_SIZE
-#define PRE_ASSIGNED_SET_SIZE		10
+#define PRE_ASSIGNED_SET_SIZE		8
 #endif
 
 /***********************************************************************
@@ -101,7 +101,7 @@ socketTimeouts(SOCKET *fd_table, SOCKET *fd_ready, int fd_length, long timeout, 
 {
 	int kq, n;
 	struct timespec ts, *to = NULL;
-	struct kevent *ready, *set, pre_assigned_set[PRE_ASSIGNED_SET_SIZE];
+	struct kevent *ready, *set, pre_assigned_set[2*PRE_ASSIGNED_SET_SIZE];
 
 	if ((kq = kqueue()) < 0)
 		return 0;
