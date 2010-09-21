@@ -732,6 +732,7 @@ static void *
 mcc_listener_thread(void *data)
 {
 	long nbytes;
+	int is_unicast;
 	md5_state_t md5;
 	mcc_handle *mcc;
 	SocketAddress from;
@@ -744,6 +745,8 @@ mcc_listener_thread(void *data)
 	mcc = ((mcc_listener *) data)->mcc;
 	listener = ((mcc_listener *) data)->listener;
 	free(data);
+
+	is_unicast = (&mcc->unicast == listener);
 
 	listen_addr = socketAddressToString(&listener->socket->address);
 	PTHREAD_PUSH_FREE(listen_addr);
@@ -768,6 +771,9 @@ mcc_listener_thread(void *data)
 			continue;
 
 		(void) socketAddressGetString(&from, 0, ip, sizeof (ip));
+
+		if (1 < debug)
+			syslog(LOG_DEBUG, "multi/unicast listener=%s from=%s cmd=%c", listen_addr, ip, new_row.command);
 
 		md5_init(&md5);
 		md5_append(&md5, (md5_byte_t *) &new_row + sizeof (new_row.digest), sizeof (new_row)-sizeof (new_row.digest));
@@ -1003,7 +1009,7 @@ mccStopUnicast(mcc_handle *mcc)
 int
 mccStartUnicast(mcc_handle *mcc, const char **unicast_ips, int port)
 {
-	int i, count;
+	int i, j, count;
 	const char *this_host;
 	SocketAddress *address;
 	mcc_listener *thread_data;
@@ -1035,8 +1041,21 @@ mccStartUnicast(mcc_handle *mcc, const char **unicast_ips, int port)
 
 	mcc->unicast.port = port;
 
-	for (i = 0; i < count; i++)
-		mcc->unicast_ip[i] = socketAddressCreate(unicast_ips[i], port);
+	for (i = j = 0; i < count; i++, j++) {
+		mcc->unicast_ip[j] = socketAddressCreate(unicast_ips[i], port);
+
+		/* Avoid broadcast-to-self by discarding our own IP. */
+		if (socketAddressIsLocal(mcc->unicast_ip[j])) {
+			syslog(LOG_WARN, "unicast address %s skipped", unicast_ips[i]);
+			free(mcc->unicast_ip[j]);
+			j--;
+		}
+	}
+
+	if (count <= 0 || mcc->unicast_ip[0] == NULL) {
+		syslog(LOG_ERR, "empty unicast address list");
+		goto error2;
+	}
 
 	/* Assume that list of unicast addresses are all in the same family. */
 	this_host = mcc->unicast_ip[0]->sa.sa_family == AF_INET ? "0.0.0.0" : "::0";
