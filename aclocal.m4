@@ -1696,6 +1696,12 @@ dnl #endif
 				getprotoent getprotobynumber getprotobyname setprotoent endprotoent \
 			])
 		])
+
+		AC_CHECK_HEADERS([ifaddrs.h],[
+			AC_CHECK_FUNCS([ \
+				getifaddrs freeifaddrs
+			])
+		])
 	else
 		AC_CHECK_HEADERS(windows.h io.h)
 		AC_CHECK_HEADER(winsock2.h,[

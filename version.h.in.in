@@ -566,6 +566,9 @@ union semun {
 #undef HAVE_GETPROTOBYNAME
 #undef HAVE_SETPROTOENT
 #undef HAVE_ENDPROTOENT
+#undef HAVE_IFADDRS_H
+#undef HAVE_GETIFADDRS
+#undef HAVE_FREEIFADDRS
 
 /*
  * Sockets
