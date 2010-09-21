@@ -21,6 +21,8 @@
 #include <unistd.h>
 #include <signal.h>
 
+#include <com/snert/lib/util/DebugMalloc.h>
+
 enum { PASS, FAIL, SIGNAL };
 
 struct diagnostic {
@@ -31,27 +33,34 @@ struct diagnostic {
 
 static char *allocation;
 static volatile int fault_found = 0;
+static const char newline[] = "\r\n";
+static const char elipses[] = " ... ";
 
 static void
 fault_handler(int signum)
 {
-	signal(signum, SIG_DFL);
 	fault_found = 1;
 }
 
 static int
-find_fault(int (*test)(void))
+find_fault(const struct diagnostic *diag)
 {
 	int status;
+	const char *result;
 
 	fault_found = 0;
 
-	signal(SIGNAL_MEMORY, fault_handler);
-	status = (*test)();
-	signal(SIGNAL_MEMORY, SIG_DFL);
+	write(2, diag->explanation, strlen(diag->explanation));
+	write(2, elipses, sizeof (elipses)-1);
+
+	status = (*diag->test)();
 
 	if (fault_found)
-		return SIGNAL;
+		status = SIGNAL;
+
+	result = status == diag->expectedStatus ? "OK" : "FAIL";
+	write(2, result, strlen(result));
+	write(2, &newline, sizeof (newline)-1);
 
 	return status;
 }
@@ -106,7 +115,7 @@ write_under(void)
 static int
 corruptPointer(void)
 {
-	allocation++;
+	allocation += sizeof (void *);
 
 	return PASS;
 }
@@ -186,10 +195,6 @@ static struct diagnostic diagnostics[] = {
 };
 
 static const char failedTest[] = "Unexpected result returned for:\n";
-static const char newline = '\n';
-
-extern memory_raise_signal;
-extern memory_raise_and_exit;
 
 int
 main(int argc, char * * argv)
@@ -198,9 +203,10 @@ main(int argc, char * * argv)
 
 	memory_raise_signal = 1;
 	memory_raise_and_exit = 0;
+	signal(SIGNAL_MEMORY, fault_handler);
 
 	for (diag = diagnostics; diag->explanation != NULL; diag++) {
-		int status = find_fault(diag->test);
+		int status = find_fault(diag);
 
 		if (status != diag->expectedStatus) {
 			/* Don't use stdio to print here, because stdio

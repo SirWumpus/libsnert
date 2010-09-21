@@ -194,7 +194,7 @@ option$E: option.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)option$E option.c $(LIBSNERT) ${LIBS}
 
 DebugMalloc$O: DebugMalloc.c
-	$(CC) -DDEBUG_MALLOC_THREAD_REPORT $(CFLAGS) $(LDFLAGS) -c DebugMalloc.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -c DebugMalloc.c
 
 DebugMallocTest$E: DebugMalloc$O DebugMallocTest.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)DebugMallocTest$E DebugMallocTest.c $(LIBSNERT) ${LIBS} DebugMalloc$O
