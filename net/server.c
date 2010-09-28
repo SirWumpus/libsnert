@@ -1019,11 +1019,23 @@ serverWorkerCancel(List *list, ListItem *node, void *data)
 
 	worker = node->data;
 	worker->running = 0;
+
+	if (server->hook.worker_cancel != NULL
+	&& (*server->hook.worker_cancel)(worker)) {
+		syslog(LOG_ERR, "server-id=%u worker-id=%u cancel hook fail", server->id, worker->id);
+	}
+
 #ifdef __WIN32__
 	SetEvent(worker->kill_event);
 #endif
-#ifdef __unix__
+#if defined(__unix__) &&  defined(HAVE_PTHREAD_CANCEL)
 	(void) pthread_cancel(worker->thread);
+# if defined(__linux__) && defined(HAVE_PTHREAD_KILL)
+	/* Attempt to unblock IO in the thread, like epoll_wait()
+	 * that fail to act as a cancellation point.
+	 */
+	(void) pthread_kill(worker->thread, SIGTERM);
+# endif
 #endif
 	if (0 < server->debug.level)
 		syslog(LOG_DEBUG, "server-id=%u worker-id=%u cancel (%lx, %lu)", server->id, worker->id, (unsigned long) worker, (unsigned long) worker->thread);

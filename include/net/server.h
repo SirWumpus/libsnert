@@ -161,12 +161,13 @@ typedef struct {
 typedef struct {
 	ServerHook server_start;		/* serverStart */
 	ServerHook server_stop;			/* serverStop */
-	ServerWorkerHook worker_create;		/* serverAccept, serverWorkerCreate */
-	ServerWorkerHook worker_free;		/* serverWorker, serverWorkerFree */
-	ServerSessionHook session_create;	/* serverAccept, sessionCreate	*/
-	ServerSessionHook session_accept;	/* serverAccept, sessionAccept	*/
+	ServerWorkerHook worker_create;		/* serverAccept > serverWorkerCreate */
+	ServerWorkerHook worker_cancel;		/* serverStop   > serverWorkerCancel */
+	ServerWorkerHook worker_free;		/* serverWorker > serverWorkerFree */
+	ServerSessionHook session_create;	/* serverAccept > sessionCreate	*/
+	ServerSessionHook session_accept;	/* serverAccept > sessionAccept	*/
 	ServerSessionHook session_process;	/* serverWorker			*/
-	ServerSessionHook session_free;		/* serverWorker, sessionFree	*/
+	ServerSessionHook session_free;		/* serverWorker > sessionFree	*/
 } ServerHooks;
 
 typedef struct {
