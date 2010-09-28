@@ -1684,7 +1684,7 @@ dnl #endif
 		])
 
 		AC_CHECK_HEADERS([sys/event.h],[AC_CHECK_FUNCS([kqueue kevent])])
-		AC_CHECK_HEADERS([sys/epoll.h],[AC_CHECK_FUNCS([epoll_create epoll_ctl epoll_wait])])
+		AC_CHECK_HEADERS([sys/epoll.h],[AC_CHECK_FUNCS([epoll_create epoll_ctl epoll_wait epoll_pwait])])
 
 		AC_CHECK_HEADERS([netdb.h],[
 			AC_CHECK_FUNCS([ \

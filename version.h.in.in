@@ -628,6 +628,7 @@ union semun {
 #undef HAVE_EPOLL_CREATE
 #undef HAVE_EPOLL_CTL
 #undef HAVE_EPOLL_WAIT
+#undef HAVE_EPOLL_PWAIT
 
 /*
  * FreeBSD, OpenBSD Kernel Events
