@@ -1031,10 +1031,11 @@ serverWorkerCancel(List *list, ListItem *node, void *data)
 #if defined(__unix__) &&  defined(HAVE_PTHREAD_CANCEL)
 	(void) pthread_cancel(worker->thread);
 # if defined(__linux__) && defined(HAVE_PTHREAD_KILL)
-	/* Attempt to unblock IO in the thread, like epoll_wait()
-	 * that fail to act as a cancellation point.
+	/* Attempt to unblock IO, like epoll_wait(), within a
+	 * thread that fail to implement cancellation points.
 	 */
-	(void) pthread_kill(worker->thread, SIGTERM);
+	(void) pthread_kill(worker->thread, SIGUSR1);
+
 # endif
 #endif
 	if (0 < server->debug.level)
@@ -1042,6 +1043,14 @@ serverWorkerCancel(List *list, ListItem *node, void *data)
 
 	return 0;
 }
+
+#if defined(__linux__) && defined(HAVE_PTHREAD_KILL)
+static void
+sig_usr1(int signum)
+{
+	/* Do nothing */
+}
+#endif
 
 void
 serverStop(Server *server, int slow_quit)
@@ -1051,6 +1060,13 @@ serverStop(Server *server, int slow_quit)
 
 	if (server == NULL)
 		return;
+
+#if defined(__linux__) && defined(HAVE_PTHREAD_KILL)
+	/* Setup no-op signal handler that can be raised in order to
+	 * unblock epoll_wait, which is not a pthread cancellation point.
+	 */
+	signal(SIGUSR1, sig_usr1);
+#endif
 
 	/* Stop accepting new sessions. */
 	server->running = 0;
