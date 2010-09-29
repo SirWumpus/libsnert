@@ -185,6 +185,7 @@ error1:
 
 	do {
 		errno = 0;
+		pthread_testcancel();
 
 		/* Wait for some I/O or timeout. */
 		if (0 < (i = epoll_wait(ev_fd, set, fd_length, timeout))) {
@@ -254,6 +255,7 @@ error1:
 
 	do {
 		errno = 0;
+		pthread_testcancel();
 		socket_reset_set(fd_table, fd_length, set);
 
 		/* Wait for some I/O or timeout. */
@@ -332,6 +334,7 @@ error1:
 
 	do {
 		errno = 0;
+		pthread_testcancel();
 		memset(err_set, 0, set_size);
 		socket_reset_set(fd_table, fd_length, set);
 
@@ -387,6 +390,8 @@ error1:
 	do {
 		tv = tv;
 		errno = 0;
+		pthread_testcancel();
+
 		FD_ZERO(&err_set);
 		socket_reset_set(fd_table, fd_length, &set);
 
