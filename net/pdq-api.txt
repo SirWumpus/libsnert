@@ -1,0 +1,88 @@
+Parallel Domain Query API Overview
+----------------------------------
+
+Order of operations
+-------------------
+
+  1.	pdqInit called once when application starts up.
+
+  2.	Set global PDQ options:
+
+		pdqInitialTimeout
+		pdqMaxTimeout
+		pdqSetDebug
+		pdqSetShortQuery
+		pdqSetRoundRobin
+		pdqSetSourcePortRandomisation
+
+  3.	Create a new PDQ context with pdqOpen. PDQ is thread safe.
+
+  4.	Modify context options:
+
+		pdqSetTimeout		change max. timeout
+		pdqSetBasicQuery	change short-query
+		pdqSetLinearQuery   	change round robin
+
+  5.	Post one or more queries using pdqQuery, which builds and send
+	the query to one or more name servers, depending on the
+	context's round robin setting (default is parallel).
+
+  6.	Collect answers using pdqWait or pdqWaitAll. pdqWait collects
+	any waiting answers or timeouts and returns. pdqWaitAll collects
+	answers until all pending queries have been resolved or timed
+	out.
+
+	pdqWait and pdqWaitAll return a list of PDQ_rr pointers. There
+	are a family of pdqList* functions for manipulation and pruning
+	of the returned list.
+
+	Each PDQ_rr structure contains a PDQ_RCODE_* result from the
+	result given by a name server. In the case of an error case, the
+	first member of the list of PDQ_rr pointers (typically) contains
+	a pseudo PDQ_rr that carries just the PDQ_RCODE_* result.
+
+	Note that pdqWait and pdqWaitAll are wrapper functions that
+	handle exponential backoff timeout and calling pdqPoll.
+
+  7.	The PDQ context can be reused several times. When using pdqWait,
+	pdqQueryRemoveAll is used to remove any pending queries no
+	longer of interest. The application can then repeat steps 4, 5, 6,
+	and 7.
+
+  8.	Dispose of a PDQ context using pdqClose.
+
+  9.	pdqFini called when the application shuts down.
+
+
+There are two family of helper functions:
+
+	pdqFetch* family is a wrapper that simply calls pdqOpen, pdqGet*,
+	and pdqClose.
+
+	pdqGet* family wraps the pdqQuery, pdqWaitAll, and common post
+	processing such as extra queries, pruning, and error handling.
+
+	pdqGet			pdqFetch
+	pdqGet5A		pdqFetch5A
+	pdqGetMX		pdqFetchMX
+	pdqGetDnsList		pdqFetchDnsList
+
+	The dnsList API makes use of pdqGetDnsList. See dnsList-api.txt.
+
+	The pdqSetShortQuery(1) and pdqSetBasicQuery(pdq, 1) disables
+	subordinate lookups for A/AAAA records for MX, NS, and SOA in
+	pdqGet. pdqSetShortQuery(0) and pdqSetBasicQuery(pdq, 0) enables
+	the normal behaviour for pdqGet.
+
+Note that these helper functions, while handling certain common post
+processing issues, do not provide true asynchronous behaviour. True
+asynchronous would require the application doing the lower level
+operations itself (pdqQuery, pdqWait / pdqWaitAll, post processing).
+
+There are also a special root search function, pdqRootGet, which handles
+the complexities of searching from the root servers for an authoritative
+answer. This is not truely asynchronous either.
+
+
+-END-
+
