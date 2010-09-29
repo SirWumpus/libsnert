@@ -42,6 +42,7 @@ com/snert/src/lib/io/makefile.in
 com/snert/src/lib/io/mkpath.c
 com/snert/src/lib/io/socket2.c
 com/snert/src/lib/io/socketAddress.c
+com/snert/src/lib/io/socketAddressIsLocal.c
 com/snert/src/lib/io/socketTimeoutIO.c
 com/snert/src/lib/io/open-close.awk
 com/snert/src/lib/mail/MailSpan.c
@@ -267,6 +268,7 @@ com/snert/src/lib/include/util/Base64.h
 com/snert/src/lib/include/util/BigInt.h
 com/snert/src/lib/include/util/Buf.h
 com/snert/src/lib/include/util/Cache.h
+com/snert/src/lib/include/util/DebugMalloc.h
 com/snert/src/lib/include/util/HashTable.h
 com/snert/src/lib/include/util/JavaTime.h
 com/snert/src/lib/include/util/Memory.h

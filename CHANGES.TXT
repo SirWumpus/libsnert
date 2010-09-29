@@ -44,6 +44,37 @@ is no set schedule for releases.
 
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
+
+--1.74.13--
+
+   !	mcc_listener_thread: Added check to discard broadcasts to self to
+   	avoid potential broadcast / correction loops with self.
+
+   +	Added socketAddressIsLocal()
+
+   !	mccStartUnicast(): Added broadcast-to-self check that discards
+	our own IP address from the unicast address list.
+
+   !	serverWorkerCancel: Added a worker_cancel hook.
+
+   !	Moved timerSetAbstime to timespecSetAbstime.
+
+   +	queue.c/h: Added queueTimedWaitEmpty.
+
+   !	Linux: Work-around for epoll_wait's lack of pthread cancellation
+	point. In smtpf at time of a clean shutdown (serverStop), worker
+	threads may be blocked in the epoll implementation used in
+	socketTimeouts(). pthread_cancel() does not appear to affect the
+	behaviour of epoll_wait() and online searches show some stupid
+	reluctance on the part of the glibc maintainer to fix it.
+
+	The solution in serverWorkerCancel() is to call pthread_kill()
+	immediately after pthread_cancel() to send SIGUSR1 to a thread,
+	which invokes a no-op signal handler. epoll_wait() and any other
+	IO functions, that have no cancellation points, to unblock and
+	set errno to EINTR. The cancellation will then be caught at the
+	next cancellation point or explicit pthread_testcancel() check.
+
 --1.74.12--
 
    !	pdqPoll: Some NS hosts return REFUSED instead of SERVFAIL when
