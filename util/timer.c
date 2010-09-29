@@ -1,7 +1,7 @@
 /*
  * timer.c
  *
- * Copyright 2009 by Anthony Howe. All rights reserved.
+ * Copyright 2009, 2010 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -27,16 +27,6 @@
 #if defined(HAVE_PTHREAD_COND_TIMEDWAIT)
 static CLOCK time_zero = { 0, 0 };
 
-static void
-timerSetAbstime(struct timespec *abstime, struct timespec *delay)
-{
-	CLOCK now;
-
-	CLOCK_GET(&now);
-	CLOCK_SET_TIMESPEC(abstime, &now);
-	timespecAdd(abstime, delay);
-}
-
 static void *
 timerThread(void *_data)
 {
@@ -45,16 +35,14 @@ timerThread(void *_data)
 	struct timespec abstime, delay;
 	Timer *timer = (Timer *) _data;
 
-	(void) pthread_mutex_lock(&timer->mutex);
-# ifdef HAVE_PTHREAD_CLEANUP_PUSH
-	pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &timer->mutex);
-# endif
+	PTHREAD_MUTEX_LOCK(&timer->mutex);
+
 	/* Set initial delay. */
 	delay = *(struct timespec *) &timer->period;
 #if !defined(HAVE_CLOCK_GETTIME) && defined(HAVE_GETTIMEOFDAY)
 	delay.tv_nsec *= 1000;
 #endif
-	timerSetAbstime(&abstime, &delay);
+	timespecSetAbstime(&abstime, &delay);
 
 	while ((error = pthread_cond_timedwait(&timer->cv, &timer->mutex, &abstime)) != 0) {
 		if (error != ETIMEDOUT || timer->task == NULL)
@@ -76,13 +64,11 @@ timerThread(void *_data)
 		period.tv_usec *= 1000;
 #endif
 		/* Set end of next iteration. */
-		timerSetAbstime(&abstime, (struct timespec *) &period);
+		timespecSetAbstime(&abstime, (struct timespec *) &period);
 	}
-# ifdef HAVE_PTHREAD_CLEANUP_PUSH
-	pthread_cleanup_pop(1);
-# else
-	(void) pthread_mutex_unlock(&timer->mutex);
-# endif
+
+	PTHREAD_MUTEX_UNLOCK(&timer->mutex);
+
 #ifdef __WIN32__
 	pthread_exit(NULL);
 #endif
@@ -244,20 +230,13 @@ timerFree(void *_timer)
 		timer->task = NULL;
 		CLOCK_SUB(&timer->period, &timer->period);
 #ifdef __unix__
-		(void) pthread_mutex_lock(&timer->mutex);
-# ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_push((void (*)(void *)) pthread_mutex_unlock, &timer->mutex);
-# endif
+		PTHREAD_MUTEX_LOCK(&timer->mutex);
 # if defined(HAVE_PTHREAD_COND_TIMEDWAIT)
 		(void) pthread_cond_signal(&timer->cv);
 # else
 		(void) pthread_cancel(timer->thread);
 # endif
-# ifdef HAVE_PTHREAD_CLEANUP_PUSH
-		pthread_cleanup_pop(1);
-# else
-		(void) pthread_mutex_unlock(&timer->mutex);
-# endif
+		PTHREAD_MUTEX_UNLOCK(&timer->mutex);
 #endif
 #ifdef __WIN32__
 		SetEvent(timer->cancel_event);

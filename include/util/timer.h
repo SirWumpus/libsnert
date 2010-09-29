@@ -1,7 +1,7 @@
 /*
  * timer.h
  *
- * Copyright 2008, 2009 by Anthony Howe.  All rights reserved.
+ * Copyright 2008, 2010 by Anthony Howe.  All rights reserved.
  */
 
 #ifndef __com_snert_lib_util_timer_h__
@@ -60,6 +60,7 @@ struct timespec {
 extern void timespecAdd(struct timespec *acc, struct timespec *b);
 extern void timespecSubtract(struct timespec *acc, struct timespec *b);
 extern void timespecToTimeval(struct timespec *a, struct timeval *b);
+extern void timespecSetAbstime(struct timespec *abstime, struct timespec *delay);
 
 extern void timevalAdd(struct timeval *acc, struct timeval *b);
 extern void timevalSubtract(struct timeval *acc, struct timeval *b);

@@ -16,6 +16,16 @@
  ***********************************************************************/
 
 void
+timespecSetAbstime(struct timespec *abstime, struct timespec *delay)
+{
+	CLOCK now;
+
+	CLOCK_GET(&now);
+	CLOCK_SET_TIMESPEC(abstime, &now);
+	timespecAdd(abstime, delay);
+}
+
+void
 timespecSubtract(struct timespec *acc, struct timespec *b)
 {
 	if (acc->tv_nsec < b->tv_nsec) {
