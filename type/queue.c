@@ -15,6 +15,7 @@
 #include <com/snert/lib/sys/pthread.h>
 #include <com/snert/lib/type/queue.h>
 #include <com/snert/lib/util/Text.h>
+#include <com/snert/lib/util/timer.h>
 
 /***********************************************************************
  *** Low-level list manipulation; not mutex protected.
@@ -277,4 +278,22 @@ queueWaitEmpty(Queue *queue)
 			break;
 	}
 	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
+}
+
+void
+queueTimedWaitEmpty(Queue *queue, unsigned long ms)
+{
+#ifdef HAVE_PTHREAD_COND_TIMEDWAIT
+	struct timespec timeout, delay;
+
+	TIMER_SET_MS(&delay, ms);
+	timespecSetAbstime(&timeout, &delay);
+
+	PTHREAD_MUTEX_LOCK(&queue->mutex);
+	while (queue->list.head != NULL) {
+		if (pthread_cond_timedwait(&queue->cv_less, &queue->mutex, &timeout))
+			break;
+	}
+	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
+#endif
 }
