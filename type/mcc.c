@@ -762,13 +762,10 @@ mcc_listener_thread(void *data)
 
 		nbytes = socketReadFrom(listener->socket, (unsigned char *) &new_row, sizeof (new_row), &from);
 
-		if (nbytes < 0) {
+		if (nbytes <= 0) {
 			syslog(LOG_ERR, "multi/unicast socket read error: %s (%d)", strerror(errno), errno);
 			continue;
 		}
-
-		if (nbytes == 0)
-			continue;
 
 		(void) socketAddressGetString(&from, 0, ip, sizeof (ip));
 
@@ -974,9 +971,6 @@ mccStopUnicast(mcc_handle *mcc)
 		/* Stop the listener thread... */
 		mcc->unicast.is_running = 0;
 
-		/* ... by closing both I/O channels of the socket. */
-		socketShutdown(mcc->unicast.socket, SHUT_RDWR);
-
 		/* Wait for the thread to exit. */
 		(void) pthread_cancel(mcc->unicast.thread);
 
@@ -1033,13 +1027,14 @@ mccStartUnicast(mcc_handle *mcc, const char **unicast_ips, int port)
 	thread_data->mcc = mcc;
 	thread_data->listener = &mcc->unicast;
 
+	mcc->unicast.port = port;
+	mcc->unicast.is_running = 0;
+
 	for (count = 0; unicast_ips[count] != NULL; count++)
 		;
 
 	if ((mcc->unicast_ip = calloc(count+1, sizeof (*mcc->unicast_ip))) == NULL)
 		goto error1;
-
-	mcc->unicast.port = port;
 
 	for (i = j = 0; i < count; i++, j++) {
 		mcc->unicast_ip[j] = socketAddressCreate(unicast_ips[i], port);
