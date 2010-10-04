@@ -122,7 +122,7 @@ static int
 victor_chain_add(const char *seed_number, char *buffer, size_t size)
 {
 	char *bp, *ep;
-	size_t length;
+	size_t length, n;
 
 	if (seed_number == NULL || buffer == NULL)
 		return 1;
@@ -140,14 +140,15 @@ victor_chain_add(const char *seed_number, char *buffer, size_t size)
 	ep = &buffer[length];
 	bp = buffer;
 
-	for (size -= length+1; 0 < size; size--) {
+	for (n = size - length - 1; 0 < n; n--) {
 		*ep++ = (bp[0]-'0' + bp[1]-'0') % 10 + '0';
 		bp++;
 	}
 	*ep = '\0';
 
 	if (debug) {
-		fprintf(stderr, "seed=%s\n", seed_number);
+		fprintf(stderr, "Chain Addition MOD 10\n");
+		fprintf(stderr, "seed=%s length=%lu\n", seed_number, size-1);
 		victor_dump_chain(stderr, buffer);
 		fputc('\n', stderr);
 	}
@@ -171,8 +172,10 @@ victor_digit_order(const char source[10], char out[11])
 	}
 	out[10] = '\0';
 
-	if (debug)
+	if (debug) {
+		fprintf(stderr, "Digit Order\n");
 		fprintf(stderr, "%s\n\n", out);
+	}
 }
 
 int
@@ -233,6 +236,22 @@ victor_init(Victor *vic)
 	 * decimal digits having double digit encoding.
 	 */
 
+	if (debug) {
+		fprintf(
+			stderr,
+			"Set of frequent letters (-f %s) assigned columns\n"
+			"based on digit order of last row of chain addition table.\n",
+			vic->freq7
+		);
+		fprintf(
+			stderr,
+			"The remaining letters from the key \"%s\"\n"
+			"seeds the remaining two rows.\n\nThe straddling checkerboard is thus:\n",
+			vic->key
+		);
+		fputc('\n', stderr);
+	}
+
 	/* Assign single digit code for seven most frequent
 	 * letters based on the "frequent" set order.
 	 */
@@ -254,6 +273,12 @@ victor_init(Victor *vic)
 				j++;
 			}
 		}
+	}
+
+	if (debug) {
+		/* http://en.wikipedia.org/wiki/Straddling_checkerboard	*/
+		victor_dump_table(stderr, vic->table);
+		fputc('\n', stdout);
 	}
 
 	return 0;
@@ -279,8 +304,7 @@ victor_char_to_code(char table[3][38], const char *message, char *out)
 	*op = '\0';
 
 	if (debug) {
-		victor_dump_table(stderr, table);
-		fputc('\n', stdout);
+		fprintf(stderr, "Convert message to a numeric form.\n");
 		victor_dump_alphabet(stderr, table);
 		fprintf(stderr, "\n\"%s\"\n%s\n\n", message, out);
 	}
@@ -300,6 +324,7 @@ victor_mask_code(const char *key_mask, char *out)
 	}
 
 	if (debug) {
+		fprintf(stderr, "Column add MOD 10 using chain addition table.\n");
 		fprintf(stderr, "%s\n", out);
 		fputc('\n', stderr);
 	}
@@ -310,6 +335,10 @@ victor_code_to_char(char table[3][38], char *out)
 {
 	int i;
 	char *op;
+
+	if (debug) {
+		fprintf(stderr, "Convert numeric form to string.\n");
+	}
 
 	for (op = out; *out != '\0'; out++) {
 		for (i = 0; i < sizeof (alphabet)-1; i++) {
@@ -350,10 +379,12 @@ victor_decode(Victor *vic, const char *message)
 {
 	char *out;
 
+	/* Invert the chain addition table for decoding. */
 	for (out = vic->chain; *out != '\0'; out++)
 		*out = (10 - *out + '0') % 10 + '0';
 
 	if (debug) {
+		fprintf(stderr, "Inverted Chain Addition Table\n");
 		victor_dump_chain(stderr, vic->chain);
 		fputc('\n', stderr);
 	}
