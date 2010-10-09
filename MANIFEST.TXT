@@ -190,6 +190,7 @@ com/snert/src/lib/util/convertDate.c
 com/snert/src/lib/util/escape.c
 com/snert/src/lib/util/getopt.c
 com/snert/src/lib/util/html.c
+com/snert/src/lib/util/htmlEntity.c
 com/snert/src/lib/util/makefile.in
 com/snert/src/lib/util/ixhash.c
 com/snert/src/lib/util/ixhash.eml

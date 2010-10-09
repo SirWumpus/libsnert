@@ -78,7 +78,7 @@ OBJS = \
 	TextUpper$O TextSensitiveEndsWith$O TextInsensitiveEndsWith$O \
 	TextInsensitiveStartsWith$O TextSensitiveStartsWith$O TextHash$O TextDelim$O TextEmpty$O \
 	TextNull$O TextC$O setBitWord$O strlrcspn$O strlrspn$O strnatcmp$O bs$O Base64$O \
-	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O html$O \
+	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O html$O htmlEntity$O \
 	uriIsDomainBL$O uri$O option$O time62$O timespec$O timeval$O timer$O
 
 TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \

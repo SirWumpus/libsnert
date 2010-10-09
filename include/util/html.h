@@ -1,7 +1,7 @@
 /*
  * html.h
  *
- * Copyright 2009 by Anthony Howe.  All rights reserved.
+ * Copyright 2009, 2010 by Anthony Howe.  All rights reserved.
  */
 
 #ifndef __com_snert_lib_util_html_h__
@@ -70,6 +70,47 @@ extern int htmlTokenRange(const char **start, const char **stop, int *state);
  *	end of parse string.
  */
 extern char *htmlTokenNext(const char *start, const char **stop, int *state);
+
+/**
+ * @param source
+ *	A C string pointer.
+ *
+ * @param length
+ *	The length of the string to decode or -1 for the whole string.
+ *
+ * @param buffer
+ *	A pointer to buffer where the decoded source is copied to.
+ *	The buffer will be NUL terminated. Note that &shy; (soft-hyphen)
+ *	is decoded and discarded.
+ *
+ * @param size
+ *	The size of the decode buffer.
+ *
+ * @return
+ *	The length of the decoded string in the buffer.
+ */
+extern size_t htmlEntityDecode(const char *source, size_t length, char *buffer, size_t size);
+
+/**
+ * @param source
+ *	A C string pointer.
+ *
+ * @param length
+ *	The length of the string to encode or -1 for the whole string.
+ *
+ * @param buffer
+ *	A pointer to buffer where the encoded source is copied to.
+ *	The buffer will be NUL terminated.
+ *
+ * @param size
+ *	The size of the encoding buffer.
+ *
+ * @return
+ *	The length of the encoded string in the buffer. If the length
+ *	is greater than or equal to the size of the buffer, then the
+ *	buffer was too small and the encoded string is incomplete.
+ */
+extern size_t htmlEntityEncode(const char *source, size_t length, char *buffer, size_t size);
 
 /***********************************************************************
  ***
