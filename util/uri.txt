@@ -292,7 +292,12 @@ Comment: Underscore is not part of domain/host name.
 
 ___geegeesoe.com___
 
-----=_test_boundary--
+----=_test_boundary
+Content-type: text/plain
+Comment: URL obfuscation using &shy;
 
+http://e&shy;&shy;x&shy;&shy;a&shy;&shy;m&shy;p&shy;l&shy;e&shy;&shy;.&shy;&shy;com/zT7btk1qlUMjBX10001aqyykbtlqvi/VJ4TBBE9203/hN6foQ
+
+----=_test_boundary--
 
 

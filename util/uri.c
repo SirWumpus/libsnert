@@ -589,7 +589,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	}
 
 	/* RFC 3986 allows everything after the scheme to be empty.
-	 * Consider Firefox's soecial "about:" URI. Since headers
+	 * Consider Firefox's special "about:" URI. Since headers
 	 * can look like schemes, only return success for schemes
 	 * we know.
 	 */
@@ -999,6 +999,8 @@ error0:
 #define URI_MIME_BUFFER_SIZE	1024
 #endif
 
+#define HTML_ENTITY_SHY		0xAD
+
 typedef struct {
 	URI *uri;
 	int length;
@@ -1076,6 +1078,10 @@ uriMimeDecodedOctet(Mime *m, int ch)
 
 				/* Rewind to the ampersand. */
 				hold->length = offset - 1;
+
+				/* Discard the &shy; from a URL. */
+				if (ch == HTML_ENTITY_SHY)
+					return;
 			} else if (0 < offset && strcmp(hold->buffer+offset, "lt") == 0) {
 				ch = '<';
 				hold->length = offset - 1;
@@ -1085,6 +1091,10 @@ uriMimeDecodedOctet(Mime *m, int ch)
 			} else if (0 < offset && strcmp(hold->buffer+offset, "amp") == 0) {
 				ch = '&';
 				hold->length = offset - 1;
+			} else if (0 < offset && strcmp(hold->buffer+offset, "shy") == 0) {
+				/* Discard the &shy; from a URL. */
+				hold->length = offset - 1;
+				return;
 			}
 		}
 
