@@ -114,7 +114,7 @@ mccNotesUpdate(mcc_context *mcc, const char *ip, const char *find, const char *t
 	if (mcc == NULL || ip == NULL || find == NULL || text == NULL)
 		return;
 
-	PTHREAD_MUTEX_LOCK(&mcc->mutex);
+	PTHREAD_MUTEX_LOCK(&mcc->active_mutex);
 
 	host = mccFindActive(mcc, ip);
 	note = mccNotesFind(host->notes, find);
@@ -128,7 +128,7 @@ mccNotesUpdate(mcc_context *mcc, const char *ip, const char *find, const char *t
 		mccStringReplace(note, text);
 	}
 
-	PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
+	PTHREAD_MUTEX_UNLOCK(&mcc->active_mutex);
 }
 
 void
@@ -242,7 +242,7 @@ mccUpdateActive(mcc_handle *mcc, const char *ip, uint32_t *touched)
 	if (mcc == NULL || ip == NULL)
 		return;
 
-	PTHREAD_MUTEX_LOCK(&mcc->mutex);
+	PTHREAD_MUTEX_LOCK(&mcc->active_mutex);
 
 	entry = mccFindActive(mcc, ip);
 	entry->touched = *touched;
@@ -254,7 +254,7 @@ mccUpdateActive(mcc_handle *mcc, const char *ip, uint32_t *touched)
 	if (0 < debug)
 		syslog(LOG_DEBUG, "multi/unicast cache active ip=%s ppm=%lu max-ppm=%lu", ip, rate, entry->max_ppm);
 
-	PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
+	PTHREAD_MUTEX_UNLOCK(&mcc->active_mutex);
 }
 
 Vector
@@ -269,7 +269,7 @@ mccGetActive(mcc_handle *mcc)
 
 	VectorSetDestroyEntry(hosts, free);
 
-	PTHREAD_MUTEX_LOCK(&mcc->mutex);
+	PTHREAD_MUTEX_LOCK(&mcc->active_mutex);
 
 	for (i = 0; i < sizeof (mcc->active) / sizeof (mcc_active_host); i++) {
 		if (mcc->active[i].touched == 0)
@@ -282,7 +282,7 @@ mccGetActive(mcc_handle *mcc)
 		}
 	}
 
-	PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
+	PTHREAD_MUTEX_UNLOCK(&mcc->active_mutex);
 
 	return hosts;
 }
@@ -358,17 +358,21 @@ mccSend(mcc_handle *mcc, mcc_row *row, uint8_t command)
 	if (mcc->multicast.is_running) {
 		if (1 < debug)
 			syslog(LOG_DEBUG, "mccSend multicast command=%c " MCC_KEY_FMT, row->command, row->key_data);
+		PTHREAD_MUTEX_LOCK(&mcc->mutex);
 		if (socketWriteTo(mcc->multicast.socket, (unsigned char *) row, sizeof (*row), mcc->multicast_ip) != sizeof (*row))
 			rc = MCC_ERROR;
+		PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
 	}
 
 	if (mcc->unicast.is_running) {
 		if (1 < debug)
 			syslog(LOG_DEBUG, "mccSend unicast command=%c " MCC_KEY_FMT, row->command, row->key_data);
+		PTHREAD_MUTEX_LOCK(&mcc->mutex);
 		for (unicast = mcc->unicast_ip; *unicast != NULL; unicast++) {
 			if (socketWriteTo(mcc->unicast.socket, (unsigned char *) row, sizeof (*row), *unicast) != sizeof (*row))
 				rc = MCC_ERROR;
 		}
+		PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
 	}
 
 	/* Restore our record. */
@@ -760,7 +764,9 @@ mcc_listener_thread(void *data)
 			continue;
 		}
 
+		PTHREAD_MUTEX_LOCK(&mcc->mutex);
 		nbytes = socketReadFrom(listener->socket, (unsigned char *) &new_row, sizeof (new_row), &from);
+		PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
 
 		if (nbytes <= 0) {
 			syslog(LOG_ERR, "multi/unicast socket read error: %s (%d)", strerror(errno), errno);
@@ -1562,6 +1568,7 @@ mccDestroy(void *_mcc)
 		VectorDestroy(mcc->key_hooks);
 		free(mcc->secret);
 
+		(void) pthread_mutex_destroy(&mcc->active_mutex);
 		(void) pthread_mutex_destroy(&mcc->mutex);
 		free(mcc);
 	}
@@ -1605,6 +1612,11 @@ mccCreate(const char *filepath, int flags, mcc_hooks *hooks)
 		mcc->hook = *hooks;
 
 	if (pthread_mutex_init(&mcc->mutex, NULL)) {
+		syslog(LOG_ERR, "%s(%u): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
+		goto error1;
+	}
+
+	if (pthread_mutex_init(&mcc->active_mutex, NULL)) {
 		syslog(LOG_ERR, "%s(%u): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
 		goto error1;
 	}

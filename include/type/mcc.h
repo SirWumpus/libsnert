@@ -152,9 +152,7 @@ typedef struct {
 	int port;
 	volatile int is_running;
 	Socket2 *socket;
-#ifdef HAVE_PTHREAD_CREATE
 	pthread_t thread;
-#endif
 } mcc_network;
 
 typedef struct mcc_ctx mcc_handle;
@@ -228,11 +226,12 @@ struct mcc_ctx {
 
 	mcc_hooks hook;
 	Vector key_hooks;
-#ifdef HAVE_PTHREAD_MUTEX_T
+
 	time_t gc_next;
 	pthread_t gc_thread;
 	pthread_mutex_t mutex;
-#endif
+
+	pthread_mutex_t active_mutex;
 	mcc_active_host active[MCC_HASH_TABLE_SIZE];
 };
 
