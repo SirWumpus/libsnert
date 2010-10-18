@@ -2662,7 +2662,10 @@ static int
 kvm_sql_step(kvm_sql *sql, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 {
 	int rc;
-
+#ifdef HAVE_PTHREAD_SETCANCELSTATE
+	int old_state;
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old_state);
+#endif
 	/* Using the newer sqlite_prepare_v2() interface means that
 	 * sqlite3_step() will return more detailed error codes. See
 	 * sqlite3_step() API reference.
@@ -2691,7 +2694,9 @@ kvm_sql_step(kvm_sql *sql, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 		 */
 		(void) sqlite3_reset(sql_stmt);
 	}
-
+#ifdef HAVE_PTHREAD_SETCANCELSTATE
+	pthread_setcancelstate(old_state, NULL);
+#endif
 	return rc;
 }
 
@@ -3014,6 +3019,9 @@ kvm_open_sql(kvm *self, const char *location, int mode)
 	char *error;
 	kvm_sql *sql;
 	size_t length;
+	int sql_open_flags;
+
+	sql_open_flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
 
 	self->close = kvm_close_sql;
 	self->filepath = kvm_filepath_sql;
@@ -3033,6 +3041,7 @@ kvm_open_sql(kvm *self, const char *location, int mode)
 	if (mode & KVM_MODE_READ_ONLY) {
 		self->put = kvm_put_stub;
 		self->remove = kvm_remove_stub;
+		sql_open_flags = SQLITE_OPEN_READONLY;
 	}
 
 	length = strlen(location);
@@ -3044,7 +3053,7 @@ kvm_open_sql(kvm *self, const char *location, int mode)
 	sql->path = (char *) &sql[1];
 	(void) TextCopy(sql->path, length+1, location);
 
-	if ((rc = sqlite3_open(sql->path, &sql->db)) != SQLITE_OK) {
+	if ((rc = sqlite3_open_v2(sql->path, &sql->db, sql_open_flags, NULL)) != SQLITE_OK) {
 		syslog(LOG_ERR, "sql=%s open error: %s", sql->path, sqlite3_errmsg(sql->db));
 		return KVM_ERROR;
 	}
