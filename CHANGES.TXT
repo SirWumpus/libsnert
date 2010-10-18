@@ -47,6 +47,8 @@ is no set schedule for releases.
 
 --1.74.13--
 
+   *    Upgraded SQLite to 3.7.3
+
    !	mcc_listener_thread: Added check to discard broadcasts to self to
    	avoid potential broadcast / correction loops with self.
 
@@ -74,6 +76,21 @@ is no set schedule for releases.
 	IO functions, that have no cancellation points, to unblock and
 	set errno to EINTR. The cancellation will then be caught at the
 	next cancellation point or explicit pthread_testcancel() check.
+
+   +	Added htmlEntityDecode() and htmlEntityEncode() functions to
+	decode and encode ISO-8859-1 HTML entities. htmlEntityDecode()
+	will decode and discard &shy; (soft-hyphen).
+
+   !	uriMimeDecodedOctet(): Decode all ISO-8859-1 HTML entities. The
+   	&shy; (soft-hyphen) is decoded and discarded as it is being used
+   	to obfuscate URLs in junk mail.
+
+	http://www.symantec.com/connect/blogs/soft-hyphen-new-url-obfuscation-technique
+
+   !	kvm_sql_step: Disable pthread cancel during sqlite3_step().
+
+   !	kvmOpen: Changed sqlite3_open() to sqlite3_open_v2() so that we
+   	can pass SQLITE3_OPEN_READONLY when required.
 
 --1.74.12--
 
