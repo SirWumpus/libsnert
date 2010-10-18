@@ -43,7 +43,7 @@ spanDomain(const char *domain, int minDots)
 		case '.':
 			/* A domain segment must end with an alpha-numeric. */
 			if (!isalnum(previous))
-				goto stop;
+				return 0;
 
 			/* Double dots are illegal. */
 			if (domain[1] == '.')
@@ -58,7 +58,7 @@ spanDomain(const char *domain, int minDots)
 		case '-':
 			/* A domain segment cannot start with a hyphen. */
 			if (previous == '.')
-				goto stop;
+				return 0;
 			break;
 		default:
 			if (!isalnum(*domain))
