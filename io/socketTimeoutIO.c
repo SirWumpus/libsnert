@@ -124,6 +124,7 @@ socketTimeouts(SOCKET *fd_table, SOCKET *fd_ready, int fd_length, long timeout, 
 
 	do {
 		errno = 0;
+		pthread_testcancel();
 
 		/* Wait for some I/O or timeout. */
 		if (0 < (n = kevent(kq, set, fd_length, set+fd_length, fd_length, to))) {
