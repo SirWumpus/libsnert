@@ -13,17 +13,17 @@ The following test cases
 
  N  -  -  -	This is not a domain.
 
- N  U  -  -	This sentence ends with the domain example.com. Is a reserved domain, not blacklisted (yet).
+ Y  U  -  -	This sentence ends with the domain example.com. Is a reserved domain, not blacklisted (yet).
 
  Y  Y  N  -	"www.123.com."
 
- N  -  -  -	www.-123.com
+ N  -  -  -	www.-123.com	Labels cannot start with a hyphen.
 
- N  -  -  -	www.123-.com
+ N  -  -  -	www.123-.com	Labels cannot end with a hyphen.
  
- N  U  N  -	'host.abc.com'
+ Y  U  N  -	'host.abc.com'
  
- N  U  N  -	(smtp.abc.com)
+ Y  U  N  -	(smtp.abc.com)
 
  Y  U  N  -	'www.singlequote.com'
  
@@ -31,21 +31,21 @@ The following test cases
 
  N  -  -  -	There are no numeric top-level-domains like foo.bar.123
 
- N  -  -  -	foo.bar.-123
+ N  -  -  -	foo.bar.-123		Invalid top-level-domain.
 
- N  -  -  -	foo.bar.123-
+ N  -  -  -	foo.bar.123-		Invalid top-level-domain.
 
- N  -  -  -	foo.bar.1a2
+ N  -  -  -	foo.bar.1a2		Invalid top-level-domain.
 
  Y  U  -  -	cid:12345.67890@snert.com
 
- N  N  N  -	www.fail.test
+ N  N  N  -	www.fail.test		Invalid top-level-domain.
 
- N  N  Y  -	www.pass.test
+ N  N  Y  -	www.pass.test		Invalid top-level-domain.
 
- N  N  N  -	www.anything.invalid
+ N  N  N  -	www.anything.invalid	Invalid top-level-domain.
 
- N  N  N  -	www.anything.localhost
+ N  N  N  -	www.anything.localhost	Invalid top-level-domain.
   
  Y  ?  N  -	http://127.0.0.1/
 
@@ -61,13 +61,13 @@ The following test cases
 
  Y  U  N  -	remove@goldrush411.biz
 
- N  U  N  -	fbfhbj5df33sdvbn8tg.com		implicit short domain
+ Y  U  N  -	fbfhbj5df33sdvbn8tg.com		Implicit short domain
 
- N  U  N  -	fbfhbj5df33sdvbn8tg.bogus	should not be tested
+ N  U  N  -	fbfhbj5df33sdvbn8tg.bogus	Should not be tested, invalid TLD
  
- ?  ?  Y  -	reachdirect.info		implicit short domain
+ Y  ?  Y  -	reachdirect.info		Implicit short domain
 
- ?  ?  Y  -	reachdirect.bogus		should not be tested
+ N  ?  Y  -	reachdirect.bogus		Should not be tested, invalid TLD
 
  Y  Y  Y  Y	<http://translate.google.com/translate?u=www.fsl.com&langpair=en%7Cen&hl=en>
 
@@ -81,7 +81,7 @@ The following test cases
 
  N  U  Y  -     Missing scheme //Maildir/tmp/1147912780.P18481.andromede.tetragone.fr
  
- N  -  -  -	https://smallbusiness..dell.com/
+ N  -  -  -	https://smallbusiness..dell.com/	Double dot in domain.
 
  Y  ?  ?  Y     http://www.zdnetasia.com/search/results.htm?query=mari+misato+at+dynamix+%3CIFRAME%20src=//72.232.39.252/a/%3E.html
 
@@ -116,10 +116,6 @@ The following test cases
  Y  -  -  -	mailto:scam@uribl.com
  
  Y  -  -  -	mailto:abuse@snert.com
-
-----=_test_boundary
-Content-Type: text/html
-Content-Transfer-Encoding: quoted-printable
 
  Y  -  N  -	&lt;wumpus@snert.org&gt;
 
@@ -294,9 +290,10 @@ ___geegeesoe.com___
 
 ----=_test_boundary
 Content-type: text/plain
-Comment: URL obfuscation using &shy;
+Comment: URL obfuscation using HTML entity &shy; (soft-hyphen)
 
 http://e&shy;&shy;x&shy;&shy;a&shy;&shy;m&shy;p&shy;l&shy;e&shy;&shy;.&shy;&shy;com/zT7btk1qlUMjBX10001aqyykbtlqvi/VJ4TBBE9203/hN6foQ
+http://e&shy;&shy;x&shy;&shy;a&shy;&shy;m&shy;p&shy;l&shy;e&shy;&shy;.&shy;&shy;com/foo?a=&#128;&q=&quot;
 
 ----=_test_boundary--
 

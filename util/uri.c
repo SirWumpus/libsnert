@@ -49,6 +49,7 @@
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/util/b64.h>
 #include <com/snert/lib/util/uri.h>
+#include <com/snert/lib/util/html.h>
 #include <com/snert/lib/util/Text.h>
 
 /***********************************************************************
@@ -1066,40 +1067,20 @@ uriMimeDecodedOctet(Mime *m, int ch)
 		/* Look for HTML numerical entities &#NNN; or &#xHHHH; */
 		if (0 < hold->length && ch == ';') {
 			int offset;
+			size_t length;
 
-			hold->buffer[hold->length] = '\0';
 			offset = strlrcspn(hold->buffer, hold->length, "&");
+			hold->buffer[hold->length++] = ch;
 
-			if (0 < offset && hold->buffer[offset] == '#') {
-				if (hold->buffer[offset+1] == 'x')
-					ch = strtol(hold->buffer+offset+2, NULL, 16);
-				else
-					ch = strtol(hold->buffer+offset+1, NULL, 10);
-
-				/* Rewind to the ampersand. */
-				hold->length = offset - 1;
-
-				/* Discard the &shy; from a URL. */
-				if (ch == HTML_ENTITY_SHY)
-					return;
-			} else if (0 < offset && strcmp(hold->buffer+offset, "lt") == 0) {
-				ch = '<';
-				hold->length = offset - 1;
-			} else if (0 < offset && strcmp(hold->buffer+offset, "gt") == 0) {
-				ch = '>';
-				hold->length = offset - 1;
-			} else if (0 < offset && strcmp(hold->buffer+offset, "amp") == 0) {
-				ch = '&';
-				hold->length = offset - 1;
-			} else if (0 < offset && strcmp(hold->buffer+offset, "shy") == 0) {
-				/* Discard the &shy; from a URL. */
-				hold->length = offset - 1;
-				return;
+			if (0 < offset) {
+				offset--;
+				/* Note that htmlEntityDecode() discards soft-hyphen &shy; */
+				length = htmlEntityDecode(hold->buffer+offset, hold->length-offset, hold->buffer+offset, hold->length-offset+1);
+				hold->length = offset + length;
 			}
+		} else {
+			hold->buffer[hold->length++] = ch;
 		}
-
-		hold->buffer[hold->length++] = ch;
-
 		return;
 	}
 
@@ -1584,6 +1565,14 @@ process_file(const char *filename)
 	return rc;
 }
 
+URI *
+parse_arg(char *s)
+{
+	size_t length = strlen(s);
+	length = htmlEntityDecode(s, length, s, length+1);
+	return uriParse2(s, length, 1);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1735,7 +1724,7 @@ main(int argc, char **argv)
 		if (check_files) {
 			if (process_file((const char *) argv[i]))
 				break;
-		} else if ((uri = uriParse2((const char *) argv[i], -1, 1)) != NULL) {
+		} else if ((uri = parse_arg(argv[i])) != NULL) {
 			process(uri, NULL);
 			if (check_query)
 				process_query(uri, NULL);
