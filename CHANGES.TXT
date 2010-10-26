@@ -92,6 +92,12 @@ is no set schedule for releases.
    !	kvmOpen: Changed sqlite3_open() to sqlite3_open_v2() so that we
    	can pass SQLITE3_OPEN_READONLY when required.
 
+   !	Allow fileSetPermsById, pathSetPermsById, fileSetPermsByName,
+	pathSetPermsByName to chown a file regardless of current process
+	user. If the process owner is not root and the new file owner is
+	different from the process owner, then an error will result
+	normally.
+
 --1.74.12--
 
    !	pdqPoll: Some NS hosts return REFUSED instead of SERVFAIL when
