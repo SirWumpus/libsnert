@@ -104,6 +104,16 @@ extern Option smdbOptKeyHasNul;
 extern Option smdbOptRelayOk;
 extern Option *smdbOptTable[];
 
+#define SMDB_OPTIONS_TABLE \
+	&smdbOptDebug,\
+	&smdbOptKeyHasNul,\
+	&smdbOptRelayOk,\
+	&smdbOptUseStat
+
+#define SMDB_OPTIONS_SETTING(debug) \
+	smdbSetDebug(debug)
+
+
 extern void smdbClose(void *sm);
 
 /*

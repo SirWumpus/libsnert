@@ -49,10 +49,7 @@ Option smdbOptUseStat	= { "smdb-use-stat",	"-", "Use stat() instead of fstat() t
 Option smdbOptRelayOk	= { "smdb-relay-ok",	"-", "Treat a RELAY value same as OK (white-list), else is unknown." };
 
 Option *smdbOptTable[] = {
-	&smdbOptDebug,
-	&smdbOptKeyHasNul,
-	&smdbOptRelayOk,
-	&smdbOptUseStat,
+	SMDB_OPTIONS_TABLE,
 	NULL
 };
 
@@ -502,11 +499,11 @@ smdbOpen(const char *dbfile, int rdonly)
 	 * replies differently based on the table name given in
 	 * the query.
 	 */
-	else if (strstr(file, "access.") != NULL) {
+	else if (strstr(file, "access") != NULL) {
 		table = "access";
-	} else if (strstr(file, "mailertable.") != NULL) {
+	} else if (strstr(file, "mailertable") != NULL) {
 		table = "mailertable";
-	} else if (strstr(file, "virtusertable.") != NULL) {
+	} else if (strstr(file, "virtusertable") != NULL) {
 		table = "virtuser";
 	} else {
 		table = "unknown";
