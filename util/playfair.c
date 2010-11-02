@@ -8,6 +8,7 @@
 
 #define NDEBUG
 #undef ALPHABET36_SIMPLE
+#undef ORDER8_ALTERNATE_CASE
 
 #include <ctype.h>
 #include <stdio.h>
@@ -172,6 +173,9 @@ playfair_encode(Playfair *pf, const char *message)
 	char *out, *op;
 	div_t pos1, pos2;
 	int m1, m2, span1, span2, order, map[2];
+#ifdef ORDER8_ALTERNATE_CASE
+	int is_odd;
+#endif
 
 	if (pf == NULL || message == NULL)
 		return NULL;
@@ -204,10 +208,20 @@ playfair_encode(Playfair *pf, const char *message)
 		return NULL;
 
 	op = out;
+#ifdef ORDER8_ALTERNATE_CASE
+	is_odd = 0;
+#endif
 	while (*message != '\0') {
 		m1 = *message++;
 		if (order != 8)
 			m1 = toupper(m1);
+#ifdef ORDER8_ALTERNATE_CASE
+		else if (is_odd)
+			m1 = tolower(m1);
+		else
+			m1 = toupper(m1);
+		is_odd = !is_odd;
+#endif
 
 		/* Ignore punctuation and spacing. */
 		if (!playfair_is_alphabet(order, m1))
@@ -225,6 +239,13 @@ playfair_encode(Playfair *pf, const char *message)
 		m2 = *message++;
 		if (order != 8)
 			m2 = toupper(m2);
+#ifdef ORDER8_ALTERNATE_CASE
+		else if (is_odd)
+			m2 = tolower(m2);
+		else
+			m2 = toupper(m2);
+		is_odd = !is_odd;
+#endif
 		if (order == 5 && m2 == map[0])
 			m2 = map[1];
 
