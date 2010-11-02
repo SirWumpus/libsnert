@@ -46,6 +46,9 @@
 #ifdef HAVE_REGEX_H
 # include <regex.h>
 #endif
+#ifdef HAVE_SQLITE3_H
+# include <sqlite3.h>
+#endif
 #if TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
@@ -273,6 +276,8 @@ Option *smfOptTable[] = {
 	&smfOptRestart,
 	&smfOptRunGroup,
 	&smfOptRunUser,
+	SMDB_OPTIONS_TABLE,
+	&smdbOptDebug,
 	&smdbOptKeyHasNul,
 	&smdbOptRelayOk,
 	&smdbOptUseStat,
@@ -310,7 +315,7 @@ smfSetFlags(const char *flags)
 	OptionFlag *of;
 
 	if (!TokenSplit(flags, ",", &av, &ac, 1)) {
-		(void) optionArrayL(ac, av, smfOptTable, smdbOptTable, NULL);
+		(void) optionArrayL(ac, av, smfOptTable, NULL);
 		free(av);
 	}
 
@@ -2542,14 +2547,15 @@ smfMainStart(smfInfo *smf)
 #else
 	syslog(LOG_INFO, "libmilter version %d (%d)", smf->handlers.xxfi_version, SET_SMFI_VERSION);
 #endif
+#ifdef HAVE_SQLITE3_H
+	syslog(LOG_INFO, "SQLite %s Public Domain by D. Richard Hipp", sqlite3_libversion());
+#endif
 #ifdef HAVE_DB_H
 # if DB_VERSION_MAJOR > 1
 	syslog(LOG_INFO, "%s", db_version(NULL, NULL, NULL));
 # else
 	syslog(LOG_INFO, "Built with old Berkeley DB 1.85");
 # endif
-#else
-	syslog(LOG_INFO, "Built without Berkeley DB support");
 #endif
 	return smfi_main() == MI_FAILURE;
 }
