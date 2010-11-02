@@ -542,6 +542,7 @@ kvm_truncate2_hash(kvm *self)
 			next = entry->next;
 			free(entry);
 		}
+		table[i] = NULL;
 	}
 
 	return KVM_OK;
@@ -679,30 +680,34 @@ kvm_read_token(FILE *fp, unsigned char **data, unsigned long *length, const char
 {
 	int ch;
 	long foffset;
+	unsigned long len;
 	unsigned char *buf;
-	unsigned long i, size;
 
+	/* Find length of next token. */
 	foffset = ftell(fp);
-	for (size = 0; (ch = fgetc(fp)) != EOF; size++) {
+	for (len = 0; (ch = fgetc(fp)) != EOF; len++) {
 		if (strchr(delims, ch) != NULL)
 			break;
 	}
 
-	if ((buf = malloc(size + 1)) == NULL)
+	if (fseek(fp, foffset, SEEK_SET) != 0)
 		return -1;
 
-	fseek(fp, foffset, SEEK_SET);
+	/* Allocate space for next token. */
+	if ((buf = malloc(len+1)) == NULL)
+		return -1;
 
-	for (i = 0; i <= size && (ch = fgetc(fp)) != EOF; i++) {
-		if (strchr(delims, ch) != NULL)
-			break;
-		buf[i] = ch;
+	/* Re-read and save the next token. */
+	if (fread(buf, 1, len, fp) != len) {
+		free(buf);
+		return -1;
 	}
 
-	buf[size] = '\0';
-	*length = size;
+	buf[len] = '\0';
+	*length = len;
 	*data = buf;
 
+	/* Skip delimiters. */
 	while ((ch = fgetc(fp)) != EOF && strchr(delims, ch) != NULL)
 		;
 	ungetc(ch, fp);
@@ -713,6 +718,22 @@ kvm_read_token(FILE *fp, unsigned char **data, unsigned long *length, const char
 static int
 kvm_read_key(FILE *fp, unsigned char **data, unsigned long *length)
 {
+	int ch, len;
+
+	/* Ignore comment and empty lines. */
+	while ((ch = fgetc(fp)) != EOF) {
+		if (ch == '#') {
+			/* Eat comment line. */
+			(void) fscanf(fp, "%*[^\n\r]%*[\n\r]%n", &len);
+		} else if (ch == '\n' || ch == '\r') {
+			/* Eat empty line or discard CR. */
+			;
+		} else {
+			break;
+		}
+	}
+	ungetc(ch, fp);
+
 	return kvm_read_token(fp, data, length, "\t ");
 }
 
@@ -874,6 +895,7 @@ kvm_open_file(kvm *self, const char *location, int mode)
 	FILE *fp;
 	kvm_data k, v;
 	kvm_file *file;
+	char *fmode = "rw";
 #ifdef HAVE_SYS_STAT_H
 	struct stat sb;
 #endif
@@ -899,6 +921,7 @@ kvm_open_file(kvm *self, const char *location, int mode)
 	self->rollback = kvm_rollback_stub;
 
 	if (mode & KVM_MODE_READ_ONLY) {
+		fmode = "r";
 		self->put = kvm_put_stub;
 		self->remove = kvm_remove_stub;
 	}
@@ -915,9 +938,9 @@ kvm_open_file(kvm *self, const char *location, int mode)
 		goto error0;
 
 #ifdef HAVE_SYS_STAT_H
-	if (stat(location, &sb) == 0 && S_ISREG(sb.st_mode) && (fp = fopen(location, "r")) != NULL) {
+	if (stat(location, &sb) == 0 && S_ISREG(sb.st_mode) && (fp = fopen(location, fmode)) != NULL) {
 #else
-	if ((fp = fopen(location, "r")) != NULL) {
+	if ((fp = fopen(location, fmode)) != NULL) {
 #endif
 		int (*get_key)(FILE *, unsigned char **, unsigned long *);
 		int (*get_value)(FILE *, unsigned char **, unsigned long *);
@@ -940,8 +963,6 @@ kvm_open_file(kvm *self, const char *location, int mode)
 					break;
 				goto error1;
 			}
-#ifdef MULTICAST_VERSIONING
-#endif
 			if ((*get_value)(fp, &v.data, &v.size)) {
 				if (feof(fp))
 					break;

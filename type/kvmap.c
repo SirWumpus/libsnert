@@ -42,7 +42,7 @@ static const char usage[] =
 "\n"
 "The following forms of type" KVM_DELIM_S "[sub-type" KVM_DELIM_S "]location are supported:\n"
 "\n"
-"  text" KVM_DELIM_S "/path/map.txt\n"
+"  file" KVM_DELIM_S "/path/map.txt\n"
 #ifdef HAVE_DB_H
 "  db" KVM_DELIM_S "/path/map.db\n"
 "  db" KVM_DELIM_S "btree" KVM_DELIM_S "/path/map.db\n"

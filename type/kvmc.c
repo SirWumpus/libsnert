@@ -93,9 +93,10 @@ process(kvm *map, int argc, char **argv)
 		switch (map->get(map, &key, &value)) {
 		case KVM_ERROR:
 			syslog(LOG_ERR, "GET '%s' failed", key.data);
+			rc = EXIT_FAILURE;
 			/*@fallthrough@*/
 		case KVM_NOT_FOUND:
-			rc = EXIT_FAILURE;
+			printf("GET '%s' not found\n", key.data);
 			break;
 		case KVM_OK:
 			printf("%s\n", value.data);
@@ -129,9 +130,10 @@ process(kvm *map, int argc, char **argv)
 		switch (map->fetch(map, &key, &value)) {
 		case KVM_ERROR:
 			syslog(LOG_ERR, "GET '%s' failed", key.data);
+			rc = EXIT_FAILURE;
 			/*@fallthrough@*/
 		case KVM_NOT_FOUND:
-			rc = EXIT_FAILURE;
+			printf("GET '%s' not found\n", key.data);
 			break;
 		case KVM_OK:
 			printf("%s\n", value.data);
@@ -209,7 +211,7 @@ main(int argc, char **argv)
 	if (++optind < argc) {
 		rc = process(map, argc-optind, argv+optind);
 	} else {
-		while (TextInputLine(stdin, buffer, sizeof (buffer))) {
+		while (0 < TextInputLine(stdin, buffer, sizeof (buffer))) {
 			Vector args;
 
 			if (*buffer == '.')
