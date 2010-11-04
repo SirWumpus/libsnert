@@ -660,7 +660,7 @@ AC_DEFUN(SNERT_LIBMILTER,[
 	fi
 
 	if test $ac_cv_header_libmilter_mfapi_h = 'yes' ; then
-		AC_CHECK_FUNCS([smfi_addheader smfi_addrcpt smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval smfi_main smfi_register smfi_replacebody smfi_setbacklog smfi_setconn smfi_setdbg smfi_setpriv smfi_setreply smfi_settimeout smfi_stop])
+		AC_CHECK_FUNCS([smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval smfi_main smfi_register smfi_replacebody smfi_setbacklog smfi_setconn smfi_setdbg smfi_setpriv smfi_setreply smfi_settimeout smfi_stop])
 		AC_CHECK_FUNCS([smfi_insheader smfi_opensocket smfi_progress smfi_quarantine smfi_setmlreply smfi_setsymlist smfi_version smfi_setmaxdatasize])
 	fi
 

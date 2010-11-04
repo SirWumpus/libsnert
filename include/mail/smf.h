@@ -160,6 +160,9 @@ extern const char smfUndefined[];
 extern const char * const smfPrecedence[];
 
 extern /* const */ char smMacro_auth_authen[];
+extern /* const */ char smMacro_auth_author[];
+extern /* const */ char smMacro_auth_ssf[];
+extern /* const */ char smMacro_auth_type[];
 extern /* const */ char smMacro_client_addr[];
 extern /* const */ char smMacro_client_name[];
 extern /* const */ char smMacro_client_resolv[];
