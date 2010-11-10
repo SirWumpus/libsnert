@@ -1,0 +1,113 @@
+The Unmentioned LibSnert Tools				2 Feb 2010
+==============================
+
+LibSnert has several command line interface (CLI) tools that are used
+to test the APIs, but are also useful for scripting solutions. These
+tools have no documentation other than their usage descriptions and
+now this brief overview.
+
+Typically just type the tool name shows the options, but some that
+read from standard input won't display the usage unless an invalid
+option is given, like "-?".
+
+So here is a quick run down of some of the more interesting tools in
+LibSnert that people can play with:
+
+ansi		A pumped up echo(1) that does only ANSI (vt100)
+		terminal escape. For example:
+
+		ansi bold say something clever normal bell lf
+
+b64		Yet another Base64 encoder/decoder.
+
+clamstream	Yet another tool to stream a message to clamd server.
+
+convertDate	Converts textual date string into seconds; the reverse
+		of date(1) and strftime(3)
+
+flip		Yet another newline flipper for DOS, old Mac, and Unix.
+
+geturl		A simple HTTP retrieval program similar to wget(1).
+
+ixhash		Generate iXhash checksums, typically used for anti-spam
+		filtering and testing against iXhash blacklists.
+		http://ixhash.sourceforge.net/
+
+kvmap		Key-value map tool similar to makemap(1) or postmap(1).
+		Supports a variety of formats.
+
+kvmd		Key-value map extended-socketmap daemon. Supports the
+		same source formats at kvmap.
+
+kvmc		Key-value map extended-socketmap client. The extended
+		socketmap protocol is outlined in type/socketmap.txt.
+
+Luhn		Validates and generates Luhn checksums for numbers
+		and/or text. Think credit-card check digit. This was
+		the predecessor to a Luhn.php class I needed a few
+		years ago for an online store.
+
+mailgroup	Originally intended for use with Sendmail aliases to
+		provide the ability to deliver mail to the members of
+		a system group id or name. Could be used from the
+		command line to broadcast mail to a group.
+
+mcc		Multicast/unicast cache server and control.
+
+mime		A MIME part extractor.
+
+mimepart	Predecessor to the mime tool above.
+
+pdq		Parallel Domain Query; does DNS lookups similar to
+		dig(1), but in a parallel manner, especially with DNS
+		based black/white lists.
+
+playfair	An implementation of the paper & pencil Playfair cipher.
+		Can be used as a second stage substitution cipher for
+		Victor. See http://en.wikipedia.org/wiki/Playfair_cipher
+
+popin		POP3 interface mail retrieval tool. I originally used
+		this with smtpout (replaced by smtp2) to test a "mail
+		send & receive circuit" with Nagios (see mail-cycle.sh).
+
+sqlargs		An xargs(1) like tool that queries a data source for
+		arguments to be used in a command substitution. Each
+		row from the data source will invoke one instance of
+		the command (default is to echo the row to standard
+		output), with a limit as to how many instances of the
+		command may be running at a time. Currently works with
+		.csv or .sq3 files.
+
+show		Similar to head(1) and tail(1). Can highlight and/or
+		beep when a constant pattern is seen. Was intended for
+		watching heavy volume logs and/or catch when a rare
+		pattern might appear.
+
+siq		CLI version of milter-siq.
+
+smtp2		An SMTP mail engine.
+
+spf		SPF Classic, essentially CLI version of milter-spff.
+
+TextFind	General pattern matching similar to glob(3). See the
+		function description of TextFind for an overview of the
+		supported meta-characters.
+
+uue		Yet another UUE encoder/decoder.
+
+uri		CLI version of milter-link.
+
+victor		An implementation of the paper & pencil VIC cipher as
+		described by http://en.wikipedia.org/wiki/VIC_cipher
+		The output can be feed into a second stage transposition
+		or substituion cipher.
+
+
+There are other tools lying about the LibSnert source tree, but those
+mentioned here are just some of the more interesting ones that people
+might find useful or just curious about. While some tools are clones
+of classic Unix tools, the majority can all be built as Windows native
+binaries for use in Windows batch files and cmd.exe; ie. no cygwin.dll
+required.
+
+-END-

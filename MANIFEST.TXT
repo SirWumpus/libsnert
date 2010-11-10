@@ -12,6 +12,7 @@ com/snert/src/lib/LICENSE.TXT
 com/snert/src/lib/LibSnert.c
 com/snert/src/lib/MANIFEST.TXT
 com/snert/src/lib/README.TXT
+com/snert/src/lib/TOOLS.TXT
 com/snert/src/lib/VERSION.TXT
 com/snert/src/lib/aclocal.m4
 com/snert/src/lib/configure
