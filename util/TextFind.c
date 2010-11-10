@@ -139,26 +139,27 @@ TextFindQuote(const char *string, char *buffer, size_t size)
  *	A C string to search.
  *
  * @param needle
- *	The C string pattern to find. An astrisk (*) acts as wildcard,
- *	scanning over zero or more bytes. A question-mark (?) matches
- *	any single character; a space ( ) will match any single white
- *	space character.
+ *	The C string pattern to find.
+ *
+ *	An astrisk (*) acts as wildcard, scanning over zero or more
+ *	bytes. A question-mark (?) matches any single character; a
+ *	space ( ) will match any single white space character.
  *
  *	A left square bracket ([) starts a character class that ends
- * 	with a right square bracket (]) and matches one character
- *	from the class. If the first character of the class is a carat
- *	(^), then the remainder of character class is negated. If the
- *	first character (after a carat if any) is a right square bracket,
- *	then the right square bracket is a literal and loses any special
+ *	with a right square bracket (]) and matches one character from
+ *	the class. If the first character of the class is a carat (^),
+ *	then the remainder of character class is negated. If the first
+ *	character (after a carat if any) is a right square bracket, then
+ *	the right square bracket is a literal and loses any special
  *	meaning. If the first character (after a carat and/or right
- *	square bracket) is a hypen (-), then the hyphen is a literal
- *	and loses any special meaning. A range expression expressed as
- *	a start character followed by a hyphen followed by an end
+ *	square bracket) is a hypen (-), then the hyphen is a literal and
+ *	loses any special meaning. A range expression expressed as a
+ *	start character followed by a hyphen followed by an end
  *	character matches a character in character-set order between
  *	start and end characters inclusive.
  *
- * 	A backslash follow by any character treats that character as
- *	a literal (it loses any special meaning).
+ *	A backslash followed by any character treats that character as a
+ *	literal (it loses any special meaning).
  *
  *	(If you need more than that, think about using regex(3) instead.)
  *
