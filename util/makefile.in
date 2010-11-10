@@ -217,6 +217,9 @@ playfair$E: playfair.c
 victor$E: victor.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)victor$E victor.c
 
+cipher$E: cipher.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)cipher$E cipher.c
+
 time62$E : time62.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)time62$E time62.c
 

@@ -98,6 +98,19 @@ is no set schedule for releases.
 	different from the process owner, then an error will result
 	normally.
 
+   !	Fix assorted bugs related to use of KVM text! and file! types.
+	Reported by Alex Broens.
+
+	 a. Fix kvm_read_key() when reading from a file to ignore
+	    comment and empty lines.
+	 b. Fix double-free caused by kvm_truncate_hash2() failing to
+	    set each bucket list pointer to NULL.
+	 c. Revised kvm_read_token().
+
+   !	Fix kvmc CLI handling of EOF and key not found.
+
+   +	Added checks for smfi_chgfrom() and smfi_addrcpt_par().
+
 --1.74.12--
 
    !	pdqPoll: Some NS hosts return REFUSED instead of SERVFAIL when
