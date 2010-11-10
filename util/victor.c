@@ -90,7 +90,7 @@ victor_dump_table(FILE *fp, char table[3][38])
 	fprintf(fp, "   %s\n +---------------------\n | %s\n", row[1], row[0]);
 
 	memset(row, ' ', sizeof (row));
-	row[0][30] = row[1][30] = '\0';
+	row[0][20] = row[1][20] = '\0';
 
 	for (j = 0; j < sizeof (alphabet)-1; j++) {
 		if (table[2][j] != ' ') {
@@ -191,10 +191,13 @@ victor_init(Victor *vic)
 	if (strlen(vic->freq7) != 7)
 		return 3;
 
-	victor_chain_add(vic->seed, vic->chain, sizeof (vic->chain));
+	if (victor_chain_add(vic->seed, vic->chain, sizeof (vic->chain)))
+		return 4;
+
 	victor_digit_order(vic->chain+40, vic->columns);
 
 	/* Copy the alphabet into the unused set. */
+	set[0] = '\0';
 	for (i = 0; i < sizeof (alphabet)-1; i++) {
 		if (alphabet[i] == '\0')
 			return 1;
@@ -456,7 +459,16 @@ main(int argc, char **argv)
 	vic.key = argv[argi];
 	vic.seed = argv[argi+1];
 
-	if (victor_init(&vic)) {
+	switch (victor_init(&vic)){
+	case 0:
+		break;
+	case 3:
+		fprintf(stderr, "-f must be 7 alpha-numeric characters (%s)\n", vic.freq7);
+		return EXIT_FAILURE;
+	case 4:
+		fprintf(stderr, "the seed (%s) must be a numeric string\n", vic.seed);
+		return EXIT_FAILURE;
+	default:
 		fprintf(stderr, "error initialising Victor structure\n");
 		return EXIT_FAILURE;
 	}
