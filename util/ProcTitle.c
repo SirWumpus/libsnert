@@ -25,6 +25,7 @@ static size_t arg_size;
 static char **env_array;
 #elif defined(__unix__)
 static char *arg_v_1;
+static char proc_title[512];
 #endif
 
 #if defined(__linux__)
@@ -117,13 +118,12 @@ ProcTitleFini(void)
 void
 ProcTitleSet(const char *fmt, ...)
 {
+	int n;
 	va_list args;
 
 	va_start(args, fmt);
 # if defined(__linux__)
 {
-	int n;
-
 	if (fmt == NULL)
 		n = snprintf(arg_v[0], arg_size, "%s", arg_v_0);
 	else
@@ -137,9 +137,10 @@ ProcTitleSet(const char *fmt, ...)
 		arg_v[0] = arg_v_0;
 		arg_v[1] = arg_v_1;
 	} else {
-		static char title[512];
-		vsnprintf(title, sizeof (title), fmt, args);
-		arg_v[0] = title;
+		n = vsnprintf(proc_title, sizeof (proc_title), fmt, args);
+		if (sizeof (proc_title) <= n)
+			proc_title[sizeof (proc_title)-1] = '\0';
+		arg_v[0] = proc_title;
 		arg_v[1] = NULL;
 	}
 # endif
