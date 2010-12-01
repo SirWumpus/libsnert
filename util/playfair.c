@@ -36,7 +36,9 @@
 #endif
 
 /* Playfair 64 using the Base64 character set. Note the Base64
- * padding character, equal-sign (=), is not used.
+ * padding character, equal-sign (=), is not used. This set is
+ * fine for electronic communications, but the mixed case alphabet
+ * not ideal for audio radio (think classic Number Stations).
  */
 #if !defined(ALPHABET64)
 # define ALPHABET64		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
