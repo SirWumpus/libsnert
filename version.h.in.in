@@ -334,6 +334,8 @@ typedef unsigned long time_t;
 #undef HAVE_PTHREAD_CLEANUP_POP
 #undef HAVE_PTHREAD_ONCE
 
+#undef DEBUG_MUTEX
+
 /*
  * fork() vs pthread_create()
  */

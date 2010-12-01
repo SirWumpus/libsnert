@@ -110,6 +110,7 @@ com/snert/src/lib/sys/TimeStamp.c
 com/snert/src/lib/sys/gmtime_r.c
 com/snert/src/lib/sys/makefile.in
 com/snert/src/lib/sys/malloc.c
+com/snert/src/lib/sys/lockpick.c
 com/snert/src/lib/sys/daemon.c
 com/snert/src/lib/sys/nap.c
 com/snert/src/lib/sys/process.c
@@ -249,6 +250,7 @@ com/snert/src/lib/include/sys/Mutex.h
 com/snert/src/lib/include/sys/Shared.h
 com/snert/src/lib/include/sys/Thread.h
 com/snert/src/lib/include/sys/Time.h
+com/snert/src/lib/include/sys/lockpick.h
 com/snert/src/lib/include/sys/pid.h
 com/snert/src/lib/include/sys/process.h
 com/snert/src/lib/include/sys/pthread.h
@@ -339,6 +341,7 @@ com/snert/src/lib/tools/socketsink.c
 com/snert/src/lib/tools/sqlargs.c
 com/snert/src/lib/tools/ssi.c
 com/snert/src/lib/tools/strings.c
+com/snert/src/lib/tools/tee.c
 com/snert/src/lib/tools/time2date.c
 com/snert/src/lib/tools/uue.c
 com/snert/src/lib/tools/where-are-you.c

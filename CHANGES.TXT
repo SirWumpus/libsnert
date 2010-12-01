@@ -45,6 +45,13 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+--1.74.14--
+
+   +	Added "lockpick" mutex tracking debug code in an attempt to help
+   	find deadlocks.
+
+   +	Added threaded version of tee(1) for testing lockpick with.
+
 --1.74.13--
 
    *    Upgraded SQLite to 3.7.3
@@ -153,7 +160,7 @@ is no set schedule for releases.
    	all lookups.
 
    !	mcc.c: Add sqlite3_clear_bindings() where required. sqlite3_reset()
-   	does not clear bindings, only resets a satement's state machine.
+   	does not clear bindings, only resets a statement's state machine.
 
    !	kvm.c: Add sqlite3_clear_bindings() where required. sqlite3_reset()
    	does not clear bindings, only resets a satement's state machine.

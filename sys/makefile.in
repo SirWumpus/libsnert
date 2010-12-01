@@ -106,3 +106,5 @@ lint: title
 sys$E: sys.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}sys$E sys.c  $(LIBSNERT) ${LIBS}
 
+lockpick$O: lockpick.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -c lockpick.c

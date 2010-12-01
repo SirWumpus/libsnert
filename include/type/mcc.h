@@ -212,6 +212,7 @@ struct mcc_ctx {
 	mcc_network multicast;
 	SocketAddress **unicast_ip;
 	SocketAddress *multicast_ip;
+	int is_transaction;
 	unsigned ttl;
 	sqlite3 *db;
 	sqlite3_stmt *select_one;

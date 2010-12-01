@@ -382,6 +382,13 @@ AC_DEFINE_UNQUOTED(SHARED_MEMORY_API, $shared_memory_api)
 AC_SUBST(SHARED_MEMORY_API, "$shared_memory_api")
 AC_MSG_RESULT($shared_memory_api)
 
+AC_ARG_ENABLE(debug-mutex,
+	[AC_HELP_STRING([--enable-debug-mutex],[enable lockpick mutex debug functions])],
+	[
+		AC_DEFINE_UNQUOTED(DEBUG_MUTEX)
+		LIBS="../sys/lockpick.o $LIBS"
+	]
+)
 
 #######################################################################
 #	Generate output.

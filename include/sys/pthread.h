@@ -210,6 +210,14 @@ extern void pthread_yield(void);
 extern int pthreadMutexDestroy(pthread_mutex_t *);
 extern int pthreadSleep(unsigned seconds, unsigned nanoseconds);
 
+/***********************************************************************
+ ***
+ ***********************************************************************/
+
+#ifdef DEBUG_MUTEX
+# include <com/snert/lib/sys/lockpick.h>
+#endif
+
 # ifdef  __cplusplus
 }
 # endif
