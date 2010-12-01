@@ -3,7 +3,7 @@
  *
  * Key-Value Map
  *
- * Copyright 2002, 2009 by Anthony Howe. All rights reserved.
+ * Copyright 2002, 2010 by Anthony Howe. All rights reserved.
  */
 
 #define _VERSION		"0.3"
@@ -2668,6 +2668,7 @@ kvm_open_multicast(kvm *self, const char *location, int mode)
 
 typedef struct kvm_sql {
 	char *path;
+	int is_transaction;
 	sqlite3 *db;
 	sqlite3_stmt *select_one;
 	sqlite3_stmt *select_all;
@@ -2687,11 +2688,14 @@ kvm_sql_step(kvm_sql *sql, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 	int old_state;
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old_state);
 #endif
+	if (sql_stmt == sql->commit || sql_stmt == sql->rollback)
+		sql->is_transaction = 0;
+
 	/* Using the newer sqlite_prepare_v2() interface means that
 	 * sqlite3_step() will return more detailed error codes. See
 	 * sqlite3_step() API reference.
 	 */
-	while ((rc = sqlite3_step(sql_stmt)) == SQLITE_BUSY) {
+	while ((rc = sqlite3_step(sql_stmt)) == SQLITE_BUSY && !sql->is_transaction) {
 		if (0 < debug)
 			syslog(LOG_WARN, "sqlite db %s busy: %s", sql->path, sql_stmt_text);
 #if defined(HAVE_PTHREAD_CREATE)
@@ -2715,6 +2719,10 @@ kvm_sql_step(kvm_sql *sql, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 		 */
 		(void) sqlite3_reset(sql_stmt);
 	}
+
+	if (sql_stmt == sql->begin)
+		sql->is_transaction = 1;
+
 #ifdef HAVE_PTHREAD_SETCANCELSTATE
 	pthread_setcancelstate(old_state, NULL);
 #endif
@@ -3237,7 +3245,6 @@ kvmOpen(const char *table_name, const char *map_location, int mode)
 #include <signal.h>
 
 #include <com/snert/lib/util/getopt.h>
-#include <com/snert/lib/sys/pthread.h>
 
 static char usage[] =
 "usage: kvmd [-dsv][-p port][-t timeout] map ...\n"

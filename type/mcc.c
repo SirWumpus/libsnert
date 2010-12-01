@@ -580,13 +580,17 @@ mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 	int old_state;
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old_state);
 #endif
+	if (sql_stmt == mcc->commit || sql_stmt == mcc->rollback)
+		mcc->is_transaction = 0;
+
 	/* Using the newer sqlite_prepare_v2() interface means that
 	 * sqlite3_step() will return more detailed error codes. See
 	 * sqlite3_step() API reference.
 	 */
-	while ((rc = sqlite3_step(sql_stmt)) == SQLITE_BUSY) {
+	while ((rc = sqlite3_step(sql_stmt)) == SQLITE_BUSY && !mcc->is_transaction) {
 		if (0 < debug)
 			syslog(LOG_WARN, "sql=%s busy: %s", mcc->path, sql_stmt_text);
+
 		pthreadSleep(1, 0);
 	}
 
@@ -610,10 +614,13 @@ mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 		 */
 		(void) sqlite3_reset(sql_stmt);
 	}
+
+	if (sql_stmt == mcc->begin)
+		mcc->is_transaction = 1;
+
 #ifdef HAVE_PTHREAD_SETCANCELSTATE
 	pthread_setcancelstate(old_state, NULL);
 #endif
-
 	return rc;
 }
 
@@ -912,29 +919,37 @@ mcc_listener_thread(void *data)
 			break;
 
 		case MCC_CMD_REMOVE:
+#ifdef OFF
 			PTHREAD_MUTEX_LOCK(&mcc->mutex);
 			(void) mccSqlStep(mcc, mcc->begin, MCC_SQL_BEGIN);
 			PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
+#endif
 
 			if (mcc->hook.remote_remove != NULL
 			&& (*mcc->hook.remote_remove)(mcc, mcc->hook.data, NULL, &new_row)) {
+#ifdef OFF
 				PTHREAD_MUTEX_LOCK(&mcc->mutex);
 				(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
 				PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
+#endif
 				continue;
 			}
 
 			if (mccDeleteKey(mcc, new_row.key_data, new_row.key_size) != MCC_OK) {
 				syslog(LOG_ERR, "multi/unicast remove error " MCC_KEY_FMT, new_row.key_data);
+#ifdef OFF
 				PTHREAD_MUTEX_LOCK(&mcc->mutex);
 				(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
 				PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
+#endif
 				continue;
 			}
 
+#ifdef OFF
 			PTHREAD_MUTEX_LOCK(&mcc->mutex);
 			(void) mccSqlStep(mcc, mcc->commit, MCC_SQL_COMMIT);
 			PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
+#endif
 			break;
 
 		case MCC_CMD_OTHER:
@@ -1351,23 +1366,32 @@ mccExpireRows(mcc_handle *mcc, time_t *when)
 
 	PTHREAD_MUTEX_LOCK(&mcc->mutex);
 
+#ifdef OFF
 	if (mccSqlStep(mcc, mcc->begin, MCC_SQL_BEGIN) != SQLITE_DONE)
 		goto error1;
-
+#endif
 	if (mcc->hook.expire != NULL) {
 		if ((*mcc->hook.expire)(mcc, mcc->hook.data)) {
+#ifdef OFF
 			(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
+#endif
 			goto error1;
 		}
 	}
 
-	if (sqlite3_bind_int(mcc->expire, 1, (int)(uint32_t) *when) != SQLITE_OK)
+	if (sqlite3_bind_int(mcc->expire, 1, (int)(uint32_t) *when) != SQLITE_OK) {
+#ifdef OFF
+		(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
+#endif
 		goto error1;
+	}
 	if (mccSqlStep(mcc, mcc->expire, MCC_SQL_EXPIRE) == SQLITE_DONE)
 		rc = MCC_OK;
 	(void) sqlite3_clear_bindings(mcc->expire);
 
+#ifdef OFF
 	(void) mccSqlStep(mcc, mcc->commit, MCC_SQL_COMMIT);
+#endif
 error1:
 	PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
 error0:
