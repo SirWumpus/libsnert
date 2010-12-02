@@ -207,9 +207,6 @@ distclean: title
 	@echo '***************************************************************'
 	@echo
 
-install:
-	echo
-
 predefines:
 	gcc ${CFLAGS} -dM -E -xc /dev/null
 
