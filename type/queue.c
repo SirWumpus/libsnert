@@ -219,7 +219,9 @@ queueDequeue(Queue *queue)
 
 	item = queue->list.head;
 	listDelete(&queue->list, item);
-	(void) pthread_cond_signal(&queue->cv_less);
+
+	if (queue->list.head == NULL)
+		(void) pthread_cond_signal(&queue->cv_less);
 
 	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
 
@@ -240,7 +242,8 @@ queueRemove(Queue *queue, ListItem *node)
 {
 	PTHREAD_MUTEX_LOCK(&queue->mutex);
 	(void) queueRemoveFn(&queue->list, node, queue);
-	(void) pthread_cond_signal(&queue->cv_less);
+	if (queue->list.head == NULL)
+		(void) pthread_cond_signal(&queue->cv_less);
 	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
 }
 
@@ -265,6 +268,8 @@ queueWalk(Queue *queue, ListFindFn find_fn, void *data)
 	ListItem *item = NULL;
 	PTHREAD_MUTEX_LOCK(&queue->mutex);
 	item = listFind(&queue->list, find_fn, data);
+	if (queue->list.head == NULL)
+		(void) pthread_cond_signal(&queue->cv_less);
 	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
 	return item;
 }
