@@ -334,6 +334,10 @@ typedef unsigned long time_t;
 #undef HAVE_PTHREAD_CLEANUP_POP
 #undef HAVE_PTHREAD_ONCE
 
+/*
+ * Define to enable application level mutex debugging.
+ * Set to 2 to enable hooking of library functions.
+ */
 #undef DEBUG_MUTEX
 
 /*
@@ -891,6 +895,20 @@ extern void *alt_malloc(size_t size, int fill_byte, unsigned flags);
 extern void *alt_calloc(size_t num_elements, size_t element_size, unsigned flags);
 
 #define ALT_MALLOC_ABORT	0x0001
+
+/***********************************************************************
+ *** GNU Backtrace
+ ***********************************************************************/
+
+#undef HAVE_BACKTRACE
+#undef HAVE_BACKTRACE_SYMBOLS
+#undef HAVE_BACKTRACE_SYMBOLS_FD
+
+#ifdef HAVE_BACKTRACE
+extern int backtrace(void **buffer, int size);
+extern char **backtrace_symbols(void **buffer, int length);
+extern void backtrace_symbols_fd(void **buffer, int length, int fd);
+#endif
 
 /***********************************************************************
  ***

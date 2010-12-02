@@ -17,13 +17,17 @@
 #define MAX_LINEAR_PROBE	64
 #endif
 
-#undef USE_SYSLOG
+#ifndef MAX_STACKTRACE_DEPTH
+#define MAX_STACKTRACE_DEPTH	128
+#endif
 
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/
 
 #include <com/snert/lib/version.h>
+
+#if defined(DEBUG_MUTEX)
 
 #include <ctype.h>
 #include <stdio.h>
@@ -62,6 +66,7 @@ typedef struct {
 	const char *file;
 	unsigned lineno;
 	unsigned index;
+	unsigned count;
 } lp_mutex_data;
 
 typedef struct  {
@@ -73,20 +78,32 @@ static lp_mutex_data lp_mutexes[HASH_TABLE_SIZE];
 static lp_thread_data lp_threads[HASH_TABLE_SIZE];
 static pthread_mutex_t lp_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+static int (*lp_mutex_init_fn)(pthread_mutex_t *, pthread_mutexattr_t *);
+static int (*lp_mutex_destroy_fn)(pthread_mutex_t *);
 static int (*lp_mutex_lock_fn)(pthread_mutex_t *);
 static int (*lp_mutex_unlock_fn)(pthread_mutex_t *);
 static int (*lp_mutex_trylock_fn)(pthread_mutex_t *);
 static int (*lp_cond_wait_fn)(pthread_cond_t *, pthread_mutex_t *);
 static int (*lp_cond_timedwait_fn)(pthread_cond_t *, pthread_mutex_t *,  const struct timespec *);
-static int (*lp_pthread_create_fn)(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg);
 
 #undef PTHREAD_MUTEX_LOCK
-#define PTHREAD_MUTEX_LOCK(m)		if (!(*lp_mutex_lock_fn)(m)) {
-
 #undef PTHREAD_MUTEX_UNLOCK
-#define PTHREAD_MUTEX_UNLOCK(m)			; \
+
+#if defined(HAD_PTHREAD_CLEANUP_PUSH)
+# define PTHREAD_MUTEX_LOCK(m)		if (!(*lp_mutex_lock_fn)(m)) { \
+						pthread_cleanup_push((void (*)(void*)) lp_mutex_unlock_fn, (m));
+
+# define PTHREAD_MUTEX_UNLOCK(m)		; \
+						pthread_cleanup_pop(1); \
+					}
+
+#else
+# define PTHREAD_MUTEX_LOCK(m)		if (!(*lp_mutex_lock_fn)(m)) { \
+
+# define PTHREAD_MUTEX_UNLOCK(m)		; \
 						(void) (*lp_mutex_unlock_fn)(m); \
 					}
+#endif
 
 /***********************************************************************
  *** Internal
@@ -107,73 +124,53 @@ lp_init(void)
 
 	handle = dlopen(LIBPTHREAD_PATH, RTLD_NOW);
 	if ((err = dlerror()) != NULL) {
-#ifdef USE_SYSLOG
-		syslog(LOG_ERR, "%s load error", LIBPTHREAD_PATH);
-#else
 		fprintf(stderr, "%s load error\r\n", LIBPTHREAD_PATH);
-#endif
+		exit(EX_OSERR);
+	}
+
+  	lp_mutex_init_fn = (int (*)(pthread_mutex_t *, pthread_mutexattr_t *)) dlsym(handle, "pthread_mutex_init");
+	if ((err = dlerror()) != NULL) {
+		fprintf(stderr, "pthread_mutex_init not found\n");
+		exit(EX_OSERR);
+	}
+
+  	lp_mutex_destroy_fn = (int (*)(pthread_mutex_t *)) dlsym(handle, "pthread_mutex_destroy");
+	if ((err = dlerror()) != NULL) {
+		fprintf(stderr, "pthread_mutex_destroy not found\n");
 		exit(EX_OSERR);
 	}
 
   	lp_mutex_lock_fn = (int (*)(pthread_mutex_t *)) dlsym(handle, "pthread_mutex_lock");
 	if ((err = dlerror()) != NULL) {
-#ifdef USE_SYSLOG
-		syslog(LOG_ERR, "pthread_mutex_lock not found");
-#else
 		fprintf(stderr, "pthread_mutex_lock not found\n");
-#endif
 		exit(EX_OSERR);
 	}
 
   	lp_mutex_unlock_fn = (int (*)(pthread_mutex_t *)) dlsym(handle, "pthread_mutex_unlock");
 	if ((err = dlerror()) != NULL) {
-#ifdef USE_SYSLOG
-		syslog(LOG_ERR, "pthread_mutex_unlock not found");
-#else
 		fprintf(stderr, "pthread_mutex_unlock not found\n");
-#endif
 		exit(EX_OSERR);
 	}
 
   	lp_mutex_trylock_fn = (int (*)(pthread_mutex_t *)) dlsym(handle, "pthread_mutex_trylock");
 	if ((err = dlerror()) != NULL) {
-#ifdef USE_SYSLOG
-		syslog(LOG_ERR, "pthread_mutex_trylock not found");
-#else
 		fprintf(stderr, "pthread_mutex_trylock not found\n");
-#endif
 		exit(EX_OSERR);
 	}
 
   	lp_cond_wait_fn = (int (*)(pthread_cond_t *, pthread_mutex_t *)) dlsym(handle, "pthread_cond_wait");
 	if ((err = dlerror()) != NULL) {
-#ifdef USE_SYSLOG
-		syslog(LOG_ERR, "pthread_cond_wait not found");
-#else
 		fprintf(stderr, "pthread_cond_wait not found\n");
-#endif
 		exit(EX_OSERR);
 	}
 
   	lp_cond_timedwait_fn = (int (*)(pthread_cond_t *, pthread_mutex_t *, const struct timespec *)) dlsym(handle, "pthread_cond_timedwait");
 	if ((err = dlerror()) != NULL) {
-#ifdef USE_SYSLOG
-		syslog(LOG_ERR, "pthread_cond_timedwait not found");
-#else
 		fprintf(stderr, "pthread_cond_timedwait not found\n");
-#endif
 		exit(EX_OSERR);
 	}
 
-  	lp_pthread_create_fn = dlsym(handle, "pthread_create");
-	if ((err = dlerror()) != NULL) {
-#ifdef USE_SYSLOG
-		syslog(LOG_ERR, "pthread_create not found");
-#else
-		fprintf(stderr, "pthread_create not found\n");
-#endif
-		exit(EX_OSERR);
-	}
+	(void) (*lp_mutex_init_fn)(&lp_mutex, NULL);
 }
 
 #elif !defined(LIBPTHREAD_PATH)
@@ -249,11 +246,7 @@ lp_reset(pthread_mutex_t *mutex)
 	memset(md, 0, sizeof (*md));
 
 	if (td->max_index == 0)
-#ifdef USE_SYSLOG
-		syslog(LOG_ERR, "%s:%d internal error", __FILE__, __LINE__);
-#else
 		fprintf(stderr, "%s:%d internal error\n", __FILE__, __LINE__);
-#endif
 	else
 		td->max_index--;
 
@@ -293,9 +286,11 @@ lp_check_lock(pthread_mutex_t *m, int blocking, const char *file, unsigned line)
 	if (m == NULL)
 		return EINVAL;
 
+#ifdef LP_MUTEX_INIT
 	if (lp_mutex_lock_fn == NULL)
 		lp_init();
-
+#endif
+	pthread_testcancel();
 	PTHREAD_MUTEX_LOCK(&lp_mutex);
 
 	md = lp_find_mutex(m);
@@ -304,19 +299,10 @@ lp_check_lock(pthread_mutex_t *m, int blocking, const char *file, unsigned line)
 	if (md->mutex != NULL) {
 		/* Already locked. */
 		if (pthread_equal(md->thread, td->thread)) {
-			/* This assumes a non-recursive mutex. */
-#ifdef USE_SYSLOG
-			syslog(LOG_ERR, "%s:%d mutex locked by same thread", file, line);
-#else
-			fprintf(stderr, "%s:%d mutex locked by same thread\n", file, line);
-#endif
+			fprintf(stderr, "%s:%d mutex 0x%lx locked by same thread\n", file, line, (unsigned long) m);
 			rc = EDEADLK;
 		} else if (!blocking) {
-#ifdef USE_SYSLOG
-			syslog(LOG_ERR, "%s:%d mutex locked by other thread", file, line);
-#else
-			fprintf(stderr, "%s:%d mutex locked by other thread\n", file, line);
-#endif
+			fprintf(stderr, "%s:%d mutex 0x%lx locked by other thread\n", file, line, (unsigned long) m);
 			rc = EBUSY;
 		} else {
 			rc = 0;
@@ -340,27 +326,21 @@ lp_check_unlock(pthread_mutex_t *m, const char *file, unsigned line)
 	if (m == NULL)
 		return EINVAL;
 
+#ifdef LP_MUTEX_INIT
 	if (lp_mutex_unlock_fn == NULL)
 		lp_init();
-
+#endif
+	pthread_testcancel();
 	PTHREAD_MUTEX_LOCK(&lp_mutex);
 
 	md = lp_find_mutex(m);
 	td = lp_find_thread(pthread_self());
 
 	if (md->mutex == NULL) {
-#ifdef USE_SYSLOG
-		syslog(LOG_ERR, "%s:%d mutex not locked", file, line);
-#else
-		fprintf(stderr, "%s:%d mutex not locked\n", file, line);
-#endif
+		fprintf(stderr, "%s:%d mutex 0x%lx not locked\n", file, line, (unsigned long) m);
 		rc = EPERM;
 	} else if (!pthread_equal(md->thread, td->thread)) {
-#ifdef USE_SYSLOG
-		syslog(LOG_ERR, "%s:%d mutex locked by other thread", file, line);
-#else
-		fprintf(stderr, "%s:%d mutex locked by other thread\n", file, line);
-#endif
+		fprintf(stderr, "%s:%d mutex 0x%lx locked by other thread\n", file, line, (unsigned long) m);
 		rc = EPERM;
 	} else {
 		if (md->index != td->max_index) {
@@ -369,11 +349,7 @@ lp_check_unlock(pthread_mutex_t *m, const char *file, unsigned line)
 			 * thread's max_index will always equal the index
 			 * of the mutex being released.
 			 */
-#ifdef USE_SYSLOG
-			syslog(LOG_ERR, "%s:%d mutex unlocked out of order (id=%u expected=%u), possible deadlock", file, line, md->index, td->max_index);
-#else
-			fprintf(stderr, "%s:%d mutex unlocked out of order (id=%u expected=%u), possible deadlock\n", file, line, md->index, td->max_index);
-#endif
+			fprintf(stderr, "%s:%d mutex 0x%lx unlocked out of order (id=%u expected=%u), possible deadlock\n", file, line, (unsigned long) m, md->index, td->max_index);
 		}
 
 		rc = 0;
@@ -387,6 +363,22 @@ lp_check_unlock(pthread_mutex_t *m, const char *file, unsigned line)
 /***********************************************************************
  *** debug wrapped functions
  ***********************************************************************/
+
+int
+lp_mutex_init(pthread_mutex_t *m, pthread_mutexattr_t *a)
+{
+	if (lp_mutex_init_fn == NULL)
+		lp_init();
+
+	return (*lp_mutex_init_fn)(m, a);
+}
+
+int
+lp_mutex_destroy(pthread_mutex_t *m)
+{
+	lp_reset(m);
+	return (*lp_mutex_destroy_fn)(m);
+}
 
 int
 lp_mutex_lock(pthread_mutex_t *m, const char *file, unsigned line)
@@ -465,7 +457,6 @@ lp_cond_timedwait(pthread_cond_t *cv, pthread_mutex_t *m, const struct timespec 
 		 * or indirectly via conditional variable.
 		 */
 		lp_reset(m);
-
 		rc = (*lp_cond_timedwait_fn)(cv, m, abstime);
 
 		/* The conditional variable has been signalled.
@@ -477,47 +468,99 @@ lp_cond_timedwait(pthread_cond_t *cv, pthread_mutex_t *m, const struct timespec 
 	return rc;
 }
 
+# if DEBUG_MUTEX == 2
 /***********************************************************************
  *** pthread mutex hooked functions for libraries
  ***********************************************************************/
 
-#ifdef NOPE
-int
-pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg)
+#ifdef HAVE_BACKTRACE
+void
+lp_stacktrace(int err_no)
 {
-	if (lp_mutex_lock_fn == NULL)
-		lp_init();
+	int i, length;
+	char **strings;
+	void *trace[MAX_STACKTRACE_DEPTH];
 
-	return (*lp_pthread_create_fn)(thread, attr, start_routine, arg);
+	length = backtrace(trace, MAX_STACKTRACE_DEPTH);
+	strings = backtrace_symbols(trace, length);
+	fprintf(stderr, "-- %s (%d)\n", strerror(err_no), err_no);
+	for (i = 0; i < length; i++)
+		fprintf(stderr, "frame #%d %s\n", i, strings[i]);
+	free(strings);
 }
 #endif
 
 int
+pthread_mutex_init(pthread_mutex_t *m, pthread_mutexattr_t *a)
+{
+	return lp_mutex_init(m, a);
+}
+
+int
+pthread_mutex_destroy(pthread_mutex_t *m)
+{
+	return lp_mutex_destroy(m);
+}
+
+int
 pthread_mutex_lock(pthread_mutex_t *m)
 {
-	return lp_mutex_lock(m, __FILE__, __LINE__);
+	int rc = lp_mutex_lock(m, __FILE__, __LINE__);
+
+#ifdef HAVE_BACKTRACE
+	if (rc != 0)
+		lp_stacktrace(rc);
+#endif
+	return rc;
 }
 
 int
 pthread_mutex_unlock(pthread_mutex_t *m)
 {
-	return lp_mutex_unlock(m, __FILE__, __LINE__);
+	int rc = lp_mutex_unlock(m, __FILE__, __LINE__);
+
+#ifdef HAVE_BACKTRACE
+	if (rc != 0)
+		lp_stacktrace(rc);
+#endif
+	return rc;
 }
 
 int
 pthread_mutex_trylock(pthread_mutex_t *m)
 {
-	return lp_mutex_trylock(m, __FILE__, __LINE__);
+	int rc = lp_mutex_trylock(m, __FILE__, __LINE__);
+
+#ifdef HAVE_BACKTRACE
+	if (rc != 0)
+		lp_stacktrace(rc);
+#endif
+	return rc;
 }
 
 int
 pthread_cond_wait(pthread_cond_t *c, pthread_mutex_t *m)
 {
-	return lp_cond_wait(c, m, __FILE__, __LINE__);
+	int rc = lp_cond_wait(c, m, __FILE__, __LINE__);
+
+#ifdef HAVE_BACKTRACE
+	if (rc != 0)
+		lp_stacktrace(rc);
+#endif
+	return rc;
 }
 
 int
 pthread_cond_timedwait(pthread_cond_t *c, pthread_mutex_t *m, const struct timespec *abstime)
 {
-	return lp_cond_timedwait(c, m, abstime, __FILE__, __LINE__);
+	int rc = lp_cond_timedwait(c, m, abstime, __FILE__, __LINE__);
+
+#ifdef HAVE_BACKTRACE
+	if (rc != 0)
+		lp_stacktrace(rc);
+#endif
+	return rc;
 }
+# endif /* DEBUG_MUTEX == 2 */
+
+#endif /* DEBUG_MUTEX */

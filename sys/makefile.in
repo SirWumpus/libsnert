@@ -60,8 +60,8 @@ $O$E :
 #######################################################################
 
 OBJS =	Mutex$O Shared$O Thread$O gmtime_r$O Time$O TimeStamp$O \
-	kill$O sleep$O pid$O rlimits$O process$O pthread$O pthreadSleep$O \
-	sys$O winService$O malloc$O daemon$O nap$O
+	kill$O sleep$O pid$O rlimits$O process$O lockpick$O pthread$O \
+	pthreadSleep$O sys$O winService$O malloc$O daemon$O nap$O
 
 .MAIN : build
 
@@ -106,5 +106,3 @@ lint: title
 sys$E: sys.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}sys$E sys.c  $(LIBSNERT) ${LIBS}
 
-lockpick$O: lockpick.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -c lockpick.c

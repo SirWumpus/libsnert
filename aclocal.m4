@@ -1862,6 +1862,19 @@ AC_DEFUN(SNERT_SYS,[
 ])
 
 dnl
+dnl SNERT_BACKTRACE
+dnl
+AC_DEFUN(SNERT_BACKTRACE,[
+	echo
+	echo "Check for GNU backtrace support..."
+	echo
+	save_ldflags=$LDFLAGS
+	LDFLAGS="-rdynamic ${LDFLAGS}"
+	AC_CHECK_FUNCS(backtrace backtrace_symbols backtrace_symbols_fd)
+	AS_IF([test $ac_cv_func_backtrace = 'no'],[LDFLAGS="${save_ldflags}"])
+])
+
+dnl
 dnl SNERT_INIT($c_macro_prefix, $copyright, $build_id_file)
 dnl
 AC_DEFUN(SNERT_INIT,[

@@ -168,6 +168,10 @@ extern int pthread_cond_destroy(pthread_cond_t *);
 #  define PTHREAD_STACK_MIN		16384
 # endif
 
+#ifdef DEBUG_MUTEX
+# include <com/snert/lib/sys/lockpick.h>
+#endif
+
 #if defined(HAVE_PTHREAD_CLEANUP_PUSH)
 /* If we are called because of pthread_cancel(), be
  * sure to cleanup the current locked mutex too.
@@ -213,10 +217,6 @@ extern int pthreadSleep(unsigned seconds, unsigned nanoseconds);
 /***********************************************************************
  ***
  ***********************************************************************/
-
-#ifdef DEBUG_MUTEX
-# include <com/snert/lib/sys/lockpick.h>
-#endif
 
 # ifdef  __cplusplus
 }
