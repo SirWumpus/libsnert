@@ -13,7 +13,7 @@ extern "C" {
 
 #include <sys/types.h>
 
-extern int lp_mutex_init(pthread_mutex_t *, pthread_mutexattr_t *);
+extern int lp_mutex_init(pthread_mutex_t *, const pthread_mutexattr_t *);
 extern int lp_mutex_destroy(pthread_mutex_t *);
 extern int lp_mutex_lock(pthread_mutex_t *, const char *file, unsigned line);
 extern int lp_mutex_unlock(pthread_mutex_t *, const char *file, unsigned line);

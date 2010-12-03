@@ -46,6 +46,8 @@
 #include <com/snert/lib/sys/sysexits.h>
 #include <com/snert/lib/sys/lockpick.h>
 
+#undef pthread_mutex_init
+#undef pthread_mutex_destroy
 #undef pthread_mutex_lock
 #undef pthread_mutex_unlock
 #undef pthread_mutex_trylock
@@ -78,7 +80,7 @@ static lp_mutex_data lp_mutexes[HASH_TABLE_SIZE];
 static lp_thread_data lp_threads[HASH_TABLE_SIZE];
 static pthread_mutex_t lp_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static int (*lp_mutex_init_fn)(pthread_mutex_t *, pthread_mutexattr_t *);
+static int (*lp_mutex_init_fn)(pthread_mutex_t *, const pthread_mutexattr_t *);
 static int (*lp_mutex_destroy_fn)(pthread_mutex_t *);
 static int (*lp_mutex_lock_fn)(pthread_mutex_t *);
 static int (*lp_mutex_unlock_fn)(pthread_mutex_t *);
@@ -128,7 +130,7 @@ lp_init(void)
 		exit(EX_OSERR);
 	}
 
-  	lp_mutex_init_fn = (int (*)(pthread_mutex_t *, pthread_mutexattr_t *)) dlsym(handle, "pthread_mutex_init");
+  	lp_mutex_init_fn = (int (*)(pthread_mutex_t *, const pthread_mutexattr_t *)) dlsym(handle, "pthread_mutex_init");
 	if ((err = dlerror()) != NULL) {
 		fprintf(stderr, "pthread_mutex_init not found\n");
 		exit(EX_OSERR);
@@ -365,7 +367,7 @@ lp_check_unlock(pthread_mutex_t *m, const char *file, unsigned line)
  ***********************************************************************/
 
 int
-lp_mutex_init(pthread_mutex_t *m, pthread_mutexattr_t *a)
+lp_mutex_init(pthread_mutex_t *m, const pthread_mutexattr_t *a)
 {
 	if (lp_mutex_init_fn == NULL)
 		lp_init();
@@ -468,10 +470,15 @@ lp_cond_timedwait(pthread_cond_t *cv, pthread_mutex_t *m, const struct timespec 
 	return rc;
 }
 
-# if DEBUG_MUTEX == 2
 /***********************************************************************
  *** pthread mutex hooked functions for libraries
  ***********************************************************************/
+
+int
+pthread_mutex_init(pthread_mutex_t *m, const pthread_mutexattr_t *a)
+{
+	return lp_mutex_init(m, a);
+}
 
 #ifdef HAVE_BACKTRACE
 void
@@ -490,11 +497,12 @@ lp_stacktrace(int err_no)
 }
 #endif
 
-int
-pthread_mutex_init(pthread_mutex_t *m, pthread_mutexattr_t *a)
-{
-	return lp_mutex_init(m, a);
-}
+# if DEBUG_MUTEX == 2
+/* The reason for disabling these hooked functions is that some
+ * libraries, like SQLite use recursive mutexes, which currently
+ * report lots of errors/warnings. Support for recursive mutexes
+ * has to be added before we can always hook these functions.
+ */
 
 int
 pthread_mutex_destroy(pthread_mutex_t *m)
