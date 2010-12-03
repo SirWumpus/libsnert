@@ -1012,16 +1012,24 @@ typedef struct {
 void
 uriMimeHeader(Mime *m)
 {
-	if (TextMatch((char *) m->source.buffer, "Content-Type:*text/*", m->source.length, 1)) {
-		UriMime *hold = m->mime_data;
+	UriMime *hold = m->mime_data;
+
+	if (TextMatch((char *) m->source.buffer, "Content-Type:*text/*", m->source.length, 1))
 		hold->is_text_part = 1;
-	}
 }
 
 void
 uriMimeBodyStart(Mime *m)
 {
 	UriMime *hold = m->mime_data;
+
+	/* When a message or mime part has no Content-Type header
+	 * then the message / mime part defaults to text/plain
+	 * RFC 2045 section 5.2.
+	 */
+	if (!m->has_content_type)
+		hold->is_text_part = 1;
+
 	uriMimeFreeUri(m);
 	hold->length = 0;
 }

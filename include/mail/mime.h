@@ -47,6 +47,8 @@ struct mime {
 	B64 b64;
 	int is_multipart;
 	int decode_state_cr;
+	int has_content_type;
+	int is_message_rfc822;			/* HACK for uri.c */
 	int (*source_state)(struct mime *, int);
 	int (*decode_state)(struct mime *, int);
 

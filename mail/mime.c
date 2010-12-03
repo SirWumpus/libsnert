@@ -290,7 +290,10 @@ mimeStateBoundary(Mime *m, int ch)
 
 			if (m->mime_body_finish != NULL)
 				(*m->mime_body_finish)(m);
+
 			m->mime_part_number++;
+			m->has_content_type = 0;
+			m->is_message_rfc822 = 0;
 		} else {
 			/* Process the source stream before being flushed. */
 			m->decode_state_cr = 0;
@@ -453,11 +456,15 @@ mimeStateHdrLF(Mime *m, int ch)
 		/* Check the header for MIME behaviour. */
 		if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*multipart/*", m->source.length, 1)) {
 			m->is_multipart = 1;
+			m->has_content_type = 1;
+		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*message/rfc822", m->source.length, 1)) {
+			m->has_content_type = 1;
+			m->is_message_rfc822 = 1;
 		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*/*", m->source.length, 1)) {
 			/* Simply skip decoding this content. Look
 			 * only for the MIME boundary line.
 			 */
-			;
+			m->has_content_type = 1;
 			m->decode_state = mimeDecodeAdd;
 		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Transfer-Encoding:*quoted-printable*", m->source.length, 1)) {
 			m->decode_state = mimeStateQpLiteral;
@@ -509,11 +516,29 @@ mimeStateHdr(Mime *m, int ch)
 			mimeDecodeFlush(m);
 			m->mime_body_length = 0;
 			m->mime_body_decoded_length = 0;
-			m->source_state = mimeStateHdrBdy;
 			m->source.buffer[0] = '\0';
 
 			if (m->mime_body_start != NULL)
 				(*m->mime_body_start)(m);
+
+			/* HACK for uri.c:
+			 *
+			 * When crossing from MIME part headers to a body
+			 * message/rfc822, we want to continue parsing
+			 * the embedded message headers so we can properly
+			 * URI parse the embedded message.
+			 *
+			 * Ideally the URI MIME hooks should handle this,
+			 * but there is currently no MIME API mechanism to
+			 * say "no state change" or to change the state
+			 * since the state functions are private.
+			 */
+			if (m->is_message_rfc822)
+				/* Remain in the header parse state. */
+				m->is_message_rfc822 = 0;
+			else
+				/* Normal header to body transition. */
+				m->source_state = mimeStateHdrBdy;
 		} else {
 			/* Check for folded header line next octet. */
 			m->source_state = mimeStateHdrLF;
@@ -542,6 +567,9 @@ mimeReset(Mime *m)
 		mimeDecodeFlush(m);
 
 		m->is_multipart = 0;
+		m->has_content_type = 0;
+		m->is_message_rfc822 = 0;
+
 		m->mime_part_number = 0;
 		m->mime_part_length = 0;
 		m->mime_body_length = 0;
