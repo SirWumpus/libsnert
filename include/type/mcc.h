@@ -104,7 +104,7 @@ typedef struct {
 } mcc_row;
 
 #define MCC_SQL_BEGIN		\
-"BEGIN;"
+"BEGIN IMMEDIATE;"
 
 #define MCC_SQL_COMMIT		\
 "COMMIT;"

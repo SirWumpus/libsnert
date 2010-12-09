@@ -18,9 +18,11 @@
 #define MCC_UNICAST_PORT	6921
 #endif
 
-#ifndef MCC_STEP_BUSY_DELAY
-#define MCC_STEP_BUSY_DELAY	2
+#ifndef MCC_SQLITE_BUSY_MS
+#define MCC_SQLITE_BUSY_MS	3000
 #endif
+
+#define MCC_BEGIN_WRAPPER
 
 /***********************************************************************
  *** No configuration below this point.
@@ -583,19 +585,11 @@ mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 	if (sql_stmt == mcc->commit || sql_stmt == mcc->rollback)
 		mcc->is_transaction = 0;
 
-	/* Using the newer sqlite_prepare_v2() interface means that
-	 * sqlite3_step() will return more detailed error codes. See
-	 * sqlite3_step() API reference.
-	 */
-	while ((rc = sqlite3_step(sql_stmt)) == SQLITE_BUSY && !mcc->is_transaction) {
-		if (0 < debug)
-			syslog(LOG_WARN, "sql=%s busy: %s", mcc->path, sql_stmt_text);
-
-		pthreadSleep(1, 0);
-	}
+	(void) sqlite3_busy_timeout(mcc->db, MCC_SQLITE_BUSY_MS);
+	rc = sqlite3_step(sql_stmt);
 
 	if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
-		syslog(LOG_ERR, "sql=%s step error (%d): %s; errno=%d stmt=%s", mcc->path, rc, sqlite3_errmsg(mcc->db), errno, sql_stmt_text);
+		syslog(LOG_ERR, "mcc \"%s\" step error (%d): %s (%s)", mcc->path, rc, sqlite3_errmsg(mcc->db), sqlite3_sql(sql_stmt));
 
 		if (rc == SQLITE_CORRUPT || rc == SQLITE_CANTOPEN) {
 			if (on_corrupt == MCC_ON_CORRUPT_EXIT)
@@ -632,18 +626,31 @@ mccDeleteKey(mcc_handle *mcc, const unsigned char *key, unsigned length)
 	rc = MCC_ERROR;
 
 	if (mcc == NULL || key == NULL)
-		return MCC_ERROR;
+		goto error0;
 
 	PTHREAD_MUTEX_LOCK(&mcc->mutex);
 
-	if (sqlite3_bind_text(mcc->remove, 1, (const char *) key, length, SQLITE_STATIC) == SQLITE_OK) {
-		if (mccSqlStep(mcc, mcc->remove, MCC_SQL_DELETE) == SQLITE_DONE)
-			rc = MCC_OK;
-		(void) sqlite3_clear_bindings(mcc->remove);
+	if (sqlite3_bind_text(mcc->remove, 1, (const char *) key, length, SQLITE_STATIC) != SQLITE_OK)
+		goto error1;
+
+#ifdef MCC_BEGIN_WRAPPER
+	if (mccSqlStep(mcc, mcc->begin, MCC_SQL_BEGIN) != SQLITE_DONE)
+		goto error2;
+	if (mccSqlStep(mcc, mcc->remove, MCC_SQL_DELETE) != SQLITE_DONE) {
+		(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
+		goto error2;
 	}
-
+	if (mccSqlStep(mcc, mcc->commit, MCC_SQL_COMMIT) == SQLITE_DONE)
+		rc = MCC_OK;
+error2:
+#else
+	if (mccSqlStep(mcc, mcc->remove, MCC_SQL_DELETE) == SQLITE_DONE)
+		rc = MCC_OK;
+#endif
+	(void) sqlite3_clear_bindings(mcc->remove);
+error1:
 	PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
-
+error0:
 	return rc;
 }
 
@@ -726,8 +733,19 @@ mccPutRowLocal(mcc_handle *mcc, mcc_row *row, int touch)
 	if (sqlite3_bind_int(mcc->replace, 6, (int) row->expires) != SQLITE_OK)
 		goto error2;
 
+#ifdef MCC_BEGIN_WRAPPER
+	if (mccSqlStep(mcc, mcc->begin, MCC_SQL_BEGIN) != SQLITE_DONE)
+		goto error2;
+	if (mccSqlStep(mcc, mcc->replace, MCC_SQL_REPLACE) != SQLITE_DONE) {
+		(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
+		goto error2;
+	}
+	if (mccSqlStep(mcc, mcc->commit, MCC_SQL_COMMIT) == SQLITE_DONE)
+		rc = MCC_OK;
+#else
 	if (mccSqlStep(mcc, mcc->replace, MCC_SQL_REPLACE) == SQLITE_DONE)
 		rc = MCC_OK;
+#endif
 error2:
 	(void) sqlite3_clear_bindings(mcc->replace);
 error1:
@@ -742,6 +760,7 @@ error0:
 static void *
 mcc_listener_thread(void *data)
 {
+	int err;
 	long nbytes;
 	int is_unicast;
 	md5_state_t md5;
@@ -863,8 +882,10 @@ mcc_listener_thread(void *data)
 			 */
 
 			PTHREAD_MUTEX_LOCK(&mcc->mutex);
-			(void) mccSqlStep(mcc, mcc->begin, MCC_SQL_BEGIN);
+			err = mccSqlStep(mcc, mcc->begin, MCC_SQL_BEGIN);
 			PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
+			if (err != SQLITE_DONE)
+				continue;
 
 			/* a) or b). */
 			if (0 < new_row.hits && mccGetKey(mcc, new_row.key_data, new_row.key_size, &old_row) == MCC_OK) {
@@ -887,6 +908,7 @@ mcc_listener_thread(void *data)
 					PTHREAD_MUTEX_LOCK(&mcc->mutex);
 					(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
 					PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
+
 					if (mccSend(mcc, &old_row, MCC_CMD_PUT) && 0 < debug) {
 						old_row.key_data[old_row.key_size] = '\0';
 						syslog(LOG_DEBUG, "multi/unicast broadcast correction " MCC_KEY_FMT, old_row.key_data);
@@ -919,15 +941,16 @@ mcc_listener_thread(void *data)
 			break;
 
 		case MCC_CMD_REMOVE:
-#ifdef OFF
+#ifdef MCC_BEGIN_WRAPPER
 			PTHREAD_MUTEX_LOCK(&mcc->mutex);
-			(void) mccSqlStep(mcc, mcc->begin, MCC_SQL_BEGIN);
+			err = mccSqlStep(mcc, mcc->begin, MCC_SQL_BEGIN);
 			PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
+			if (err != SQLITE_DONE)
+				continue;
 #endif
-
 			if (mcc->hook.remote_remove != NULL
 			&& (*mcc->hook.remote_remove)(mcc, mcc->hook.data, NULL, &new_row)) {
-#ifdef OFF
+#ifdef MCC_BEGIN_WRAPPER
 				PTHREAD_MUTEX_LOCK(&mcc->mutex);
 				(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
 				PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
@@ -937,15 +960,14 @@ mcc_listener_thread(void *data)
 
 			if (mccDeleteKey(mcc, new_row.key_data, new_row.key_size) != MCC_OK) {
 				syslog(LOG_ERR, "multi/unicast remove error " MCC_KEY_FMT, new_row.key_data);
-#ifdef OFF
+#ifdef MCC_BEGIN_WRAPPER
 				PTHREAD_MUTEX_LOCK(&mcc->mutex);
 				(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
 				PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
 #endif
 				continue;
 			}
-
-#ifdef OFF
+#ifdef MCC_BEGIN_WRAPPER
 			PTHREAD_MUTEX_LOCK(&mcc->mutex);
 			(void) mccSqlStep(mcc, mcc->commit, MCC_SQL_COMMIT);
 			PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
@@ -953,7 +975,13 @@ mcc_listener_thread(void *data)
 			break;
 
 		case MCC_CMD_OTHER:
-			/* Look for a matching prefix. */
+			/* Look for a matching prefix.
+			 *
+			 * NOTE that mcc->mutex is NOT locked around the loop
+			 * as the key_hooks that are called will manipulate
+			 * the cache using the MCC API which lock mcc->mutex
+			 * themselves.
+			 */
 			for (hooks = (mcc_key_hook **) VectorBase(mcc->key_hooks); *hooks != NULL; hooks++) {
 				hook = *hooks;
 
@@ -1366,32 +1394,27 @@ mccExpireRows(mcc_handle *mcc, time_t *when)
 
 	PTHREAD_MUTEX_LOCK(&mcc->mutex);
 
-#ifdef OFF
+	if (sqlite3_bind_int(mcc->expire, 1, (int)(uint32_t) *when) != SQLITE_OK)
+		goto error1;
+#ifdef MCC_BEGIN_WRAPPER
 	if (mccSqlStep(mcc, mcc->begin, MCC_SQL_BEGIN) != SQLITE_DONE)
-		goto error1;
-#endif
-	if (mcc->hook.expire != NULL) {
-		if ((*mcc->hook.expire)(mcc, mcc->hook.data)) {
-#ifdef OFF
-			(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
-#endif
-			goto error1;
-		}
-	}
-
-	if (sqlite3_bind_int(mcc->expire, 1, (int)(uint32_t) *when) != SQLITE_OK) {
-#ifdef OFF
+		goto error2;
+	if (mcc->hook.expire != NULL && (*mcc->hook.expire)(mcc, mcc->hook.data)) {
 		(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
-#endif
-		goto error1;
+		goto error2;
 	}
+	if (mccSqlStep(mcc, mcc->expire, MCC_SQL_EXPIRE) != SQLITE_DONE) {
+		(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
+		goto error2;
+	}
+	if (mccSqlStep(mcc, mcc->commit, MCC_SQL_COMMIT) == SQLITE_DONE)
+		rc = MCC_OK;
+#else
 	if (mccSqlStep(mcc, mcc->expire, MCC_SQL_EXPIRE) == SQLITE_DONE)
 		rc = MCC_OK;
-	(void) sqlite3_clear_bindings(mcc->expire);
-
-#ifdef OFF
-	(void) mccSqlStep(mcc, mcc->commit, MCC_SQL_COMMIT);
 #endif
+error2:
+	(void) sqlite3_clear_bindings(mcc->expire);
 error1:
 	PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
 error0:
@@ -1406,15 +1429,26 @@ mccDeleteAll(mcc_handle *mcc)
 	rc = MCC_ERROR;
 
 	if (mcc == NULL)
-		return MCC_ERROR;
+		goto error0;
 
 	PTHREAD_MUTEX_LOCK(&mcc->mutex);
 
+#ifdef MCC_BEGIN_WRAPPER
+	if (mccSqlStep(mcc, mcc->begin, MCC_SQL_BEGIN) != SQLITE_DONE)
+		goto error1;
+	if (mccSqlStep(mcc, mcc->truncate, MCC_SQL_TRUNCATE) != SQLITE_DONE) {
+		(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
+		goto error1;
+	}
+	if (mccSqlStep(mcc, mcc->commit, MCC_SQL_COMMIT) == SQLITE_DONE)
+		rc = MCC_OK;
+error1:
+#else
 	if (mccSqlStep(mcc, mcc->truncate, MCC_SQL_TRUNCATE) == SQLITE_DONE)
 		rc = MCC_OK;
-
+#endif
 	PTHREAD_MUTEX_UNLOCK(&mcc->mutex);
-
+error0:
 	return rc;
 }
 

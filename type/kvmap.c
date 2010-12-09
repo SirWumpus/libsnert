@@ -17,6 +17,7 @@
 
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/type/kvm.h>
+#include <com/snert/lib/sys/sysexits.h>
 #include <com/snert/lib/util/getopt.h>
 #include <com/snert/lib/util/Text.h>
 
@@ -31,6 +32,7 @@ static const char usage[] =
 "-a\t\tappend/modify an existing map\n"
 "-b\t\tallow blank or empty value field\n"
 "-d\t\tdump the map to standard output\n"
+"-n\t\tnul terminate the keys\n"
 "-l\t\tfold keys to lower case\n"
 "-L\t\tfold values to lower case\n"
 "-u\t\tfold keys to upper case\n"
@@ -66,6 +68,7 @@ static int
 dump(kvm_data *k, kvm_data *v, void *data)
 {
 	if (0 < k->size) {
+		/* This assumes the key and value are NUL terminated C strings. */
 		fputs((char *) k->data, stdout);
 		fputc('\t', stdout);
 		if (0 < v->size)
@@ -85,9 +88,9 @@ main(int argc, char **argv)
 	unsigned long lineno;
 	char *table, *location;
 	static char buffer[BUFSIZ];
-	int rc, ch, dump_mode = 0, append_mode = 0, key_case = 0, value_case = 0, allow_empty = 0;
+	int rc, ch, mode = 0, dump_mode = 0, append_mode = 0, key_case = 0, value_case = 0, allow_empty = 0;
 
-	while ((ch = getopt(argc, argv, "abdluLU")) != -1) {
+	while ((ch = getopt(argc, argv, "abdnluLU")) != -1) {
 		switch (ch) {
 		case 'a':
 			append_mode = 1;
@@ -98,6 +101,9 @@ main(int argc, char **argv)
 		case 'd':
 			dump_mode = 1;
 			break;
+		case 'n':
+			mode |= KVM_MODE_KEY_HAS_NUL;
+			break;
 		case 'l': case 'u':
 			key_case = ch;
 			break;
@@ -106,33 +112,36 @@ main(int argc, char **argv)
 			break;
 		default:
 			(void) fprintf(stderr, usage);
-			exit(64);
+			return EX_USAGE;
 		}
 	}
 
 	if (argc < optind + 1) {
 		(void) fprintf(stderr, usage);
-		exit(64);
+		return EX_USAGE;
 	}
 
 	table = argv[optind];
 	if ((location = strchr(table, KVM_DELIM)) == NULL) {
 		fprintf(stderr, "invalid map argument\n");
-		exit(EXIT_FAILURE);
+		return EXIT_FAILURE;
 	}
 	*location++ = '\0';
 
-	if ((map = kvmOpen(table, location, 0)) == NULL) {
+	if ((map = kvmOpen(table, location, mode)) == NULL) {
 		fprintf(stderr, "%s" KVM_DELIM_S "%s open error\n", table, location);
-		exit(EXIT_FAILURE);
+		return EXIT_FAILURE;
 	}
 
-	rc = EXIT_SUCCESS;
+	rc = EXIT_FAILURE;
 
 	if (dump_mode) {
 		map->walk(map, dump, NULL);
 	} else {
-		(void) map->begin(map);
+		if (map->begin(map) == KVM_ERROR) {
+			fprintf(stderr, "kvmap: BEGIN failed\n");
+			goto error1;
+		}
 
 		if (!append_mode)
 			map->truncate(map);
@@ -185,13 +194,20 @@ main(int argc, char **argv)
 
 			if (map->put(map, &key, &value) == KVM_ERROR) {
 				fprintf(stderr, "kvmap: error at %ld: saving key \"%s\" failed\n", lineno, key.data);
-				rc = EXIT_FAILURE;
+				(void) map->rollback(map);
+				goto error1;
 			}
 		}
 
-		(void) map->commit(map);
+		if (map->commit(map) == KVM_ERROR) {
+			fprintf(stderr, "kvmap: COMMIT failed\n");
+			(void) map->rollback(map);
+			goto error1;
+		}
 	}
 
+	rc = EXIT_SUCCESS;
+error1:
 	map->close(map);
 
 	return rc;

@@ -8,6 +8,12 @@
 
 #define _VERSION		"0.3"
 
+#ifndef KVM_SQLITE_BUSY_MS
+#define KVM_SQLITE_BUSY_MS	20000
+#endif
+
+#define KVM_BEGIN_WRAPPER
+
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/
@@ -61,6 +67,11 @@ extern unsigned int sleep(unsigned int);
 #include <com/snert/lib/sys/pthread.h>
 #include <com/snert/lib/util/Text.h>
 
+#ifndef HAVE_PTHREAD_MUTEX_T
+# undef PTHREAD_MUTEX_LOCK
+# undef PTHREAD_MUTEX_UNLOCK
+#endif
+
 #define KVM_EOF				(-3)
 
 static int debug;
@@ -88,7 +99,7 @@ kvm_filepath_stub(kvm *self)
 void
 kvmAtForkPrepare(kvm *self)
 {
-#if defined(HAVE_PTHREAD_CREATE)
+#ifdef HAVE_PTHREAD_MUTEX_T
 	if (self != NULL)
 		(void) pthread_mutex_lock(&self->_mutex);
 #endif
@@ -97,7 +108,7 @@ kvmAtForkPrepare(kvm *self)
 void
 kvmAtForkParent(kvm *self)
 {
-#if defined(HAVE_PTHREAD_CREATE)
+#ifdef HAVE_PTHREAD_MUTEX_T
 	if (self != NULL)
 		(void) pthread_mutex_unlock(&self->_mutex);
 #endif
@@ -106,7 +117,7 @@ kvmAtForkParent(kvm *self)
 void
 kvmAtForkChild(kvm *self)
 {
-#if defined(HAVE_PTHREAD_CREATE)
+#ifdef HAVE_PTHREAD_MUTEX_T
 	if (self != NULL)
 		(void) pthread_mutex_unlock(&self->_mutex);
 #endif
@@ -116,7 +127,7 @@ static void
 kvmClose(kvm *self)
 {
 	if (self != NULL) {
-#if defined(HAVE_PTHREAD_CREATE)
+#ifdef HAVE_PTHREAD_MUTEX_T
 		(void) pthread_mutex_destroy(&self->_mutex);
 #endif
 		free(self->_location);
@@ -133,7 +144,7 @@ kvmCreate(const char *table_name, const char *map_location, int mode)
 	if ((self = calloc(1, sizeof (*self))) == NULL)
 		goto error0;
 
-#if defined(HAVE_PTHREAD_CREATE)
+#ifdef HAVE_PTHREAD_MUTEX_T
 	if (pthread_mutex_init(&self->_mutex, NULL))
 		goto error1;
 #endif
@@ -1386,6 +1397,12 @@ kvm_put_db(kvm *self, kvm_data *key, kvm_data *value)
 	memset(&k, 0, sizeof (k));
 	k.size = key->size;
 	k.data = key->data;
+
+	/* KVM_MODE_KEY_HAS_NUL is a hack for Postfix. It assumes
+	 * a C string terminated by a NUL byte.
+	 */
+	if ((self->_mode & KVM_MODE_KEY_HAS_NUL) && key->data[k.size] == '\0')
+		 k.size++;
 
 	memset(&v, 0, sizeof (v));
 	v.size = value->size;
@@ -2662,7 +2679,9 @@ kvm_open_multicast(kvm *self, const char *location, int mode)
 #define KVM_SQL_REPLACE		"INSERT OR REPLACE INTO kvm (k,v) VALUES(?1, ?2);"
 #define KVM_SQL_REMOVE		"DELETE FROM kvm WHERE k=?1;"
 #define KVM_SQL_TRUNCATE	"DELETE FROM kvm;"
-#define KVM_SQL_BEGIN		"BEGIN;"
+#define KVM_SQL_BEGIN		"BEGIN DEFERRED;"
+#define KVM_SQL_BEGIN_IMM	"BEGIN IMMEDIATE;"
+#define KVM_SQL_BEGIN_EXCL	"BEGIN EXCLUSIVE;"
 #define KVM_SQL_COMMIT		"COMMIT;"
 #define KVM_SQL_ROLLBACK	"ROLLBACK;"
 
@@ -2676,6 +2695,9 @@ typedef struct kvm_sql {
 	sqlite3_stmt *replace;
 	sqlite3_stmt *remove;
 	sqlite3_stmt *begin;
+#ifdef KVM_BEGIN_WRAPPER
+	sqlite3_stmt *begin_imm;
+#endif
 	sqlite3_stmt *commit;
 	sqlite3_stmt *rollback;
 } kvm_sql;
@@ -2691,23 +2713,11 @@ kvm_sql_step(kvm_sql *sql, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 	if (sql_stmt == sql->commit || sql_stmt == sql->rollback)
 		sql->is_transaction = 0;
 
-	/* Using the newer sqlite_prepare_v2() interface means that
-	 * sqlite3_step() will return more detailed error codes. See
-	 * sqlite3_step() API reference.
-	 */
-	while ((rc = sqlite3_step(sql_stmt)) == SQLITE_BUSY && !sql->is_transaction) {
-		if (0 < debug)
-			syslog(LOG_WARN, "sqlite db %s busy: %s", sql->path, sql_stmt_text);
-#if defined(HAVE_PTHREAD_CREATE)
-		pthreadSleep(1, 0);
-#else
-		sleep(1);
-#endif
-	}
+	(void) sqlite3_busy_timeout(sql->db, KVM_SQLITE_BUSY_MS);
+	rc = sqlite3_step(sql_stmt);
 
-	if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
-		syslog(LOG_ERR, "sql=%s step error (%d): %s", sql->path, rc, sqlite3_errmsg(sql->db));
-	}
+	if (rc != SQLITE_DONE && rc != SQLITE_ROW)
+		syslog(LOG_ERR, "kvm \"%s\" step error (%d): %s; %s", sql->path, rc, sqlite3_errmsg(sql->db), sqlite3_sql(sql_stmt));
 
 	if (rc != SQLITE_ROW) {
 		/* http://www.sqlite.org/cvstrac/wiki?p=DatabaseIsLocked
@@ -2750,6 +2760,10 @@ kvm_close_sql(kvm *self)
 				(void) sqlite3_finalize(sql->remove);
 			if (sql->begin != NULL)
 				(void) sqlite3_finalize(sql->begin);
+#ifdef KVM_BEGIN_WRAPPER
+			if (sql->begin_imm != NULL)
+				(void) sqlite3_finalize(sql->begin_imm);
+#endif
 			if (sql->commit != NULL)
 				(void) sqlite3_finalize(sql->commit);
 			if (sql->rollback != NULL)
@@ -2835,9 +2849,19 @@ kvm_put_sql(kvm *self, kvm_data *key, kvm_data *value)
 	if (sqlite3_bind_blob(sql->replace, 2, (const void *) value->data, value->size, SQLITE_TRANSIENT) != SQLITE_OK)
 		goto error2;
 #endif
-
+#ifdef KVM_BEGIN_WRAPPER
+	if (kvm_sql_step(sql, sql->begin_imm, KVM_SQL_BEGIN_IMM) != SQLITE_DONE)
+		goto error2;
+	if (kvm_sql_step(sql, sql->replace, KVM_SQL_REPLACE) != SQLITE_DONE) {
+		(void) kvm_sql_step(sql, sql->rollback, KVM_SQL_ROLLBACK);
+		goto error2;
+	}
+	if (kvm_sql_step(sql, sql->commit, KVM_SQL_COMMIT) == SQLITE_DONE)
+		rc = KVM_OK;
+#else
 	if (kvm_sql_step(sql, sql->replace, KVM_SQL_REPLACE) == SQLITE_DONE)
 		rc = KVM_OK;
+#endif
 error2:
 	(void) sqlite3_clear_bindings(sql->replace);
 error1:
@@ -2867,8 +2891,20 @@ kvm_remove_sql(kvm *self, kvm_data *key)
 	if (sqlite3_bind_blob(sql->remove, 1, (const void *) key->data, key->size, SQLITE_STATIC) != SQLITE_OK)
 		goto error1;
 #endif
+#ifdef KVM_BEGIN_WRAPPER
+	if (kvm_sql_step(sql, sql->begin_imm, KVM_SQL_BEGIN_IMM) != SQLITE_DONE)
+		goto error2;
+	if (kvm_sql_step(sql, sql->remove, KVM_SQL_REMOVE) != SQLITE_DONE) {
+		(void) kvm_sql_step(sql, sql->rollback, KVM_SQL_ROLLBACK);
+		goto error2;
+	}
+	if (kvm_sql_step(sql, sql->commit, KVM_SQL_COMMIT) == SQLITE_DONE)
+		rc = KVM_OK;
+error2:
+#else
 	if (kvm_sql_step(sql, sql->remove, KVM_SQL_REMOVE) == SQLITE_DONE)
 		rc = KVM_OK;
+#endif
 	(void) sqlite3_clear_bindings(sql->remove);
 error1:
 	PTHREAD_MUTEX_UNLOCK(&self->_mutex);
@@ -2890,8 +2926,20 @@ kvm_truncate_sql(kvm *self)
 	sql = self->_kvm;
 
 	PTHREAD_MUTEX_LOCK(&self->_mutex);
+#ifdef KVM_BEGIN_WRAPPER
+	if (kvm_sql_step(sql, sql->begin_imm, KVM_SQL_BEGIN_IMM) != SQLITE_DONE)
+		goto error1;
+	if (kvm_sql_step(sql, sql->truncate, KVM_SQL_TRUNCATE) != SQLITE_DONE) {
+		(void) kvm_sql_step(sql, sql->rollback, KVM_SQL_ROLLBACK);
+		goto error1;
+	}
+	if (kvm_sql_step(sql, sql->commit, KVM_SQL_COMMIT) == SQLITE_DONE)
+		rc = KVM_OK;
+error1:
+#else
 	if (kvm_sql_step(sql, sql->truncate, KVM_SQL_TRUNCATE) == SQLITE_DONE)
 		rc = KVM_OK;
+#endif
 	PTHREAD_MUTEX_UNLOCK(&self->_mutex);
 error0:
 	return rc;
@@ -2911,7 +2959,7 @@ kvm_begin_sql(kvm *self)
 	sql = self->_kvm;
 
 	PTHREAD_MUTEX_LOCK(&self->_mutex);
-	if (kvm_sql_step(sql, sql->begin, KVM_SQL_BEGIN) == SQLITE_DONE)
+	if (kvm_sql_step(sql, sql->begin, KVM_SQL_BEGIN_EXCL) == SQLITE_DONE)
 		rc = KVM_OK;
 	PTHREAD_MUTEX_UNLOCK(&self->_mutex);
 error0:
@@ -2990,6 +3038,7 @@ kvm_walk_sql(kvm *self, int (*func)(kvm_data *, kvm_data *, void *), void *data)
 			case 1:
 				break;
 			case -1:
+				(void) sqlite3_clear_bindings(sql->remove);
 #ifdef USE_TEXT_COLUMNS
 				if (sqlite3_bind_text(sql->remove, 1, (const char *) key.data, key.size, SQLITE_STATIC) != SQLITE_OK)
 					goto error1;
@@ -2997,10 +3046,19 @@ kvm_walk_sql(kvm *self, int (*func)(kvm_data *, kvm_data *, void *), void *data)
 				if (sqlite3_bind_blob(sql->remove, 1, (const void *) key.data, key.size, SQLITE_STATIC) != SQLITE_OK)
 					goto error1;
 #endif
-				ret = kvm_sql_step(sql, sql->remove, KVM_SQL_REMOVE);
-				(void) sqlite3_clear_bindings(sql->remove);
-				if (ret != SQLITE_DONE)
-					goto error1;
+#ifdef KVM_BEGIN_WRAPPER
+				if (kvm_sql_step(sql, sql->begin_imm, KVM_SQL_BEGIN_IMM) != SQLITE_DONE)
+					goto error2;
+				if (kvm_sql_step(sql, sql->remove, KVM_SQL_TRUNCATE) != SQLITE_DONE) {
+					(void) kvm_sql_step(sql, sql->rollback, KVM_SQL_ROLLBACK);
+					goto error2;
+				}
+				if (kvm_sql_step(sql, sql->commit, KVM_SQL_COMMIT) != SQLITE_DONE)
+					goto error2;
+#else
+				if (kvm_sql_step(sql, sql->remove, KVM_SQL_REMOVE) != SQLITE_DONE)
+					goto error2;
+#endif
 				break;
 			}
 			break;
@@ -3009,7 +3067,8 @@ kvm_walk_sql(kvm *self, int (*func)(kvm_data *, kvm_data *, void *), void *data)
 			break;
 		}
 	} while (ret == SQLITE_ROW);
-
+error2:
+	(void) sqlite3_clear_bindings(sql->remove);
 error1:
 	PTHREAD_MUTEX_UNLOCK(&self->_mutex);
 error0:
@@ -3126,10 +3185,16 @@ kvm_open_sql(kvm *self, const char *location, int mode)
 		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_REMOVE, sqlite3_errmsg(sql->db));
 		return KVM_ERROR;
 	}
-	if (kvm_prepare_sql(sql, KVM_SQL_BEGIN, -1, &sql->begin, NULL) != SQLITE_OK) {
-		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_BEGIN, sqlite3_errmsg(sql->db));
+	if (kvm_prepare_sql(sql, KVM_SQL_BEGIN_EXCL, -1, &sql->begin, NULL) != SQLITE_OK) {
+		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_BEGIN_EXCL, sqlite3_errmsg(sql->db));
 		return KVM_ERROR;
 	}
+#ifdef KVM_BEGIN_WRAPPER
+	if (kvm_prepare_sql(sql, KVM_SQL_BEGIN_IMM, -1, &sql->begin_imm, NULL) != SQLITE_OK) {
+		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_BEGIN_IMM, sqlite3_errmsg(sql->db));
+		return KVM_ERROR;
+	}
+#endif
 	if (kvm_prepare_sql(sql, KVM_SQL_COMMIT, -1, &sql->commit, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_COMMIT, sqlite3_errmsg(sql->db));
 		return KVM_ERROR;
