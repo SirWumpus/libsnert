@@ -1462,13 +1462,14 @@ socketMulticastLoopback(Socket2 *s, int flag)
 {
 #ifdef IP_MULTICAST_LOOP
 	int rc;
+	char byte = flag;
 
 	if (s == NULL) {
 		errno = EFAULT;
 		return SOCKET_ERROR;
 	}
 
-	rc = setsockopt(s->fd, IPPROTO_IP, IP_MULTICAST_LOOP, (char *) &flag, sizeof (flag));
+	rc = setsockopt(s->fd, IPPROTO_IP, IP_MULTICAST_LOOP, (char *) &byte, sizeof (byte));
 	UPDATE_ERRNO;
 	return rc;
 #else
