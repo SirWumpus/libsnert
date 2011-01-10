@@ -45,12 +45,47 @@ is no set schedule for releases.
 	*** To be refined. (ARSE = Anthony's reduced search expressions)
 
 
+   ?	lockpick.c: Add recursive mutex debugging support.
+
+   ? 	mime.c, uri.c: Fix message/rfc822 hack.
+
 --1.74.14--
 
    +	Added "lockpick" mutex tracking debug code in an attempt to help
    	find deadlocks.
 
    +	Added threaded version of tee(1) for testing lockpick with.
+
+   +	configure.in, aclocal.m4, version.h.in.in: Added checks for
+   	GNU C backtrace functions.
+
+   +	Added --enable-debug-mutex compile time option in order to
+   	build libsnert with "lockpick" support throughout.
+
+   !	mcc, kvm: Fix handling of SQLITE_BUSY in SQL transaction block.
+
+   !	ProcTitleSet: Fix potential buffer overflow when setting the
+	process title for OpenBSD.
+
+   !	Modified queueDequeue, queueRemove, and queueWalk to signal
+	cv_less (more like cv_empty) only when the queue is empty,
+	instead of after each item removal from the queue.
+
+   !	mime.c, uri.c: When no Content-Type header is given, the message
+	or MIME part is suppose to default to text/plain. RFC 2045
+	section 5.2.
+
+   !	Hack MIME API to help URI API parse a message/rfc822 body.
+
+   !	kvm_put_db: Added test for KVM_MODE_KEY_HAS_NUL to save a C
+	string NUL byte when present to the database. For Postfix
+	postmap compatibility.
+
+   +	kvmap: Added -n option to nul terminate key strings.
+
+   !	socketMulticastLoopback: The setsockopt IP_MULTICAST_LOOP
+	argument is a u_char on OpenBSD and i_char on Linux, not an int
+	as is common for other socket options.
 
 --1.74.13--
 
