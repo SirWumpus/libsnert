@@ -399,8 +399,10 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	 * root. Removing the trailing dot will not invalidate
 	 * the mail address.
 	 */
-	if (u[length-1] == '.')
+	if (0 < length && u[length-1] == '.')
 		length--;
+	if (length == 0)
+		goto error0;
 
 	/* Allocate space for the structure, two copies of the URI
 	 * string, and an extra byte used for a '\0'.
