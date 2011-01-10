@@ -1,7 +1,7 @@
 /*
  * TextCopy.c
  *
- * Copyright 2001, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2001, 2010 by Anthony Howe. All rights reserved.
  */
 
 #include <com/snert/lib/version.h>
@@ -32,7 +32,7 @@
  *	The physical length of target string buffer.
  *
  * @param s
- *	A pointer to the source string buffer, which might not be null
+ *	A pointer to the source string buffer, which might NOT be null
  *	terminated.
  *
  * @return
@@ -46,6 +46,7 @@
 size_t
 TextCopy(char *t, size_t tsize, const char *s)
 {
+#ifdef VERSION1
 	char *stop;
 
 	for (stop = t + tsize; t < stop; t++) {
@@ -62,35 +63,68 @@ TextCopy(char *t, size_t tsize, const char *s)
 		t[-1] = '\0';
 
 	return tsize - (stop - t);
+#else
+	size_t size;
+
+	for (size = tsize; 0 < size; size--) {
+		if ((*t++ = *s++) == '\0')
+			break;
+	}
+
+	/* Assert the target string is always null terminated. This
+	 * means nothing bad will happen if the caller does not test
+	 * for truncation and proceeds to use the string in further
+	 * C string operations.
+	 */
+	if (0 < tsize)
+		t[-1] = '\0';
+
+	return tsize - size;
+#endif
 }
 #endif
 
 #ifdef TEST
 #include <stdio.h>
 
+#define FILLER	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
 void
-test(char *t, size_t n, char *s)
+test(size_t n, char *s, size_t expect)
 {
-	size_t length = TextCopy(t, n, s);
-	printf("truncated=%d length=%lu n=%lu t=\"%s\"\ts=\"%s\"\n", n <= length, length, n, t, s);
+	size_t length;
+	char buffer[sizeof (FILLER)];
+
+	if (sizeof (buffer) < n)
+		n = sizeof (buffer);
+
+	/* Fill in the target buffer predefined junk. */
+	(void) memcpy(buffer, FILLER, sizeof (buffer));
+
+	length = TextCopy(buffer, n, s);
+
+	printf(
+		"%s truncated=%d length=%lu size=%lu t=\"%s\" s=\"%s\"\n",
+		length == expect ? "pass" : "FAIL",
+		n <= length, length, n, buffer, s
+	);
 }
 
 int
 main(int argc, char **argv)
 {
-	char target[5];
-
-	target[0] = '$';
-	target[1] = '\0';
-	test(target, 0, "");
-
-	test(target, sizeof (target), "");
-	test(target, sizeof (target), "1");
-	test(target, sizeof (target), "12");
-	test(target, sizeof (target), "123");
-	test(target, sizeof (target), "1234");
-	test(target, sizeof (target), "12345");
-	test(target, sizeof (target), "123456");
+	test(0, "", 0);
+	test(0, "123", 0);
+	test(1, "123", 1);
+	test(2, "123", 2);
+	test(3, "123", 3);
+	test(5, "", 0);
+	test(5, "1", 1);
+	test(5, "12", 2);
+	test(5, "123", 3);
+	test(5, "1234", 4);
+	test(5, "12345", 5);
+	test(5, "123456", 5);
 
 	return 0;
 }
