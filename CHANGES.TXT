@@ -49,6 +49,39 @@ is no set schedule for releases.
 
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
+--1.74.15--
+
+   *    Upgraded SQLite to 3.7.4
+
+   !	uriParse2: Added length equals zero check.
+
+   !	Overhauled the timer.h macros for better distinction between
+	the platform CLOCK and expliciit use of timeval or timespec.
+
+   !	Modified pthread.h with macros to better handle instances where
+	certain pthread functions are not defined. Also added special
+	support macros like PTHREAD_END, PTHREAD_DISABLE_CANCEL,
+	PTHREAD_RESTORE_CANCEL, PTHREAD_FREE_PUSH, PTHREAD_FREE_POP,
+	that should eliminate many #ifdef blocks.
+
+   !	Several __MINGW__ and __WIN32__ related changes.
+
+   !	Refactored the mcc API into global and per-thread operations in
+	order to switch from a single global mcc (and sqlite database)
+	handle, to one handle per-thread. All this to handle potential
+	sqlite deadlock issues related to threaded and multi-process
+	access to a single database.
+
+   !	Fix queueTimedWaitEmpty() to use correct timespec* support
+	functions. Cleaned up listItem and list free semantivs for
+	consistency; removed
+
+   !	Fixed SNERT_BUILD_THREADED_SQLITE3 detection of changed naming
+	convention for the amalgamation tar ball. Fixed
+	SNERT_GCC_SETTINGS to ignore gcc 4 warning about char type
+	subscript errors.
+
+
 --1.74.14--
 
    +	Added "lockpick" mutex tracking debug code in an attempt to help
