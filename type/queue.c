@@ -21,15 +21,13 @@
  *** Low-level list manipulation; not mutex protected.
  ***********************************************************************/
 
-/*** TODO place in new class. ***/
-
-void
-listItemFree(ListItem *item)
-{
-	if (item->free != NULL)
-		(*item->free)(item);
-}
-
+/**
+ * @param list
+ *	A pointer to a static or dynamic list structure to be finalised.
+ *	The list items are freed if necessary. The list structure itself
+ *	is left unaltered and the responsibility of the caller to free
+ *	or re-initialise.
+ */
 void
 listFini(void *_list)
 {
@@ -39,20 +37,32 @@ listFini(void *_list)
 	if (list != NULL) {
 		for (item = list->head; item != NULL; item = next) {
 			next = item->next;
-			listItemFree(item);
+			if (item->free != NULL)
+				(*item->free)(item);
 		}
-
-		if (list->free != NULL)
-			(*list->free)(list);
 	}
 }
 
+/**
+ * @param list
+ *	A pointer to a static or dynamic list structure to be initialised.
+ */
 void
 listInit(List *list)
 {
 	memset(list, 0, sizeof (*list));
 }
 
+/**
+ * @param list
+ *	A pointer to a list.
+ *
+ * @param node
+ *	A pointer to an item already in the list.
+ *
+ * @param new_node
+ *	A pointer to an item to be inserted after a given node in the list.
+ */
 void
 listInsertAfter(List *list, ListItem *node, ListItem *new_node)
 {
@@ -74,6 +84,16 @@ listInsertAfter(List *list, ListItem *node, ListItem *new_node)
 	}
 }
 
+/**
+ * @param list
+ *	A pointer to a list.
+ *
+ * @param node
+ *	A pointer to an item already in the list.
+ *
+ * @param new_node
+ *	A pointer to an item to be inserted before a given node in the list.
+ */
 void
 listInsertBefore(List *list, ListItem *node, ListItem *new_node)
 {
@@ -96,6 +116,14 @@ listInsertBefore(List *list, ListItem *node, ListItem *new_node)
 
 }
 
+/**
+ * @param list
+ *	A pointer to a list.
+ *
+ * @param item
+ *	A pointer to an item in the list that is to be removed
+ *	(separated) from the list. The item itself is not freed.
+ */
 void
 listDelete(List *list, ListItem *item)
 {
@@ -120,14 +148,25 @@ listDelete(List *list, ListItem *item)
 	}
 }
 
+/**
+ * @param list
+ *	A pointer to a list to search.
+ *
+ * @param find_fn
+ *	A search function that returns true to stop the search
+ *	or false to continue.
+ *
+ * @return
+ *	A pointer to a list item found or NULL.
+ */
 ListItem *
-listFind(List *list, ListFindFn find_fn, void *key)
+listFind(List *list, ListFindFn find_fn, void *data)
 {
 	ListItem *node, *next;
 
 	for (node = list->head; node != NULL; node = next) {
 		next = node->next;
-		if ((*find_fn)(list, node, key))
+		if ((*find_fn)(list, node, data))
 			break;
 	}
 
@@ -229,19 +268,19 @@ queueDequeue(Queue *queue)
 }
 
 static int
-queueRemoveFn(List *list, ListItem *node, void *queue)
+queueRemoveFn(List *list, ListItem *item, void *queue)
 {
-	listDelete(list, node);
-	if (node->free != NULL)
-		(*node->free)(node->data);
+	listDelete(list, item);
+	if (item->free != NULL)
+		(*item->free)(item);
 	return 0;
 }
 
 void
-queueRemove(Queue *queue, ListItem *node)
+queueRemove(Queue *queue, ListItem *item)
 {
 	PTHREAD_MUTEX_LOCK(&queue->mutex);
-	(void) queueRemoveFn(&queue->list, node, queue);
+	(void) queueRemoveFn(&queue->list, item, queue);
 	if (queue->list.head == NULL)
 		(void) pthread_cond_signal(&queue->cv_less);
 	PTHREAD_MUTEX_UNLOCK(&queue->mutex);
@@ -291,7 +330,7 @@ queueTimedWaitEmpty(Queue *queue, unsigned long ms)
 #ifdef HAVE_PTHREAD_COND_TIMEDWAIT
 	struct timespec timeout, delay;
 
-	TIMER_SET_MS(&delay, ms);
+	timespecSetMs(&delay, ms);
 	timespecSetAbstime(&timeout, &delay);
 
 	PTHREAD_MUTEX_LOCK(&queue->mutex);
