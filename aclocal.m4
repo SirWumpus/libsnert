@@ -26,7 +26,7 @@ dnl
 dnl SNERT_GCC_SETTINGS
 dnl
 m4_define([SNERT_GCC_SETTINGS],[
-	CFLAGS="-Wall ${CFLAGS}"
+	CFLAGS="-Wall -Wno-char-subscripts ${CFLAGS}"
 	if test ${enable_debug:-no} = 'no'; then
 		CFLAGS="-O2 ${CFLAGS}"
 		LDFLAGS="${LDFLAGS}"
@@ -1568,7 +1568,8 @@ AC_DEFUN(SNERT_BUILD_THREADED_SQLITE3,[
 		dir=`basename $tarfile .tar.gz`
 
 		is_amalgamation=false
-		AS_IF([expr ${dir} : 'sqlite-amalgamation-.*'],[is_amalgamation=true; i=`echo ${dir} | sed -e 's/amalgamation-//'`; dir=${i}])
+		AS_IF([expr ${dir} : 'sqlite-autoconf-.*'],[is_amalgamation=true])
+		AS_IF([! $is_amalgamation -a expr ${dir} : 'sqlite-amalgamation-.*'],[is_amalgamation=true; i=`echo ${dir} | sed -e 's/amalgamation-//'`; dir=${i}])
 
 		AC_SUBST(LIBSNERT_SQLITE3_VERSION, ${dir})
 
