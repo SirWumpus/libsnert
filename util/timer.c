@@ -38,7 +38,7 @@ timerThread(void *_data)
 	PTHREAD_MUTEX_LOCK(&timer->mutex);
 
 	/* Set initial delay. */
-	delay = *(struct timespec *) &timer->period;
+	delay = *(struct timespec *) &timer->delay;
 #if !defined(HAVE_CLOCK_GETTIME) && defined(HAVE_GETTIMEOFDAY)
 	delay.tv_nsec *= 1000;
 #endif
@@ -142,17 +142,23 @@ timerThread(void *_data)
  * @param task
  *	A call-back function to be executed when delay/period expire.
  *
- * @param
+ * @param data
+ *	Pointer to application task data.
+ *
+ * @param delay
  *	An initial delay in seconds before the first execution of the task.
  *
- * @param
+ * @param period
  *	The interval in seconds between repeated executions of the task.
+ *
+ * @param stack_size
+ *	Stack size for the timer task thread.
  *
  * @return
  *	A pointer to a Timer structure. Otherwise NULL on error.
  */
 Timer *
-timerCreate(TimerTask task, CLOCK *delay, CLOCK *period, size_t stack_size)
+timerCreate(TimerTask task, void *data, CLOCK *delay, CLOCK *period, size_t stack_size)
 {
 	Timer *timer;
 	pthread_attr_t *pthread_attr_ptr = NULL;
@@ -191,6 +197,7 @@ timerCreate(TimerTask task, CLOCK *delay, CLOCK *period, size_t stack_size)
 }
 #endif
 	timer->task = task;
+	timer->data = data;
 
 	if (delay != NULL)
 		timer->delay = *delay;
@@ -249,6 +256,8 @@ timerFree(void *_timer)
 #ifdef __WIN32__
 		CloseHandle(timer->cancel_event);
 #endif
+		if (timer->free_data != NULL)
+			(*timer->free_data)(timer->data);
 		free(timer);
 	}
 }
@@ -284,7 +293,7 @@ main(int argc, char **argv)
 	if (1 < argc)
 		counter = strtol(argv[1], NULL, 10);
 
-	if ((timer = timerCreate(task, NULL, &period, 0)) == NULL)
+	if ((timer = timerCreate(task, NULL, NULL, &period, 0)) == NULL)
 		return 1;
 
 	sleep(6);

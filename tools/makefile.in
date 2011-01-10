@@ -72,11 +72,10 @@ ORIGINAL	= ansi$E flip$E popin$E uue$E show$E range$E sqlargs$E \
 MEH_TOOLS	= sendform$E nph-download.cgi here-i-am$E where-are-you$E \
 		  ziplist$E rarlist$E taglengths$E rsleep$E
 MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E echod$E
-DAEMONS 	= filed zoned
-UNIX 		= mailgroup socketsink$E tee$E
+UNIX 		= filed zoned mailgroup socketsink$E tee$E
 
 
-PROGRAMS = $(ORIGINAL) ${MEH_TOOLS} $(MYVERSION) $(UNIX)
+PROGRAMS = $(ORIGINAL) ${MEH_TOOLS} $(MYVERSION)
 
 .MAIN : build
 
@@ -92,7 +91,7 @@ title :
 build : title $(PROGRAMS)
 
 clean : title
-	-rm -f $(PROGRAMS) $(DAEMONS) *.o *.obj core *.core core.* *.stackdump
+	-rm -f $(PROGRAMS) ${UNIX} *.o *.obj core *.core core.* *.stackdump
 	-rm -f *.i *.map *.tds *.TR2 *.ilc *.ild *.ilf *.ils *.log
 	-rm -f ixhash*.eg ixhash*.out
 

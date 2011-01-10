@@ -41,8 +41,8 @@
 #define UNIT_NANO 	1000000000L
 #endif
 
-#if defined(__MINGW32__) && !defined(WIN32_STRUCT_TIMESPEC)
-# define WIN32_STRUCT_TIMESPEC
+#if !defined(HAVE_STRUCT_TIMESPEC)
+# define HAVE_STRUCT_TIMESPEC
 struct timespec {
 	time_t  tv_sec;   /* Seconds */
 	long    tv_nsec;  /* Nanoseconds */
@@ -93,6 +93,7 @@ extern struct tm *localtime_r(const time_t *, struct tm *);
 #endif
 
 extern unsigned int sleep(unsigned int);
+extern void nap(unsigned seconds, unsigned nanoseconds);
 
 /**
  * @param local

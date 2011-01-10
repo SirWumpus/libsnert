@@ -100,7 +100,7 @@ printVar(int columns, const char *name, const char *value)
  * things than are possible in a typical signal handler.
  */
 int
-serverSignalsInit(ServerSignals *signals, const char *name)
+serverSignalsInit(ServerSignals *signals)
 {
         (void) sigemptyset(&signals->signal_set);
 # ifdef SIGHUP
@@ -261,7 +261,7 @@ createMyDACL(SECURITY_ATTRIBUTES *sa)
 # endif
 
 int
-serverSignalsInit(ServerSignals *signals, const char *name)
+serverSignalsInit(ServerSignals *signals)
 {
 	int length;
 	char event_name[SIGNAL_LENGTH][128];
@@ -514,7 +514,7 @@ sessionCreate(Server *server)
 		goto error0;
 	}
 
-	PTHREAD_PUSH_FREE(session);
+	PTHREAD_FREE_PUSH(session);
 	MEMSET(session, 0, sizeof (*session));
 
 	session->data = NULL;
@@ -565,7 +565,7 @@ sessionCreate(Server *server)
 
 	cleanup = 0;
 error1:
-	PTHREAD_POP_FREE(cleanup, session);
+	PTHREAD_FREE_POP(cleanup);
 error0:
 	return session;
 }
@@ -786,22 +786,29 @@ serverWorkerFree(void *_worker)
 	ServerWorker *worker = (ServerWorker *) _worker;
 
 	if (worker != NULL) {
+		PTHREAD_DISABLE_CANCEL();
+		if (0 < worker->server->debug.level)
+			syslog(LOG_DEBUG, "server-id=%d worker-id=%u stopping... (%lx)", worker->server->id, worker->id, (unsigned long) _worker);
+
 		queueRemove(&worker->server->workers, &worker->node);
 
 		/* Free thread persistent application data. */
 		if (worker->server->hook.worker_free != NULL)
 			(void) (*worker->server->hook.worker_free)(worker);
 
-		if (0 < worker->server->debug.level) {
-			syslog(LOG_DEBUG, "server-id=%d worker-id=%u stop (%lx)", worker->server->id, worker->id, (unsigned long) _worker);
-			assert(0 < worker->id);
-		}
 #ifdef __WIN32__
 		CloseHandle(worker->kill_event);
 #endif
+		if (0 < worker->server->debug.level) {
+			syslog(LOG_DEBUG, "server-id=%d worker-id=%u stopped (%lx)", worker->server->id, worker->id, (unsigned long) _worker);
+			assert(0 < worker->id);
+		}
+
 		MEMSET(worker, 0, sizeof (worker));
 		free(worker);
+		PTHREAD_RESTORE_CANCEL();
 	}
+
 }
 
 static void *
@@ -813,9 +820,8 @@ serverWorker(void *_worker)
 	ServerWorker *worker = (ServerWorker *) _worker;
 	unsigned threads, active, idle, queued;
 
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
 	pthread_cleanup_push(serverWorkerFree, worker);
-#endif
+
 	server = worker->server;
 
 	if (0 < server->debug.level)
@@ -855,6 +861,8 @@ serverWorker(void *_worker)
 		/* Do we have too many threads? */
 		PTHREAD_MUTEX_LOCK(&server->workers.mutex);
 		active = --server->workers_active;
+		if (active == 0)
+			pthread_cond_broadcast(&server->workers.cv_less);
 		PTHREAD_MUTEX_UNLOCK(&server->workers.mutex);
 		queued = queueLength(&server->sessions_queued);
 		threads = queueLength(&server->workers);
@@ -865,7 +873,7 @@ serverWorker(void *_worker)
 
 		if (server->option.min_threads < threads && queued + server->option.spare_threads < idle) {
 			if (0 < server->debug.level)
-				syslog(LOG_DEBUG, "server-id=%u worker-id=%u exit; active=%u idle=%u queued=%u", server->id, worker->id, active, idle, queued);
+				syslog(LOG_DEBUG, "server-id=%u worker-id=%u exit", server->id, worker->id);
 			break;
 		}
 
@@ -873,17 +881,13 @@ serverWorker(void *_worker)
 			syslog(LOG_DEBUG, "server-id=%u worker-id=%u session-id=%u done", server->id, worker->id, sess_id);
 		VALGRIND_PRINTF("server-id=%u worker-id=%u session-id=%u done", server->id, worker->id, sess_id);
 	}
-#ifdef HAVE_PTHREAD_CLEANUP_PUSH
+
 	pthread_cleanup_pop(1);
-#else
-	serverWorkerFree(worker);
-#endif
+
 	if (0 < server->debug.valgrind)
 		VALGRIND_DO_LEAK_CHECK;
-#ifdef __WIN32__
-	pthread_exit(NULL);
-#endif
-	return NULL;
+
+	PTHREAD_END(NULL);
 }
 
 static int
@@ -897,7 +901,7 @@ serverWorkerCreate(Server *server)
 		goto error0;
 	}
 
-	PTHREAD_PUSH_FREE(worker);
+	PTHREAD_FREE_PUSH(worker);
 
 	/* Counter ID zero is reserved for server thread identification. */
 	if (++worker_counter == 0)
@@ -928,7 +932,7 @@ serverWorkerCreate(Server *server)
 	if ((cleanup = pthread_detach(worker->thread)) == 0)
 		queueEnqueue(&server->workers, &worker->node);
 error1:
-	PTHREAD_POP_FREE(cleanup, worker);
+	PTHREAD_FREE_POP(cleanup);
 error0:
 	return cleanup;
 }
@@ -980,10 +984,7 @@ serverAccept(void *_server)
 		}
 	}
 
-#ifdef __WIN32__
-	pthread_exit(NULL);
-#endif
-	return NULL;
+	PTHREAD_END(NULL);
 }
 
 int
@@ -1580,7 +1581,7 @@ serverMain(void)
 	if (pthreadInit())
 		goto error0;
 
-	if (serverSignalsInit(&signals, _NAME))
+	if (serverSignalsInit(&signals))
 		goto error1;
 
 	for (service = services; service->process != NULL; service++) {

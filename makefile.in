@@ -99,7 +99,7 @@ build: title add-lib
 	@echo '***************************************************************'
 	@echo
 	cd type; ${MAKE} ${MFLAGS} kvmap$E kvmc$E kvmd$E mcc$E
-	cd mail; ${MAKE} ${MFLAGS} mime$E digestbl$E siq$E smtp2$E spf$E
+	cd mail; ${MAKE} ${MFLAGS} mime$E parsePath$E digestbl$E siq$E smtp2$E spf$E
 	cd io;   ${MAKE} ${MFLAGS} Dns$E
 	cd net;  ${MAKE} ${MFLAGS} pdq$E server$E geturl$E
 	cd util; ${MAKE} ${MFLAGS} build-cli
@@ -177,7 +177,7 @@ add-lib: ${OBJS}
 #	@echo
 
 LibSnert$O: BUILD_ID.TXT LibSnert.c
-	$(CC) $(DEFINES) $(CFLAGS) -c LibSnert.c
+	$(CC) $(DEFINES) -I${top_srcdir}/include $(CFLAGS) -c LibSnert.c
 
 clean: title
 	-rm -f $(LIB) $(BAK) td32.TR2

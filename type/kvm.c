@@ -12,7 +12,7 @@
 #define KVM_SQLITE_BUSY_MS	20000
 #endif
 
-#define KVM_BEGIN_WRAPPER
+#undef KVM_BEGIN_WRAPPER
 
 /***********************************************************************
  *** No configuration below this point.
@@ -2569,10 +2569,7 @@ error2:
 error1:
 	free(addr);
 error0:
-#ifdef __WIN32__
-	pthread_exit(NULL);
-#endif
-	return NULL;
+	PTHREAD_END(NULL);
 }
 
 static const char *
@@ -2706,10 +2703,9 @@ static int
 kvm_sql_step(kvm_sql *sql, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 {
 	int rc;
-#ifdef HAVE_PTHREAD_SETCANCELSTATE
-	int old_state;
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old_state);
-#endif
+
+	PTHREAD_DISABLE_CANCEL();
+
 	if (sql_stmt == sql->commit || sql_stmt == sql->rollback)
 		sql->is_transaction = 0;
 
@@ -2733,9 +2729,8 @@ kvm_sql_step(kvm_sql *sql, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 	if (sql_stmt == sql->begin)
 		sql->is_transaction = 1;
 
-#ifdef HAVE_PTHREAD_SETCANCELSTATE
-	pthread_setcancelstate(old_state, NULL);
-#endif
+	PTHREAD_RESTORE_CANCEL();
+
 	return rc;
 }
 
@@ -3555,10 +3550,7 @@ process(void *data)
 
 	socketClose(client);
 
-#ifdef __WIN32__
-	pthread_exit(NULL);
-#endif
-	return NULL;
+	PTHREAD_END(NULL);
 }
 
 void

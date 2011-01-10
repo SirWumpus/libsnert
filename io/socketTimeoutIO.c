@@ -106,10 +106,12 @@ socketTimeouts(SOCKET *fd_table, SOCKET *fd_ready, int fd_length, long timeout, 
 	if ((kq = kqueue()) < 0)
 		return 0;
 
-	if (fd_length <= PRE_ASSIGNED_SET_SIZE)
+	if (fd_length <= PRE_ASSIGNED_SET_SIZE) {
 		set = pre_assigned_set;
-	else if ((set = malloc(2 * sizeof (*set) * fd_length)) == NULL)
+		MEMSET(pre_assigned_set, 0, sizeof (pre_assigned_set));
+	} else if ((set = malloc(2 * sizeof (*set) * fd_length)) == NULL) {
 		goto error1;
+	}
 
 	is_input = is_input ? EVFILT_READ : EVFILT_WRITE;
 
@@ -167,10 +169,12 @@ error1:
 	if ((ev_fd = epoll_create(fd_length)) < 0)
 		return 0;
 
-	if (fd_length <= PRE_ASSIGNED_SET_SIZE)
+	if (fd_length <= PRE_ASSIGNED_SET_SIZE) {
 		set = pre_assigned_set;
-	else if ((set = malloc(sizeof (*set) * fd_length)) == NULL)
+		MEMSET(pre_assigned_set, 0, sizeof (pre_assigned_set));
+	} else if ((set = malloc(sizeof (*set) * fd_length)) == NULL) {
 		goto error1;
+	}
 
 	is_input = is_input ? EPOLLIN : EPOLLOUT;
 
@@ -234,10 +238,12 @@ error1:
 {
 	struct pollfd *set, pre_assigned_set[PRE_ASSIGNED_SET_SIZE];
 
-	if (fd_length <= PRE_ASSIGNED_SET_SIZE)
+	if (fd_length <= PRE_ASSIGNED_SET_SIZE) {
 		set = pre_assigned_set;
-	else if ((set = malloc(sizeof (*set) * fd_length)) == NULL)
+		MEMSET(pre_assigned_set, 0, sizeof (pre_assigned_set));
+	} else if ((set = malloc(sizeof (*set) * fd_length)) == NULL) {
 		return 0;
+	}
 
 	is_input = is_input ? POLLIN : POLLOUT;
 
@@ -385,7 +391,7 @@ error1:
 		wr = &set;
 	}
 
-	TIMER_SET_MS(&tv, timeout);
+	timevalSetMs(&tv, timeout);
 	to = timeout < 0 ? NULL : &tv;
 
 	do {
@@ -402,8 +408,8 @@ error1:
 			CLOCK_GET(&now);
 			TIMER_DIFF_VAR(mark) = now;
 			CLOCK_SUB(&TIMER_DIFF_VAR(mark), &mark);
-			timeout -= TIMER_GET_MS(&TIMER_DIFF_VAR(mark));
-			TIMER_SET_MS(&tv, timeout);
+			timeout -= timevalGetMs(&TIMER_DIFF_VAR(mark));
+			timevalSetMs(&tv, timeout);
 			mark = now;
 			if (tv.tv_sec <= 0 && tv.tv_usec <= 0)
 				break;

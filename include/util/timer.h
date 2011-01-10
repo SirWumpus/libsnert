@@ -49,8 +49,8 @@ extern "C" {
 #define UNIT_NANO 	1000000000L
 #endif
 
-#if defined(__MINGW32__) && !defined(WIN32_STRUCT_TIMESPEC)
-# define WIN32_STRUCT_TIMESPEC
+#if !defined(HAVE_STRUCT_TIMESPEC)
+# define HAVE_STRUCT_TIMESPEC
 struct timespec {
 	time_t  tv_sec;   /* Seconds */
 	long    tv_nsec;  /* Nanoseconds */
@@ -72,6 +72,12 @@ extern void timeSubtract(time_t *acc, time_t *b);
 #define timeToTimespec(a, b)		(b)->tv_tv_sec = *(a); (b)->tv_nsec = 0
 #define timeToTimeval(a, b)		(b)->tv_tv_sec = *(a); (b)->tv_usec = 0
 
+#define timespecGetMs(a)		((a)->tv_sec * UNIT_MILLI + (a)->tv_nsec / 1000000L)
+#define timespecSetMs(a,ms)		(a)->tv_sec = ms / UNIT_MILLI; (a)->tv_nsec = (ms % UNIT_MILLI) * UNIT_MICRO
+
+#define timevalGetMs(a)			((a)->tv_sec * UNIT_MILLI + (a)->tv_usec / 1000L)
+#define timevalSetMs(a,ms)		 (a)->tv_sec = ms / UNIT_MILLI; (a)->tv_usec = (ms % UNIT_MILLI) * UNIT_MILLI
+
 #if defined(HAVE_CLOCK_GETTIME)
 /* 10^-9 (nano-second) resolution */
 
@@ -83,6 +89,7 @@ extern void timeSubtract(time_t *acc, time_t *b);
 # define CLOCK_FMT_DOT(a)		(long)(a).tv_sec, (a).tv_nsec
 # define CLOCK_FMT_PTR(a)		(long)(a)->tv_sec, (a)->tv_nsec
 # define CLOCK_SET_TIMESPEC(a,b)	*(a) = *(b)
+# define CLOCK_SET_TIMEVAL(a,b)		timespecToTimeval(b,a)
 
 # define TIMER_EQ_CONST(t,s,ns)		((t).tv_sec == (s) && (t).tv_nsec == (ns))
 # define TIMER_NE_CONST(t,s,ns)		!TIMER_EQ_CONST(t,s,ns)
@@ -91,8 +98,8 @@ extern void timeSubtract(time_t *acc, time_t *b);
 # define TIMER_GE_CONST(t,s,ns)		((t).tv_sec >= (s) && (t).tv_nsec >= (ns))
 # define TIMER_LE_CONST(t,s,ns)		((t).tv_sec <= (s) && (t).tv_nsec <= (ns))
 
-# define TIMER_GET_MS(a)		((a)->tv_sec * UNIT_MILLI + (a)->tv_nsec / 1000000L)
-# define TIMER_SET_MS(a,ms)		(a)->tv_sec = ms / UNIT_MILLI; (a)->tv_nsec = (ms % UNIT_MILLI) * UNIT_MICRO;
+# define TIMER_GET_MS(a)		timespecGetMs(a)
+# define TIMER_SET_MS(a,ms)		timespecSetMs(a,ms)
 
 #elif defined(HAVE_GETTIMEOFDAY)
 /* 10^-6 (micro-second) resolution */
@@ -104,7 +111,8 @@ extern void timeSubtract(time_t *acc, time_t *b);
 # define CLOCK_FMT			"%ld.%.6ld"
 # define CLOCK_FMT_DOT(a)		(long)(a).tv_sec, (a).tv_usec
 # define CLOCK_FMT_PTR(a)		(long)(a)->tv_sec, (a)->tv_usec
-# define CLOCK_SET_TIMESPEC(a,b)	(a)->tv_sec = (b)->tv_sec; (a)->tv_nsec = (b)->tv_usec * 1000
+# define CLOCK_SET_TIMESPEC(a,b)	timevalToTimespec(b,a)
+# define CLOCK_SET_TIMEVAL(a,b)		*(a) = *(b)
 
 # define TIMER_EQ_CONST(t,s,ns)		((t).tv_sec == (s) && (t).tv_usec == (ns))
 # define TIMER_NE_CONST(t,s,ns)		!TIMER_EQ_CONST(t,s,ns)
@@ -113,25 +121,21 @@ extern void timeSubtract(time_t *acc, time_t *b);
 # define TIMER_GE_CONST(t,s,ns)		((t).tv_sec >= (s) && (t).tv_usec >= (ns))
 # define TIMER_LE_CONST(t,s,ns)		((t).tv_sec <= (s) && (t).tv_usec <= (ns))
 
-# define TIMER_GET_MS(a)		((a)->tv_sec * UNIT_MILLI + (a)->tv_usec / 1000L)
-# define TIMER_SET_MS(a,ms)		(a)->tv_sec = ms / UNIT_MILLI; (a)->tv_usec = (ms % UNIT_MILLI) * UNIT_MILLI;
+# define TIMER_GET_MS(a)		timevalGetMs(a)
+# define TIMER_SET_MS(a,ms)		timevalSetMs(a,ms)
 
 #else
 /* 1 second resolution */
 
-struct timesec {
-	time_t	tv_sec;
-	long	tv_ignored;
-};
-
-# define CLOCK				struct timesec
+# define CLOCK				time_t
 # define CLOCK_ADD(a, b)		timeAdd(a, b)
 # define CLOCK_SUB(a, b)		timeSub(a, b)
-# define CLOCK_GET(a)			(void) time(&(a)->tv_sec); (a)->tv_ignored = 0
+# define CLOCK_GET(a)			(void) time(a)
 # define CLOCK_FMT			"%ld"
-# define CLOCK_FMT_DOT(a)		(long)(a).tv_sec
-# define CLOCK_FMT_PTR(a)		(long)(a)->tv_sec
-# define CLOCK_SET_TIMESPEC(a,b)	(a)->tv_sec = (b)->tv_sec; (a)->tv_ignored = 0
+# define CLOCK_FMT_DOT(a)		(long)*(a)
+# define CLOCK_FMT_PTR(a)		(long)*(a)
+# define CLOCK_SET_TIMESPEC(a,b)	timeToTimespec(b,a)
+# define CLOCK_SET_TIMEVAL(a,b)		timeToTimeval(b,a)
 
 # define TIMER_EQ_CONST(t,s,ns)		((t) == (s))
 # define TIMER_NE_CONST(t,s,ns)		!TIMER_EQ_CONST(t,s,ns)
@@ -140,8 +144,8 @@ struct timesec {
 # define TIMER_GE_CONST(t,s,ns)		((t) >= (s))
 # define TIMER_LE_CONST(t,s,ns)		((t) <= (s))
 
-# define TIMER_GET_MS(a)		((a)->tv_sec * UNIT_MILLI)
-# define TIMER_SET_MS(a,ms)		(a)->tv_sec = ms / UNIT_MILLI; (a)->tv_ignored = 0
+# define TIMER_GET_MS(a)		(*(a) * UNIT_MILLI)
+# define TIMER_SET_MS(a,ms)		*(a) = ms / UNIT_MILLI
 
 #endif
 
@@ -155,6 +159,7 @@ struct timesec {
 
 typedef struct timer Timer;
 typedef void (*TimerTask)(Timer *);
+typedef void (*TimerFreeData)(void *);
 
 struct timer {
 	pthread_t thread;
@@ -168,11 +173,16 @@ struct timer {
 	CLOCK delay;
 	CLOCK period;
 	TimerTask task;
+	TimerFreeData free_data;
+	void *data;
 };
 
 /**
  * @param task
  *	A call-back function to be executed when delay/period expire.
+ *
+ * @param data
+ *	Pointer to application task data.
  *
  * @param delay
  *	An initial delay in seconds before the first execution of the task.
@@ -181,12 +191,12 @@ struct timer {
  *	The interval in seconds between repeated executions of the task.
  *
  * @param stack_size
- *	The stack size for the timer/task thread.
+ *	Stack size for the timer task thread.
  *
  * @return
- *	A pointer to a Timer structure.
+ *	A pointer to a Timer structure. Otherwise NULL on error.
  */
-extern Timer *timerCreate(TimerTask task, CLOCK *delay, CLOCK *period, size_t stack_size);
+extern Timer *timerCreate(TimerTask task, void *data, CLOCK *delay, CLOCK *period, size_t stack_size);
 
 /**
  * @param

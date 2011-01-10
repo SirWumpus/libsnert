@@ -97,9 +97,7 @@ output_file(void *data)
 		return NULL;
 	}
 
-#if defined(HAVE_PTHREAD_CLEANUP_PUSH)
 	pthread_cleanup_push((void (*)(void *)) close, (void *) fd);
-#endif
 	PTHREAD_MUTEX_LOCK(&mutex);
 
 	for (;;) {
@@ -129,12 +127,8 @@ output_file(void *data)
 	pthread_cond_signal(&cv_more);
 
 	PTHREAD_MUTEX_UNLOCK(&mutex);
-
-#if defined(HAVE_PTHREAD_CLEANUP_PUSH)
 	pthread_cleanup_pop(1);
-#else
-	close(fd);
-#endif
+
 	return NULL;
 }
 

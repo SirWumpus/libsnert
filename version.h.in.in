@@ -267,6 +267,10 @@ typedef unsigned long time_t;
 #undef HAVE_SIGTIMEDWAIT
 #undef HAVE_SIGQUEUE
 
+#if defined(__MINGW32__)
+# define SIGQUIT	3
+#endif
+
 /*
  * POSIX Thread & Mutex Functions
  */

@@ -15,9 +15,9 @@ extern "C" {
 #  include <windows.h>
 #  include <com/snert/lib/sys/Time.h>
 
-# ifndef ETIMEDOUT
-# define ETIMEDOUT	WSAETIMEDOUT
-# endif
+#  ifndef ETIMEDOUT
+#   define ETIMEDOUT	WSAETIMEDOUT
+#  endif
 
 #  define HAVE_PTHREAD_T
 typedef HANDLE pthread_t;
@@ -96,9 +96,9 @@ struct _pthread_cleanup_buffer {
 extern void _pthread_cleanup_push(struct _pthread_cleanup_buffer *buffer, void (*fn)(void *), void *arg);
 extern void _pthread_cleanup_pop(struct _pthread_cleanup_buffer *buffer, int execute);
 
-#define pthread_cleanup_push(fn, arg)	{ struct _pthread_cleanup_buffer _buf; _pthread_cleanup_push(&_buf, (fn), (arg))
+#define pthread_cleanup_push(fn, arg)	{ struct _pthread_cleanup_buffer _buf_; _pthread_cleanup_push(&_buf_, (fn), (arg))
 
-#define pthread_cleanup_pop(execute)	_pthread_cleanup_pop(&_buf, (execute)); }
+#define pthread_cleanup_pop(execute)	_pthread_cleanup_pop(&_buf_, (execute)); }
 
 extern int pthreadInit(void);
 extern void pthreadFini(void);
@@ -142,6 +142,8 @@ extern void pthread_testcancel(void);
  */
 extern void pthread_exit(void *value_ptr);
 
+# define PTHREAD_END(p)			pthread_exit(p); return (p)
+
 extern int pthread_mutex_init(pthread_mutex_t *, const pthread_mutexattr_t *);
 extern int pthread_mutex_lock(pthread_mutex_t *);
 extern int pthread_mutex_trylock(pthread_mutex_t *);
@@ -161,6 +163,7 @@ extern int pthread_cond_destroy(pthread_cond_t *);
 
 # define pthreadInit()			0
 # define pthreadFini()
+# define PTHREAD_END(p)			return (p)
 
 # endif /* HAVE_PTHREAD_H */
 
@@ -170,6 +173,25 @@ extern int pthread_cond_destroy(pthread_cond_t *);
 
 #ifdef DEBUG_MUTEX
 # include <com/snert/lib/sys/lockpick.h>
+#endif
+
+#if !defined(HAVE_PTHREAD_CLEANUP_PUSH)
+# define pthread_cleanup_push(f, p)	{ void (*_fn_)(void *) = f; void *_data_ = p
+# define pthread_cleanup_pop(x)		if (x) (*_fn_)(_data_); }
+#endif
+#if !defined(HAVE_PTHREAD_TESTCANCEL)
+# define pthread_testcancel()
+#endif
+#if !defined(HAVE_PTHREAD_YIELD)
+# define pthread_yield()
+#endif
+
+#if defined(HAVE_PTHREAD_SETCANCELSTATE)
+# define PTHREAD_DISABLE_CANCEL()	{ int _state_; pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &_state_)
+# define PTHREAD_RESTORE_CANCEL()	pthread_setcancelstate(_state_, NULL); }
+#else
+# define PTHREAD_DISABLE_CANCEL()
+# define PTHREAD_RESTORE_CANCEL()
 #endif
 
 #if defined(HAVE_PTHREAD_CLEANUP_PUSH)
@@ -182,32 +204,21 @@ extern int pthread_cond_destroy(pthread_cond_t *);
 # define PTHREAD_MUTEX_UNLOCK(m)		; \
 						pthread_cleanup_pop(1); \
 					}
-
-# define PTHREAD_PUSH_FREE(p)		pthread_cleanup_push(free, p)
-# define PTHREAD_POP_FREE(x, p)		; pthread_cleanup_pop(x); if (x) { p = NULL; }
-
 #else
 
 # define PTHREAD_MUTEX_LOCK(m)		if (!pthread_mutex_lock(m)) {
-
-# define PTHREAD_MUTEX_UNLOCK(m)		; \
-						(void) pthread_mutex_unlock(m); \
-					}
-
-# define PTHREAD_PUSH_FREE(p)
-# define PTHREAD_POP_FREE(x, p)		if (x) { free(p); p = NULL; }
+# define PTHREAD_MUTEX_UNLOCK(m)	(void) pthread_mutex_unlock(m); }
 
 #endif /* defined(HAVE_PTHREAD_CLEANUP_PUSH) */
+
+#define PTHREAD_FREE_PUSH(p)		pthread_cleanup_push(free, p)
+#define PTHREAD_FREE_POP(x)		; pthread_cleanup_pop(x)
 
 #if defined(HAVE_PTHREAD_YIELD) && defined(__linux__)
 /* Stupid Linux wants stupid extension macros to declare a function it has
  * in the library. Wankers. OpenBSD is far more sensible in this regard.
  */
 extern void pthread_yield(void);
-#endif
-
-#if !defined(HAVE_PTHREAD_YIELD)
-# define pthread_yield()
 #endif
 
 /* Non-POSIX using pthread functions. */

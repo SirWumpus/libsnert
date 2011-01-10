@@ -14,7 +14,14 @@
 #define DOMAIN_SUFFIX		".localhost."
 #endif
 
+#define _NAME			"dnsd"
 #define _COPYRIGHT		"Copyright 2010 by Anthony Howe.  All rights reserved."
+
+#ifdef __WIN32__
+# define PID_FILE		"./" _NAME ".pid"
+#else
+# define PID_FILE		"/var/run/" _NAME ".pid"
+#endif
 
 /***********************************************************************
  *** No configuration below this point.
@@ -63,6 +70,8 @@
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/net/network.h>
+#include <com/snert/lib/net/server.h>
+#include <com/snert/lib/sys/pid.h>
 #include <com/snert/lib/sys/pthread.h>
 #include <com/snert/lib/sys/sysexits.h>
 #include <com/snert/lib/type/queue.h>
@@ -237,23 +246,6 @@ static const char log_init[] = "init error %s(%d): %s (%d)";
 static const char log_internal[] = "internal error %s(%d): %s (%d)";
 static const char log_buffer[] = "buffer overflow %s(%d)";
 
-#ifdef __WIN32__
-typedef enum {
-	SIGNAL_QUIT = 0,
-	SIGNAL_TERM = 1,
-	SIGNAL_LENGTH = 2
-} ServerSignal;
-#endif
-
-typedef struct {
-#ifdef __unix__
-	sigset_t signal_set;
-#endif
-#ifdef __WIN32__
-	HANDLE signal_event[SIGNAL_LENGTH];
-#endif
-} ServerSignals;
-
 /***********************************************************************
  ***
  ***********************************************************************/
@@ -284,7 +276,7 @@ syslog(int level, const char *fmt, ...)
  * threads will ignore them. This way we can do more interesting
  * things than are possible in a typical signal handler.
  */
-static int
+int
 serverSignalsInit(ServerSignals *signals)
 {
         (void) sigemptyset(&signals->signal_set);
@@ -338,13 +330,13 @@ serverSignalsInit(ServerSignals *signals)
 	return 0;
 }
 
-static void
+void
 serverSignalsFini(ServerSignals *signals)
 {
 	(void) pthread_sigmask(SIG_UNBLOCK, &signals->signal_set, NULL);
 }
 
-static int
+int
 serverSignalsLoop(ServerSignals *signals)
 {
 	int signal, running;
@@ -440,7 +432,7 @@ createMyDACL(SECURITY_ATTRIBUTES *sa)
 }
 # endif
 
-static int
+int
 serverSignalsInit(ServerSignals *signals)
 {
 	int length;
@@ -478,7 +470,7 @@ serverSignalsInit(ServerSignals *signals)
 	return 0;
 }
 
-static void
+void
 serverSignalsFini(ServerSignals *signals)
 {
 	ServerSignal i;
@@ -489,7 +481,7 @@ serverSignalsFini(ServerSignals *signals)
 	}
 }
 
-static int
+int
 serverSignalsLoop(ServerSignals *signals)
 {
 	int signal;
@@ -511,9 +503,11 @@ serverSignalsLoop(ServerSignals *signals)
  ***********************************************************************/
 
 static int running;
+static int server_quit;
 static Queue queries_unused;
 static Queue queries_waiting;
 static ServerSignals signals;
+static char *pid_file = PID_FILE;
 
 static Socket2 *service;
 static SocketAddress *service_addr;
@@ -560,10 +554,8 @@ sql_step(sqlite3 *db, sqlite3_stmt *sql_stmt)
 {
 	int rc;
 
-#ifdef HAVE_PTHREAD_SETCANCELSTATE
-	int old_state;
-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old_state);
-#endif
+	PTHREAD_DISABLE_CANCEL();
+
 	/* Using the newer sqlite_prepare_v2() interface means that
 	 * sqlite3_step() will return more detailed error codes. See
 	 * sqlite3_step() API reference.
@@ -585,9 +577,8 @@ sql_step(sqlite3 *db, sqlite3_stmt *sql_stmt)
 		 */
 		(void) sqlite3_reset(sql_stmt);
 	}
-#ifdef HAVE_PTHREAD_SETCANCELSTATE
-	pthread_setcancelstate(old_state, NULL);
-#endif
+	PTHREAD_RESTORE_CANCEL();
+
 	return rc;
 }
 
@@ -857,7 +848,7 @@ create_database(sqlite3 *db)
 	return 0;
 }
 
-static int
+int
 serverMain(void)
 {
 	int rc, signal;
@@ -969,13 +960,52 @@ error0:
 	return rc;
 }
 
-static void
+struct mapping {
+	int code;
+	char *name;
+};
+
+static struct mapping logFacilityMap[] = {
+	{ LOG_AUTH,		"auth"		},
+	{ LOG_CRON,		"cron" 		},
+	{ LOG_DAEMON,		"daemon" 	},
+	{ LOG_FTP,		"ftp" 		},
+	{ LOG_LPR,		"lpr"		},
+	{ LOG_MAIL,		"mail"		},
+	{ LOG_NEWS,		"news"		},
+	{ LOG_UUCP,		"uucp"		},
+	{ LOG_USER,		"user"		},
+	{ LOG_LOCAL0,		"local0"	},
+	{ LOG_LOCAL1,		"local1"	},
+	{ LOG_LOCAL2,		"local2"	},
+	{ LOG_LOCAL3,		"local3"	},
+	{ LOG_LOCAL4,		"local4"	},
+	{ LOG_LOCAL5,		"local5"	},
+	{ LOG_LOCAL6,		"local6"	},
+	{ LOG_LOCAL7,		"local7"	},
+	{ 0, 			NULL 		}
+};
+
+int log_facility = LOG_DAEMON;
+
+static int
+name_to_code(struct mapping *map, const char *name)
+{
+	for ( ; map->name != NULL; map++) {
+		if (TextInsensitiveCompare(name, map->name) == 0)
+			return map->code;
+	}
+
+	return -1;
+}
+
+void
 serverOptions(int argc, char **argv)
 {
 	int ch;
 
 	optind = 1;
-	while ((ch = getopt(argc, argv, "df:p:s:vw:")) != -1) {
+	while ((ch = getopt(argc, argv, "df:l:p:qs:vw:")) != -1) {
 		switch (ch) {
 		case 'd':
 			daemon_mode = 0;
@@ -985,8 +1015,16 @@ serverOptions(int argc, char **argv)
 			database_path = optarg;
 			break;
 
+		case 'l':
+			log_facility = name_to_code(logFacilityMap, optarg);
+			break;
+
 		case 'p':
 			port = (unsigned) strtol(optarg, NULL, 10);
+			break;
+
+		case 'q':
+			server_quit++;
 			break;
 
 		case 's':
@@ -1026,6 +1064,26 @@ int
 main(int argc, char **argv)
 {
 	serverOptions(argc, argv);
+
+	switch (server_quit) {
+	case 1:
+		/* Slow quit	-q */
+		exit(pidKill(pid_file, SIGQUIT) != 0);
+
+	case 2:
+		/* Quit now	-q -q */
+		exit(pidKill(pid_file, SIGTERM) != 0);
+	default:
+		/* Restart	-q -q -q
+		 * Restart-If	-q -q -q -q
+		 */
+		if (pidKill(pid_file, SIGTERM) && 3 < server_quit) {
+			fprintf(stderr, "no previous instance running: %s (%d)\n", strerror(errno), errno);
+			return EXIT_FAILURE;
+		}
+
+		sleep(2);
+	}
 
 	if (daemon_mode) {
 		if (daemon(1, 1)) {

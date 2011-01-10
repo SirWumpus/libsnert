@@ -65,8 +65,9 @@ OBJS =	Mutex$O Shared$O Thread$O gmtime_r$O Time$O TimeStamp$O \
 
 .MAIN : build
 
-all:
-	@echo 'Try:  make -f ../../mk/<platform>.mk -f ../makefile {build|clean}'
+all: build
+
+#	@echo 'Try:  make -f ../../mk/<platform>.mk -f ../makefile {build|clean}'
 
 title :
 	@echo
@@ -74,6 +75,7 @@ title :
 	@echo '==> '${abs_srcdir}
 	@echo '***************************************************************'
 	@echo
+
 
 build : title $(LIB) add-lib sys$E
 

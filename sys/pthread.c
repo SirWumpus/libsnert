@@ -523,14 +523,15 @@ pthread_cond_wait(pthread_cond_t *cv, pthread_mutex_t *mutex)
 int
 pthread_cond_timedwait(pthread_cond_t *cv, pthread_mutex_t *mutex, const struct timespec *abstime)
 {
-	CLOCK now, then;
+	CLOCK now;
+	struct timespec then, now_ts;
 
-	then = *(CLOCK *) abstime;
-
+	then = *abstime;
 	CLOCK_GET(&now);
-	CLOCK_SUB(&then, &now);
+	CLOCK_SET_TIMESPEC(&now_ts, &now);
+	timespecSubtract(&then, &now_ts);
 
-	return pthread_cond_wait_to(cv, mutex, TIMER_GET_MS(&then));
+	return pthread_cond_wait_to(cv, mutex, timespecGetMs(&then));
 }
 
 /***********************************************************************

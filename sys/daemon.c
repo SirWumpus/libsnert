@@ -6,7 +6,7 @@
 
 #include <com/snert/lib/version.h>
 
-#if !defined(HAVE_DAEMON)
+#if !defined(__WIN32__) && !defined(HAVE_DAEMON)
 
 #include <errno.h>
 #include <stdio.h>

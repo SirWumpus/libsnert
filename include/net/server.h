@@ -287,7 +287,7 @@ typedef struct {
 	ServerSignalHook sig_hup;
 } ServerSignals;
 
-extern int serverSignalsInit(ServerSignals *signals, const char *name);
+extern int serverSignalsInit(ServerSignals *signals);
 extern int serverSignalsLoop(ServerSignals *signals);
 extern void serverSignalsFini(ServerSignals *signals);
 

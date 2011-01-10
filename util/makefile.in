@@ -123,7 +123,7 @@ add-lib:
 
 clean : title
 	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.stackdump core core *.core core.*.*
-	-rm -f BigInt$E b64$E md4$E md5$E htmlstrip$E playfair$E uri$E convertDate$E ${TEST} cache.* properties.out
+	-rm -f ${CLI} BigInt$E md4$E md5$E htmlstrip$E ${TEST} cache.* properties.out
 
 distclean: clean
 	-rm -f makefile

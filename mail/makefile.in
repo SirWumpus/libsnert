@@ -78,7 +78,7 @@ OBJS =  grey$O tlds$O MailSpan$O parsePath$O mime$O siq$O spf$O smdb$O \
 
 .MAIN : build
 
-build: title $(LIB) add-lib parsePath$E tlds$E
+all : build
 
 title :
 	@echo
@@ -86,6 +86,8 @@ title :
 	@echo '==> '${abs_srcdir}
 	@echo '***************************************************************'
 	@echo
+
+build: title $(LIB) add-lib
 
 install: build
 	-cp -p mime$E smtp2$E spf$E ${bindir}
@@ -151,7 +153,9 @@ tlds$O : tlds-alpha-by-domain.c two-level-tlds.c tlds.c
 lint: title
 	-splint -D_REENTRANT -U__WIN32__ -I${SNERT_INCDIR} +posixlib +boolint *.c
 
-parsePath$E :  MailSpan.c parsePath.c
+../sys/gmtime_r$O: ../sys/gmtime_r.c
+
+parsePath$E :  ../sys/gmtime_r$O MailSpan.c parsePath.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)parsePath$E parsePath.c MailSpan.c $(LIBSNERT) $(LIBS)
 
 # This cannot be built until AFTER the lib/io routines have been built.
@@ -167,11 +171,11 @@ smtp2$E : ../net/pdq$O ../io/socket2$O smtp2.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp2$E smtp2.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
 
 # This cannot be built until AFTER the lib/io routines have been built.
-spf$E :  ../io/Dns$O spf.c
+spf$E :  ../net/pdq$O spf.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)spf$E spf.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
 
 # This cannot be built until AFTER the lib/io routines have been built.
-siq$E :  ../io/Dns$O siq.c
+siq$E :  ../net/pdq$O siq.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)siq$E siq.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
 
 tlds$E : tlds-alpha-by-domain.c two-level-tlds.c tlds.c
