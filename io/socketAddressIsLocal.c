@@ -26,6 +26,7 @@ socketAddressIsLocal(SocketAddress *addr)
 	int rc, saved_port;
 	struct ifaddrs *if_list, *if_entry;
 
+	if_list = NULL;
 	if (addr == NULL || getifaddrs(&if_list) != 0)
 		return 0;
 

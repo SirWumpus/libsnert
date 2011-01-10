@@ -38,10 +38,7 @@
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/timer.h>
 #include <com/snert/lib/sys/pthread.h>
-
-#ifdef __WIN32__
-extern unsigned int sleep(unsigned int);
-#endif
+#include <com/snert/lib/sys/process.h>
 
 static int debug;
 
@@ -906,7 +903,7 @@ socketFdSetKeepAlive(SOCKET fd, int flag, int idle, int interval, int count)
 }
 
 long
-socketFdWriteTo(int fd, unsigned char *buffer, long size, SocketAddress *to)
+socketFdWriteTo(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
 {
 	long sent, offset;
 	socklen_t socklen;
@@ -935,7 +932,7 @@ socketFdWriteTo(int fd, unsigned char *buffer, long size, SocketAddress *to)
 				break;
 			}
 			sent = 0;
-			sleep(1);
+			nap(1, 0);
 		}
 	}
 
@@ -1291,7 +1288,7 @@ socketReadLine2(Socket2 *s, char *line, long size, int keep_nl)
 							syslog(LOG_WARN, "socketReadLine() spinning more than 1 second: %s (%d)", strerror(errno), errno);
 					}
 					errno = 0;
-					sleep(1);
+					nap(1, 0);
 					continue;
 				}
 
