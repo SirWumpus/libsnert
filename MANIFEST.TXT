@@ -212,6 +212,7 @@ com/snert/src/lib/util/uri.txt
 com/snert/src/lib/util/uri.txt.out
 com/snert/src/lib/util/option.c
 com/snert/src/lib/util/option.txt
+com/snert/src/lib/util/sqlite3.c
 com/snert/src/lib/util/time62.c
 com/snert/src/lib/util/timer.c
 com/snert/src/lib/util/timespec.c
@@ -293,6 +294,7 @@ com/snert/src/lib/include/util/victor.h
 com/snert/src/lib/include/util/setBitWord.h
 com/snert/src/lib/include/util/uri.h
 com/snert/src/lib/include/util/option.h
+com/snert/src/lib/include/util/sqlite3.h
 com/snert/src/lib/include/util/time62.h
 com/snert/src/lib/include/util/timer.h
 com/snert/src/lib/include/valgrind/valgrind.h

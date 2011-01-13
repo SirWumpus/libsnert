@@ -1,9 +1,9 @@
 /*
  * mcc.c
  *
- * Multicast Cache
+ * Multicast / Unicast Cache
  *
- * Copyright 2006, 2010 by Anthony Howe. All rights reserved.
+ * Copyright 2006, 2011 by Anthony Howe. All rights reserved.
  */
 
 #ifndef MCC_LISTENER_TIMEOUT
@@ -19,7 +19,7 @@
 #endif
 
 #ifndef MCC_SQLITE_BUSY_MS
-#define MCC_SQLITE_BUSY_MS	6000
+#define MCC_SQLITE_BUSY_MS	15000
 #endif
 
 /***********************************************************************
@@ -436,44 +436,44 @@ mcc_sql_create(mcc_handle *mcc)
 static int
 mcc_sql_stmts_prepare(mcc_handle *mcc)
 {
-	if (cache.hook.prepare != NULL && (*cache.hook.prepare)(mcc, NULL)) {
-		syslog(LOG_ERR, "mcc prepare hook failed");
-		return -1;
-	}
-
 	/* Using the newer sqlite_prepare_v2() interface will
 	 * handle SQLITE_SCHEMA errors automatically.
 	 */
-	if (sqlite3_prepare_v2(mcc->db, MCC_SQL_SELECT_ONE, -1, &mcc->select_one, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(mcc->db, MCC_SQL_SELECT_ONE, -1, &mcc->select_one, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "mcc statement error: %s %s", MCC_SQL_SELECT_ONE, sqlite3_errmsg(mcc->db));
 		return -1;
 	}
-	if (sqlite3_prepare_v2(mcc->db, MCC_SQL_REPLACE, -1, &mcc->replace, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(mcc->db, MCC_SQL_REPLACE, -1, &mcc->replace, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "mcc statement error: %s %s", MCC_SQL_REPLACE, sqlite3_errmsg(mcc->db));
 		return -1;
 	}
-	if (sqlite3_prepare_v2(mcc->db, MCC_SQL_TRUNCATE, -1, &mcc->truncate, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(mcc->db, MCC_SQL_TRUNCATE, -1, &mcc->truncate, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "mcc statement error: %s %s", MCC_SQL_TRUNCATE, sqlite3_errmsg(mcc->db));
 		return -1;
 	}
-	if (sqlite3_prepare_v2(mcc->db, MCC_SQL_EXPIRE, -1, &mcc->expire, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(mcc->db, MCC_SQL_EXPIRE, -1, &mcc->expire, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "mcc statement error: %s %s", MCC_SQL_EXPIRE, sqlite3_errmsg(mcc->db));
 		return -1;
 	}
-	if (sqlite3_prepare_v2(mcc->db, MCC_SQL_DELETE, -1, &mcc->remove, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(mcc->db, MCC_SQL_DELETE, -1, &mcc->remove, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "mcc statement error: %s %s", MCC_SQL_DELETE, sqlite3_errmsg(mcc->db));
 		return -1;
 	}
-	if (sqlite3_prepare_v2(mcc->db, MCC_SQL_BEGIN, -1, &mcc->begin, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(mcc->db, MCC_SQL_BEGIN, -1, &mcc->begin, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "mcc statement error: %s %s", MCC_SQL_BEGIN, sqlite3_errmsg(mcc->db));
 		return -1;
 	}
-	if (sqlite3_prepare_v2(mcc->db, MCC_SQL_COMMIT, -1, &mcc->commit, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(mcc->db, MCC_SQL_COMMIT, -1, &mcc->commit, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "mcc statement error: %s %s", MCC_SQL_COMMIT, sqlite3_errmsg(mcc->db));
 		return -1;
 	}
-	if (sqlite3_prepare_v2(mcc->db, MCC_SQL_ROLLBACK, -1, &mcc->rollback, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(mcc->db, MCC_SQL_ROLLBACK, -1, &mcc->rollback, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "mcc statement error: %s %s", MCC_SQL_ROLLBACK, sqlite3_errmsg(mcc->db));
+		return -1;
+	}
+
+	if (cache.hook.prepare != NULL && (*cache.hook.prepare)(mcc, NULL)) {
+		syslog(LOG_ERR, "mcc prepare hook failed");
 		return -1;
 	}
 
@@ -517,61 +517,6 @@ mcc_sql_stmts_finalize(mcc_handle *mcc)
 	}
 }
 
-#ifdef NO_LONGER_USED
-static int
-mcc_sql_recreate(mcc_handle *mcc)
-{
-	int rc;
-
-	syslog(LOG_ERR, "closing corrupted sqlite db %s...", cache.path);
-	mcc_sql_stmts_finalize(mcc);
-	sqlite3_close(mcc->db);
-
-	if (on_corrupt == MCC_ON_CORRUPT_RENAME) {
-		char *new_name = strdup(cache.path);
-		if (new_name == NULL) {
-			syslog(LOG_ERR, "mcc_sql_recreate: (%d) %s", errno, strerror(errno));
-			exit(1);
-		}
-		new_name[strlen(new_name)-1] = 'X';
-		(void) unlink(new_name);
-		if (rename(cache.path, new_name)) {
-			syslog(LOG_ERR, "sql=%s rename to %s error: (%d) %s", cache.path, new_name, errno, strerror(errno));
-			free(new_name);
-			exit(1);
-		}
-		free(new_name);
-	} else if (on_corrupt == MCC_ON_CORRUPT_REPLACE) {
-		if (unlink(cache.path)) {
-			syslog(LOG_ERR, "sql=%s unlink error: (%d) %s", cache.path, errno, strerror(errno));
-			goto error0;
-		}
-	}
-
-	syslog(LOG_INFO, "creating new sqlite db %s...", cache.path);
-	if ((rc = sqlite3_open(cache.path, &mcc->db)) != SQLITE_OK) {
-		syslog(LOG_ERR, "sql=%s open error: %s", cache.path, sqlite3_errmsg(mcc->db));
-		goto error0;
-	}
-
-	if (mcc_sql_create(mcc))
-		goto error1;
-
-	if (mcc_sql_stmts_prepare(mcc))
-		goto error2;
-
-	syslog(LOG_INFO, "sqlite db %s ready", cache.path);
-
-	return 0;
-error2:
-	mcc_sql_stmts_finalize(mcc);
-error1:
-	sqlite3_close(mcc->db);
-error0:
-	return -1;
-}
-#endif
-
 int
 mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 {
@@ -583,11 +528,7 @@ mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 		mcc->is_transaction = 0;
 
 	(void) sqlite3_busy_timeout(mcc->db, MCC_SQLITE_BUSY_MS);
-
-	while ((rc = sqlite3_step(sql_stmt)) == SQLITE_BUSY && !mcc->is_transaction) {
-		(void) sqlite3_reset(sql_stmt);
-		sleep(1);
-	}
+	rc = sqlite3_step_blocking(sql_stmt);
 
 	if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
 		syslog(LOG_ERR, "mcc \"%s\" step error (%d): %s: %s", cache.path, rc, sqlite3_errmsg(mcc->db), TextEmpty(sqlite3_sql(sql_stmt)));

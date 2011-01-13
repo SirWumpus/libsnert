@@ -22,6 +22,7 @@ extern "C" {
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/sys/pthread.h>
 #include <com/snert/lib/type/Vector.h>
+#include <com/snert/lib/util/sqlite3.h>
 
 #ifndef MCC_STACK_SIZE
 # define MCC_STACK_SIZE		(64 * 1024)
@@ -52,7 +53,6 @@ extern "C" {
 #endif
 
 #ifdef HAVE_SQLITE3_H
-# include <sqlite3.h>
 
 # if SQLITE_VERSION_NUMBER < 3003008
 #  error "Thread safe SQLite3 version 3.3.8 or better required."

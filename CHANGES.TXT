@@ -49,6 +49,18 @@ is no set schedule for releases.
 
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
+--1.74.16--
+
+   !	SNERT_BUILD_THREADED_SQLITE3 now sets SQLITE_ENABLE_UNLOCK_NOTIFY.
+
+   +	Added sqlite3 support functions sqlite3_step_blocking() and
+   	sqlite3_prepare_v2_blocking() based on:
+
+   		http://www.sqlite.org/unlock_notify.html
+
+   !	Modified mcc and kvm to use sqlite3_step_blocking() and
+   	sqlite3_prepare_v2_blocking().
+
 --1.74.15--
 
    *    Upgraded SQLite to 3.7.4

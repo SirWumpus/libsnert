@@ -3,7 +3,7 @@
  *
  * Key-Value Map
  *
- * Copyright 2002, 2010 by Anthony Howe. All rights reserved.
+ * Copyright 2002, 2011 by Anthony Howe. All rights reserved.
  */
 
 #define _VERSION		"0.3"
@@ -2656,7 +2656,7 @@ kvm_open_multicast(kvm *self, const char *location, int mode)
  ***********************************************************************/
 
 #ifdef HAVE_SQLITE3_H
-# include <sqlite3.h>
+# include <com/snert/lib/util/sqlite3.h>
 
 #if SQLITE_VERSION_NUMBER < 3003009
 # error "SQLite3 version 3.3.9 or better required."
@@ -2710,7 +2710,7 @@ kvm_sql_step(kvm_sql *sql, sqlite3_stmt *sql_stmt, const char *sql_stmt_text)
 		sql->is_transaction = 0;
 
 	(void) sqlite3_busy_timeout(sql->db, KVM_SQLITE_BUSY_MS);
-	rc = sqlite3_step(sql_stmt);
+	rc = sqlite3_step_blocking(sql_stmt);
 
 	if (rc != SQLITE_DONE && rc != SQLITE_ROW)
 		syslog(LOG_ERR, "kvm \"%s\" step error (%d): %s; %s", sql->path, rc, sqlite3_errmsg(sql->db), sqlite3_sql(sql_stmt));
@@ -3078,24 +3078,6 @@ kvm_filepath_sql(kvm *self)
 }
 
 static int
-kvm_prepare_sql(kvm_sql *sql, const char *stmt, int stmt_size, sqlite3_stmt **stmt_out, const char **stmt_tail)
-{
-	int rc;
-
-	while ((rc = sqlite3_prepare_v2(sql->db, stmt, stmt_size, stmt_out, stmt_tail)) == SQLITE_BUSY) {
-		if (0 < debug)
-			syslog(LOG_WARN, "sqlite db %s busy: %s", sql->path, stmt);
-#if defined(HAVE_PTHREAD_CREATE)
-		pthreadSleep(1, 0);
-#else
-		sleep(1);
-#endif
-	}
-
-	return rc;
-}
-
-static int
 kvm_open_sql(kvm *self, const char *location, int mode)
 {
 	int rc;
@@ -3141,7 +3123,7 @@ kvm_open_sql(kvm *self, const char *location, int mode)
 		return KVM_ERROR;
 	}
 
-	switch ((rc = kvm_prepare_sql(sql, KVM_SQL_SELECT_ONE, -1, &sql->select_one, NULL))) {
+	switch ((rc = sqlite3_prepare_v2_blocking(sql->db, KVM_SQL_SELECT_ONE, -1, &sql->select_one, NULL))) {
 	case SQLITE_OK:
 		break;
 	case SQLITE_ERROR:
@@ -3153,7 +3135,7 @@ kvm_open_sql(kvm *self, const char *location, int mode)
 		}
 
 		/* Try again to prepare the statement. */
-		if (kvm_prepare_sql(sql, KVM_SQL_SELECT_ONE, -1, &sql->select_one, NULL) == SQLITE_OK)
+		if (sqlite3_prepare_v2_blocking(sql->db, KVM_SQL_SELECT_ONE, -1, &sql->select_one, NULL) == SQLITE_OK)
 			break;
 		/*@fallthrough@*/
 	default:
@@ -3164,37 +3146,37 @@ kvm_open_sql(kvm *self, const char *location, int mode)
 	/* Using the newer sqlite_prepare_v2() interface will handle
 	 * SQLITE_SCHEMA errors automatically.
 	 */
-	if (kvm_prepare_sql(sql, KVM_SQL_SELECT_ALL, -1, &sql->select_all, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(sql->db, KVM_SQL_SELECT_ALL, -1, &sql->select_all, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_SELECT_ALL, sqlite3_errmsg(sql->db));
 		return KVM_ERROR;
 	}
-	if (kvm_prepare_sql(sql, KVM_SQL_TRUNCATE, -1, &sql->truncate, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(sql->db, KVM_SQL_TRUNCATE, -1, &sql->truncate, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_TRUNCATE, sqlite3_errmsg(sql->db));
 		return KVM_ERROR;
 	}
-	if (kvm_prepare_sql(sql, KVM_SQL_REPLACE, -1, &sql->replace, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(sql->db, KVM_SQL_REPLACE, -1, &sql->replace, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_REPLACE, sqlite3_errmsg(sql->db));
 		return KVM_ERROR;
 	}
-	if (kvm_prepare_sql(sql, KVM_SQL_REMOVE, -1, &sql->remove, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(sql->db, KVM_SQL_REMOVE, -1, &sql->remove, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_REMOVE, sqlite3_errmsg(sql->db));
 		return KVM_ERROR;
 	}
-	if (kvm_prepare_sql(sql, KVM_SQL_BEGIN_EXCL, -1, &sql->begin, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(sql->db, KVM_SQL_BEGIN_EXCL, -1, &sql->begin, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_BEGIN_EXCL, sqlite3_errmsg(sql->db));
 		return KVM_ERROR;
 	}
 #ifdef KVM_BEGIN_WRAPPER
-	if (kvm_prepare_sql(sql, KVM_SQL_BEGIN_IMM, -1, &sql->begin_imm, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(sql->db, KVM_SQL_BEGIN_IMM, -1, &sql->begin_imm, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_BEGIN_IMM, sqlite3_errmsg(sql->db));
 		return KVM_ERROR;
 	}
 #endif
-	if (kvm_prepare_sql(sql, KVM_SQL_COMMIT, -1, &sql->commit, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(sql->db, KVM_SQL_COMMIT, -1, &sql->commit, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_COMMIT, sqlite3_errmsg(sql->db));
 		return KVM_ERROR;
 	}
-	if (kvm_prepare_sql(sql, KVM_SQL_ROLLBACK, -1, &sql->rollback, NULL) != SQLITE_OK) {
+	if (sqlite3_prepare_v2_blocking(sql->db, KVM_SQL_ROLLBACK, -1, &sql->rollback, NULL) != SQLITE_OK) {
 		syslog(LOG_ERR, "sql=%s statement error: %s : %s", sql->path, KVM_SQL_ROLLBACK, sqlite3_errmsg(sql->db));
 		return KVM_ERROR;
 	}
