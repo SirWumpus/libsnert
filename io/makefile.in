@@ -10,7 +10,7 @@
 A = .@LIBEXT@
 O = .@OBJEXT@
 E = @EXEEXT@
-.SUFFIXES : .c $O $A
+.SUFFIXES : .c .h .i $O $A
 
 #
 # Paths for supporting headers and libraries.
@@ -62,12 +62,15 @@ LIB_RT 		= @HAVE_LIB_RT@
 $O$E :
 	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
 
+.c.i:
+	${CC} -E ${CFLAGS} $*.c >$*.i
+
 #######################################################################
 
 REPLACED = URI$O
 
 OBJS =	Error$O Log$O mkpath$O socketTimeoutIO$O socketAddress$O \
-	socketAddressIsLocal$O socket2$O Dns$O flock$O file$O
+	socketAddressIsLocal$O socket2$O socketEvent$O Dns$O flock$O file$O
 
 .MAIN : build
 
@@ -116,3 +119,6 @@ socket2$E : socketAddress$O socket2.c
 
 socketAddressIsLocal$E : socketAddress$O socket2$O socketAddressIsLocal.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)socketAddressIsLocal$E socketAddressIsLocal.c socketAddress$O socket2$O $(LIBSNERT) $(LIBS) ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+
+smtpe$E : socketAddress$O socket2$O socketEvent$O smtpe.c
+	${WRAPPER} $(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)smtpe$E smtpe.c $(LIBSNERT) $(LIBS) ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
