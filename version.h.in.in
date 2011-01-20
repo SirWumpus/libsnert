@@ -855,8 +855,14 @@ typedef int socklen_t;
 #define QUOTE_THIS(x)	#x
 
 /***********************************************************************
- ***
+ *** Alternate Memory Allocator
  ***********************************************************************/
+
+/**
+ * @param ptr
+ *	A pointer to an object to be freed.
+ */
+typedef void (*FreeFn)(void *);
 
 /*
  * Intended for debugging in combination with valgrind, which often
