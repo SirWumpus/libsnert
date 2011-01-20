@@ -13,6 +13,10 @@
 extern "C" {
 #endif
 
+/***********************************************************************
+ ***
+ ***********************************************************************/
+
 #include <errno.h>
 #include <sys/types.h>
 
@@ -127,6 +131,25 @@ typedef int SOCKET;
 # define IPV6_LEAVE_GROUP		IPV6_DROP_MEMBERSHIP
 #endif
 
+#if defined(HAVE_KQUEUE)
+# include <sys/types.h>
+# include <sys/event.h>
+# include <sys/time.h>
+# ifndef INFTIM
+#  define INFTIM	(-1)
+# endif
+#elif defined(HAVE_EPOLL_CREATE)
+# include <sys/epoll.h>
+#elif defined(HAVE_POLL)
+#elif defined(HAVE_SELECT)
+#else
+# error " No suitable IO Event API"
+#endif
+
+/***********************************************************************
+ *** Portable Socket API
+ ***********************************************************************/
+
 typedef union {
 	struct ip_mreq mreq;
 #ifdef HAVE_STRUCT_SOCKADDR_IN6
@@ -154,30 +177,6 @@ typedef struct {
 	SocketAddress address;
 	unsigned char readBuffer[SOCKET_BUFSIZ];
 } Socket2;
-
-#if defined(HAVE_KQUEUE)
-# include <sys/types.h>
-# include <sys/event.h>
-# include <sys/time.h>
-# ifndef INFTIM
-#  define INFTIM	(-1)
-# endif
-
-typedef struct {
-	int in_length;
-	int out_length;
-	struct kevent *in_list;
-	struct kevent *out_list;
-} SocketEvent;
-
-#elif defined(HAVE_EPOLL_CREATE)
-# include <sys/epoll.h>
-
-#elif defined(HAVE_POLL)
-#elif defined(HAVE_SELECT)
-#else
-# error " No suitable IO Event API"
-#endif
 
 #define socketGetFd(s)		(s)->fd
 
@@ -897,6 +896,86 @@ extern int socketMulticastLoopback(Socket2 *s, int flag);
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
 extern int socketMulticastTTL(Socket2 *s, int ttl);
+
+/***********************************************************************
+ *** Socket Events (EXPERIMENTAL)
+ ***********************************************************************/
+
+#if defined(HAVE_SYS_EVENT_H)
+# include <sys/types.h>
+# include <sys/event.h>
+# include <sys/time.h>
+# ifndef INFTIM
+#  define INFTIM	(-1)
+# endif
+# define SOCKET_EVENT_READ	EVFILT_READ
+# define SOCKET_EVENT_WRITE	EVFILT_WRITE
+#elif defined(HAVE_SYS_EPOLL_H)
+# include <sys/epoll.h>
+# define SOCKET_EVENT_READ	EPOLLIN
+# define SOCKET_EVENT_WRITE	EPOLLOUT
+#else
+# error "kqueue or epoll API required."
+#endif
+
+#include <com/snert/lib/type/Vector.h>
+
+typedef struct socket_event SocketEvent;
+typedef struct socket_events SocketEvents;
+typedef void (*SocketEventHook)(SocketEvents *loop, SocketEvent *event);
+
+typedef struct {
+	SocketEventHook io;		/* input ready or output buffer available */
+	SocketEventHook close;		/* called immediately before socketClose() */
+	SocketEventHook error;		/* errno will be explicitly set */
+} SocketEventOn;
+
+typedef struct {
+	SocketEventHook *idle;		/* on timeout */
+} SocketEventLoopOn;
+
+struct socket_event {
+	/* Private */
+	FreeFn free;
+	time_t expire;
+
+	/* Public */
+	int type;
+	void *data;
+	Socket2 *socket;
+	SocketEventOn on;
+};
+
+struct socket_events {
+	/* Private */
+	int running;
+	Vector events;
+
+	/* Public */
+	SocketEventLoopOn on;
+};
+
+extern void socketEventFree(void *_event);
+extern SocketEvent *socketEventAlloc(Socket2 *socket, int type);
+extern void socketEventInit(SocketEvent *event, Socket2 *socket, int type);
+
+extern void socketEventSetExpire(SocketEvent *event, const time_t *now, long ms);
+
+extern int socketEventAdd(SocketEvents *loop, SocketEvent *event);
+extern void socketEventClose(SocketEvents *loop, SocketEvent *event);
+extern void socketEventRemove(SocketEvents *loop, SocketEvent *event);
+
+extern void socketEventsInit(SocketEvents *loop);
+extern void socketEventsFree(SocketEvents *loop);
+extern void socketEventsStop(SocketEvents *loop);
+extern void socketEventsRun(SocketEvents *loop);
+extern  int socketEventsWait(SocketEvents *loop, long ms);
+extern long socketEventsTimeout(SocketEvents *loop, const time_t *now);
+extern void socketEventsExpire(SocketEvents *loop, const time_t *expire);
+
+/***********************************************************************
+ ***
+ ***********************************************************************/
 
 #ifdef  __cplusplus
 }

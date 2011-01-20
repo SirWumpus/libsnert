@@ -30,6 +30,7 @@ com/snert/src/lib/crc/crcccitt.c
 com/snert/src/lib/crc/crcfn.c
 com/snert/src/lib/crc/crctable.c
 com/snert/src/lib/crc/makefile.in
+com/snert/src/lib/io/.gdbinit
 com/snert/src/lib/io/Dns-expect.txt
 com/snert/src/lib/io/Dns.c
 com/snert/src/lib/io/DnsTest.sh
@@ -42,6 +43,7 @@ com/snert/src/lib/io/fnext.c
 com/snert/src/lib/io/makefile.in
 com/snert/src/lib/io/mkpath.c
 com/snert/src/lib/io/socket2.c
+com/snert/src/lib/io/socketEvent.c
 com/snert/src/lib/io/socketAddress.c
 com/snert/src/lib/io/socketAddressIsLocal.c
 com/snert/src/lib/io/socketTimeoutIO.c
