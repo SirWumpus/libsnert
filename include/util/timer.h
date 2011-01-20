@@ -74,9 +74,11 @@ extern void timeSubtract(time_t *acc, time_t *b);
 
 #define timespecGetMs(a)		((a)->tv_sec * UNIT_MILLI + (a)->tv_nsec / 1000000L)
 #define timespecSetMs(a,ms)		(a)->tv_sec = ms / UNIT_MILLI; (a)->tv_nsec = (ms % UNIT_MILLI) * UNIT_MICRO
+#define timespecCmp(a, CMP, b)		(((a)->tv_sec == (b)->tv_sec) ? ((a)->tv_nsec CMP (b)->tv_nsec) : ((a)->tv_sec CMP (b)->tv_sec))
 
 #define timevalGetMs(a)			((a)->tv_sec * UNIT_MILLI + (a)->tv_usec / 1000L)
 #define timevalSetMs(a,ms)		 (a)->tv_sec = ms / UNIT_MILLI; (a)->tv_usec = (ms % UNIT_MILLI) * UNIT_MILLI
+#define timevalCmp(a, CMP, b)		(((a)->tv_sec == (b)->tv_sec) ? ((a)->tv_usec CMP (b)->tv_usec) : ((a)->tv_sec CMP (b)->tv_sec))
 
 #if defined(HAVE_CLOCK_GETTIME)
 /* 10^-9 (nano-second) resolution */
