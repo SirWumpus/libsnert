@@ -19,12 +19,6 @@ typedef struct list List;
 typedef struct list_item ListItem;
 
 /**
- * @param ptr
- *	A pointer to an object to be freed.
- */
-typedef void (*FreeFn)(void *);
-
-/**
  * @param list
  *	A pointer to a list.
  *
