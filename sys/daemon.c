@@ -27,7 +27,7 @@ alt_daemon(int nochdir, int noclose)
 		return -1;
 
 	if (child_pid != 0)
-		return 0;
+		exit(EXIT_SUCCESS);
 
 	if (setsid() == -1)
 		return -1;
