@@ -49,6 +49,29 @@ is no set schedule for releases.
 
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
+--1.74.17--
+
+   !	Moved FreeFn type from queue.h to version.h.
+
+   +	Added timespecCmp() and timevalCmp() macros to do correct
+	comparisons of time structures.
+
+   !	Fixed daemon() so that parent process exits immediately.
+
+   !	Fix Log.c handling of debug priorities to a bit mask similar to
+	how setlogmask() from syslog API. Fixes a misunderstanding in
+	how setlogmask(LOG_UPTO(LOG_DEBUG)) worked.
+
+   +	Added preliminary version of socketEvent, an IO event API, on
+	top of the socket2 API.
+
+	Created a simple SMTP engine (smtpe) to test the socketEvent
+	API. Initial tests were extremely promising, with upwards of
+	~650 concurrent connection before OpenBSD 4.0 went kaboom! This
+	far exceeds smtpf's (BarricadeMX) connectivity. The socketEvent
+	API can be improved and smtpe enhanced further into a more
+	generic SMTP proxy filter.
+
 --1.74.16--
 
    !	SNERT_BUILD_THREADED_SQLITE3 now sets SQLITE_ENABLE_UNLOCK_NOTIFY.
