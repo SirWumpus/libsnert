@@ -172,7 +172,7 @@ extern void openlog(const char *ident, int option, int facility);
 #define vsyslog		LogV
 #define closelog	LogClose
 #define openlog		LogOpenLog
-#define setlogmask(x)	LogSetLevel(LOG_PRI(x))
+#define setlogmask(x)	LogSetMask(x)
 
 #endif
 

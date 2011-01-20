@@ -41,7 +41,7 @@ extern long getpid(void);
 #endif
 
 FILE *logFile;
-static int logLevel = LOG_INFO;
+static unsigned logMask = LOG_UPTO(LOG_DEBUG);
 static char *logLevels[] = { "PANIC", "ALERT", "FATAL", "ERROR", "WARN", "NOTICE", "INFO", "DEBUG" };
 static const char *programName = "";
 
@@ -61,9 +61,15 @@ LogSetProgramName(const char *name)
 }
 
 void
+LogSetMask(unsigned mask)
+{
+	logMask = mask;
+}
+
+void
 LogSetLevel(int level)
 {
-	logLevel = (logLevel & ~LOG_PRIMASK) | level;
+	logMask = LOG_UPTO(level);
 }
 
 int
@@ -75,7 +81,7 @@ LogPrintV(int level, const char *msg, va_list args)
 	struct tm local;
 	char buffer[MAX_LOG_LINE_SIZE], *buf;
 
-	if (LOG_PRI(logLevel) < level || logFile == NULL || msg == NULL)
+	if (logFile == NULL || msg == NULL || !(logMask & LOG_MASK(level)))
 		return -1;
 
 	now = time(NULL);
@@ -200,7 +206,7 @@ LogError(const char *msg, ...)
 int
 LogStderrV(int level, const char *msg, va_list args)
 {
-	if (LOG_PRI(logLevel) < level || msg == NULL)
+	if (logFile == NULL || msg == NULL || !(logMask & LOG_MASK(level)))
 		return -1;
 
 	(void) LogErrorV(msg, args);
