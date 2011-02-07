@@ -927,7 +927,7 @@ smfAccessClient(smfWork *work, const char *tag, const char *client_name, const c
 	smfLog(
 		SMF_LOG_DEBUG,
 		TAG_FORMAT "smfAccessClient(%lx, %s, %s, %s, %lx, %lx) access=%d", TAG_ARGS,
-		(long) work, tag, client_name, client_addr, (long) lhs, (long) rhs, access
+		(long) work, TextNull(tag), TextNull(client_name), TextNull(client_addr), (long) lhs, (long) rhs, access
 	);
 
 	return access;
