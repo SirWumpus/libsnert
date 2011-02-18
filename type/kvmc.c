@@ -129,11 +129,11 @@ process(kvm *map, int argc, char **argv)
 	} else {
 		switch (map->fetch(map, &key, &value)) {
 		case KVM_ERROR:
-			syslog(LOG_ERR, "GET '%s' failed", key.data);
+			syslog(LOG_ERR, "FETCH '%s' failed", key.data);
 			rc = EXIT_FAILURE;
 			/*@fallthrough@*/
 		case KVM_NOT_FOUND:
-			printf("GET '%s' not found\n", key.data);
+			printf("FETCH '%s' not found\n", key.data);
 			break;
 		case KVM_OK:
 			printf("%s\n", value.data);
@@ -154,13 +154,8 @@ main(int argc, char **argv)
 	kvm *map;
 	int ch, rc;
 
-#ifdef USE_SYSLOG
 	openlog("kvmc", LOG_PID, LOG_USER);
-#else
-	LogSetProgramName("kvmc");
-	LogOpen("(standard error)");
-	LogSetLevel(LOG_INFO);
-#endif
+
 	while ((ch = getopt(argc, argv, "rh:t:v")) != -1) {
 		switch (ch) {
 		case 'h':
@@ -179,7 +174,6 @@ main(int argc, char **argv)
 		case 'v':
 			LogSetProgramName("kvmc");
 			LogOpen("(standard error)");
-			LogSetLevel(LOG_DEBUG);
 			socketSetDebug(1);
 			kvmDebug(1);
 			break;

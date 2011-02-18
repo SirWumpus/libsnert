@@ -1801,17 +1801,35 @@ kvm_open_db(kvm *self, const char *location, int mode)
 static int
 kvm_send(Socket2 *s, unsigned char *buffer, unsigned long length)
 {
-	int number_length;
-	unsigned char number[20];
+	int number_length, out_length;
+	unsigned char number[20], *out;
 
 	number_length = snprintf((char *) number, sizeof (number), "%lu:", length);
+	if (sizeof (number) <= number_length) {
+		syslog(LOG_ERR, "%s.%d: buffer overflow", __FUNCTION__, __LINE__);
+		return -1;
+	}
+	if ((out = malloc(number_length + length + 2)) == NULL) {
+		syslog(LOG_ERR, "%s.%d: out of memory", __FUNCTION__, __LINE__);
+		return -1;
+	}
 
-	if (socketWrite(s, number, number_length) != number_length)
-		return -1;
-	if (socketWrite(s, buffer, length) != length)
-		return -1;
-	if (socketWrite(s, (unsigned char *) ",", 1) != 1)
-		return -1;
+	(void) memcpy(out, number, number_length);
+	(void) memcpy(out+number_length, buffer, length);
+	out_length = number_length+length;
+	out[out_length++] = ',';
+	out[out_length] = '\0';
+
+	if (1 < debug)
+		syslog(LOG_DEBUG, "< %s", out);
+
+	if (socketWrite(s, out, out_length) != out_length) {
+		syslog(LOG_ERR, "%s.%d: write error: %s (%d)", __FUNCTION__, __LINE__, strerror(errno), errno);
+		free(out);
+		return -2;
+	}
+
+	free(out);
 
 	return 0;
 }
@@ -1831,13 +1849,17 @@ kvm_recv(Socket2 *s, unsigned char **data, unsigned long *length)
 	bytes = -1;
 
 	/* Read leading decimal length. */
+	number[0] = '\0';
 	for (i = 0; i < sizeof (number)-1; i++) {
 		if (!socketHasInput(s, timeout)) {
 			/* No input ready. */
+				syslog(LOG_ERR, "%s.%d: read error: %s (%d)", __FUNCTION__, __LINE__, strerror(errno), errno);
 			goto error0;
 		}
 		if ((bytes = socketRead(s, (unsigned char *) number + i, 1)) != 1) {
 			/* Read error. */
+			if (bytes != 0)
+				syslog(LOG_ERR, "%s.%d: read error: %s (%d)", __FUNCTION__, __LINE__, strerror(errno), errno);
 			goto error0;
 		}
 		if (!isdigit(number[i])) {
@@ -1846,31 +1868,43 @@ kvm_recv(Socket2 *s, unsigned char **data, unsigned long *length)
 		}
 	}
 
+	number[i+1] = '\0';
 	if (i <= 0 || number[i] != ':') {
 		/* No input or invalid format. */
+		syslog(LOG_ERR, "%s.%d: invalid length \"%s\"", __FUNCTION__, __LINE__, number);
 		goto error0;
 	}
 
 	size = (unsigned long) strtol((char *) number, &stop, 10);
-
-	if (stop-number != i || (buf = malloc(size + 1)) == NULL) {
+	if (stop-number != i) {
+		/* Invalid decimal length. */
+		syslog(LOG_ERR, "%s.%d: invalid length \"%s\"", __FUNCTION__, __LINE__, number);
+		goto error0;
+	}
+	if ((buf = malloc(size + 1)) == NULL) {
 		/* Invalid decimal number or allocation failure? */
+		syslog(LOG_ERR, "%s.%d: out of memory", __FUNCTION__, __LINE__);
 		goto error0;
 	}
 
 	if (!socketHasInput(s, timeout) || (bytes = socketRead(s, buf, size + 1)) != size + 1) {
 		/* No input or read error. */
+		syslog(LOG_ERR, "%s.%d: read error: %s (%d)", __FUNCTION__, __LINE__, strerror(errno), errno);
 		goto error1;
 	}
 
 	if (buf[size] != ',') {
 		/* Invalid format. */
+		syslog(LOG_ERR, "%s.%d: missing comma", __FUNCTION__, __LINE__);
 		goto error1;
 	}
 
 	buf[size] = '\0';
 	*length = size;
 	*data = buf;
+
+	if (1 < debug)
+		syslog(LOG_DEBUG, "> %lu:%s,", size, buf);
 
 	return KVM_OK;
 error1:
@@ -1885,17 +1919,18 @@ kvm_check_socket(kvm *self)
 	if (self->_kvm != NULL)
 		return 0;
 
+	if (0 < debug)
+		syslog(LOG_WARN, "re-opening socketmap \"%s\"", self->_location);
+
 	return socketOpenClient(self->_location + sizeof ("socketmap" KVM_DELIM_S)-1, KVM_PORT, SOCKET_CONNECT_TIMEOUT, NULL, (Socket2 **) &self->_kvm);
 }
 
 static int
 kvm_fetch_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 {
-	long timeout;
-	size_t name_length;
-	int i, rc, number_length;
-	unsigned char number[20];
-	unsigned long query_length;
+	int rc;
+	unsigned char *out;
+	unsigned length, out_length, data_length;
 
 	rc = KVM_ERROR;
 
@@ -1908,87 +1943,57 @@ kvm_fetch_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 	if (kvm_check_socket(self))
 		goto error1;
 
-	name_length = strlen(self->_table);
-	query_length = name_length + 1 + key->size;
-	number_length = snprintf((char *) number, sizeof (number), "%lu:", query_length);
+	/* Build the query so it can be sent with one call. */
+	data_length = strlen(self->_table) + 1 + key->size;
+	out_length = 10 + data_length + 2;
+	if ((out = malloc(out_length)) == NULL)
+		goto error1;
 
-	timeout = socketGetTimeout(self->_kvm);
+	PTHREAD_FREE_PUSH(out);
 
-	if (socketWrite(self->_kvm, number, number_length) != number_length)
-		goto error2;
-	if (socketWrite(self->_kvm, (unsigned char *) self->_table, name_length) != name_length)
-		goto error2;
-	if (socketWrite(self->_kvm, (unsigned char *) " ", 1) != 1)
-		goto error2;
-	if (socketWrite(self->_kvm, key->data, key->size) != key->size)
-		goto error2;
-	if (socketWrite(self->_kvm, (unsigned char *) ",", 1) != 1)
-		goto error2;
-
-	/* Read leading decimal length. */
-	for (i = 0; i < sizeof (number)-1; i++) {
-		if (!socketHasInput(self->_kvm, timeout) || socketRead(self->_kvm, number + i, 1) != 1) {
-			/* No input or read error. */
-			goto error2;
-		}
-		if (!isdigit(number[i])) {
-			/* Not a decimal digit or colon found. */
-			break;
-		}
-	}
-
-	if (i <= 0 || number[i] != ':') {
-		/* No input or invalid format. */
+	/* Assumes null terminated C strings for the table name and key. */
+	length = snprintf(out, out_length, "%u:%s %s,", (unsigned) data_length, self->_table, key->data);
+	if (out_length <= length) {
+		/* Buffer overflow. key->size != strlen(key->data)
+		 * probably because the key->data is not properly
+		 * null terminated.
+		 */
+		syslog(LOG_ERR, "%s.%d: buffer overflow", __FUNCTION__, __LINE__);
 		goto error2;
 	}
 
-	value->size = (unsigned long) strtol((char *) number, NULL, 10);
+	if (1 < debug)
+		syslog(LOG_DEBUG, "< %s", out);
 
-	if (value->size < 3 || (value->data = malloc(value->size + 1)) == NULL) {
-		/* Too short for a Sendmail fetch or allocation error. */
-		goto error2;
+	if (socketWrite(self->_kvm, out, length) != length) {
+		syslog(LOG_ERR, "%s.%d: write error: %s (%d)", __FUNCTION__, __LINE__, strerror(errno), errno);
+		goto error3;
 	}
 
-	/* Try to read leading "OK ". */
-	if (!socketHasInput(self->_kvm, timeout) || socketRead(self->_kvm, value->data, 3) != 3) {
-		/* No input or read error. */
-		goto error2;
-	}
+	if (kvm_recv(self->_kvm, &value->data, &value->size))
+		goto error3;
 
 	if (*value->data == 'O') {
-		/* The query/response was "OK"; remove
+		/* The query/response was "OK "; remove
 		 * the prefix from the returned value.
 		 */
 		value->size -= 3;
-		i = 0;
-	} else {
-		/* There was some sort of error. */
-		i = 3;
-	}
-
-	/* Read remainder of input. */
-	if (!socketHasInput(self->_kvm, timeout) || socketRead(self->_kvm, value->data+i, value->size-i+1) != value->size-i+1) {
-		/* No input or read error. */
-		goto error2;
-	}
-
-	if (value->data[value->size] != ',') {
-		/* Invalid format. */
-		goto error2;
+		memmove(value->data, value->data+3, value->size);
+		rc = KVM_OK;
+	} else if (*value->data == 'N') {
+		rc = KVM_NOT_FOUND;
 	}
 
 	value->data[value->size] = '\0';
-
-	if (i == 0)
-		rc = KVM_OK;
-	else if (*value->data == 'N')
-		rc = KVM_NOT_FOUND;
-error2:
-	if (rc == KVM_ERROR) {
+error3:
+	if (rc == KVM_ERROR && errno != 0) {
+		if (0 < debug)
+			syslog(LOG_ERR, "%s: close socketmap \"%s\": %s (%d)", __FUNCTION__, self->_location, strerror(errno), errno);
 		socketClose(self->_kvm);
 		self->_kvm = NULL;
-		errno = 0;
 	}
+error2:
+	PTHREAD_FREE_POP(1);
 error1:
 	PTHREAD_MUTEX_UNLOCK(&self->_mutex);
 error0:
@@ -2037,6 +2042,8 @@ kvm_get_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 	free(result.data);
 error2:
 	if (rc == KVM_ERROR) {
+		if (0 < debug)
+			syslog(LOG_ERR, "%s: close socketmap \"%s\": %s (%d)", __FUNCTION__, self->_location, strerror(errno), errno);
 		socketClose(self->_kvm);
 		self->_kvm = NULL;
 		errno = 0;
@@ -2078,6 +2085,8 @@ kvm_put_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 	free(result.data);
 error2:
 	if (rc == KVM_ERROR) {
+		if (0 < debug)
+			syslog(LOG_ERR, "%s: close socketmap \"%s\": %s (%d)", __FUNCTION__, self->_location, strerror(errno), errno);
 		socketClose(self->_kvm);
 		self->_kvm = NULL;
 		errno = 0;
@@ -2121,6 +2130,8 @@ kvm_remove_socket(struct kvm *self, kvm_data *key)
 	free(result.data);
 error2:
 	if (rc == KVM_ERROR) {
+		if (0 < debug)
+			syslog(LOG_ERR, "%s: close socketmap \"%s\": %s (%d)", __FUNCTION__, self->_location, strerror(errno), errno);
 		socketClose(self->_kvm);
 		self->_kvm = NULL;
 		errno = 0;
@@ -2202,6 +2213,8 @@ kvm_walk_socket(kvm *self, int (*func)(kvm_data *, kvm_data *, void *), void *da
 	rc = KVM_OK;
 error2:
 	if (rc == KVM_ERROR) {
+		if (0 < debug)
+			syslog(LOG_ERR, "%s: close socketmap \"%s\": %s (%d)", __FUNCTION__, self->_location, strerror(errno), errno);
 		socketClose(self->_kvm);
 		self->_kvm = NULL;
 		errno = 0;
@@ -3391,7 +3404,7 @@ request(Socket2 *client, char *addr)
 		int number_length;
 
 		if (0 < debug)
-			syslog(LOG_INFO, "%s FETCH \"%s\"...", addr, query.data);
+			syslog(LOG_DEBUG, "%s FETCH \"%s\"", addr, query.data);
 
 		*key.data++ = '\0';
 		key.size = query.size - (key.data - query.data);
@@ -3404,9 +3417,13 @@ request(Socket2 *client, char *addr)
 		switch (map->get(map, &key, &value)) {
 		case KVM_ERROR:
 			(void) kvm_send(client, (unsigned char *) "PERM", sizeof ("PERM")-1);
+			if (0 < debug)
+				syslog(LOG_DEBUG, "%s FETCH \"%s\" %s", addr, query.data, "PERM");
 			break;
 		case KVM_NOT_FOUND:
 			(void) kvm_send(client, (unsigned char *) "NOTFOUND", sizeof ("NOTFOUND")-1);
+			if (0 < debug)
+				syslog(LOG_DEBUG, "%s FETCH \"%s\" %s", addr, query.data, "NOTFOUND");
 			break;
 		case KVM_OK:
 			number_length = snprintf(number, sizeof (number), "%lu:", value.size + sizeof ("OK ")-1);
@@ -3420,7 +3437,7 @@ request(Socket2 *client, char *addr)
 			else if (socketWrite(client, (unsigned char *) ",", 1) != 1)
 				;
 			else if (0 < debug)
-				syslog(LOG_INFO, "%s FETCH \"%s\" value=\"%s\"", addr, query.data, value.data);
+				syslog(LOG_DEBUG, "%s FETCH \"%s\" value=\"%s\"", addr, query.data, value.data);
 
 			free(value.data);
 			break;
@@ -3611,7 +3628,6 @@ main(int argc, char **argv)
 		case 'v':
 			LogSetProgramName("kvmd");
 			LogOpen("(standard error)");
-			LogSetLevel(LOG_DEBUG);
 			socketSetDebug(1);
 			kvmDebug(1);
 			break;
