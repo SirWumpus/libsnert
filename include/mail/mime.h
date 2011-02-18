@@ -42,6 +42,12 @@ typedef struct mime Mime;
 typedef void (*MimeHook)(Mime *);
 typedef void (*MimeHookOctet)(Mime *, int);
 
+typedef enum {
+	MIME_NONE,
+	MIME_BASE64,
+	MIME_QUOTED_PRINTABLE
+} MimeEncoding;
+
 struct mime {
 	/* Private state. */
 	B64 b64;
@@ -49,6 +55,7 @@ struct mime {
 	int decode_state_cr;
 	int has_content_type;
 	int is_message_rfc822;			/* HACK for uri.c */
+	MimeEncoding encoding;
 	int (*source_state)(struct mime *, int);
 	int (*decode_state)(struct mime *, int);
 

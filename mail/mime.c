@@ -275,8 +275,20 @@ mimeStateBoundary(Mime *m, int ch)
    		 * quoted printable soft line break.
    		 *
    		 *	--=__PartF0D8505D.0__=\r\n
+   		 *
+   		 * d) Take care with valid boundary line that might look
+   		 * like a line containing a quoted printable value.
+   		 *
+   		 *	--=====002_Dragon527425384786_=====\r\n
+   		 *
+   		 * The =00 should not be considered quoted printable. The
+   		 * current solution is to only check for quoted printable
+   		 * if we're expecting quoted printable in a given MIME part.
+   		 * This solution is not ideal when the MIME part is quoted
+   		 * printable and the boundary has the appearance of being
+   		 * quoted printable.
 		 */
-		if (!all_hyphen && !has_qp && i == m->source.length) {
+		if (!all_hyphen && (m->encoding != MIME_QUOTED_PRINTABLE || !has_qp) && i == m->source.length) {
 			/* Terminate decoding for this body part */
 			(void) (*m->decode_state)(m, EOF);
 			m->decode_state = mimeDecodeAdd;
@@ -294,6 +306,7 @@ mimeStateBoundary(Mime *m, int ch)
 			m->mime_part_number++;
 			m->has_content_type = 0;
 			m->is_message_rfc822 = 0;
+			m->encoding = MIME_NONE;
 		} else {
 			/* Process the source stream before being flushed. */
 			m->decode_state_cr = 0;
@@ -468,8 +481,10 @@ mimeStateHdrLF(Mime *m, int ch)
 			m->decode_state = mimeDecodeAdd;
 		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Transfer-Encoding:*quoted-printable*", m->source.length, 1)) {
 			m->decode_state = mimeStateQpLiteral;
+			m->encoding = MIME_QUOTED_PRINTABLE;
 		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Transfer-Encoding:*base64*", m->source.length, 1)) {
 			m->decode_state = mimeStateBase64;
+			m->encoding = MIME_BASE64;
 			b64Reset(&m->b64);
 		}
 
@@ -569,6 +584,7 @@ mimeReset(Mime *m)
 		m->is_multipart = 0;
 		m->has_content_type = 0;
 		m->is_message_rfc822 = 0;
+		m->encoding = MIME_NONE;
 
 		m->mime_part_number = 0;
 		m->mime_part_length = 0;
