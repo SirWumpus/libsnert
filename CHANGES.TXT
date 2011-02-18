@@ -49,6 +49,21 @@ is no set schedule for releases.
 
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
+--1.74.18--
+
+   !	Refactor kvm_send(), kvm_recv(), and kvm_fetch_socket() to make
+	fewer IO calls in an effort to improve throughput.
+
+   !	Added null guard checks for in smfAccessClient() for smfLog
+	string arguments. Solaris cc, unlike gcc, does not check for
+	NULL string arguments for a formatted string and write a nice
+	"(null)" in its place.
+
+   !	Replace LogSetLevel() with a macro to use LogSetMask() instead
+	based on changes made to use a proper log mask vs log level. See
+	previous change concerning setlogmask(LOG_UPTO(LOG_DEBUG)).
+
+
 --1.74.17--
 
    !	Moved FreeFn type from queue.h to version.h.
