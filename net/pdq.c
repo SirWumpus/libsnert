@@ -1897,10 +1897,14 @@ pdq_name_skip(struct udp_packet *packet, unsigned char *ptr)
 	unsigned char *packet_end = (unsigned char *) &packet->header + packet->length;
 
 	if (packet_end < ptr) {
-		syslog(
-			LOG_ERR, "pdq_name_skip() id=%hu pkt=%lx ptr=%lx out of bounds (1)!!!",
-			packet->header.id, (long) packet, (long) packet_start
-		);
+		syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
+
+		if (0 < debug)
+			syslog(
+				LOG_ERR, "%s.%d: id=%hu len=%u pkt=%lx ptr=%lx out of bounds",
+				__FUNCTION__, __LINE__, packet->header.id, packet->length,
+				(long) packet, (long) packet_start
+			);
 		pdqLogPacket(packet, 0);
 		errno = EFAULT;
 		return NULL;
@@ -1908,7 +1912,9 @@ pdq_name_skip(struct udp_packet *packet, unsigned char *ptr)
 
 	for ( ; ptr < packet_end && *ptr != 0; ptr += *ptr + 1) {
 		if ((*ptr & 0xc0) == 0xc0) {
-			/* Skip 0xC0 byte and next one. */
+			/* RFC 1035 section 4.1.4 message compression.
+			 * Skip 0xC0 byte and lower half of offset.
+			 */
 			ptr++;
 			break;
 		}
@@ -1918,10 +1924,13 @@ pdq_name_skip(struct udp_packet *packet, unsigned char *ptr)
 	ptr++;
 
 	if (packet_end < ptr) {
-		syslog(
-			LOG_ERR, "pdq_name_skip() id=%hu pkt=%lx ptr=%lx out of bounds (2)!!!",
-			packet->header.id, (long) packet, (long) packet_start
-		);
+		syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
+		if (0 < debug)
+			syslog(
+				LOG_ERR, "%s.%d: id=%hu len=%u pkt=%lx ptr=%lx out of bounds",
+				__FUNCTION__, __LINE__, packet->header.id, packet->length,
+				(long) packet, (long) packet_start
+			);
 		pdqLogPacket(packet, 0);
 		errno = EFAULT;
 		return NULL;
@@ -2223,7 +2232,9 @@ pdq_reply_rr(struct udp_packet *packet, unsigned char *ptr, unsigned char **stop
 	PDQ_type type;
 	PDQ_class class;
 	PDQ_rr *record;
-	unsigned char *name;
+	unsigned char *name, *packet_end;
+
+	packet_end = (unsigned char *) &packet->header + packet->length;
 
 	errno = 0;
 	name = ptr;
@@ -2234,9 +2245,19 @@ pdq_reply_rr(struct udp_packet *packet, unsigned char *ptr, unsigned char **stop
 
 	type = NET_GET_SHORT(ptr);
 	ptr += NET_SHORT_BYTE_LENGTH;
+	if (packet_end <= ptr) {
+		syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
+		errno = EFAULT;
+		return NULL;
+	}
 
 	class = NET_GET_SHORT(ptr);
 	ptr += NET_SHORT_BYTE_LENGTH;
+	if (packet_end < ptr) {
+		syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
+		errno = EFAULT;
+		return NULL;
+	}
 
 	if ((record = pdqCreate(type)) == NULL) {
 		syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
@@ -2289,12 +2310,13 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 {
 	int i, j;
 	PDQ_rcode rcode;
-	unsigned char *ptr;
 	unsigned short length;
 	PDQ_rr *record, *head, **p, *q;
+	unsigned char *ptr, *packet_end;
 
 	head = NULL;
 	ptr = packet->data;
+	packet_end = (unsigned char *) &packet->header + packet->length;
 
 	/* Already converted in pdq_query_reply. */
 	rcode = packet->header.bits & BITS_RCODE;
@@ -2315,7 +2337,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 		/* Return a record reporting the failed query. */
 		if ((record = pdq_reply_rr(packet, ptr, NULL)) == NULL) {
 			syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
-			return PDQ_RCODE_ERRNO;
+			goto error0;
 		}
 
 		record->rcode = rcode;
@@ -2328,7 +2350,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 		ptr = pdq_name_skip(packet, ptr);
 		if (ptr == NULL) {
 			syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
-			return PDQ_RCODE_ERRNO;
+			goto error0;
 		}
 		ptr += 2 * NET_SHORT_BYTE_LENGTH;
 	}
@@ -2350,26 +2372,37 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 				/* This should have already been logged by
 				 * pdq_name_skip.
 				 */
-				break;
+				goto error1;
 			}
 
 			/* Skip unknown DNS RR types. */
 			if (errno == EINVAL) {
 				/* Skip TTL field. */
 				ptr += NET_LONG_BYTE_LENGTH;
+				if (packet_end <= ptr) {
+					syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
+					goto error1;
+				}
 
 				/* Get length field for remainder of RR. */
 				length = NET_GET_SHORT(ptr);
 				ptr += NET_SHORT_BYTE_LENGTH;
+				if (packet_end <= ptr) {
+					syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
+					goto error1;
+				}
 
 				/* Skip this RR. */
 				ptr += length;
+				if (packet_end < ptr) {
+					syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
+					goto error1;
+				}
 				continue;
 			}
 
 			syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
-			pdqListFree(head);
-			return PDQ_RCODE_ERRNO;
+			goto error1;
 		}
 
 		if (i < packet->header.ancount)
@@ -2383,9 +2416,17 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 
 		record->ttl = NET_GET_LONG(ptr);
 		ptr += NET_LONG_BYTE_LENGTH;
+		if (packet_end <= ptr) {
+			syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
+			goto error1;
+		}
 
 		length = NET_GET_SHORT(ptr);
 		ptr += NET_SHORT_BYTE_LENGTH;
+		if (packet_end <= ptr) {
+			syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
+			goto error1;
+		}
 
 		switch (record->type) {
 		case PDQ_TYPE_A:
@@ -2423,8 +2464,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			ptr = pdq_name_skip(packet, ptr);
 			if (ptr == NULL) {
 				syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
-				pdqListFree(head);
-				return PDQ_RCODE_ERRNO;
+				goto error1;
 			}
 			break;
 
@@ -2457,8 +2497,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			ptr = pdq_name_skip(packet, ptr);
 			if (ptr == NULL) {
 				syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
-				pdqListFree(head);
-				return PDQ_RCODE_ERRNO;
+				goto error1;
 			}
 
 			((PDQ_SOA *) record)->rname.string.length = pdq_name_copy(
@@ -2469,8 +2508,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			ptr = pdq_name_skip(packet, ptr);
 			if (ptr == NULL) {
 				syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
-				pdqListFree(head);
-				return PDQ_RCODE_ERRNO;
+				goto error1;
 			}
 
 			((PDQ_SOA *) record)->serial = NET_GET_LONG(ptr);
@@ -2511,8 +2549,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			ptr = pdq_name_skip(packet, ptr);
 			if (ptr == NULL) {
 				syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
-				pdqListFree(head);
-				return PDQ_RCODE_ERRNO;
+				goto error1;
 			}
 
 			((PDQ_MINFO *) record)->emailbx.string.length = pdq_name_copy(
@@ -2523,10 +2560,14 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			ptr = pdq_name_skip(packet, ptr);
 			if (ptr == NULL) {
 				syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
-				pdqListFree(head);
-				return PDQ_RCODE_ERRNO;
+				goto error1;
 			}
 			break;
+		}
+
+		if (packet_end < ptr) {
+			syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
+			goto error1;
 		}
 
 #ifndef ONLY_ANSWER_SECTION
@@ -2560,12 +2601,18 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 	 * the rcode from the reply packet, otherwise errno.
 	 */
 	return head == NULL ? PDQ_RCODE_ERRNO : rcode;
+error1:
+	pdqListFree(record);
+	pdqListFree(head);
+error0:
+	return PDQ_RCODE_ERRNO;
 }
 
 static PDQ_rcode
 pdq_query_tcp(PDQ *pdq, PDQ_query *query, SocketAddress *address, PDQ_rr **list)
 {
 	SOCKET fd;
+	unsigned old_id;
 	PDQ_rcode rcode;
 	socklen_t socklen;
 	ssize_t length, nbytes;
@@ -2598,6 +2645,15 @@ pdq_query_tcp(PDQ *pdq, PDQ_query *query, SocketAddress *address, PDQ_rr **list)
 	/* Send two byte length plus the original query packet. */
 	length = query->packet.length + sizeof (query->packet.length);
 	query->packet.length = htons(query->packet.length);
+
+	/* Change the query ID just in case a DNS cache returns the
+	 * same result because of the same query ID.
+	 */
+	old_id = query->packet.header.id;
+	query->packet.header.id = htons(RANDOM_NUMBER(0xFFFF));
+	if (0 <debug)
+		syslog(LOG_DEBUG, "%s.%d: old-id=%u new-id=%u", __FUNCTION__, __LINE__, old_id, query->packet.header.id);
+
 	if (send(fd, (char *) &query->packet, length, 0) != length) {
 		UPDATE_ERRNO;
 		goto error2;
@@ -2628,6 +2684,15 @@ pdq_query_tcp(PDQ *pdq, PDQ_query *query, SocketAddress *address, PDQ_rr **list)
 	}
 
 	packet->header.bits = ntohs(packet->header.bits);
+
+	/* If we're doing a TCP query in place of a UDP then we
+	 * should not see the TC bit or a small amount of data.
+	 */
+	if ((packet->header.bits & BITS_TC) || packet->length <= 512) {
+		syslog(LOG_WARN, "id=%u TCP query returned TC bit or short data len=%u", query->packet.header.id, packet->length);
+		goto error2;
+	}
+
 	rcode = pdq_reply_parse(pdq, (struct udp_packet *) packet, list);
 error2:
 	closesocket(fd);
@@ -2682,8 +2747,20 @@ pdq_query_reply(PDQ *pdq, struct udp_packet *packet, SocketAddress *address, PDQ
 	else
 		rcode = pdq_reply_parse(pdq, packet, list);
 
-	pdq_link_remove(&pdq->pending, query);
-	free(query);
+
+	switch (rcode) {
+	default:
+		if (1 < servers_length && query->next_ns != -1)
+			break;
+		/*@fallthrough@*/
+
+	case PDQ_RCODE_OK:
+	case PDQ_RCODE_NXDOMAIN:
+	case PDQ_RCODE_NOT_IMPLEMENTED:
+	case PDQ_RCODE_FORMAT:
+		pdq_link_remove(&pdq->pending, query);
+		free(query);
+	}
 
 	return rcode;
 }
@@ -4429,10 +4506,8 @@ main(int argc, char **argv)
 	}
 
 	if (0 < debug) {
-		LogSetLevel(LOG_DEBUG);
 		LogSetProgramName("pdq");
 		LogOpen("(standard error)");
-		setlogmask(LOG_UPTO(LOG_DEBUG));
 	} else {
 		openlog("pdq", LOG_PID, LOG_USER);
 
