@@ -144,6 +144,7 @@ com/snert/src/lib/type/kvmap.txt
 com/snert/src/lib/type/kvmc.c
 com/snert/src/lib/type/mcc.c
 com/snert/src/lib/type/queue.c
+com/snert/src/lib/type/socketmap.txt
 com/snert/src/lib/util/b64.c
 com/snert/src/lib/util/Base64.c
 com/snert/src/lib/util/BigInt.c

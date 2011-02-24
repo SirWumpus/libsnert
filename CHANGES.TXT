@@ -49,6 +49,23 @@ is no set schedule for releases.
 
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
+--1.74.19--
+
+   !	Fix on-the-fly MIME boundary detection when the boundary line
+	might look like a line containing a quoted printable value.
+
+		--=====002_Dragon527425384786_=====\r\n
+
+	The =00 should not be considered quoted printable. The current
+	solution is to only check for quoted printable if we're
+	expecting quoted printable in a given MIME part. This solution
+	is not ideal when the MIME part is quoted printable and the
+	boundary has the appearance of being quoted printable.
+
+  !!	Better handling in PDQ of truncated UDP or TCP DNS replies. Some
+	badly implemented DNS servers return truncated data for a query
+	over TCP.
+
 --1.74.18--
 
    !	Refactor kvm_send(), kvm_recv(), and kvm_fetch_socket() to make
