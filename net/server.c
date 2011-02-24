@@ -859,6 +859,7 @@ serverWorker(void *_worker)
 		worker->session = NULL;
 
 		/* Do we have too many threads? */
+		active = 0;
 		PTHREAD_MUTEX_LOCK(&server->workers.mutex);
 		active = --server->workers_active;
 		if (active == 0)
@@ -962,6 +963,7 @@ serverAccept(void *_server)
 						queueEnqueue(&server->sessions_queued, &session->node);
 
 						/* Do we have too few threads? */
+						active = 0;
 						PTHREAD_MUTEX_LOCK(&server->workers.mutex);
 						active = server->workers_active;
 						PTHREAD_MUTEX_UNLOCK(&server->workers.mutex);
