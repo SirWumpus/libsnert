@@ -13,7 +13,7 @@
    This file is part of MemCheck, a heavyweight Valgrind tool for
    detecting memory errors.
 
-   Copyright (C) 2000-2007 Julian Seward.  All rights reserved.
+   Copyright (C) 2000-2010 Julian Seward.  All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
@@ -93,6 +93,9 @@ typedef
 
       VG_USERREQ__MAKE_MEM_DEFINED_IF_ADDRESSABLE,
 
+      /* Not next to VG_USERREQ__COUNT_LEAKS because it was added later. */
+      VG_USERREQ__COUNT_LEAK_BLOCKS,
+
       /* This is just for memcheck's internal use - don't use it */
       _VG_USERREQ__MEMCHECK_RECORD_OVERLAP_ERROR 
          = VG_USERREQ_TOOL_BASE('M','C') + 256
@@ -104,66 +107,48 @@ typedef
 
 /* Mark memory at _qzz_addr as unaddressable for _qzz_len bytes. */
 #define VALGRIND_MAKE_MEM_NOACCESS(_qzz_addr,_qzz_len)           \
-   (__extension__({unsigned int _qzz_res;                        \
-    VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0 /* default return */, \
+    VALGRIND_DO_CLIENT_REQUEST_EXPR(0 /* default return */,      \
                             VG_USERREQ__MAKE_MEM_NOACCESS,       \
-                            _qzz_addr, _qzz_len, 0, 0, 0);       \
-    _qzz_res;                                                    \
-   }))
+                            (_qzz_addr), (_qzz_len), 0, 0, 0)
       
 /* Similarly, mark memory at _qzz_addr as addressable but undefined
    for _qzz_len bytes. */
 #define VALGRIND_MAKE_MEM_UNDEFINED(_qzz_addr,_qzz_len)          \
-   (__extension__({unsigned int _qzz_res;                        \
-    VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0 /* default return */, \
+    VALGRIND_DO_CLIENT_REQUEST_EXPR(0 /* default return */,      \
                             VG_USERREQ__MAKE_MEM_UNDEFINED,      \
-                            _qzz_addr, _qzz_len, 0, 0, 0);       \
-    _qzz_res;                                                    \
-   }))
+                            (_qzz_addr), (_qzz_len), 0, 0, 0)
 
 /* Similarly, mark memory at _qzz_addr as addressable and defined
    for _qzz_len bytes. */
 #define VALGRIND_MAKE_MEM_DEFINED(_qzz_addr,_qzz_len)            \
-   (__extension__({unsigned int _qzz_res;                        \
-    VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0 /* default return */, \
+    VALGRIND_DO_CLIENT_REQUEST_EXPR(0 /* default return */,      \
                             VG_USERREQ__MAKE_MEM_DEFINED,        \
-                            _qzz_addr, _qzz_len, 0, 0, 0);       \
-    _qzz_res;                                                    \
-   }))
+                            (_qzz_addr), (_qzz_len), 0, 0, 0)
 
 /* Similar to VALGRIND_MAKE_MEM_DEFINED except that addressability is
    not altered: bytes which are addressable are marked as defined,
    but those which are not addressable are left unchanged. */
-#define VALGRIND_MAKE_MEM_DEFINED_IF_ADDRESSABLE(_qzz_addr,_qzz_len) \
-   (__extension__({unsigned int _qzz_res;                        \
-    VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0 /* default return */, \
+#define VALGRIND_MAKE_MEM_DEFINED_IF_ADDRESSABLE(_qzz_addr,_qzz_len)     \
+    VALGRIND_DO_CLIENT_REQUEST_EXPR(0 /* default return */,              \
                             VG_USERREQ__MAKE_MEM_DEFINED_IF_ADDRESSABLE, \
-                            _qzz_addr, _qzz_len, 0, 0, 0);       \
-    _qzz_res;                                                    \
-   }))
+                            (_qzz_addr), (_qzz_len), 0, 0, 0)
 
 /* Create a block-description handle.  The description is an ascii
    string which is included in any messages pertaining to addresses
    within the specified memory range.  Has no other effect on the
    properties of the memory range. */
-#define VALGRIND_CREATE_BLOCK(_qzz_addr,_qzz_len, _qzz_desc)	 \
-	(__extension__({unsigned int _qzz_res;			 \
-    VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0 /* default return */, \
-                            VG_USERREQ__CREATE_BLOCK,            \
-                            _qzz_addr, _qzz_len, _qzz_desc,      \
-                            0, 0);                               \
-    _qzz_res;							 \
-   }))
+#define VALGRIND_CREATE_BLOCK(_qzz_addr,_qzz_len, _qzz_desc)	   \
+    VALGRIND_DO_CLIENT_REQUEST_EXPR(0 /* default return */,        \
+                            VG_USERREQ__CREATE_BLOCK,              \
+                            (_qzz_addr), (_qzz_len), (_qzz_desc),  \
+                            0, 0)
 
 /* Discard a block-description-handle. Returns 1 for an
    invalid handle, 0 for a valid handle. */
 #define VALGRIND_DISCARD(_qzz_blkindex)                          \
-   (__extension__ ({unsigned int _qzz_res;                       \
-    VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0 /* default return */, \
+    VALGRIND_DO_CLIENT_REQUEST_EXPR(0 /* default return */,      \
                             VG_USERREQ__DISCARD,                 \
-                            0, _qzz_blkindex, 0, 0, 0);          \
-    _qzz_res;                                                    \
-   }))
+                            0, (_qzz_blkindex), 0, 0, 0)
 
 
 /* Client-code macros to check the state of memory. */
@@ -172,25 +157,19 @@ typedef
    If suitable addressibility is not established, Valgrind prints an
    error message and returns the address of the first offending byte.
    Otherwise it returns zero. */
-#define VALGRIND_CHECK_MEM_IS_ADDRESSABLE(_qzz_addr,_qzz_len)    \
-   (__extension__({unsigned int _qzz_res;                        \
-    VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0,                      \
-                            VG_USERREQ__CHECK_MEM_IS_ADDRESSABLE,\
-                            _qzz_addr, _qzz_len, 0, 0, 0);       \
-    _qzz_res;                                                    \
-   }))
+#define VALGRIND_CHECK_MEM_IS_ADDRESSABLE(_qzz_addr,_qzz_len)      \
+    VALGRIND_DO_CLIENT_REQUEST_EXPR(0,                             \
+                            VG_USERREQ__CHECK_MEM_IS_ADDRESSABLE,  \
+                            (_qzz_addr), (_qzz_len), 0, 0, 0)
 
 /* Check that memory at _qzz_addr is addressable and defined for
    _qzz_len bytes.  If suitable addressibility and definedness are not
    established, Valgrind prints an error message and returns the
    address of the first offending byte.  Otherwise it returns zero. */
 #define VALGRIND_CHECK_MEM_IS_DEFINED(_qzz_addr,_qzz_len)        \
-   (__extension__({unsigned int _qzz_res;                        \
-    VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0,                      \
+    VALGRIND_DO_CLIENT_REQUEST_EXPR(0,                           \
                             VG_USERREQ__CHECK_MEM_IS_DEFINED,    \
-                            _qzz_addr, _qzz_len, 0, 0, 0);       \
-    _qzz_res;                                                    \
-   }))
+                            (_qzz_addr), (_qzz_len), 0, 0, 0)
 
 /* Use this macro to force the definedness and addressibility of an
    lvalue to be checked.  If suitable addressibility and definedness
@@ -200,21 +179,20 @@ typedef
 #define VALGRIND_CHECK_VALUE_IS_DEFINED(__lvalue)                \
    VALGRIND_CHECK_MEM_IS_DEFINED(                                \
       (volatile unsigned char *)&(__lvalue),                     \
-                      (unsigned int)(sizeof (__lvalue)))
+                      (unsigned long)(sizeof (__lvalue)))
 
 
-/* Do a memory leak check mid-execution.  */
+/* Do a full memory leak check (like --leak-check=full) mid-execution. */
 #define VALGRIND_DO_LEAK_CHECK                                   \
-   {unsigned int _qzz_res;                                       \
+   {unsigned long _qzz_res;                                      \
     VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0,                      \
                             VG_USERREQ__DO_LEAK_CHECK,           \
                             0, 0, 0, 0, 0);                      \
    }
 
-/* Just display summaries of leaked memory, rather than all the
-   details */
+/* Do a summary memory leak check (like --leak-check=summary) mid-execution. */
 #define VALGRIND_DO_QUICK_LEAK_CHECK				 \
-   {unsigned int _qzz_res;                                       \
+   {unsigned long _qzz_res;                                      \
     VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0,                      \
                             VG_USERREQ__DO_LEAK_CHECK,           \
                             1, 0, 0, 0, 0);                      \
@@ -228,12 +206,34 @@ typedef
       specified, which works no matter what type 'leaked', 'dubious', etc
       are.  We also initialise '_qzz_leaked', etc because
       VG_USERREQ__COUNT_LEAKS doesn't mark the values returned as
-      initialised. */                                                    \
-   {unsigned int  _qzz_res;                                              \
+      defined. */                                                        \
+   {unsigned long _qzz_res;                                              \
     unsigned long _qzz_leaked    = 0, _qzz_dubious    = 0;               \
     unsigned long _qzz_reachable = 0, _qzz_suppressed = 0;               \
     VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0,                              \
                                VG_USERREQ__COUNT_LEAKS,                  \
+                               &_qzz_leaked, &_qzz_dubious,              \
+                               &_qzz_reachable, &_qzz_suppressed, 0);    \
+    leaked     = _qzz_leaked;                                            \
+    dubious    = _qzz_dubious;                                           \
+    reachable  = _qzz_reachable;                                         \
+    suppressed = _qzz_suppressed;                                        \
+   }
+
+/* Return number of leaked, dubious, reachable and suppressed bytes found by
+   all previous leak checks.  They must be lvalues.  */
+#define VALGRIND_COUNT_LEAK_BLOCKS(leaked, dubious, reachable, suppressed) \
+   /* For safety on 64-bit platforms we assign the results to private
+      unsigned long variables, then assign these to the lvalues the user
+      specified, which works no matter what type 'leaked', 'dubious', etc
+      are.  We also initialise '_qzz_leaked', etc because
+      VG_USERREQ__COUNT_LEAKS doesn't mark the values returned as
+      defined. */                                                        \
+   {unsigned long _qzz_res;                                              \
+    unsigned long _qzz_leaked    = 0, _qzz_dubious    = 0;               \
+    unsigned long _qzz_reachable = 0, _qzz_suppressed = 0;               \
+    VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0,                              \
+                               VG_USERREQ__COUNT_LEAK_BLOCKS,            \
                                &_qzz_leaked, &_qzz_dubious,              \
                                &_qzz_reachable, &_qzz_suppressed, 0);    \
     leaked     = _qzz_leaked;                                            \
@@ -252,15 +252,11 @@ typedef
    The metadata is not copied in cases 0, 2 or 3 so it should be
    impossible to segfault your system by using this call.
 */
-#define VALGRIND_GET_VBITS(zza,zzvbits,zznbytes)                 \
-   (__extension__({unsigned int _qzz_res;                        \
-    char* czza     = (char*)zza;                                 \
-    char* czzvbits = (char*)zzvbits;                             \
-    VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0,                      \
-                            VG_USERREQ__GET_VBITS,               \
-                            czza, czzvbits, zznbytes, 0, 0 );    \
-    _qzz_res;                                                    \
-   }))
+#define VALGRIND_GET_VBITS(zza,zzvbits,zznbytes)                     \
+    VALGRIND_DO_CLIENT_REQUEST_EXPR(0,                               \
+                                    VG_USERREQ__GET_VBITS,           \
+                                    (char*)(zza), (char*)(zzvbits),  \
+                                    (zznbytes), 0, 0)
 
 /* Set the validity data for addresses [zza..zza+zznbytes-1], copying it
    from the provided zzvbits array.  Return values:
@@ -271,15 +267,11 @@ typedef
    The metadata is not copied in cases 0, 2 or 3 so it should be
    impossible to segfault your system by using this call.
 */
-#define VALGRIND_SET_VBITS(zza,zzvbits,zznbytes)                 \
-   (__extension__({unsigned int _qzz_res;                        \
-    char* czza     = (char*)zza;                                 \
-    char* czzvbits = (char*)zzvbits;                             \
-    VALGRIND_DO_CLIENT_REQUEST(_qzz_res, 0,                      \
-                            VG_USERREQ__SET_VBITS,               \
-                            czza, czzvbits, zznbytes, 0, 0 );    \
-    _qzz_res;                                                    \
-   }))
+#define VALGRIND_SET_VBITS(zza,zzvbits,zznbytes)                     \
+    VALGRIND_DO_CLIENT_REQUEST_EXPR(0,                               \
+                                    VG_USERREQ__SET_VBITS,           \
+                                    (char*)(zza), (char*)(zzvbits),  \
+                                    (zznbytes), 0, 0 )
 
 #endif
 
