@@ -1124,6 +1124,41 @@ error0:
 	return rc;
 }
 
+#ifdef ENABLE_ACCESS_TAGLESS
+int
+smdbAccessIp2(smdb *sm, const char *tag, const char *ip, char **keyp, char **valuep)
+{
+	int rc;
+
+	if ((rc = smdbAccessIp(sm, tag, ip, keyp, valuep)) == SMDB_ACCESS_NOT_FOUND)
+		rc = smdbAccessIp(sm, NULL, ip, keyp, valuep);
+
+	return rc;
+}
+
+int
+smdbAccessDomain2(smdb *sm, const char *tag, const char *domain, char **keyp, char **valuep)
+{
+	int rc;
+
+	if ((rc = smdbAccessDomain(sm, tag, domain, keyp, valuep)) == SMDB_ACCESS_NOT_FOUND)
+		rc = smdbAccessDomain(sm, NULL, domain, keyp, valuep);
+
+	return rc;
+}
+
+int
+smdbAccessMail2(smdb *sm, const char *tag, const char *mail, char **keyp, char **valuep)
+{
+	int rc;
+
+	if ((rc = smdbAccessMail(sm, tag, mail, keyp, valuep)) == SMDB_ACCESS_NOT_FOUND)
+		rc = smdbAccessMail(sm, NULL, mail, keyp, valuep);
+
+	return rc;
+}
+#endif
+
 /***********************************************************************
  ***
  ***********************************************************************/

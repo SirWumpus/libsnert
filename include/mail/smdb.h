@@ -366,6 +366,12 @@ extern smdb_code smdbDomainMail(smdb *sm, const char *tag1, const char *key1, co
  */
 extern smdb_code smdbMailMail(smdb *sm, const char *tag1, const char *key1, const char *tag2, const char *key2, char **keyp, char **valuep);
 
+#ifdef ENABLE_ACCESS_TAGLESS
+extern int smdbAccessIp2(smdb *sm, const char *tag, const char *ip, char **keyp, char **valuep);
+extern int smdbAccessDomain2(smdb *sm, const char *tag, const char *domain, char **keyp, char **valuep);
+extern int smdbAccessMail2(smdb *sm, const char *tag, const char *mail, char **keyp, char **valuep);
+#endif
+
 #ifdef  __cplusplus
 }
 #endif
