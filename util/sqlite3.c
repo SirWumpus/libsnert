@@ -11,6 +11,9 @@
  ***********************************************************************/
 
 #include <com/snert/lib/version.h>
+
+#ifdef HAVE_SQLITE3_H
+
 #include <com/snert/lib/sys/pthread.h>
 #include <com/snert/lib/util/sqlite3.h>
 
@@ -103,6 +106,8 @@ sqlite3_step_blocking(sqlite3_stmt *stmt)
 
 	return rc;
 }
+
+#endif /* HAVE_SQLITE3_H */
 
 /***********************************************************************
  *** END
