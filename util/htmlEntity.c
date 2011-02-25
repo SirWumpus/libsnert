@@ -169,8 +169,6 @@ htmlEntityDecode(const char *source, size_t length, char *buffer, size_t size)
 	if (size == 0)
 		return 0;
 
-	--size;
-
 	for (buflen = 0, s = source; s - source < length && *s != '\0' && buflen < size; buflen++) {
 		if (*s == '&') {
 			if (s[1] == '#') {
@@ -183,10 +181,13 @@ htmlEntityDecode(const char *source, size_t length, char *buffer, size_t size)
 					if (code == HTML_ENTITY_SHY)
 						/* Discard soft-hyphen &shy; */
 						buflen--;
-					else
+					else {
+						/* Write the decoded hex byte. */
 						*buffer++ = (char) code;
+					}
 					s += stop - s + 1;
 				} else {
+					/* Unknown numeric. Copy as is. */
 					*buffer++ = *s++;
 				}
 				continue;
@@ -197,21 +198,27 @@ htmlEntityDecode(const char *source, size_t length, char *buffer, size_t size)
 					if (entry->ch == HTML_ENTITY_SHY)
 						/* Discard soft-hyphen &shy; */
 						buflen--;
-					else
+					else {
+						/* Replace entity name by byte. */
 						*buffer++ = entry->ch;
+					}
 					s += entry->length;
 					break;
 				}
 			}
 
-			if (entry->entity == NULL)
+			if (entry->entity == NULL) {
+				/* No entity by that name. Copy as is. */
 				*buffer++ = *s++;
+			}
 		} else {
+			/* Copy as is. */
 			*buffer++ = *s++;
 		}
 	}
 
-	*buffer = '\0';
+	if (buflen < size)
+		*buffer = '\0';
 
 	return buflen;
 }

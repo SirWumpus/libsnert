@@ -1084,8 +1084,12 @@ uriMimeDecodedOctet(Mime *m, int ch)
 
 			if (0 < offset) {
 				offset--;
+
 				/* Note that htmlEntityDecode() discards soft-hyphen &shy; */
-				length = htmlEntityDecode(hold->buffer+offset, hold->length-offset, hold->buffer+offset, hold->length-offset+1);
+				length = htmlEntityDecode(
+					hold->buffer+offset, hold->length-offset,
+					hold->buffer+offset, hold->length-offset
+				);
 				hold->length = offset + length;
 			}
 		} else {
@@ -1660,11 +1664,9 @@ main(int argc, char **argv)
 		case 'v':
 #ifdef VAR_LOG_DEBUG
 			openlog("uri", LOG_PID, LOG_USER);
-			setlogmask(LOG_UPTO(LOG_DEBUG));
 #else
 			LogOpen("(standard error)");
 			LogSetProgramName("uri");
-			LogSetLevel(LOG_DEBUG);
 #endif
 			dnsListSetDebug(1);
 			socketSetDebug(1);
