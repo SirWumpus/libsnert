@@ -49,6 +49,13 @@ is no set schedule for releases.
 
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
+--1.74.20--
+
+  !!	htmlEntity.c: Fix write off buffer end. When the source and
+	decode buffers are the same buffer and the source was not NUL
+	terminate, then an attempt NUL terminate the decode buffer would
+	write off the end of the buffer.
+
 --1.74.19--
 
    !	Fix on-the-fly MIME boundary detection when the boundary line
