@@ -60,6 +60,7 @@ extern "C" {
 # endif
 #endif
 
+#include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/type/Vector.h>
 
@@ -462,8 +463,11 @@ extern void pdqClose(PDQ *pdq);
  */
 extern void pdqSetTimeout(PDQ *pdq, unsigned seconds);
 
+extern unsigned pdqGetTimeout(PDQ *pdq);
 extern int pdqSetBasicQuery(PDQ *pdq, int flag);
 extern int pdqSetLinearQuery(PDQ *pdq, int flag);
+extern int pdqQueryIsPending(PDQ *pdq);
+extern SOCKET pdqGetFd(PDQ *pdq);
 
 /**
  * @param pdq

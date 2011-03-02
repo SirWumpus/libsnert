@@ -5,7 +5,7 @@
  *
  * RFC 1035 (DNS), 1886 (IPv6), 2821 (SMTP), 2874 (IPv6), 3596 (IPv6)
  *
- * Copyright 2002, 2008 by Anthony Howe. All rights reserved.
+ * Copyright 2002, 2011 by Anthony Howe. All rights reserved.
  */
 
 #undef NDEBUG
@@ -2905,6 +2905,24 @@ void
 pdqSetTimeout(PDQ *pdq, unsigned seconds)
 {
 	pdq->timeout = seconds;
+}
+
+SOCKET
+pdqGetFd(PDQ *pdq)
+{
+	return pdq->fd;
+}
+
+unsigned
+pdqGetTimeout(PDQ *pdq)
+{
+	return pdq->timeout;
+}
+
+int
+pdqQueryIsPending(PDQ *pdq)
+{
+	return pdq->pending != NULL;
 }
 
 int
