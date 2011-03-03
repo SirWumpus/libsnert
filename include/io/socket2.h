@@ -908,14 +908,30 @@ extern int socketMulticastTTL(Socket2 *s, int ttl);
 # ifndef INFTIM
 #  define INFTIM	(-1)
 # endif
+
 # define SOCKET_EVENT_READ	EVFILT_READ
 # define SOCKET_EVENT_WRITE	EVFILT_WRITE
+
+typedef struct kevent socket_ev;
+
 #elif defined(HAVE_SYS_EPOLL_H)
 # include <sys/epoll.h>
-# define SOCKET_EVENT_READ	EPOLLIN
-# define SOCKET_EVENT_WRITE	EPOLLOUT
+
+# define SOCKET_EVENT_READ	(EPOLLIN | EPOLLHUP)
+# define SOCKET_EVENT_WRITE	(EPOLLOUT | EPOLLHUP)
+
+typedef struct epoll_event socket_ev;
+
+#elif defined(HAVE_SYS_EPOLL_H)
+# include <sys/epoll.h>
+
+# define SOCKET_EVENT_READ	(POLLIN | POLLHUP)
+# define SOCKET_EVENT_WRITE	(POLLOUT | POLLHUP)
+
+typedef struct pollfd socket_ev;
+
 #else
-# error "kqueue or epoll API required."
+# error "kqueue, epoll, or poll APIs required."
 #endif
 
 #include <com/snert/lib/type/Vector.h>
@@ -930,17 +946,14 @@ typedef struct {
 	SocketEventHook error;		/* errno will be explicitly set */
 } SocketEventOn;
 
-typedef struct {
-	SocketEventHook *idle;		/* on timeout */
-} SocketEventLoopOn;
-
 struct socket_event {
 	/* Private */
 	FreeFn free;
 	time_t expire;
+	int io_type;
+	int enable;
 
 	/* Public */
-	int type;
 	void *data;
 	Socket2 *socket;
 	SocketEventOn on;
@@ -950,22 +963,21 @@ struct socket_events {
 	/* Private */
 	int running;
 	Vector events;
-
-	/* Public */
-	SocketEventLoopOn on;
+	socket_ev *set;
+	unsigned set_size;
 };
 
 extern void socketEventFree(void *_event);
 extern SocketEvent *socketEventAlloc(Socket2 *socket, int type);
 extern void socketEventInit(SocketEvent *event, Socket2 *socket, int type);
+extern void socketEventExpire(SocketEvent *event, const time_t *now, long ms);
+extern  int socketEventEnable(SocketEvent *event, int flag);
 
-extern void socketEventSetExpire(SocketEvent *event, const time_t *now, long ms);
-
-extern int socketEventAdd(SocketEvents *loop, SocketEvent *event);
+extern  int socketEventAdd(SocketEvents *loop, SocketEvent *event);
 extern void socketEventClose(SocketEvents *loop, SocketEvent *event);
 extern void socketEventRemove(SocketEvents *loop, SocketEvent *event);
 
-extern void socketEventsInit(SocketEvents *loop);
+extern  int socketEventsInit(SocketEvents *loop);
 extern void socketEventsFree(SocketEvents *loop);
 extern void socketEventsStop(SocketEvents *loop);
 extern void socketEventsRun(SocketEvents *loop);

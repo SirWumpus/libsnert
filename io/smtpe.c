@@ -96,12 +96,14 @@
 # include <unistd.h>
 #endif
 
+#include <com/snert/lib/pt/pt.h>
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/io/file.h>
 #include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/mail/smtp2.h>
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/net/network.h>
+#include <com/snert/lib/net/pdq.h>
 #include <com/snert/lib/sys/sysexits.h>
 #include <com/snert/lib/util/option.h>
 #include <com/snert/lib/util/time62.h>
@@ -119,11 +121,11 @@ typedef struct {
 } Buffer;
 
 typedef struct stmp_ctx SmtpCtx;
-typedef void (*SmtpCmdHook)(SocketEvents *loop, SocketEvent *event);
+typedef pt_word_t (*SmtpCmdHook)(SocketEvents *loop, SocketEvent *event);
 
 #define SMTP_CMD_HOOK(fn)	cmd_ ## fn
-#define SMTP_CMD_DEF(fn)	void SMTP_CMD_HOOK(fn)(SocketEvents *loop, SocketEvent *event)
-#define SMTP_CMD(fn)		(*cmd_ ## fn)(loop, event)
+#define SMTP_CMD_DEF(fn)	pt_word_t SMTP_CMD_HOOK(fn)(SocketEvents *loop, SocketEvent *event)
+#define SMTP_CMD(fn)		(void)(*cmd_ ## fn)(loop, event)
 
 typedef struct {
 	const char *cmd;
@@ -149,6 +151,7 @@ struct stmp_ctx {
 	Buffer reply;		/* SMTP_TEXT_LINE_LENGTH+1 */
 	Buffer chunk;		/* SMTP_MINIMUM_MESSAGE_LENGTH */
 
+	pt_t pt;		/* Proto-thread state of current command. */
 	int is_dot;		/* 0 no trailing dot, else length of "dot" tail */
 	SmtpCmdHook state;
 	SmtpCmdHook state_helo;
@@ -156,6 +159,13 @@ struct stmp_ctx {
 	Socket2 *forward;
 	Socket2 *client;
 	FILE *spool_fp;
+	int is_enabled;
+
+	PDQ *pdq;
+	PDQ_rr *pdq_answer;
+	Socket2 *pdq_socket;
+	SocketEvent pdq_event;
+	time_t pdq_stop_after;	/* overall timeout for PDQ lookup */
 };
 
 #define SMTP_CTX_SIZE		(sizeof (SmtpCtx) 		\
@@ -198,6 +208,7 @@ static const char fmt_auth_already[] = "503 5.5.1" FMT(000) "already authenticat
 static const char fmt_auth_mech[] = "504 5.5.4" FMT(000) "unknown AUTH mechanism\r\n";
 static const char fmt_auth_ok[] = "235 2.0.0" FMT(000) "authenticated\r\n";
 static const char fmt_syntax[] = "501 5.5.2" FMT(000) "syntax error\r\n";
+static const char fmt_bad_args[] = "501 5.5.4" FMT(000) "invalid argument %s\r\n";
 static const char fmt_internal[] = "421 4.3.0" FMT(000) "internal error, %s\r\n";
 static const char fmt_buffer[] = "421 4.3.0" FMT(000) "buffer overflow\r\n";
 static const char fmt_mail_parse[] = "%d %s" FMT(000) "\r\n";
@@ -209,11 +220,12 @@ static const char fmt_rcpt_ok[] = "250 2.1.0 recipient <%s> OK\r\n";
 static const char fmt_try_again[] = "451 4.4.5" FMT(000) "try again later\r\n";
 static const char fmt_msg_ok[] = "250 2.0.0 message %s accepted\r\n";
 
-static const char fmt_helo[] = "250 Hello %s\r\n";
+static const char fmt_helo[] = "250 Hello %s (%s)\r\n";
 
 static const char fmt_ehlo[] =
-"250-Hello %s\r\n"
+"250-Hello %s (%s)\r\n"
 "250-ENHANCEDSTATUSCODES\r\n"	/* RFC 2034 */
+"%s"				/* XCLIENT */
 "%s"				/* RFC 2920 pipelining */
 "250-AUTH PLAIN\r\n"		/* RFC 2554 */
 "250 SIZE %ld\r\n"		/* RFC 1870 */
@@ -228,7 +240,7 @@ static const char fmt_help[] =
 "214-2.0.0     ETRN    EXPN    TURN    VRFY\r\n"
 "214-2.0.0\r\n"
 "214-2.0.0 Administration commands:\r\n"
-"214-2.0.0     VERB\r\n"
+"214-2.0.0     VERB    XCLIENT\r\n"
 "214-2.0.0\r\n"
 #ifdef ADMIN_CMDS
 "214-2.0.0 Administration commands:\r\n"
@@ -376,6 +388,11 @@ static const char usage_smtp_max_size[] =
   "Maximum size in bytes a message can be. Specify zero to disable.\n"
 "#"
 ;
+static const char usage_smtp_xclient[] =
+  "When set, enable SMTP XCLIENT support.\n"
+"#"
+;
+
 
 static const char usage_spool_dir[] =
   "When defined, spool messages to this directory.\n"
@@ -391,6 +408,7 @@ Option opt_smtp_max_size	= { "smtp-max-size",		"0",				usage_smtp_max_size };
 Option opt_smtp_server_port	= { "smtp-server-port",		QUOTE(SMTP_PORT), 		usage_smtp_server_port };
 Option opt_smtp_server_queue	= { "smtp-server-queue",	"20",				usage_smtp_server_queue };
 Option opt_smtp_smart_host	= { "smtp-smart-host", 		"127.0.0.1:26", 		usage_smtp_smart_host };
+Option opt_smtp_xclient		= { "smtp-xclient", 		"-", 				usage_smtp_xclient };
 Option opt_spool_dir		= { "spool-dir",		"",				usage_spool_dir };
 
 
@@ -489,6 +507,7 @@ Option *opt_table[] = {
 	&opt_smtp_server_port,
 	&opt_smtp_server_queue,
 	&opt_smtp_smart_host,
+	&opt_smtp_xclient,
 
 	&opt_spool_dir,
 	&opt_verbose,
@@ -718,18 +737,227 @@ client_send(SmtpCtx *ctx, const char *fmt, ...)
 		SIGLONGJMP(ctx->on_error, 1);
 }
 
+void
+dns_io_cb(SocketEvents *loop, SocketEvent *event)
+{
+	SocketEvent *client_event = event->data;
+	SmtpCtx *ctx = client_event->data;
+
+	TRACE_CTX(ctx, 000);
+	(*ctx->state)(loop, client_event);
+}
+
+void
+dns_error_cb(SocketEvents *loop, SocketEvent *event)
+{
+	long ms;
+	time_t now;
+	SocketEvent *client_event = event->data;
+	SmtpCtx *ctx = client_event->data;
+
+	TRACE_CTX(ctx, 000);
+
+	if (errno == ETIMEDOUT) {
+		/* Double the timeout for next iteration. */
+		ms = socketGetTimeout(ctx->pdq_socket);
+		ms += ms;
+
+		if (verb_debug.value)
+			syslog(LOG_DEBUG, LOG_FMT "%s ms=%ld", ctx->id_log, __FUNCTION__, ms);
+
+		(void) time(&now);
+		socketEventExpire(event, &now, ms);
+		socketSetTimeout(ctx->pdq_socket, ms);
+
+		(*ctx->state)(loop, client_event);
+	}
+}
+
+int
+dns_wait(SmtpCtx *ctx, int wait_all)
+{
+	PDQ_rr *head;
+
+	errno = 0;
+
+	TRACE_CTX(ctx, 000);
+
+	if (pdqQueryIsPending(ctx->pdq)) {
+		if ((head = pdqPoll(ctx->pdq, 10)) != NULL) {
+			if (head->rcode == PDQ_RCODE_TIMEDOUT) {
+				if (verb_debug.value)
+					pdqListLog(head);
+				pdqListFree(head);
+			} else {
+				ctx->pdq_answer = pdqListAppend(ctx->pdq_answer, head);
+			}
+		}
+		if (pdqQueryIsPending(ctx->pdq) && (wait_all || ctx->pdq_answer == NULL))
+			return errno = EAGAIN;
+	}
+
+	ctx->pdq_stop_after = 0;
+
+	return errno;
+}
+
+void
+dns_reset(SmtpCtx *ctx)
+{
+	socketSetTimeout(ctx->pdq_socket, PDQ_TIMEOUT_START * 1000);
+	ctx->pdq_stop_after = time(NULL) + pdqGetTimeout(ctx->pdq);
+	pdqListFree(ctx->pdq_answer);
+	ctx->pdq_answer = NULL;
+}
+
+int
+dns_open(SocketEvents *loop, SocketEvent *event)
+{
+	SmtpCtx *ctx = event->data;
+
+	TRACE_CTX(ctx, 000);
+
+	if ((ctx->pdq = pdqOpen()) == NULL) {
+		syslog(LOG_ERR, log_error, LOG_ID(ctx), strerror(errno), errno);
+		goto error0;
+	}
+
+	/* Create a Socket2 wrapper for socketEventInit(). */
+	if ((ctx->pdq_socket = socketFdOpen(pdqGetFd(ctx->pdq))) == NULL) {
+		syslog(LOG_ERR, log_error, LOG_ID(ctx), strerror(errno), errno);
+		goto error1;
+	}
+
+	socketSetTimeout(ctx->pdq_socket, PDQ_TIMEOUT_START * 1000);
+
+	/* Create an event for the DNS lookup. */
+	socketEventInit(&ctx->pdq_event, ctx->pdq_socket, SOCKET_EVENT_READ);
+
+	ctx->pdq_event.data = event;
+	ctx->pdq_event.on.io = dns_io_cb;
+	ctx->pdq_event.on.error = dns_error_cb;
+
+	if (socketEventAdd(loop, &ctx->pdq_event)) {
+		syslog(LOG_ERR, log_oom, LOG_ID(ctx));
+		goto error2;
+	}
+
+	/* Disable the client event until the DNS lookup completes. */
+	ctx->is_enabled = socketEventEnable(event, 0);
+	ctx->pdq_answer = NULL;
+
+	return 0;
+error2:
+	/* Don't use socketFdClose() or socketClose(). */
+	free(ctx->pdq_socket);
+error1:
+	pdqClose(ctx->pdq);
+	ctx->pdq = NULL;
+error0:
+	return -1;
+}
+
+void
+dns_close(SocketEvents *loop, SocketEvent *event)
+{
+	SmtpCtx *ctx = event->data;
+
+	TRACE_CTX(ctx, 000);
+
+	if (ctx->pdq != NULL) {
+		(void) socketEventEnable(event, ctx->is_enabled);
+		socketEventRemove(loop, &ctx->pdq_event);
+		pdqListFree(ctx->pdq_answer);
+
+		/* Don't use socketFdClose() or socketClose(). pdqClose() will
+		 * close the socket file descriptor, so just free the Socket2
+		 * wrapper.
+		 */
+		free(ctx->pdq_socket);
+		pdqClose(ctx->pdq);
+		ctx->pdq = NULL;
+	}
+}
+
+SMTP_CMD_DEF(accept)
+{
+	PDQ_rr *rr;
+	SmtpCtx *ctx = event->data;
+
+	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
+
+	/* Copy the IP address into the host name in case there is no PTR. */
+	ctx->host.data[0] = '[';
+	ctx->host.length = TextCopy(ctx->host.data+1, ctx->host.size-1, ctx->addr.data)+1;
+	ctx->host.data[ctx->host.length++] = ']';
+	ctx->host.data[ctx->host.length] = '\0';
+
+	if (dns_open(loop, event))
+		goto error1;
+
+	if (pdqQuery(ctx->pdq, PDQ_CLASS_IN, PDQ_TYPE_PTR, ctx->addr.data, NULL)) {
+		syslog(LOG_ERR, log_error, LOG_ID(ctx), strerror(errno), errno);
+		goto error2;
+	}
+
+	dns_reset(ctx);
+	PT_YIELD_UNTIL(&ctx->pt, dns_wait(ctx, 1) != EAGAIN);
+
+	for (rr = ctx->pdq_answer; rr != NULL; rr = rr->next) {
+		if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_PTR) {
+			break;
+		}
+	}
+
+	if (rr == NULL)
+		goto error2;
+
+	/* Copy the client's host name into our buffer. This name will
+	 * almost certainly have a trailing dot for the root domain, as
+	 * will any additional records returned from the DNS lookup.
+	 */
+	ctx->host.length = TextCopy(ctx->host.data, ctx->host.size, ((PDQ_PTR *) rr)->host.string.value);
+
+	/* Consider dig -x 63.84.135.34, which has a multihomed PTR
+	 * record for many different unrelated domains. This affects
+	 * our choice to use the grey-listing PTR key or not. If the
+	 * multihomed PTR were all for the same domain suffix, then
+	 * the grey-listing PTR key will work, otherwise we have to
+	 * fall back on just using the IP address.
+	 */
+
+	/* Wait to remove the trailing dot for the root domain from
+	 * the client's host name until after any multihomed PTR list
+	 * is reviewed above.
+	 */
+	if (0 < ctx->host.length && ctx->host.data[ctx->host.length-1] == '.')
+		ctx->host.data[ctx->host.length-1] = '\0';
+	TextLower(ctx->host.data, ctx->host.length);
+error2:
+	dns_close(loop, event);
+error1:
+	client_send(ctx, fmt_welcome, ctx->host.data, ctx->id_log);
+
+	PT_END(&ctx->pt);
+}
+
 SMTP_CMD_DEF(unknown)
 {
 	SmtpCtx *ctx = event->data;
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 	client_send(ctx, fmt_unknown, opt_smtp_error_url.string, ctx->input.data);
+	PT_END(&ctx->pt);
 }
 
 SMTP_CMD_DEF(out_seq)
 {
 	SmtpCtx *ctx = event->data;
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 	client_send(ctx, fmt_out_seq, opt_smtp_error_url.string, ctx->input.data);
+	PT_END(&ctx->pt);
 }
 
 SMTP_CMD_DEF(helo)
@@ -737,10 +965,12 @@ SMTP_CMD_DEF(helo)
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 	ctx->helo.length = TextCopy(ctx->helo.data, ctx->helo.size, ctx->input.data+5);
-	client_send(ctx, fmt_helo, ctx->helo.data);
+	client_send(ctx, fmt_helo, ctx->helo.data, ctx->addr.data);
 	ctx->state = ctx->state_helo = SMTP_CMD_HOOK(helo);
 	client_reset(ctx);
+	PT_END(&ctx->pt);
 }
 
 SMTP_CMD_DEF(ehlo)
@@ -748,39 +978,44 @@ SMTP_CMD_DEF(ehlo)
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 	ctx->helo.length = TextCopy(ctx->helo.data, ctx->helo.size, ctx->input.data+5);
 
 	client_send(
-		ctx, fmt_ehlo, ctx->helo.data,
+		ctx, fmt_ehlo, ctx->helo.data, ctx->addr.data,
+		opt_smtp_xclient.value ? "250-XCLIENT ADDR HELO NAME PROTO\r\n" : "",
 		opt_rfc2920_pipelining.value ? "250-PIPELINING\r\n" : "",
 		opt_smtp_max_size.value
 	);
 
 	ctx->state = ctx->state_helo = SMTP_CMD_HOOK(ehlo);
 	client_reset(ctx);
+	PT_END(&ctx->pt);
 }
 
 SMTP_CMD_DEF(auth)
 {
 	SmtpCtx *ctx = event->data;
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 	if (ctx->state != SMTP_CMD_HOOK(ehlo)) {
 		SMTP_CMD(unknown);
-		return;
+		PT_EXIT(&ctx->pt);
 	}
 
 	if (0 < ctx->auth.length) {
 		client_send(ctx, fmt_auth_already, opt_smtp_error_url.string);
-		return;
+		PT_EXIT(&ctx->pt);
 	}
 
 	ctx->auth.length = TextCopy(ctx->auth.data, ctx->auth.size, ctx->auth.data+5);
 	if (TextInsensitiveStartsWith(ctx->auth.data, "PLAIN") < 0) {
 		client_send(ctx, fmt_auth_mech, opt_smtp_error_url.string);
-		return;
+		PT_EXIT(&ctx->pt);
 	}
 
 	client_send(ctx, fmt_auth_ok);
+	PT_END(&ctx->pt);
 }
 
 SMTP_CMD_DEF(mail)
@@ -791,16 +1026,17 @@ SMTP_CMD_DEF(mail)
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 
 	if (ctx->state != SMTP_CMD_HOOK(helo) && ctx->state != SMTP_CMD_HOOK(ehlo)) {
 		SMTP_CMD(out_seq);
-		return;
+		PT_EXIT(&ctx->pt);
 	}
 
 	/* Find the end of the "MAIL FROM:" string. */
 	if ((sender = strchr(ctx->input.data+5, ':')) == NULL) {
 		client_send(ctx, fmt_syntax, opt_smtp_error_url.string);
-		return;
+		PT_EXIT(&ctx->pt);
 	}
 	sender++;
 
@@ -824,20 +1060,21 @@ SMTP_CMD_DEF(mail)
 			syslog(LOG_ERR, log_internal, LOG_ID(ctx));
 			SIGLONGJMP(ctx->on_error, 1);
 		}
-		return;
+		PT_EXIT(&ctx->pt);
 	}
 
 	if ((param = strstr(sender+span+1, "SIZE=")) != NULL) {
 		ctx->mail_size = strtol(param+STRLEN("SIZE="), NULL, 10);
 		if (0 < opt_smtp_max_size.value && opt_smtp_max_size.value <= ctx->mail_size) {
 			client_send(ctx, fmt_mail_size, opt_smtp_error_url.string, opt_smtp_max_size.value);
-			return;
+			PT_EXIT(&ctx->pt);
 		}
 	}
 
 	client_send(ctx, fmt_mail_ok, ctx->sender->address.string);
 	ctx->state = SMTP_CMD_HOOK(mail);
 	next_id(ctx->id_trans);
+	PT_END(&ctx->pt);
 }
 
 SMTP_CMD_DEF(rcpt)
@@ -849,16 +1086,17 @@ SMTP_CMD_DEF(rcpt)
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 
 	if (ctx->state != SMTP_CMD_HOOK(mail)) {
 		SMTP_CMD(out_seq);
-		return;
+		PT_EXIT(&ctx->pt);
 	}
 
 	/* Find the end of the "RCPT TO:" string. */
 	if ((recipient = strchr(ctx->input.data+5, ':')) == NULL) {
 		client_send(ctx, fmt_syntax, opt_smtp_error_url.string);
-		return;
+		PT_EXIT(&ctx->pt);
 	}
 	recipient++;
 
@@ -879,12 +1117,12 @@ SMTP_CMD_DEF(rcpt)
 			syslog(LOG_ERR, log_internal, LOG_ID(ctx));
 			SIGLONGJMP(ctx->on_error, 1);
 		}
-		return;
+		PT_EXIT(&ctx->pt);
 	}
 	if (rcpt->address.length == 0) {
 		client_send(ctx, fmt_rcpt_null, opt_smtp_error_url.string);
 		free(rcpt);
-		return;
+		PT_EXIT(&ctx->pt);
 	}
 	if (VectorAdd(ctx->recipients, rcpt)) {
 		client_send(ctx, fmt_internal, opt_smtp_error_url.string, strerror(errno));
@@ -894,6 +1132,7 @@ SMTP_CMD_DEF(rcpt)
 	}
 
 	client_send(ctx, fmt_rcpt_ok, rcpt->address.string);
+	PT_END(&ctx->pt);
 }
 
 SMTP_CMD_DEF(data)
@@ -901,14 +1140,15 @@ SMTP_CMD_DEF(data)
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 
 	if (ctx->state != SMTP_CMD_HOOK(mail)) {
 		SMTP_CMD(out_seq);
-		return;
+		PT_EXIT(&ctx->pt);
 	}
 	if (VectorLength(ctx->recipients) == 0) {
 		client_send(ctx, fmt_no_rcpts, opt_smtp_error_url.string);
-		return;
+		PT_EXIT(&ctx->pt);
 	}
 
 	if (*opt_spool_dir.string != '\0') {
@@ -922,6 +1162,7 @@ SMTP_CMD_DEF(data)
 
 	client_send(ctx, fmt_data);
 	ctx->state = SMTP_CMD_HOOK(data);
+	PT_END(&ctx->pt);
 }
 
 SMTP_CMD_DEF(content)
@@ -929,6 +1170,7 @@ SMTP_CMD_DEF(content)
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 
 	if (ctx->spool_fp != NULL)
 		(void) fwrite(ctx->chunk.data, ctx->chunk.length-ctx->is_dot, 1, ctx->spool_fp);
@@ -950,36 +1192,45 @@ SMTP_CMD_DEF(content)
 	}
 
 	ctx->chunk.length = 0;
+	PT_END(&ctx->pt);
 }
 
 SMTP_CMD_DEF(rset)
 {
 	SmtpCtx *ctx = event->data;
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 	client_send(ctx, fmt_ok);
 	client_reset(ctx);
+	PT_END(&ctx->pt);
 }
 
 SMTP_CMD_DEF(noop)
 {
 	SmtpCtx *ctx = event->data;
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 	client_send(ctx, fmt_ok);
+	PT_END(&ctx->pt);
 }
 
 SMTP_CMD_DEF(quit)
 {
 	SmtpCtx *ctx = event->data;
 	TRACE_CTX(ctx, 000);
-	client_send(ctx, fmt_quit, ctx->addr.data, ctx->id_log);
+	PT_BEGIN(&ctx->pt);
+	client_send(ctx, fmt_quit, ctx->host.data, ctx->id_log);
 	SIGLONGJMP(ctx->on_error, 1);
+	PT_END(&ctx->pt);
 }
 
 SMTP_CMD_DEF(help)
 {
 	SmtpCtx *ctx = event->data;
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 	client_send(ctx, fmt_help);
+	PT_END(&ctx->pt);
 }
 
 static void
@@ -1036,6 +1287,7 @@ SMTP_CMD_DEF(verb)
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
 
 	ctx->reply.length = 0;
 	optionString(ctx->input.data+5, verb_table, NULL);
@@ -1047,6 +1299,65 @@ SMTP_CMD_DEF(verb)
 		syslog(LOG_ERR, log_error, LOG_ID(ctx), strerror(errno), errno);
 		SIGLONGJMP(ctx->on_error, 1);
 	}
+	PT_END(&ctx->pt);
+}
+
+SMTP_CMD_DEF(xclient)
+{
+	Vector args;
+	const char **list, *value;
+	SmtpCtx *ctx = event->data;
+
+	TRACE_CTX(ctx, 000);
+	PT_BEGIN(&ctx->pt);
+
+	if (!opt_smtp_xclient.value || (ctx->state_helo != NULL && ctx->state != ctx->state_helo)) {
+		SMTP_CMD(out_seq);
+		PT_EXIT(&ctx->pt);
+	}
+
+	args = TextSplit(ctx->input.data+sizeof ("XCLIENT ")-1, " ", 0);
+	for (list = (const char **) VectorBase(args);  *list != NULL; list++) {
+		if (0 <= TextInsensitiveStartsWith(*list, "NAME=")) {
+			value = *list + sizeof ("NAME=")-1;
+			if (TextInsensitiveCompare(value, "[UNAVAILABLE]") == 0) {
+				;
+			} else if (TextInsensitiveCompare(value, "[TEMPUNAVAIL]") == 0) {
+				;
+			} else {
+				ctx->host.length = TextCopy(ctx->host.data, ctx->host.size, value);
+				if (0 < ctx->host.length && ctx->host.data[ctx->host.length-1] == '.')
+					ctx->host.data[--ctx->host.length] = '\0';
+				TextLower(ctx->host.data, ctx->host.length);
+			}
+			continue;
+		} else if (0 <= TextInsensitiveStartsWith(*list, "ADDR=")) {
+			value = *list + sizeof ("ADDR=")-1;
+			if (0 < parseIPv6(value, ctx->ipv6)) {
+				ctx->addr.length = TextCopy(ctx->addr.data, ctx->addr.size, value);
+				continue;
+			}
+		} else if (0 <= TextInsensitiveStartsWith(*list, "HELO=")) {
+			value = *list + sizeof ("HELO=")-1;
+			ctx->helo.length = TextCopy(ctx->helo.data, ctx->helo.size, value);
+			continue;
+		} else if (0 <= TextInsensitiveStartsWith(*list, "PROTO=")) {
+			value = *list + sizeof ("PROTO=")-1;
+			if (TextInsensitiveCompare(value, "SMTP") == 0) {
+				ctx->state = ctx->state_helo = SMTP_CMD_HOOK(helo);
+			} else if (TextInsensitiveCompare(value, "ESMTP") == 0) {
+				ctx->state = ctx->state_helo = SMTP_CMD_HOOK(ehlo);
+			}
+			continue;
+		}
+
+		client_send(ctx, fmt_bad_args, opt_smtp_error_url.string, *list);
+		PT_EXIT(&ctx->pt);
+	}
+
+	client_send(ctx, fmt_welcome, ctx->host.data, ctx->id_log);
+
+	PT_END(&ctx->pt);
 }
 
 static Command smtp_cmd_table[] = {
@@ -1061,6 +1372,7 @@ static Command smtp_cmd_table[] = {
 	{ "QUIT", SMTP_CMD_HOOK(quit) },
 	{ "HELP", SMTP_CMD_HOOK(help) },
 	{ "VERB", SMTP_CMD_HOOK(verb) },
+	{ "XCLIENT", SMTP_CMD_HOOK(xclient) },
 	{ NULL, NULL }
 };
 
@@ -1132,6 +1444,7 @@ client_io_cb(SocketEvents *loop, SocketEvent *event)
 	/* Lookup command. */
 	for (entry = smtp_cmd_table; entry->cmd != NULL; entry++) {
 		if (0 < TextInsensitiveStartsWith(ctx->input.data, entry->cmd)) {
+			PT_INIT(&ctx->pt);
 			(*entry->hook)(loop, event);
 			ctx->input.length = 0;
 			return;
@@ -1150,10 +1463,21 @@ client_close_cb(SocketEvents *loop, SocketEvent *event)
 
 	if (ctx != NULL) {
 		TRACE_CTX(ctx, 000);
+
 		VectorDestroy(ctx->recipients);
+		dns_close(loop, event);
 		free(ctx->sender);
 		free(ctx);
 	}
+}
+
+void
+client_error_cb(SocketEvents *loop, SocketEvent *event)
+{
+	SmtpCtx *ctx = event->data;
+	if (errno != 0)
+		syslog(LOG_ERR, log_error, LOG_ID(ctx), strerror(errno), errno);
+	socketEventRemove(loop, event);
 }
 
 void
@@ -1194,7 +1518,7 @@ server_io_cb(SocketEvents *loop, SocketEvent *event)
 	client_event->data = ctx;
 	client_event->on.io = client_io_cb;
 	client_event->on.close = client_close_cb;
-	client_event->on.error = socketEventRemove;
+	client_event->on.error = client_error_cb;
 
 	TextCopy(ctx->id_log, sizeof (ctx->id_log), id_log);
 
@@ -1235,21 +1559,10 @@ server_io_cb(SocketEvents *loop, SocketEvent *event)
 	if (verb_smtp.value)
 		syslog(LOG_DEBUG, LOG_FMT "accept %s cc=%ld", ctx->id_log, ctx->addr.data, VectorLength(loop->events)-1);
 
-	client_send(ctx, fmt_welcome, ctx->addr.data, ctx->id_log);
+	PT_INIT(&ctx->pt);
+	ctx->state = SMTP_CMD_HOOK(accept);
+	(void) SMTP_CMD_HOOK(accept)(loop, client_event);
 }
-
-#ifdef RESET_ACCEPT_TIMEOUT
-void
-server_error_cb(SocketEvents *loop, SocketEvent *event)
-{
-	time_t now;
-
-	if (errno == ETIMEDOUT) {
-		(void) time(&now);
-		socketEventSetExpire(event, &now, event->socket->readTimeout);
-	}
-}
-#endif
 
 void
 serverOptions(int argc, char **argv)
@@ -1321,15 +1634,20 @@ serverMain(void)
 		rc = EX_OSERR;
 		goto error0;
 	}
+	if (pdqInit()) {
+		syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
+		rc = EX_OSERR;
+		goto error0;
+	}
 	if ((saddr = socketAddressNew("0.0.0.0", SMTP_PORT)) == NULL) {
 		syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
 		rc = EX_SOFTWARE;
-		goto error0;
+		goto error1;
 	}
 	if ((socket = socketOpen(saddr, 1)) == NULL) {
 		syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
 		rc = EX_SOFTWARE;
-		goto error1;
+		goto error2;
 	}
 
 	(void) fileSetCloseOnExec(socketGetFd(socket), 1);
@@ -1341,7 +1659,7 @@ serverMain(void)
 	if (socketServer(socket, opt_smtp_server_queue.value)) {
 		syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
 		rc = EX_SOFTWARE;
-		goto error2;
+		goto error3;
 	}
 
 	socketEventsInit(&main_loop);
@@ -1349,24 +1667,22 @@ serverMain(void)
 	if (socketEventAdd(&main_loop, &event)) {
 		syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
 		rc = EX_SOFTWARE;
-		goto error2;
+		goto error3;
 	}
 
 	event.on.io = server_io_cb;
-#ifdef RESET_ACCEPT_TIMEOUT
-	event.on.error = server_error_cb;
-	(void) socketSetTimeout(socket, opt_smtp_accept_timeout.value);
-#else
 	(void) socketSetTimeout(socket, -1);
-#endif
+
 	socketEventsRun(&main_loop);
 	socketEventsFree(&main_loop);
 	syslog(LOG_INFO, "terminated");
 	rc = EXIT_SUCCESS;
-error2:
+error3:
 	socketClose(socket);
-error1:
+error2:
 	free(saddr);
+error1:
+	pdqFini();
 error0:
 	return rc;
 }
