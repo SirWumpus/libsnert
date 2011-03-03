@@ -49,6 +49,28 @@ is no set schedule for releases.
 
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
+--1.74.21--
+
+   !	Fix mimeStateHdrLF() inadvertently changing decode_state when
+	Content-Transfer-Encoding appears before Content-Type in a MIME
+	part headers.
+
+   	For example
+
+		--=_part
+		Content-Type: text/plain
+		Content-Transfer-Encoding: quoted-printable
+
+   	Would decode correctly, while
+
+		--=_part
+		Content-Transfer-Encoding: quoted-printable
+		Content-Type: text/plain
+
+	would result in the MIME part being treated as unencoded, eg.
+	literally.
+
+
 --1.74.20--
 
   !!	htmlEntity.c: Fix write off buffer end. When the source and
