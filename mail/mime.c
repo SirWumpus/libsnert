@@ -478,7 +478,12 @@ mimeStateHdrLF(Mime *m, int ch)
 			 * only for the MIME boundary line.
 			 */
 			m->has_content_type = 1;
-			m->decode_state = mimeDecodeAdd;
+
+			/* If the encoding has not yet been determined,
+			 * then set the default literal decoding.
+			 */
+			if (m->encoding == MIME_NONE)
+				m->decode_state = mimeDecodeAdd;
 		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Transfer-Encoding:*quoted-printable*", m->source.length, 1)) {
 			m->decode_state = mimeStateQpLiteral;
 			m->encoding = MIME_QUOTED_PRINTABLE;
@@ -822,10 +827,11 @@ main(int argc, char **argv)
 	if (list_parts) {
 		mime->mime_header = listHeaders;
 		mime->mime_body_start = listHeaders;
-	} else if (enable_decode)
+	} else if (enable_decode) {
 		mime->mime_decode_flush = printDecode;
-	else
+	} else {
 		mime->mime_source_flush = printSource;
+	}
 
 	if (optind + 1 == argc) {
 		processFile(mime, argv[optind]);
