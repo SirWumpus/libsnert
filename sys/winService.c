@@ -206,7 +206,6 @@ ServiceMain(DWORD argc, char **argv)
 	SetServiceStatus(serviceStatus, &status);
 
 	openlog(argv[0], LOG_PID, LOG_MAIL);
-	setlogmask(LOG_UPTO(LOG_DEBUG));
 
 	(void) serverMain();
 }

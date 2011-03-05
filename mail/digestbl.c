@@ -248,7 +248,6 @@ main(int argc, char **argv)
 		case 'v':
 			LogOpen("(standard error)");
 			LogSetProgramName("uri");
-			LogSetLevel(LOG_DEBUG);
 			socketSetDebug(1);
 			pdqSetDebug(1);
 			debug++;

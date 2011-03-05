@@ -577,11 +577,9 @@ main(int argc, char **argv)
 		case 'v':
 #ifdef VAR_LOG_DEBUG
 			openlog("geturl", LOG_PID, LOG_USER);
-			setlogmask(LOG_UPTO(LOG_DEBUG));
 #else
 			LogOpen("(standard error)");
 			LogSetProgramName("geturl");
-			LogSetLevel(LOG_DEBUG);
 #endif
 			httpSetDebug(1);
 			break;

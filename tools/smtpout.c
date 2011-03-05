@@ -251,7 +251,6 @@ main(int argc, char **argv)
 			}
 			break;
 		case 'v':
-			setlogmask(LOG_UPTO(LOG_DEBUG));
 			DnsSetDebug(1);
 			debug = 1;
 			break;

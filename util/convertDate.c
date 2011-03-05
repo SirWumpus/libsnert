@@ -668,9 +668,6 @@ main(int argc, char **argv)
 		exit(2);
 	}
 
-	if (debug)
-		LogSetLevel(LOG_DEBUG);
-
 	for ( ; i < argc; i++) {
 		if (convertDate(argv[i], &gmt, &stop)) {
 			LogStderr(LOG_ERR, "\"%s\" does not conform to RFC 2822 section 3.3. Date and Time Specification", argv[i]);

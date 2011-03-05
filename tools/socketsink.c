@@ -593,11 +593,9 @@ main(int argc, char **argv)
 			return EX_SOFTWARE;
 		}
 
-		setlogmask(LOG_UPTO(LOG_DEBUG));
 		openlog("socketsink", LOG_PID, log_facility);
 	} else {
 		LogOpen("(standard error)");
-		LogSetLevel(LOG_PRI(LOG_DEBUG));
 		LogSetProgramName("socketsink");
 	}
 

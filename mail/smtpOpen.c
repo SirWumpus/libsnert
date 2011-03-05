@@ -608,7 +608,6 @@ main(int argc, char **argv)
 		case 'v':
 			LogSetProgramName("smtp-cli");
 			LogOpen("(standard error)");
-			LogSetLevel(LOG_DEBUG);
 			socketSetDebug(1);
 			smtpSetDebug(1);
 			break;

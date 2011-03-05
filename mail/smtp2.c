@@ -1081,8 +1081,6 @@ main(int argc, char **argv)
 
 	if (0 < debug) {
 		LogSetProgramName(_NAME);
-		LogSetLevel(LOG_DEBUG);
-		setlogmask(LOG_UPTO(LOG_DEBUG));
 		socketSetDebug(1);
 
 		if (2 < debug)

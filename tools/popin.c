@@ -416,9 +416,7 @@ main(int argc, char **argv)
 			}
 			break;
 		case 'v':
-			LogSetLevel(LOG_DEBUG);
 			LogSetProgramName(_NAME);
-			setlogmask(LOG_UPTO(LOG_DEBUG));
 			socketSetDebug(1);
 			debug++;
 			break;

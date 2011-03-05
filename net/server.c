@@ -1693,7 +1693,6 @@ main(int argc, char **argv)
 			return EX_SOFTWARE;
 		}
 
-		setlogmask(LOG_UPTO(LOG_DEBUG));
 		openlog(_NAME, LOG_PID|LOG_NDELAY, log_facility);
 
 		if (atexit(atExitCleanUp)) {
@@ -1712,7 +1711,6 @@ main(int argc, char **argv)
 		}
 	} else {
 		LogOpen("(standard error)");
-		LogSetLevel(LOG_PRI(LOG_DEBUG));
 	}
 
 	return serverMain();

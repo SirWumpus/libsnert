@@ -699,7 +699,6 @@ main(int argc, char **argv)
 			break;
 		case 'v':
 			openlog("smtp", LOG_PID, LOG_MAIL);
-			setlogmask(LOG_UPTO(LOG_DEBUG));
 			smtpDebugSet(1);
 			DnsSetDebug(1);
 			socketSetDebug(1);

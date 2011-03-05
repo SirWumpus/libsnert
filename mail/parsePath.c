@@ -1047,8 +1047,6 @@ main(int argc, char **argv)
 	if (0 < vflag) {
 		LogSetProgramName("parsePath");
 		LogOpen("(standard error)");
-		LogSetLevel(LOG_DEBUG);
-		setlogmask(LOG_UPTO(LOG_DEBUG));
 		parsePathSetDebug(vflag);
 	}
 

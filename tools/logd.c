@@ -203,7 +203,6 @@ main(int argc, char **argv)
 		int pid_fd;
 
 		openlog(_NAME, LOG_PID|LOG_NDELAY, LOG_USER);
-		setlogmask(LOG_UPTO(LOG_DEBUG));
 
 		if ((ppid = fork()) < 0) {
 			syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
@@ -234,7 +233,6 @@ main(int argc, char **argv)
 		}
 	} else {
 		LogOpen("(standard error)");
-		LogSetLevel(LOG_PRI(LOG_DEBUG));
 	}
 
 	return serverMain();

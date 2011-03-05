@@ -1091,11 +1091,9 @@ main(int argc, char **argv)
 		case 'v':
 #ifdef VAR_LOG_DEBUG
 			openlog("spf", LOG_PID, LOG_MAIL);
-			setlogmask(LOG_UPTO(LOG_DEBUG));
 #else
 			LogSetProgramName("spf");
 			LogOpen("(standard error)");
-			LogSetLevel(LOG_DEBUG);
 #endif
 			pdqSetDebug(1);
 			spfSetDebug(1);

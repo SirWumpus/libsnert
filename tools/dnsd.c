@@ -1096,11 +1096,9 @@ main(int argc, char **argv)
 			return EX_SOFTWARE;
 		}
 
-		setlogmask(LOG_UPTO(LOG_DEBUG));
 		openlog("dnsd", LOG_PID|LOG_NDELAY, LOG_DAEMON);
 	} else {
 		LogOpen("(standard error)");
-		LogSetLevel(LOG_PRI(LOG_DEBUG));
 	}
 
 	return serverMain();
