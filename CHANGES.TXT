@@ -51,6 +51,8 @@ is no set schedule for releases.
 
 --1.74.21--
 
+   *    Upgraded SQLite to 3.7.5
+
    !	Fix mimeStateHdrLF() inadvertently changing decode_state when
 	Content-Transfer-Encoding appears before Content-Type in a MIME
 	part headers.
@@ -70,6 +72,14 @@ is no set schedule for releases.
 	would result in the MIME part being treated as unencoded, eg.
 	literally.
 
+   !	Fix PDQ handling of DNS replies that return OK (aka NOERROR) and
+	just the original query without any answer, extra, or authority
+	records. This form of reply is valid and indicates that the
+	domain exists, while the queried record type does not. This was
+	incorrectly treated as a failure case and would inadvertantly
+	cause repeated lookups until timeout. PowerDNS returns replies
+	of this form, while Bind returns a reply with the query and an
+	SOA record.
 
 --1.74.20--
 
