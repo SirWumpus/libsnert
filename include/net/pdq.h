@@ -143,6 +143,7 @@ typedef enum {
 
 typedef enum {
 	PDQ_RCODE_OK			= 0,	/* RFC 1035 */
+	PDQ_RCODE_NOERROR		= 0,	/* RFC 1035 */
 	PDQ_RCODE_FORMAT		= 1,	/* RFC 1035 */
 	PDQ_RCODE_SERVER		= 2,	/* RFC 1035 */
 	PDQ_RCODE_SERVFAIL		= 2,	/* RFC 1035 */
@@ -154,6 +155,11 @@ typedef enum {
 	PDQ_RCODE_TIMEDOUT		= 17,	/* timeout error */
 	PDQ_RCODE_ANY			= 255,	/* any rcode, see pdqListFind */
 } PDQ_rcode;
+
+#ifdef NOT_YET
+#define PDQ_LIST_ERROR			NULL
+#define PDQ_LIST_NO_ERROR		((PDQ_rr *)1)
+#endif
 
 typedef enum {
 	PDQ_SECTION_UNKNOWN		= 0,

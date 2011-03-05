@@ -237,7 +237,7 @@ static struct mapping rcodeMap[] = {
 	{ PDQ_RCODE_OK,			"OK"			},
 	{ PDQ_RCODE_FORMAT,		"FORMAT"		},
 	{ PDQ_RCODE_SERVER,		"SERVER"		},
-	{ PDQ_RCODE_UNDEFINED,		"UNDEFINED"		},
+	{ PDQ_RCODE_UNDEFINED,		"NXDOMAIN"		},
 	{ PDQ_RCODE_NOT_IMPLEMENTED,	"NOT IMPLEMENTED"	},
 	{ PDQ_RCODE_REFUSED,		"REFUSED"		},
 	{ PDQ_RCODE_ERRNO,		"ERRNO"			},
@@ -1837,7 +1837,7 @@ pdq_name_copy(struct udp_packet *packet, unsigned char *ptr, unsigned char *buf,
 	packet_end = (unsigned char *) &packet->header + packet->length;
 
 	if (ptr < (unsigned char *) &packet->header) {
-		syslog(LOG_ERR, "pdq_name_copy() below bounds!!!");
+		syslog(LOG_WARN, "%s.%d: below bounds!!!", __FUNCTION__, __LINE__);
 		return -1;
 	}
 
@@ -1852,7 +1852,7 @@ pdq_name_copy(struct udp_packet *packet, unsigned char *ptr, unsigned char *buf,
 
 		/* Do we still have room in the buffer for the next label. */
 		if (remaining <= *ptr) {
-			syslog(LOG_ERR, "pdq_name_copy() buffer overflow!!!");
+			syslog(LOG_ERR, "%s.%d: buffer overflow!!!", __FUNCTION__, __LINE__);
 			return -1;
 		}
 
@@ -1866,7 +1866,7 @@ pdq_name_copy(struct udp_packet *packet, unsigned char *ptr, unsigned char *buf,
 
 	if (packet_end <= ptr) {
 		*buf = '\0';
-		syslog(LOG_ERR, "pdq_name_copy() out of bounds!!! start of buf=\"%40s\"", buf0);
+		syslog(LOG_ERR, "%s.%d: out of bounds!!! start of buf=\"%40s\"", __FUNCTION__, __LINE__, buf0);
 		return -1;
 	}
 
@@ -1877,7 +1877,7 @@ pdq_name_copy(struct udp_packet *packet, unsigned char *ptr, unsigned char *buf,
 	}
 
 	if (remaining < 1) {
-		syslog(LOG_ERR, "pdq_name_copy() buffer underflow!!!");
+		syslog(LOG_ERR, "%s.%d: buffer underflow!!!", __FUNCTION__, __LINE__);
 		return -1;
 	}
 
@@ -2356,12 +2356,8 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 	}
 
 	/* Add all the returned resource-records to the list. */
-#undef ONLY_ANSWER_SECTION
-#ifdef ONLY_ANSWER_SECTION
-	j = packet->header.ancount;
-#else
 	j = packet->header.ancount + packet->header.nscount + packet->header.arcount;
-#endif
+
 	for (i = 0; i < j; i++) {
 		if ((record = pdq_reply_rr(packet, ptr, &ptr)) == NULL) {
 			/* We're either off the end of the packet (EFAULT,
@@ -2405,13 +2401,6 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			goto error1;
 		}
 
-		if (i < packet->header.ancount)
-			record->section = PDQ_SECTION_ANSWER;
-		else if (i < packet->header.ancount + packet->header.nscount)
-			record->section = PDQ_SECTION_AUTHORITY;
-		else
-			record->section = PDQ_SECTION_EXTRA;
-
 		record->rcode = rcode;
 
 		record->ttl = NET_GET_LONG(ptr);
@@ -2427,6 +2416,13 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
 			goto error1;
 		}
+
+		if (i < packet->header.ancount)
+			record->section = PDQ_SECTION_ANSWER;
+		else if (i < packet->header.ancount + packet->header.nscount)
+			record->section = PDQ_SECTION_AUTHORITY;
+		else
+			record->section = PDQ_SECTION_EXTRA;
 
 		switch (record->type) {
 		case PDQ_TYPE_A:
@@ -2597,6 +2593,9 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 
 	*list = pdqListReverse(head);
 
+	if (rcode == PDQ_RCODE_OK)
+		return PDQ_RCODE_OK;
+
 	/* If at least one RR was successfully parsed, return
 	 * the rcode from the reply packet, otherwise errno.
 	 */
@@ -2746,7 +2745,6 @@ pdq_query_reply(PDQ *pdq, struct udp_packet *packet, SocketAddress *address, PDQ
 		rcode = pdq_query_tcp(pdq, query, address, list);
 	else
 		rcode = pdq_reply_parse(pdq, packet, list);
-
 
 	switch (rcode) {
 	default:
