@@ -58,7 +58,7 @@ smtpRead(Socket2 *s, char ***lines, int *code)
 	*lines = NULL;
 
 	do {
-		if (line_max <= line_no || size <= offset) {
+		if (line_max <= line_no || size <= offset + SMTP_REPLY_LINE_LENGTH) {
 			if ((table = realloc(*lines, sizeof (char *) * (line_max + 11) + offset + SMTP_REPLY_LINE_LENGTH)) == NULL) {
 				error = SMTP_ERROR_MEMORY;
 				goto error0;

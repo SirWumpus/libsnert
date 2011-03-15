@@ -185,7 +185,7 @@ smtp2Read(Socket2 *s, char ***lines)
 	*lines = NULL;
 
 	do {
-		if (line_max <= line_no || size <= offset) {
+		if (line_max <= line_no || size <= offset + SMTP_REPLY_LINE_LENGTH) {
 			if ((replace = realloc(*lines, sizeof (char *) * (line_max + 11) + offset + SMTP_REPLY_LINE_LENGTH)) == NULL)
 				goto error1;
 
