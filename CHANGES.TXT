@@ -49,6 +49,7 @@ is no set schedule for releases.
 
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
+
 --1.74.21--
 
    *    Upgraded SQLite to 3.7.5
@@ -80,6 +81,10 @@ is no set schedule for releases.
 	cause repeated lookups until timeout. PowerDNS returns replies
 	of this form, while Bind returns a reply with the query and an
 	SOA record.
+
+   !	Fixed smpt2Read() and smtpRead() handling of multiline replies
+	by asserting that the buffer always has at least
+	SMTP_REPLY_LINE_LENGTH bytes available for an input line.
 
 --1.74.20--
 
