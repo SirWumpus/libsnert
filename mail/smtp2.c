@@ -168,7 +168,7 @@ smtp2Read(Socket2 *s, char ***lines)
 {
 	int rc, ch;
 	long length;
-	char *buffer, **replace;
+	char *buffer, **table;
 	size_t size, offset, line_no, line_max;
 
 	rc = SMTP_ERROR;
@@ -186,18 +186,21 @@ smtp2Read(Socket2 *s, char ***lines)
 
 	do {
 		if (line_max <= line_no || size <= offset + SMTP_REPLY_LINE_LENGTH) {
-			if ((replace = realloc(*lines, sizeof (char *) * (line_max + 11) + offset + SMTP_REPLY_LINE_LENGTH)) == NULL)
+			if ((table = realloc(*lines, sizeof (char *) * (line_max + 11) + size + SMTP_REPLY_LINE_LENGTH)) == NULL)
 				goto error1;
 
-			size += SMTP_REPLY_LINE_LENGTH;
+			*lines = table;
+			memmove(&table[line_max + 11], &table[line_max + 1], offset);
+
 			line_max += 10;
-			*lines = replace;
-			(*lines)[line_no] = NULL;
+			size += SMTP_REPLY_LINE_LENGTH;
+			buffer = (char *) &table[line_max + 1];
 		}
 
-		buffer = (char *) &(*lines)[line_max + 1];
-		(*lines)[line_no++] = buffer + offset;
-		(*lines)[line_no] = NULL;
+		/* Save only the offset of the line in the buffer, since
+		 * the line pointer table and buffer might be reallocated
+		 */
+		table[line_no++] = (char *) offset;
 
 		switch (length = socketReadLine(s, buffer+offset, size-offset)) {
 		case SOCKET_EOF:
@@ -230,6 +233,11 @@ smtp2Read(Socket2 *s, char ***lines)
 
 		offset += length + 1;
 	} while (ch == '-');
+
+	/* Add in the base of the buffer to each line's offset. */
+	for (ch = 0; ch < line_no; ch++)
+		table[ch] = buffer + (int) table[ch];
+	table[ch] = NULL;
 
 	if (0 < line_no)
 		return strtol((*lines)[0], NULL, 10);

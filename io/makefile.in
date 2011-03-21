@@ -121,4 +121,7 @@ socketAddressIsLocal$E : socketAddress$O socket2$O socketAddressIsLocal.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)socketAddressIsLocal$E socketAddressIsLocal.c socketAddress$O socket2$O $(LIBSNERT) $(LIBS) ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
 
 smtpe$E : socketAddress$O socket2$O socketEvent$O smtpe.c
-	${WRAPPER} $(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)smtpe$E smtpe.c $(LIBSNERT) $(LIBS) ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+	${WRAPPER} $(CC) $(CFLAGS) $(LDFLAGS) -I/usr/local/include -L/usr/local/lib $(CC_E)smtpe$E smtpe.c -llua -lm $(LIBSNERT) $(LIBS) ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+
+smtpe.i : smtpe.c
+	$(CC) -E $(CFLAGS) -I/usr/local/include -o smtpe.i smtpe.c

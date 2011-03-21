@@ -1,0 +1,217 @@
+SMTP Engine Call-Backs
+----------------------
+
+When smtpe first starts, it creates a master Lua state (interpreter) and
+loads and executes ``/etc/smtpe.lua'' (see option script). If the script
+is missing, or there is a syntax or memory error, then smtpe will fail
+to start.
+
+When an SMTP client connects, a new Lua thread is created from the master
+Lua state. The each Lua hook back into smtpe is optional, ie. doesn't
+need to be defined. A hook can return either a correctly formatted SMTP
+(multi-line) reply or nothing. If no reply message is returned, or there
+is an error, then a default reply is sent back to the client. Undefined
+hooks are ignored.
+
+
+Client SMTP Input Hooks
+-----------------------
+
+reply = hook.accept(ip, ptr)
+
+
+reply = hook.helo(helo_arg)
+
+
+reply = hook.ehlo(helo_arg)
+
+
+reply = hook.auth(auth_arg)
+
+
+reply = hook.unknown(smtp_input)
+
+
+reply = hook.mail(sender, parameter_array)
+
+
+reply = hook.rcpt(recipient, parameter_array)
+
+
+reply = hook.data()
+
+
+hook.content(chunk_of_lines_as_a_string)
+
+
+hook.header(header_line)
+
+
+hook.eoh()
+
+
+hook.body(body_line)
+
+
+reply = hook.dot()
+
+
+hook.rset()
+
+
+hook.error()
+
+
+hook.close()
+
+	End of SMTP connection and clean-up.
+
+
+DNS Support Functions
+---------------------
+
+	Constants
+
+		dns.class.IN
+		dns.class.CS
+		dns.class.CH
+		dns.class.HS
+
+		dns.type.A
+		dns.type.AAAA
+		dns.type.CNAME
+		dns.type.DNAME
+		dns.type.MX
+		dns.type.NS
+		dns.type.SOA
+		dns.type.TXT
+
+		dns.rcode.OK
+		dns.rcode.NOERROR
+		dns.rcode.FORMAT
+		dns.rcode.SERVFAIL
+		dns.rcode.NXDOMAIN
+		dns.rcode.NOT_IMPLEMENTED
+		dns.rcode.REFUSED
+		dns.rcode.ERRNO
+		dns.rcode.TIMEOUT
+
+	Functions
+
+dns.open()
+
+	Opens a DNS socket for the duration of a hook handler. There is
+	no dns.close(). When a Lua hook completes the DNS socket and
+	related data will be recovered.
+
+dns.reset()
+
+	Reset socket timeout and clears any previous collected answers.
+
+dns.query(dns.class, dns.type, name)
+
+	Send a DNS query. This can be done multiple times before collecting
+	the results with dns.wait().
+
+dns.rcode, rr_table = dns.wait(for_all_flag)
+
+	Wait for one or more pending DNS queries to complete. If for_all_flag
+	is true, then wait for all pending queries; otherwise return as soon
+	what ever queries have completed.
+
+	Return the DNS rcode and a table containing answer, extra, and/or
+	authority resource records. If an error occured the rr_table will
+	be nil.
+
+		rr_table = { answer = [RR], extra = [RR], authority = [RR] }
+
+
+		RR formats for dns.type
+		-----------------------
+
+		A = { name, dns.class, dns.type, ttl, address }
+		AAAA = { name, dns.class, dns.type, ttl, address }
+		PTR = { address, dns.class, dns.type, ttl, name }
+		CNAME = { name, dns.class, dns.type, ttl, host }
+		DNAME = { name, dns.class, dns.type, ttl, host }
+		MX = { name, dns.class, dns.type, ttl, host, preference }
+		NS = { name, dns.class, dns.type, ttl, host }
+		SOA = { name, dns.class, dns.type, ttl, mname, rname, serial, refresh, retry, expire, minimum, }
+		TXT = { name, dns.class, dns.type, ttl, text }
+
+
+Syslog Functions
+----------------
+
+syslog.open(ident, options, facility)
+
+	Typically not required since the logging will have been setup
+	by the application.
+
+	Or-able option flags:
+
+		syslog.LOG_PID
+		syslog.LOG_CONS
+		syslog.LOG_ODELAY
+		syslog.LOG_NDELAY
+		syslog.LOG_NOWAIT
+		syslog.LOG_PERROR
+
+	Choice of facility:
+
+		syslog.LOG_KERN
+		syslog.LOG_USER
+		syslog.LOG_MAIL
+		syslog.LOG_DAEMON
+		syslog.LOG_AUTH
+		syslog.LOG_SYSLOG
+		syslog.LOG_LPR
+		syslog.LOG_NEWS
+		syslog.LOG_UUCP
+		syslog.LOG_CRON
+		syslog.LOG_AUTHPRIV
+		syslog.LOG_FTP
+		syslog.LOG_LOCAL0
+		syslog.LOG_LOCAL1
+		syslog.LOG_LOCAL2
+		syslog.LOG_LOCAL3
+		syslog.LOG_LOCAL4
+		syslog.LOG_LOCAL5
+		syslog.LOG_LOCAL6
+		syslog.LOG_LOCAL7
+
+syslog.log(level, message)
+
+	Possible log levels:
+
+		syslog.LOG_EMERG
+		syslog.LOG_ALERT
+		syslog.LOG_CRIT
+		syslog.LOG_ERR
+		syslog.LOG_WARNING
+		syslog.LOG_NOTICE
+		syslog.LOG_INFO
+		syslog.LOG_DEBUG
+
+syslog.error(message)
+
+	Equivalent to
+
+		syslog.log(syslog.LOG_ERR, message)
+
+syslog.info(message)
+
+	Equivalent to
+
+		syslog.log(syslog.LOG_INFO, message)
+
+syslog.debug(message)
+
+	Equivalent to
+
+		syslog.log(syslog.LOG_DEBUG, message)
+
+syslog.close()
+
+	Typically not required since the logging will be closed
+	by the application.
