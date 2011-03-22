@@ -86,7 +86,7 @@ socketEventsWait(SocketEvents *loop, long ms)
 	errno = 0;
 
 	/* Wait for some I/O or timeout. */
-	if ((fd_ready = kevent(kq, loop->set, fd_active, loop->set, fd_active, to)) == 0)
+	if ((fd_ready = kevent(kq, loop->set, fd_active, loop->set, fd_active, to)) == 0 && errno != EINTR)
 		errno = ETIMEDOUT;
 
 	(void) time(&now);
@@ -135,7 +135,7 @@ error0:
 	errno = 0;
 
 	/* Wait for some I/O or timeout. */
-	if ((fd_ready = epoll_wait(ev_fd, loop->set, fd_active, ms)) == 0)
+	if ((fd_ready = epoll_wait(ev_fd, loop->set, fd_active, ms)) == 0 && errno != EINTR)
 		errno = ETIMEDOUT;
 
 	(void) time(&now);
@@ -146,6 +146,19 @@ error0:
 			if (event->on.error != NULL)
 				(*event->on.error)(loop, event);
 		} else if (loop->set[i].events & (EPOLLIN|EPOLLOUT)) {
+			/* On disconnect, Linux returns EPOLLIN and zero
+			 * bytes sent instead of a more sensible EPOLLHUP.
+			 */
+			if (loop->set[i].events & EPOLLIN) {
+				unsigned char peek_a_boo;
+				long nbytes = socketPeek(event->socket, &peek_a_boo, sizeof (peek_a_boo));
+				if (nbytes == 0) {
+					errno = EPIPE;
+					if (event->on.error != NULL)
+						(*event->on.error)(loop, event);
+					continue;
+				}
+			}
 			socketEventExpire(event, &now, event->socket->readTimeout);
 			if (event->on.io != NULL)
 				(*event->on.io)(loop, event);
@@ -179,7 +192,7 @@ error0:
 	errno = 0;
 
 	/* Wait for some I/O or timeout. */
-	if ((fd_ready = poll(loop->set, fd_active, ms)) == 0)
+	if ((fd_ready = poll(loop->set, fd_active, ms)) == 0 && errno != EINTR)
 		errno = ETIMEDOUT;
 
 	(void) time(&now);
@@ -187,6 +200,16 @@ error0:
 		event = VectorGet(loop->events, i);
 		if (loop->set[i].fd == socketGetFd(event->socket)) {
 			if (loop->set[i].revents & (POLLIN|POLLOUT)) {
+				if (loop->set[i].revents & POLLIN) {
+					unsigned char peek_a_boo;
+					long nbytes = socketPeek(event->socket, &peek_a_boo, sizeof (peek_a_boo));
+					if (nbytes == 0) {
+						errno = EPIPE;
+						if (event->on.error != NULL)
+							(*event->on.error)(loop, event);
+						continue;
+					}
+				}
 				socketEventExpire(event, &now, event->socket->readTimeout);
 				if (event->on.io != NULL)
 					(*event->on.io)(loop, event);
@@ -238,8 +261,8 @@ socketEventFree(void *_event)
 		 *** The vector may contain a mix of static and dynamic
 		 *** elements.
 		 ***/
+		socketEventClose(NULL, event);
 		if (event->free == socketEventFree) {
-			socketEventClose(NULL, event);
 			free(event);
 		}
 	}
@@ -390,7 +413,7 @@ socketEventsInit(SocketEvents *loop)
 		return -1;
 	VectorSetDestroyEntry(loop->events, socketEventFree);
 
-	if ((loop->set = malloc(loop->set_size * sizeof (*loop->set))) == NULL) {
+	if ((loop->set = calloc(loop->set_size, sizeof (*loop->set))) == NULL) {
 		VectorDestroy(loop->events);
 		return -1;
 	}
