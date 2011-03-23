@@ -3,7 +3,7 @@
  *
  * RFC 2045, 2046, 2047
  *
- * Copyright 2007, 2009 by Anthony Howe. All rights reserved.
+ * Copyright 2007, 2011 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -77,11 +77,13 @@ mimeDecodeAppend(Mime *m, int ch)
 	if (m->mime_decoded_octet != NULL)
 		(*m->mime_decoded_octet)(m, ch);
 
-	m->mime_body_decoded_length++;
-	m->decode.buffer[m->decode.length++] = ch;
+	if (ch != EOF) {
+		m->mime_body_decoded_length++;
+		m->decode.buffer[m->decode.length++] = ch;
+	}
 
 	/* Flush the decode buffer on a line unit or when full. */
-	if (ch == ASCII_LF || sizeof (m->decode.buffer)-1 <= m->decode.length)
+	if (ch == ASCII_LF || ch == EOF || sizeof (m->decode.buffer)-1 <= m->decode.length)
 		mimeDecodeFlush(m);
 }
 
@@ -93,15 +95,13 @@ mimeDecodeAdd(Mime *m, int ch)
 		return ch;
 	}
 
-	if (ch != EOF) {
-		if (m->decode_state_cr) {
-			mimeDecodeAppend(m, ASCII_CR);
-			m->decode_state_cr = 0;
-		}
-
-		mimeDecodeAppend(m, ch);
-		m->decode.buffer[m->decode.length] = '\0';
+	if (m->decode_state_cr) {
+		mimeDecodeAppend(m, ASCII_CR);
+		m->decode_state_cr = 0;
 	}
+
+	mimeDecodeAppend(m, ch);
+	m->decode.buffer[m->decode.length] = '\0';
 
 	return ch;
 }
@@ -112,7 +112,7 @@ mimeStateBase64(Mime *m, int ch)
 	ch = b64Decode(&m->b64, ch);
 
 	/* Ignore intermediate base64 states until an octet is decoded. */
-	if (BASE64_IS_OCTET(ch))
+	if (BASE64_IS_OCTET(ch) || ch == BASE64_EOF)
 		(void) mimeDecodeAdd(m, ch);
 
 	return 0;
@@ -678,13 +678,13 @@ mimeNextCh(Mime *m, int ch)
 		(void) (*m->source_state)(m, ch);
 	}
 
-	if (ch == EOF || sizeof (m->source.buffer)-1 <= m->source.length)
-		mimeSourceFlush(m);
-
 	if (ch == EOF) {
 		(void) (*m->decode_state)(m, EOF);
 		mimeDecodeFlush(m);
 	}
+
+	if (ch == EOF || sizeof (m->source.buffer)-1 <= m->source.length)
+		mimeSourceFlush(m);
 
 	return 0;
 }
