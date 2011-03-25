@@ -48,6 +48,9 @@ com/snert/src/lib/io/socketAddress.c
 com/snert/src/lib/io/socketAddressIsLocal.c
 com/snert/src/lib/io/socketTimeoutIO.c
 com/snert/src/lib/io/open-close.awk
+com/snert/src/lib/io/.gdbinit
+com/snert/src/lib/io/smtpe.c
+com/snert/src/lib/io/smtpe-api.txt
 com/snert/src/lib/mail/MailSpan.c
 com/snert/src/lib/mail/makefile.in
 com/snert/src/lib/mail/parsePath.c
@@ -305,6 +308,11 @@ com/snert/src/lib/include/valgrind/valgrind.h
 com/snert/src/lib/include/valgrind/memcheck.h
 com/snert/src/lib/include/valgrind/helgrind.h
 com/snert/src/lib/include/valgrind/callgrind.h
+com/snert/src/lib/include/pt/lc-addrlabels.h
+com/snert/src/lib/include/pt/lc-switch.h
+com/snert/src/lib/include/pt/lc.h
+com/snert/src/lib/include/pt/pt-sem.h
+com/snert/src/lib/include/pt/pt.h
 com/snert/src/lib/tools/ansi.c
 com/snert/src/lib/tools/basename.c
 com/snert/src/lib/tools/cksum.c

@@ -6,19 +6,75 @@ loads and executes ``/etc/smtpe.lua'' (see option script). If the script
 is missing, or there is a syntax or memory error, then smtpe will fail
 to start.
 
-When an SMTP client connects, a new Lua thread is created from the master
-Lua state. The each Lua hook back into smtpe is optional, ie. doesn't
-need to be defined. A hook can return either a correctly formatted SMTP
-(multi-line) reply or nothing. If no reply message is returned, or there
-is an error, then a default reply is sent back to the client. Undefined
-hooks are ignored.
+When an SMTP client connects, a new Lua thread is created from the
+master Lua state. The each Lua hook back into smtpe is optional, ie.
+doesn't need to be defined.
+
+
+SMTP Engine Variables
+---------------------
+
+smtpe.bin_version
+
+
+smtpe.api_version
+
+
+smtpe.copyright
+
+
+smtpe.host
+
+
+Client SMTP Variables
+---------------------
+
+client.address
+
+	Available from hook.accept to hook.close
+
+client.port
+
+	Available from hook.accept to hook.close
+
+client.host
+
+	Available from hook.accept to hook.close
+
+client.id_log
+
+	Available from hook.accept to hook.close
+
+client.id_trans
+
+	Available from hook.mail to hook.forward; cleared by RSET, HELO, EHLO.
+
+client.msg_file
+
+	Available from hook.mail to hook.forward; cleared by RSET, HELO, EHLO.
+
+client.input
+
+	Available in each SMTP command related hook (HELO, EHLO, AUTH, MAIL,
+	RCPT, DATA, RSET, unknown, error).
+
+client.is_pipelining
+
+	True when the client has been detected pipelining SMTP commands.
 
 
 Client SMTP Input Hooks
 -----------------------
 
+A hook can return either a correctly formatted SMTP (multi- line) reply
+with CRLF newline or nothing. If no reply message is returned, or there
+is an error, then a default reply is sent back to the client. Undefined
+hooks are ignored.
+
+
 reply = hook.accept(ip, ptr)
 
+	ip = client.address; ptr = client.host
 
 reply = hook.helo(helo_arg)
 
@@ -28,18 +84,21 @@ reply = hook.ehlo(helo_arg)
 
 reply = hook.auth(auth_arg)
 
+	Should return 235 for successful authentication.
 
 reply = hook.unknown(smtp_input)
 
+	Should always return 502 command unknown.
 
-reply = hook.mail(sender, parameter_array)
+reply = hook.mail(sender)
 
 
-reply = hook.rcpt(recipient, parameter_array)
+reply = hook.rcpt(recipient)
 
 
 reply = hook.data()
 
+	Should return "354 text" to continue, "4xy text", or "5xy text".
 
 hook.content(chunk_of_lines_as_a_string)
 
@@ -53,13 +112,44 @@ hook.eoh()
 hook.body(body_line)
 
 
-reply = hook.dot()
+reply = hook.dot(spool_file_path)
+
+	NOTE that this hook should only ever return 4xy or 5xy replies.
+	Returning a 2xy reply will cause an extra reply message to be
+	sent to the client if smtp-smart-host is enabled and thus
+	put the client out of sync.
+
+reply = hook.forward(spool_file_path)
 
 
-hook.rset()
+hook.reset()
 
+	Invoked for RSET, HELO, EHLO, and end of message (DOT).
 
-hook.error()
+reply = hook.rset()
+
+	Should always return 250 OK.
+
+reply = hook.noop()
+
+	Should always return 250 OK.
+
+reply = hook.help()
+
+	Should always return 214 text.
+
+reply = hook.quit()
+
+	Should always return 221 text.
+
+reply = hook.xclient()
+
+	NOTE that this hook should only ever return 4xy or 5xy replies.
+	To continue with the XCLIENT command, return nothing. Returning a
+	2xy reply will cause an extra reply message to be sent to the
+	client and thus put the client out of sync.
+
+hook.error(errno, errno_text)
 
 
 hook.close()
@@ -138,6 +228,21 @@ dns.rcode, rr_table = dns.wait(for_all_flag)
 		NS = { name, dns.class, dns.type, ttl, host }
 		SOA = { name, dns.class, dns.type, ttl, mname, rname, serial, refresh, retry, expire, minimum, }
 		TXT = { name, dns.class, dns.type, ttl, text }
+
+
+string = dns.classname(dns.class)
+
+
+string = dns.typename(dns.type)
+
+
+string = dns.rcodename(dns.rcode)
+
+
+Network Support Functions
+-------------------------
+
+string = net.reverseip(address, arpa_suffix_flag)
 
 
 Syslog Functions
