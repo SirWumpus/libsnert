@@ -971,7 +971,8 @@ extern void socketEventFree(void *_event);
 extern SocketEvent *socketEventAlloc(Socket2 *socket, int type);
 extern void socketEventInit(SocketEvent *event, Socket2 *socket, int type);
 extern void socketEventExpire(SocketEvent *event, const time_t *now, long ms);
-extern  int socketEventEnable(SocketEvent *event, int flag);
+extern void socketEventSetEnable(SocketEvent *event, int flag);
+extern  int socketEventGetEnable(SocketEvent *event);
 
 extern  int socketEventAdd(SocketEvents *loop, SocketEvent *event);
 extern void socketEventClose(SocketEvents *loop, SocketEvent *event);

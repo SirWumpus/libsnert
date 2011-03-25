@@ -36,11 +36,15 @@
 #include <com/snert/lib/util/timer.h>
 
 int
-socketEventEnable(SocketEvent *event, int flag)
+socketEventGetEnable(SocketEvent *event)
 {
-	int previous = event->enable;
+	return event->enable;
+}
+
+void
+socketEventSetEnable(SocketEvent *event, int flag)
+{
 	event->enable = flag;
-	return previous;
 }
 
 void
