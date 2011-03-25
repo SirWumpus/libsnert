@@ -522,6 +522,9 @@ pdqSizeOfType(PDQ_type type)
 	case PDQ_TYPE_MINFO:
 		return sizeof (PDQ_HINFO);
 
+	case PDQ_TYPE_ANY:
+		return sizeof (PDQ_rr);
+
 	default:
 		syslog(LOG_ERR, "unsupported DNS RR type=%d", type);
 		errno = EINVAL;
