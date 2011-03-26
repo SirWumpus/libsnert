@@ -50,6 +50,23 @@ is no set schedule for releases.
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
 
+--1.74.22--
+
+  !!	Fix smtp2Read() when it grows the multi-line input beyond the initial
+  	10 lines, then the table of pointers will corrupt the first couple of
+  	input lines.
+
+   !	Fix socketEventsWait() for Linux where on disconnect, Linux returns
+   	EPOLLIN and zero bytes sent instead of a more sensible EPOLLHUP.
+
+   !	Fix MIME API handling of Base64 decoding when EOF is passed.
+
+   !	Replaced socketEventEnable() with socketEventGetEnable() and
+   	socketEventSetEnable().
+
+   !	Fix pdqSizeOfType() to allow for PDQ_TYPE_ANY to return the size of
+    	the DNS RR header, PDQ_rr.
+
 --1.74.21--
 
    *    Upgraded SQLite to 3.7.5
