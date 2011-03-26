@@ -114,13 +114,17 @@ hook.body(body_line)
 
 reply = hook.dot(spool_file_path)
 
-	NOTE that this hook should only ever return 4xy or 5xy replies.
-	Returning a 2xy reply will cause an extra reply message to be
-	sent to the client if smtp-smart-host is enabled and thus
-	put the client out of sync.
+	A negative reply will skip forwarding of the message. No reply
+	or a positive reply will continue and forward the message. The
+	possitive reply is held until the result of forwarding is known.
+	hook.forward() may override the reply with its own positive or
+	negative reply.
 
 reply = hook.forward(spool_file_path)
 
+	If no reply or a Lua error, then the smtp-smart-host option, if
+	defined is used to forward the message. A positive or negative
+	reply will skip smtp-smart-host forwarding.
 
 hook.reset()
 
@@ -144,10 +148,8 @@ reply = hook.quit()
 
 reply = hook.xclient()
 
-	NOTE that this hook should only ever return 4xy or 5xy replies.
-	To continue with the XCLIENT command, return nothing. Returning a
-	2xy reply will cause an extra reply message to be sent to the
-	client and thus put the client out of sync.
+	A negative reply will prevent the XCLIENT command from being
+	applied.
 
 hook.error(errno, errno_text)
 
