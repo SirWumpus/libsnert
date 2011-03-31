@@ -282,13 +282,13 @@ document.write(unescape('%3C%46%4F%52%4D%20%6E%61%6D%65%3D%61%66%66%69%6C%69%61%
 Content-type: text/plain
 Comment: Problem in parsing implicit URL with a path and query parts.
 
-www.newtwix.org/twixtel42/?portofrei
+ Y  -  -  -	www.newtwix.org/twixtel42/?portofrei
 
 ----=_test_boundary
 Content-type: text/plain
 Comment: Underscore is not part of domain/host name.
 
-___geegeesoe.com___
+ Y  -  -  -	___geegeesoe.com___
 
 ----=_test_boundary
 Content-type: text/plain

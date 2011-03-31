@@ -1004,53 +1004,65 @@ error0:
 
 #define HTML_ENTITY_SHY		0xAD
 
-typedef struct {
-	URI *uri;
+struct uri_mime {
+	/* Must be first in structure for MIME API */
+	MimeHooks hook;
+
 	int length;
 	int is_text_part;
 	char buffer[URI_MIME_BUFFER_SIZE];
-} UriMime;
+	UriMimeHook uri_found_cb;
+	void *data;
+};
 
-void
-uriMimeHeader(Mime *m)
+static void
+uri_mime_free(Mime *m, void *_data)
 {
-	UriMime *hold = m->mime_data;
+	UriMime *hold = _data;
+
+	if (hold != NULL) {
+		free(hold);
+	}
+}
+
+static void
+uri_mime_header(Mime *m, void *_data)
+{
+	UriMime *hold = _data;
 
 	if (TextMatch((char *) m->source.buffer, "Content-Type:*text/*", m->source.length, 1))
 		hold->is_text_part = 1;
 }
 
-void
-uriMimeBodyStart(Mime *m)
+static void
+uri_mime_body_start(Mime *m, void *_data)
 {
-	UriMime *hold = m->mime_data;
+	UriMime *hold = _data;
 
 	/* When a message or mime part has no Content-Type header
 	 * then the message / mime part defaults to text/plain
 	 * RFC 2045 section 5.2.
 	 */
-	if (!m->has_content_type)
+	if (!m->state.has_content_type)
 		hold->is_text_part = 1;
 
-	uriMimeFreeUri(m);
 	hold->length = 0;
 }
 
-void
-uriMimeBodyFinish(Mime *m)
+static void
+uri_mime_body_finish(Mime *m, void *_data)
 {
-	UriMime *hold = m->mime_data;
+	UriMime *hold = _data;
+
 	hold->is_text_part = 0;
-	uriMimeFreeUri(m);
 	hold->length = 0;
 }
 
-void
-uriMimeDecodedOctet(Mime *m, int ch)
+static void
+uri_mime_decoded_octet(Mime *m, int ch, void *_data)
 {
-	UriMime *hold;
-
-	hold = m->mime_data;
+	URI *uri;
+	UriMime *hold = _data;
 
 	/* Only process text only parts. Otherwise with simplified
 	 * implicit URI rules, decoding binary attachments like
@@ -1135,98 +1147,50 @@ uriMimeDecodedOctet(Mime *m, int ch)
 		while (hold->buffer[value] == '_')
 			value++;
 
-		/* Discard previous URI before parsing a new one. */
-		uriMimeFreeUri(m);
+		uri = uriParse2(hold->buffer+value, hold->length-value, IMPLICIT_DOMAIN_MIN_DOTS);
 
-		hold->uri = uriParse2(hold->buffer+value, hold->length-value, IMPLICIT_DOMAIN_MIN_DOTS);
-		if (2 < uriDebug && hold->uri != NULL)
-			syslog(LOG_DEBUG, "found URL \"%s\"", hold->uri->uri);
+		if (uri != NULL) {
+			if (2 < uriDebug)
+				syslog(LOG_DEBUG, "found URL \"%s\"", uri->uri);
+			if (hold->uri_found_cb != NULL)
+				(*hold->uri_found_cb)(uri, hold->data);
+			free(uri);
+		}
 
 		hold->length = 0;
 	}
 }
 
 /**
- * @param include_headers
- *	When true, parse both the message headers and body for URI.
- *	Otherwise only parse the body for URI.
+ * @param uri_found_cb
+ *	A call-back function when a URI is found.
+ *
+ * @param data
+ *	Application data to be passed to URI call-backs.
  *
  * @return
- *	A pointer to a Mime object. The handlers for URI processing
- *	will already be defined. See mail/mime.h.
+ *	A pointer to a UriMime structure suitable for passing to
+ *	mimeHooksAdd(). The UriMime * will have to cast to MimeHooks *.
+ *	This structure and data are freed by mimeFree().
  */
-Mime *
-uriMimeCreate(int include_headers)
-{
-	Mime *mime;
-	UriMime *hold;
-
-	if ((hold = calloc(1, sizeof (UriMime))) == NULL)
-		return NULL;
-
-	if ((mime = mimeCreate(hold)) == NULL) {
-		free(hold);
-		return NULL;
-	}
-
-	mime->mime_header = uriMimeHeader;
-	mime->mime_body_start = uriMimeBodyStart;
-	mime->mime_body_finish = uriMimeBodyFinish;
-	mime->mime_decoded_octet = uriMimeDecodedOctet;
-
-	if (include_headers)
-		mime->mime_header_octet = uriMimeDecodedOctet;
-
-	return mime;
-}
-
-/**
- * Free the current URI object.
- *
- * @param _m
- *	A pointer to a Mime object, previously obtained from uriMimeCreate().
- */
-void
-uriMimeFreeUri(Mime *m)
+UriMime *
+uriMimeInit(UriMimeHook uri_found_cb, void *data)
 {
 	UriMime *hold;
 
-	if (m != NULL && m->mime_data != NULL) {
-		hold = m->mime_data;
-		free(hold->uri);
-		hold->uri = NULL;
+	if ((hold = calloc(1, sizeof (UriMime))) != NULL) {
+		hold->data = data;
+		hold->uri_found_cb = uri_found_cb;
+
+		hold->hook.data = hold;
+		hold->hook.free = uri_mime_free;
+		hold->hook.header = uri_mime_header;
+		hold->hook.body_start = uri_mime_body_start;
+		hold->hook.body_finish = uri_mime_body_finish;
+		hold->hook.decoded_octet = uri_mime_decoded_octet;
 	}
-}
 
-/**
- * Free the Mime object used for URI processing.
- *
- * @param _m
- *	A pointer to a Mime object, previously obtained from uriMimeCreate().
- */
-void
-uriMimeFree(void *_m)
-{
-	Mime *m = (Mime *) _m;
-
-	if (m != NULL) {
-		uriMimeFreeUri(m);
-		free(m->mime_data);
-		mimeFree(m);
-	}
-}
-
-/**
- * @return
- *	A pointer to a URI object if there is a URI ready for testing,
- *	otherwise NULL.
- */
-URI *
-uriMimeGetUri(Mime *m)
-{
-	if (m == NULL || m->mime_data == NULL)
-		return NULL;
-	return ((UriMime *) m->mime_data)->uri;
+	return hold;
 }
 
 /***********************************************************************
@@ -1517,11 +1481,18 @@ process_query(URI *uri, const char *filename)
 	process_list(uri->path, "/", filename);
 }
 
+void
+process_uri(URI *uri, void *data)
+{
+	process(uri, data);
+	if (check_query)
+		process_query(uri, data);
+}
+
 int
 process_input(Mime *m, FILE *fp, const char *filename)
 {
 	int ch;
-	URI *uri;
 	unsigned lineno = 1;
 
 	if (fp != NULL) {
@@ -1536,14 +1507,6 @@ process_input(Mime *m, FILE *fp, const char *filename)
 				syslog(LOG_DEBUG, "file=%s line=%u", filename, lineno);
 			}
 			(void) mimeNextCh(m, ch);
-
-			/* Is there a URI ready to check? */
-			if ((uri = uriMimeGetUri(m)) != NULL) {
-				process(uri, filename);
-				if (check_query)
-					process_query(uri, filename);
-				uriMimeFreeUri(m);
-			}
 		} while (ch != EOF);
 
 		(void) fflush(stdout);
@@ -1558,6 +1521,7 @@ process_file(const char *filename)
 	int rc;
 	FILE *fp;
 	Mime *mime;
+	UriMime *hold;
 
 	rc = -1;
 
@@ -1567,15 +1531,21 @@ process_file(const char *filename)
 
 	/* Otherwise open the file. */
 	else if ((fp = fopen(filename, "r")) == NULL)
-		return -1;
+		goto error0;
 
-	if ((mime = uriMimeCreate(check_all)) != NULL) {
-		rc = process_input(mime, fp, filename);
-		uriMimeFree(mime);
-	}
+	if ((mime = mimeCreate()) == NULL)
+		goto error1;
 
+	if ((hold = uriMimeInit(process_uri, (void *)filename)) == NULL)
+		goto error2;
+
+	mimeHooksAdd(mime, (MimeHooks *)hold);
+	rc = process_input(mime, fp, filename);
+error2:
+	mimeFree(mime);
+error1:
 	fclose(fp);
-
+error0:
 	return rc;
 }
 

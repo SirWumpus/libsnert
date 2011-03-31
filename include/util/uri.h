@@ -3,7 +3,7 @@
  *
  * RFC 2396
  *
- * Copyright 2006, 2010 by Anthony Howe. All rights reserved.
+ * Copyright 2006, 2011 by Anthony Howe. All rights reserved.
  */
 
 #ifndef __com_snert_lib_util_uri_h__
@@ -42,6 +42,9 @@ typedef struct {
 	int reservedTLD;
 #endif
 } URI;
+
+typedef void (*UriMimeHook)(URI *, void *);
+typedef struct uri_mime UriMime;
 
 /**
  * @param octet
@@ -227,38 +230,18 @@ extern int uriIsDomainBL(const char *host, const char *dnsbl_suffix, unsigned lo
 extern int uriIsHostBL(const char *host, const char *dnsbl_suffix, unsigned long mask, int dummy);
 
 /**
- * @param include_headers
- *	When true, parse both the message headers and body for URI.
- *	Otherwise only parse the body for URI.
+ * @param uri_found_cb
+ *	A call-back function when a URI is found.
+ *
+ * @param data
+ *	Application data to be passed to URI call-backs.
  *
  * @return
- *	A pointer to a Mime object. The handlers for URI processing
- *	will already be defined. See mail/mime.h.
+ *	A pointer to a UriMime structure suitable for passing to
+ *	mimeHooksAdd(). The UriMime * will have to cast to MimeHooks *.
+ *	This structure and data are freed by mimeFree().
  */
-extern Mime *uriMimeCreate(int check_headers);
-
-/**
- * @return
- *	A pointer to a URI object if there is a URI ready for testing,
- *	otherwise NULL.
- */
-extern URI *uriMimeGetUri(Mime *m);
-
-/**
- * Free the current URI object.
- *
- * @param _m
- *	A pointer to a Mime object, previously obtained from uriMimeCreate().
- */
-extern void uriMimeFreeUri(Mime *m);
-
-/**
- * Free the Mime object used for URI processing.
- *
- * @param _m
- *	A pointer to a Mime object, previously obtained from uriMimeCreate().
- */
-extern void uriMimeFree(void *m);
+extern UriMime *uriMimeInit(UriMimeHook uri_found_cb, void *data);
 
 #ifdef  __cplusplus
 }
