@@ -61,9 +61,15 @@ qpHexDigit(int x)
 void
 mimeDecodeFlush(Mime *m)
 {
+	MimeHooks *hook;
+
 	if (0 < m->decode.length) {
-		if (m->mime_decode_flush != NULL)
-			(*m->mime_decode_flush)(m);
+		if (m->state.source_state != mimeStateHdr) {
+			for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
+				if (hook->decode_flush != NULL)
+					(*hook->decode_flush)(m, hook->data);
+			}
+		}
 #ifndef NDEBUG
 		(void) memset(m->decode.buffer, 0, sizeof (m->decode.buffer));
 #endif
@@ -74,8 +80,12 @@ mimeDecodeFlush(Mime *m)
 static void
 mimeDecodeAppend(Mime *m, int ch)
 {
-	if (m->mime_decoded_octet != NULL)
-		(*m->mime_decoded_octet)(m, ch);
+	MimeHooks *hook;
+
+	for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
+		if (hook->decoded_octet != NULL)
+			(*hook->decoded_octet)(m, ch, hook->data);
+	}
 
 	if (ch != EOF) {
 		m->mime_body_decoded_length++;
@@ -90,14 +100,14 @@ mimeDecodeAppend(Mime *m, int ch)
 int
 mimeDecodeAdd(Mime *m, int ch)
 {
-	if (ch == ASCII_CR && !m->decode_state_cr) {
-		m->decode_state_cr = 1;
+	if (ch == ASCII_CR && !m->state.decode_state_cr) {
+		m->state.decode_state_cr = 1;
 		return ch;
 	}
 
-	if (m->decode_state_cr) {
+	if (m->state.decode_state_cr) {
 		mimeDecodeAppend(m, ASCII_CR);
-		m->decode_state_cr = 0;
+		m->state.decode_state_cr = 0;
 	}
 
 	mimeDecodeAppend(m, ch);
@@ -109,7 +119,7 @@ mimeDecodeAdd(Mime *m, int ch)
 static int
 mimeStateBase64(Mime *m, int ch)
 {
-	ch = b64Decode(&m->b64, ch);
+	ch = b64Decode(&m->state.b64, ch);
 
 	/* Ignore intermediate base64 states until an octet is decoded. */
 	if (BASE64_IS_OCTET(ch) || ch == BASE64_EOF)
@@ -122,7 +132,7 @@ static int
 mimeStateQpLiteral(Mime *m, int ch)
 {
 	if (ch == '=')
-		m->decode_state = mimeStateQpEqual;
+		m->state.decode_state = mimeStateQpEqual;
 	else
 		mimeDecodeAdd(m, ch);
 
@@ -161,7 +171,7 @@ mimeStateQpDecode(Mime *m, int ch)
 		mimeDecodeAdd(m, ch);
 	}
 
-	m->decode_state = mimeStateQpLiteral;
+	m->state.decode_state = mimeStateQpLiteral;
 
 	return 0;
 }
@@ -176,19 +186,19 @@ mimeStateQpEqual(Mime *m, int ch)
 	} else if (ch == ASCII_LF) {
 		/* Ignore soft-line break, ie. =CRLF or =LF.
 		 */
-		m->decode_state = mimeStateQpSoftLine;
+		m->state.decode_state = mimeStateQpSoftLine;
 	} else if (isxdigit(ch)) {
 		/* Initial part of a quoted printable. The tail
 		 * of the decode buffer will contain "=X".
 		 */
 		m->decode.buffer[m->decode.length] = ch;
-		m->decode_state = mimeStateQpDecode;
+		m->state.decode_state = mimeStateQpDecode;
 	} else {
 		/* Invalid quoted-printable sequence. Treat the
 		 * leading equals-sign as a literal. The decode
 		 * buffer will contain "=C".
 		 */
-		m->decode_state = mimeStateQpLiteral;
+		m->state.decode_state = mimeStateQpLiteral;
 		mimeDecodeAdd(m, '=');
 		mimeDecodeAdd(m, ch);
 	}
@@ -199,15 +209,33 @@ mimeStateQpEqual(Mime *m, int ch)
 void
 mimeSourceFlush(Mime *m)
 {
+	MimeHooks *hook;
+
 	if (0 < m->source.length) {
-		if (m->mime_source_flush != NULL) {
+		if (m->state.source_state != mimeStateHdr) {
 			m->source.buffer[m->source.length] = '\0';
-			(*m->mime_source_flush)(m);
+			for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
+				if (hook->source_flush != NULL)
+					(*hook->source_flush)(m, hook->data);
+			}
 		}
 #ifndef NDEBUG
 		(void) memset(m->source.buffer, 0, sizeof (m->source.buffer));
 #endif
 		m->source.length = 0;
+	}
+}
+
+void
+mimeBodyFinish(Mime *m)
+{
+	MimeHooks *hook;
+
+	if (m->state.source_state != mimeStateHdr) {
+		for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
+			if (hook->body_finish != NULL)
+				(*hook->body_finish)(m, hook->data);
+		}
 	}
 }
 
@@ -288,34 +316,35 @@ mimeStateBoundary(Mime *m, int ch)
    		 * printable and the boundary has the appearance of being
    		 * quoted printable.
 		 */
-		if (!all_hyphen && (m->encoding != MIME_QUOTED_PRINTABLE || !has_qp) && i == m->source.length) {
+		if (!all_hyphen && (m->state.encoding != MIME_QUOTED_PRINTABLE || !has_qp) && i == m->source.length) {
 			/* Terminate decoding for this body part */
-			(void) (*m->decode_state)(m, EOF);
-			m->decode_state = mimeDecodeAdd;
-			m->decode_state_cr = 0;
-			mimeDecodeFlush(m);
+			m->state.decode_state_cr = 0;
+			m->state.decode_state = mimeDecodeAdd;
+			(void) (*m->state.decode_state)(m, EOF);
 
 			/* Discard the boundary without flushing. */
+			m->mime_part_length -= m->source.length;
+			m->mime_body_length -= m->source.length;
 			m->source.length = 0;
 			m->source.buffer[0] = '\0';
-			m->source_state = mimeStateHdr;
 
-			if (m->mime_body_finish != NULL)
-				(*m->mime_body_finish)(m);
+			mimeBodyFinish(m);
 
 			m->mime_part_number++;
-			m->has_content_type = 0;
-			m->is_message_rfc822 = 0;
-			m->encoding = MIME_NONE;
+			m->mime_part_length = 0;
+			m->state.has_content_type = 0;
+			m->state.is_message_rfc822 = 0;
+			m->state.encoding = MIME_NONE;
+			m->state.source_state = mimeStateHdr;
 		} else {
 			/* Process the source stream before being flushed. */
-			m->decode_state_cr = 0;
-			m->source_state = mimeStateBdy;
+			m->state.decode_state_cr = 0;
+			m->state.source_state = mimeStateBdy;
 			for (i = 0; i < m->source.length; i++) {
-				(void) (*m->decode_state)(m, m->source.buffer[i]);
+				(void) (*m->state.decode_state)(m, m->source.buffer[i]);
 			}
 			if (ch != ASCII_LF)
-				(void) (*m->decode_state)(m, ch);
+				(void) (*m->state.decode_state)(m, ch);
 		}
 	}
 
@@ -340,13 +369,13 @@ mimeStateDash2(Mime *m, int ch)
 	 */
 	if (isspace(ch)) {
 		/* Not a MIME boundary. */
-		(void) (*m->decode_state)(m, ASCII_LF);
-		(void) (*m->decode_state)(m, '-');
-		(void) (*m->decode_state)(m, '-');
-		(void) (*m->decode_state)(m, ch);
-		m->source_state = mimeStateBdy;
+		(void) (*m->state.decode_state)(m, ASCII_LF);
+		(void) (*m->state.decode_state)(m, '-');
+		(void) (*m->state.decode_state)(m, '-');
+		(void) (*m->state.decode_state)(m, ch);
+		m->state.source_state = mimeStateBdy;
 	} else {
-		m->source_state = mimeStateBoundary;
+		m->state.source_state = mimeStateBoundary;
 	}
 
 	return ch;
@@ -357,12 +386,12 @@ mimeStateDash1(Mime *m, int ch)
 {
 	if (ch == '-') {
 		/* Second hyphen of boundary line? */
-		m->source_state = mimeStateDash2;
+		m->state.source_state = mimeStateDash2;
 	} else {
-		(void) (*m->decode_state)(m, ASCII_LF);
-		(void) (*m->decode_state)(m, '-');
-		(void) (*m->decode_state)(m, ch);
-		m->source_state = mimeStateBdy;
+		(void) (*m->state.decode_state)(m, ASCII_LF);
+		(void) (*m->state.decode_state)(m, '-');
+		(void) (*m->state.decode_state)(m, ch);
+		m->state.source_state = mimeStateBdy;
 	}
 
 	return ch;
@@ -371,14 +400,14 @@ mimeStateDash1(Mime *m, int ch)
 static int
 mimeStateBdyLF(Mime *m, int ch)
 {
-	if (m->is_multipart && ch == '-') {
+	if (m->state.is_multipart && ch == '-') {
 		/* First hyphen of boundary line? */
-		m->source_state = mimeStateDash1;
+		m->state.source_state = mimeStateDash1;
         } else if (ch == ASCII_LF) {
 		/* We have a LF LF pair. MIME message with LF newlines?
 		 * Flush the first LF and keep the second LF.
 		 */
-		(void) (*m->decode_state)(m, ASCII_LF);
+		(void) (*m->state.decode_state)(m, ASCII_LF);
 		(void) mimeStateBdy(m, ASCII_LF);
 	} else {
 		/* Flush upto, but excluding the trailing CR. */
@@ -394,9 +423,9 @@ mimeStateBdyLF(Mime *m, int ch)
 		if (ch == ASCII_CR)
 			m->source.buffer[m->source.length++] = ASCII_CR;
 
-		(void) (*m->decode_state)(m, ASCII_LF);
-		(void) (*m->decode_state)(m, ch);
-		m->source_state = mimeStateBdy;
+		(void) (*m->state.decode_state)(m, ASCII_LF);
+		(void) (*m->state.decode_state)(m, ch);
+		m->state.source_state = mimeStateBdy;
 	}
 
 	return ch;
@@ -424,14 +453,14 @@ mimeStateBdy(Mime *m, int ch)
 			m->source.buffer[m->source.length++] = ASCII_CR;
 		m->source.buffer[m->source.length++] = ASCII_LF;
 
-		if (m->is_multipart) {
+		if (m->state.is_multipart) {
 			/* Look for MIME boundary line. */
-			m->source_state = mimeStateBdyLF;
+			m->state.source_state = mimeStateBdyLF;
 		} else {
-			(void) (*m->decode_state)(m, ASCII_LF);
+			(void) (*m->state.decode_state)(m, ASCII_LF);
 		}
 	} else {
-		(void) (*m->decode_state)(m, ch);
+		(void) (*m->state.decode_state)(m, ch);
 	}
 
 	return ch;
@@ -441,7 +470,7 @@ mimeStateBdy(Mime *m, int ch)
 static int
 mimeStateHdrBdy(Mime *m, int ch)
 {
-	m->source_state = mimeStateBdy;
+	m->state.source_state = mimeStateBdy;
 
 	/* End of header CRLF might be lead in to boundary
 	 * when there is no preamble text and/or newline
@@ -456,59 +485,48 @@ mimeStateHdrBdy(Mime *m, int ch)
 static int
 mimeStateHdrLF(Mime *m, int ch)
 {
-	MimeHookOctet decode_state = NULL;
+	MimeHooks *hook;
 
 	if (ch == ASCII_SPACE || ch == ASCII_TAB) {
 		/* Folded header, resume header gathering. */
-		m->source_state = mimeStateHdr;
+		m->state.source_state = mimeStateHdr;
 	} else if (0 < m->source.length) {
 		/* End of unfolded header line less newline. */
-		m->source_state = mimeStateHdr;
+		m->state.source_state = mimeStateHdr;
 		m->source.buffer[--m->source.length] = '\0';
 
 		/* Check the header for MIME behaviour. */
 		if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*multipart/*", m->source.length, 1)) {
-			m->is_multipart = 1;
-			m->has_content_type = 1;
+			m->state.is_multipart = 1;
+			m->state.has_content_type = 1;
 		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*message/rfc822", m->source.length, 1)) {
-			m->has_content_type = 1;
-			m->is_message_rfc822 = 1;
+			m->state.has_content_type = 1;
+			m->state.is_message_rfc822 = 1;
 		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*/*", m->source.length, 1)) {
 			/* Simply skip decoding this content. Look
 			 * only for the MIME boundary line.
 			 */
-			m->has_content_type = 1;
+			m->state.has_content_type = 1;
 
-			/* If the encoding has not yet been determined,
+			/* If the state.encoding has not yet been determined,
 			 * then set the default literal decoding.
 			 */
-			if (m->encoding == MIME_NONE)
-				m->decode_state = mimeDecodeAdd;
+			if (m->state.encoding == MIME_NONE)
+				m->state.decode_state = mimeDecodeAdd;
 		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Transfer-Encoding:*quoted-printable*", m->source.length, 1)) {
-			m->decode_state = mimeStateQpLiteral;
-			m->encoding = MIME_QUOTED_PRINTABLE;
+			m->state.decode_state = mimeStateQpLiteral;
+			m->state.encoding = MIME_QUOTED_PRINTABLE;
 		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Transfer-Encoding:*base64*", m->source.length, 1)) {
-			m->decode_state = mimeStateBase64;
-			m->encoding = MIME_BASE64;
-			b64Reset(&m->b64);
+			m->state.decode_state = mimeStateBase64;
+			m->state.encoding = MIME_BASE64;
+			b64Reset(&m->state.b64);
 		}
 
-		/* HACK for backwards compatibility with previous versions. DEPRICATED. */
-		if (m->mime_header_octet != NULL) {
-			decode_state = (MimeHookOctet) m->decode_state;
-			m->decode_state = (int (*)(struct mime *, int)) m->mime_header_octet;
+		for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
+			if (hook->header != NULL)
+				(*hook->header)(m, hook->data);
 		}
-
-		if (m->mime_header != NULL)
-			(*m->mime_header)(m);
 		mimeSourceFlush(m);
-
-		/* HACK for backwards compatibility with previous versions. DEPRICATED. */
-		if (m->mime_header_octet != NULL) {
-			(void) (*m->decode_state)(m, EOF);
-			mimeDecodeFlush(m);
-			m->decode_state = (int (*)(struct mime *, int)) decode_state;
-		}
 
 		m->source.buffer[m->source.length++] = ch;
 
@@ -525,6 +543,8 @@ mimeStateHdrLF(Mime *m, int ch)
 static int
 mimeStateHdr(Mime *m, int ch)
 {
+	MimeHooks *hook;
+
 	if (ch == ASCII_LF) {
 		/* Remove trailing newline (LF or CRLF). */
 		m->source.length--;
@@ -538,8 +558,10 @@ mimeStateHdr(Mime *m, int ch)
 			m->mime_body_decoded_length = 0;
 			m->source.buffer[0] = '\0';
 
-			if (m->mime_body_start != NULL)
-				(*m->mime_body_start)(m);
+			for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
+				if (hook->body_start != NULL)
+					(*hook->body_start)(m, hook->data);
+			}
 
 			/* HACK for uri.c:
 			 *
@@ -553,15 +575,15 @@ mimeStateHdr(Mime *m, int ch)
 			 * say "no state change" or to change the state
 			 * since the state functions are private.
 			 */
-			if (m->is_message_rfc822)
+			if (m->state.is_message_rfc822)
 				/* Remain in the header parse state. */
-				m->is_message_rfc822 = 0;
+				m->state.is_message_rfc822 = 0;
 			else
 				/* Normal header to body transition. */
-				m->source_state = mimeStateHdrBdy;
+				m->state.source_state = mimeStateHdrBdy;
 		} else {
 			/* Check for folded header line next octet. */
-			m->source_state = mimeStateHdrLF;
+			m->state.source_state = mimeStateHdrLF;
 		}
 	}
 
@@ -581,46 +603,50 @@ mimeReset(Mime *m)
 {
 	if (m != NULL) {
 		b64Init();
-		b64Reset(&m->b64);
+		b64Reset(&m->state.b64);
+
+		/* Assume RFC 5322 message format starts with headers. */
+		mimeHeadersFirst(m, 1);
+		m->state.decode_state_cr = 0;
+		m->state.decode_state = mimeDecodeAdd;
 
 		mimeSourceFlush(m);
 		mimeDecodeFlush(m);
 
-		m->is_multipart = 0;
-		m->has_content_type = 0;
-		m->is_message_rfc822 = 0;
-		m->encoding = MIME_NONE;
+		m->state.is_multipart = 0;
+		m->state.has_content_type = 0;
+		m->state.is_message_rfc822 = 0;
+		m->state.encoding = MIME_NONE;
 
 		m->mime_part_number = 0;
 		m->mime_part_length = 0;
 		m->mime_body_length = 0;
 		m->mime_body_decoded_length = 0;
-
-		/* Assume RFC 5322 message format starts with headers. */
-		mimeHeadersFirst(m, 1);
-		m->decode_state_cr = 0;
-		m->decode_state = mimeDecodeAdd;
+		m->mime_message_length = 0;
 	}
 }
 
 /**
- * @param data
- *	Pointer to an opaque data structure for use by call-back hooks.
- *
  * @return
  *	Poitner to a Mime context structure or NULL on error.
  */
 Mime *
-mimeCreate(void *data)
+mimeCreate(void)
 {
 	Mime *m;
 
 	if ((m = calloc(1, sizeof (*m))) != NULL) {
-		m->mime_data = data;
 		mimeReset(m);
 	}
 
 	return m;
+}
+
+void
+mimeHooksAdd(Mime *m, MimeHooks *hook)
+{
+	hook->next = m->mime_hook;
+	m->mime_hook = hook;
 }
 
 /**
@@ -630,7 +656,16 @@ mimeCreate(void *data)
 void
 mimeFree(Mime *m)
 {
-	free(m);
+	MimeHooks *hook, *next;
+
+	if (m != NULL) {
+		for (hook = m->mime_hook; hook != NULL; hook = next) {
+			next = hook->next;
+			if (hook->free != NULL)
+				(*hook->free)(m, hook);
+		}
+		free(m);
+	}
 }
 
 /**
@@ -644,7 +679,7 @@ mimeFree(Mime *m)
 void
 mimeHeadersFirst(Mime *m, int flag)
 {
-	m->source_state = flag ? mimeStateHdr : mimeStateBdy;
+	m->state.source_state = flag ? mimeStateHdr : mimeStateBdy;
 }
 
 /**
@@ -673,18 +708,22 @@ mimeNextCh(Mime *m, int ch)
 
 		m->mime_part_length++;
 		m->mime_body_length++;
+		m->mime_message_length++;
 		m->source.buffer[m->source.length++] = ch;
 
-		(void) (*m->source_state)(m, ch);
+		(void) (*m->state.source_state)(m, ch);
 	}
 
 	if (ch == EOF) {
-		(void) (*m->decode_state)(m, EOF);
+		(void) (*m->state.decode_state)(m, EOF);
 		mimeDecodeFlush(m);
 	}
 
 	if (ch == EOF || sizeof (m->source.buffer)-1 <= m->source.length)
 		mimeSourceFlush(m);
+
+	if (ch == EOF)
+		mimeBodyFinish(m);
 
 	return 0;
 }
@@ -703,21 +742,24 @@ mimeNextCh(Mime *m, int ch)
 #endif
 
 #include <com/snert/lib/io/Log.h>
+#include <com/snert/lib/util/md5.h>
 #include <com/snert/lib/util/getopt.h>
 
 int list_parts;
 int extract_part = -1;
 int enable_decode;
+int generate_md5;
 
 Mime *mime;
 
 
 static char usage[] =
 "usage: mime -l < message\n"
-"       mime -p num [-d] < message\n"
+"       mime -p num [-dm] < message\n"
 "\n"
 "-d\t\tdecode base64 or quoted-printable\n"
 "-l\t\tlist MIME part headers\n"
+"-m\t\tgenerate MD5s for MIME part\n"
 "-p num\t\textract MIME part\n"
 "\n"
 LIBSNERT_COPYRIGHT "\n"
@@ -738,8 +780,66 @@ syslog(int level, const char *fmt, ...)
 }
 #endif
 
+typedef struct {
+	md5_state_t source;
+	md5_state_t decode;
+} md5_mime_state;
+
 void
-listHeaders(Mime *m)
+md5_body_start(Mime *m, void *data)
+{
+	md5_mime_state *md5 = data;
+
+	if (m->mime_part_number == extract_part) {
+		md5_init(&md5->source);
+		md5_init(&md5->decode);
+	}
+}
+
+void
+md5_body_finish(Mime *m, void *data)
+{
+	md5_mime_state *md5 = data;
+	char digest_string[33];
+	md5_byte_t digest[16];
+
+	if (m->mime_part_number == extract_part) {
+		fputc('\n', stdout);
+
+		md5_finish(&md5->source, digest);
+		md5_digest_to_string(digest, digest_string);
+		fprintf(stdout, "MD5-Encoded: %s\n", digest_string);
+
+		md5_finish(&md5->decode, digest);
+		md5_digest_to_string(digest, digest_string);
+		fprintf(stdout, "MD5-Decoded: %s\n", digest_string);
+
+		fprintf(stdout, "part-length: %lu\nbody-length: %lu\n", m->mime_part_length, m->mime_body_length);
+
+		fflush(stdout);
+	}
+}
+
+void
+md5_source_flush(Mime *m, void *data)
+{
+	md5_mime_state *md5 = data;
+
+	if (m->mime_part_number == extract_part)
+		md5_append(&md5->source, m->source.buffer, m->source.length);
+}
+
+void
+md5_decode_flush(Mime *m, void *data)
+{
+	md5_mime_state *md5 = data;
+
+	if (m->mime_part_number == extract_part)
+		md5_append(&md5->decode, m->decode.buffer, m->decode.length);
+}
+
+void
+listHeaders(Mime *m, void *_data)
 {
 	if (m->source.length == 0
 	|| 0 <= TextFind((char *) m->source.buffer, "Content-*", m->source.length, 1)
@@ -749,16 +849,16 @@ listHeaders(Mime *m)
 }
 
 void
-printSource(Mime *m)
+printSource(Mime *m, void *_data)
 {
-	if (m->mime_part_number == extract_part && m->source_state != mimeStateHdr)
+	if (m->mime_part_number == extract_part)
 		fwrite(m->source.buffer, 1, m->source.length, stdout);
 }
 
 void
-printDecode(Mime *m)
+printDecode(Mime *m, void *_data)
 {
-	if (m->mime_part_number == extract_part && m->source_state != mimeStateHdr)
+	if (m->mime_part_number == extract_part)
 		fwrite(m->decode.buffer, 1, m->decode.length, stdout);
 }
 
@@ -796,14 +896,20 @@ int
 main(int argc, char **argv)
 {
 	int ch;
+	MimeHooks hook;
+	md5_mime_state md5;
+	MimeHooks md5_hook = { (void *)&md5, NULL, NULL, md5_body_start, md5_body_finish, md5_source_flush, md5_decode_flush };
 
-	while ((ch = getopt(argc, argv, "dlp:")) != -1) {
+	while ((ch = getopt(argc, argv, "dlmp:")) != -1) {
 		switch (ch) {
 		case 'd':
 			enable_decode = 1;
 			break;
 		case 'l':
 			list_parts = 1;
+			break;
+		case 'm':
+			generate_md5 = 1;
 			break;
 		case 'p':
 			extract_part = strtol(optarg, NULL, 10);
@@ -819,19 +925,26 @@ main(int argc, char **argv)
 		exit(2);
 	}
 
-	if ((mime = mimeCreate(NULL)) == NULL) {
+	if ((mime = mimeCreate()) == NULL) {
 		fprintf(stderr, "mimeCreate error: %s (%d)\n", strerror(errno), errno);
 		exit(1);
 	}
 
+	memset(&hook, 0, sizeof (hook));
+
 	if (list_parts) {
-		mime->mime_header = listHeaders;
-		mime->mime_body_start = listHeaders;
+		hook.header = listHeaders;
+		hook.body_start = listHeaders;
 	} else if (enable_decode) {
-		mime->mime_decode_flush = printDecode;
+		hook.decode_flush = printDecode;
 	} else {
-		mime->mime_source_flush = printSource;
+		hook.source_flush = printSource;
 	}
+
+	mimeHooksAdd(mime, &hook);
+
+	if (generate_md5)
+		mimeHooksAdd(mime, &md5_hook);
 
 	if (optind + 1 == argc) {
 		processFile(mime, argv[optind]);

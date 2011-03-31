@@ -39,8 +39,9 @@ typedef struct {
 } MimeBuffer;
 
 typedef struct mime Mime;
-typedef void (*MimeHook)(Mime *);
-typedef void (*MimeHookOctet)(Mime *, int);
+typedef void (*MimeHook)(Mime *, void *);
+typedef void (*MimeHookOctet)(Mime *, int, void *);
+typedef int (*MimeStateFn)(Mime *, int);
 
 typedef enum {
 	MIME_NONE,
@@ -48,45 +49,53 @@ typedef enum {
 	MIME_QUOTED_PRINTABLE
 } MimeEncoding;
 
-struct mime {
-	/* Private state. */
+typedef struct {
 	B64 b64;
 	int is_multipart;
 	int decode_state_cr;
 	int has_content_type;
 	int is_message_rfc822;			/* HACK for uri.c */
 	MimeEncoding encoding;
-	int (*source_state)(struct mime *, int);
-	int (*decode_state)(struct mime *, int);
+	MimeStateFn source_state;
+	MimeStateFn decode_state;
+} MimeState;
+
+typedef struct mime_hooks {
+	void *data;				/* Data for parser call-backs. */
+	MimeHook free;				/* How to clean up hooks & data. */
+	MimeHook header;			/* On complete header line. */
+	MimeHook body_start;			/* At end of MIME headers, start of MIME body. */
+	MimeHook body_finish;			/* At end of MIME body, start of next MIME headers. */
+	MimeHook source_flush;			/* When source buffer is flushed. */
+	MimeHook decode_flush;			/* When decode buffer is flushed. */
+	MimeHookOctet decoded_octet;		/* Each decoded body octet. */
+	struct mime_hooks *next;
+} MimeHooks;
+
+struct mime {
+	/* Private. */
+	MimeState state;
 
 	/* Public data. */
-	void *mime_data;			/* Data for parser call-backs. */
 	MimeBuffer source;			/* Original encoded source data. */
 	MimeBuffer decode;			/* Decoded data based on source. */
 	unsigned mime_part_number;		/* Number of boundary lines crossed. */
 	unsigned long mime_part_length; 	/* MIME part (headers & body) length. */
 	unsigned long mime_body_length; 	/* Encoded MIME body length */
 	unsigned long mime_body_decoded_length;	/* Decoded MIME body length. */
+	unsigned long mime_message_length;	/* Overall message length. */
 
-	/* Parsing call-back hooks. */
-	MimeHook mime_header;			/* On complete header line. */
-	MimeHook mime_body_start;		/* At end of MIME headers, start of MIME body. */
-	MimeHook mime_body_finish;		/* At end of MIME body, start of next MIME headers. */
-	MimeHook mime_source_flush;		/* When source buffer is flushed. */
-	MimeHook mime_decode_flush;		/* When decode buffer is flushed. */
-	MimeHookOctet mime_decoded_octet;	/* Each decoded body octet. */
-	MimeHookOctet mime_header_octet;	/* Each decoded header octet. DEPRICATED */
+	MimeHooks *mime_hook;			/* Link list of Mime hooks. */
 };
 
 
 /**
- * @param data
- *	Pointer to an opaque data structure for use by call-back hooks.
- *
  * @return
  *	Poitner to a Mime context structure or NULL on error.
  */
-extern Mime *mimeCreate(void *data);
+extern Mime *mimeCreate(void);
+
+extern void mimeHooksAdd(Mime *m, MimeHooks *hook);
 
 /**
  * @param m
