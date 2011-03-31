@@ -403,8 +403,9 @@ smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 
 	/* Try all MX of a lower preference until one answers. */
 	for (rr = list; rr != NULL; rr = rr->next) {
-		if (rr->rcode == PDQ_RCODE_OK
-		&& smtp2Connect(smtp, ((PDQ_MX *) rr)->host.string.value) == SMTP_OK) {
+		if (rr->section == PDQ_SECTION_QUERY)
+			continue;
+		if (smtp2Connect(smtp, ((PDQ_MX *) rr)->host.string.value) == SMTP_OK) {
 			if ((smtp->domain = strdup(domain)) == NULL) {
 				socketClose(smtp->mx);
 				rc = SMTP_ERROR;

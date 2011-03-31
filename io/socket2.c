@@ -648,7 +648,7 @@ socketConnect(const char *host, unsigned port, long timeout)
 	s = NULL;
 	host = name;
 	for (rr = list; rr != NULL; rr = rr->next) {
-		if (rr->rcode != PDQ_RCODE_OK)
+		if (rr->section == PDQ_SECTION_QUERY)
 			continue;
 
 		a_rr = pdqListFindName(rr, PDQ_CLASS_IN, PDQ_TYPE_5A, host);

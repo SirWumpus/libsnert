@@ -96,6 +96,18 @@ typedef struct {
 } PDQ_data;
 
 typedef enum {
+	PDQ_BITS_QR			= 0x8000,	/* Query = 0, response = 1 */
+	PDQ_BITS_OP			= 0x7800,	/* op-code */
+	PDQ_BITS_AA			= 0x0400,	/* Response is authoritative. */
+	PDQ_BITS_TC			= 0x0200,	/* Message was truncated. */
+	PDQ_BITS_RD			= 0x0100,	/* Recursive query desired. */
+	PDQ_BITS_RA			= 0x0080,	/* Recursion available from server. */
+	PDQ_BITS_Z			= 0x0070,	/* Reserved - always zero. */
+	PDQ_BITS_AU			= 0x0020,	/* Answer authenticaed */
+	PDQ_BITS_RCODE			= 0x000f,	/* Response code */
+} PDQ_bits;
+
+typedef enum {
 	PDQ_TYPE_UNKNOWN		= 0,
 	PDQ_TYPE_A			= 1,	/* RFC 1035 */
 	PDQ_TYPE_NS			= 2,	/* RFC 1035 */
@@ -163,7 +175,7 @@ typedef enum {
 
 typedef enum {
 	PDQ_SECTION_UNKNOWN		= 0,
-	PDQ_SECTION_QUESTION		= 1,
+	PDQ_SECTION_QUERY		= 1,
 	PDQ_SECTION_ANSWER		= 2,
 	PDQ_SECTION_AUTHORITY		= 3,
 	PDQ_SECTION_EXTRA		= 4,
@@ -192,15 +204,22 @@ typedef enum {
 typedef struct pdq_rr {
 	struct pdq_rr *next;
 	PDQ_section section;
-	PDQ_rcode rcode;
-	time_t created;			/* When this record was created. */
 	PDQ_name name;			/* Domain, host, reversed-IP or request. */
 	uint16_t class;			/* RFC 1035, PDQ_CLASS_ value */
 	uint16_t type;			/* RFC 1035, PDQ_TYPE_ value */
 	uint32_t ttl;			/* Original TTL received. */
-	uint16_t flags;
-	uint16_t ancount;
 } PDQ_rr;
+
+typedef struct {
+	PDQ_rr rr;
+	time_t created;			/* When this record was created. */
+	uint16_t flags;
+	PDQ_rcode rcode;
+	uint16_t qdcount;
+	uint16_t ancount;
+	uint16_t nscount;
+	uint16_t arcount;
+} PDQ_QUERY;
 
 #define PDQ_LIST_WALK(rr, list)		for ((rr) = (list); (rr) != NULL; (rr) = (rr)->next)
 
@@ -889,9 +908,6 @@ extern void pdqDump(FILE *fp, PDQ_rr *record);
  * @param type
  *	A PDQ_TYPE_ code of the DNS record type to find.
  *
- * @param rcode
- *	A PDQ_RCODE_ code of the DNS record return code to find.
- *
  * @param name
  *	A record name to find. NULL for any. CNAME redirection
  *	is NOT followed.
@@ -899,7 +915,7 @@ extern void pdqDump(FILE *fp, PDQ_rr *record);
  * @return
  *	A pointer to the first PDQ_rr record found, or NULL if not found.
  */
-extern PDQ_rr *pdqListFind(PDQ_rr *list, PDQ_class class, PDQ_type type, PDQ_rcode rcode, const char *name);
+extern PDQ_rr *pdqListFind(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *name);
 
 /**
  * @param list

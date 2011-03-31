@@ -99,8 +99,9 @@ isClientIpHeloEqual(char *client_addr, char *helo)
 	list = pdqFetch5A(PDQ_CLASS_IN, helo);
 
 	for (rr = list; rr != NULL; rr = rr->next) {
-		if (rr->rcode == PDQ_RCODE_OK
-		&& strcmp(client_addr, ((PDQ_AAAA *) rr)->address.string.value) == 0) {
+		if (rr->section == PDQ_SECTION_QUERY)
+			continue;
+		if (strcmp(client_addr, ((PDQ_AAAA *) rr)->address.string.value) == 0) {
 			rc = 1;
 			break;
 		}

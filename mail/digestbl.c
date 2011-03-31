@@ -35,6 +35,7 @@
  ***********************************************************************/
 
 typedef struct {
+	MimeHooks hook;
 	Mime *mime;
 	md5_state_t md5;
 	char content_type[80];
@@ -138,7 +139,7 @@ dnsListIsListed(DnsList *dnslist, const char *name, PDQ_rr *list)
 
 	suffixes = (const char **) VectorBase(dnslist->suffixes);
 	for (rr = (PDQ_A *) list; rr != NULL; rr = (PDQ_A *) rr->rr.next) {
-		if (rr->rr.rcode != PDQ_RCODE_OK || rr->rr.type != PDQ_TYPE_A)
+		if (rr->rr.section == PDQ_SECTION_QUERY || rr->rr.type != PDQ_TYPE_A)
 			continue;
 
 		if (TextInsensitiveStartsWith(rr->rr.name.string.value, name) < 0)
@@ -185,10 +186,10 @@ dnsListLookup(DnsList *dnslist, const char *name)
 }
 
 void
-digestHeaders(Mime *m)
+digestHeaders(Mime *m, void *data)
 {
 	char *mark;
-	Digest *ctx = m->mime_data;
+	Digest *ctx = data;
 
 	if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*", m->source.length, 1)) {
 		mark = (char *) &m->source.buffer[sizeof("Content-Type:")-1];
@@ -199,20 +200,19 @@ digestHeaders(Mime *m)
 }
 
 static void
-digestMimePartStart(Mime *m)
+digestMimePartStart(Mime *m, void *data)
 {
-	Digest *ctx = m->mime_data;
+	Digest *ctx = data;
 
-	ctx->digest_string[0] = '\0';
 	md5_init(&ctx->md5);
-	digestHeaders(m);
+	digestHeaders(m, data);
 }
 
 static void
-digestMimePartFinish(Mime *m)
+digestMimePartFinish(Mime *m, void *data)
 {
+	Digest *ctx = data;
 	unsigned char digest[16];
-	Digest *ctx = m->mime_data;
 
 	md5_finish(&ctx->md5, (md5_byte_t *) digest);
 	md5_digest_to_string(digest, ctx->digest_string);
@@ -227,9 +227,9 @@ digestMimePartFinish(Mime *m)
 }
 
 static void
-digestMimeDecodedOctet(Mime *m, int octet)
+digestMimeDecodedOctet(Mime *m, int octet, void *data)
 {
-	Digest *ctx = m->mime_data;
+	Digest *ctx = data;
 	unsigned char byte = octet;
 
 	md5_append(&ctx->md5, (md5_byte_t *) &byte, 1);
@@ -260,17 +260,18 @@ main(int argc, char **argv)
 
 	dns_bl_list = dnsListCreate(digest_bl);
 
-	if ((digest.mime = mimeCreate(NULL)) == NULL) {
+	if ((digest.mime = mimeCreate()) == NULL) {
 		fprintf(stderr, "mimeCreate error: %s (%d)\n", strerror(errno), errno);
 		exit(1);
 	}
 
-	digest.mime->mime_data = &digest;
-	digest.mime->mime_header = digestHeaders;
-	digest.mime->mime_body_start = digestMimePartStart;
-	digest.mime->mime_body_finish = digestMimePartFinish;
-	digest.mime->mime_decoded_octet = digestMimeDecodedOctet;
+	digest.hook.data = &digest;
+	digest.hook.header = digestHeaders;
+	digest.hook.body_start = digestMimePartStart;
+	digest.hook.body_finish = digestMimePartFinish;
+	digest.hook.decoded_octet = digestMimeDecodedOctet;
 
+	mimeHooksAdd(digest.mime, (MimeHooks *)&digest.hook);
 	mimeReset(digest.mime);
 
 	while ((ch = fgetc(stdin)) != EOF) {
@@ -278,7 +279,7 @@ main(int argc, char **argv)
 			break;
 	}
 
-	digestMimePartFinish(digest.mime);
+	digestMimePartFinish(digest.mime, &digest);
 	mimeFree(digest.mime);
 
 	return 0;

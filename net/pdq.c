@@ -97,16 +97,6 @@
 #define OP_IQUERY		0x0800
 #define OP_STATUS		0x1000
 
-#define BITS_QR			0x8000	/* Query = 0, response = 1 */
-#define BITS_OP			0x7800	/* op-code */
-#define BITS_AA			0x0400	/* Response is authoritative. */
-#define BITS_TC			0x0200	/* Message was truncated. */
-#define BITS_RD			0x0100	/* Recursive query desired. */
-#define BITS_RA			0x0080	/* Recursion available from server. */
-#define BITS_Z			0x0070	/* Reserved - always zero. */
-#define BITS_AU			0x0020	/* Answer authenticaed */
-#define BITS_RCODE		0x000f	/* Response code */
-
 #define SHIFT_QR		15
 #define SHIFT_OP		11
 #define SHIFT_AA		10
@@ -260,7 +250,7 @@ static struct mapping soaMap[] = {
 
 static struct mapping sectionMap[] = {
 	{ PDQ_SECTION_UNKNOWN,		"UNKNOWN" 	},
-	{ PDQ_SECTION_QUESTION,		"QUESTION" 	},
+	{ PDQ_SECTION_QUERY,		"QUERY" 	},
 	{ PDQ_SECTION_ANSWER,		"ANSWER" 	},
 	{ PDQ_SECTION_AUTHORITY,	"AUTHORITY" 	},
 	{ PDQ_SECTION_EXTRA,		"EXTRA"		},
@@ -376,8 +366,6 @@ pdqGetAddress(PDQ_rr *rr)
 		return "CNAME-TOO-DEEP";
 	if (rr == PDQ_CNAME_IS_CIRCULAR)
 		return "CNAME-LOOP";
-	if (rr->rcode != PDQ_RCODE_OK)
-		return pdqRcodeName(rr->rcode);
 	return ((PDQ_AAAA *) rr)->address.string.value;
 }
 
@@ -427,18 +415,18 @@ pdqLogPacket(void *_packet, int is_network_order)
 		pkt_hdr.arcount = ntohs(pkt_hdr.arcount);
 	}
 
-	rcode = pkt_hdr.bits & BITS_RCODE;
+	rcode = pkt_hdr.bits & PDQ_BITS_RCODE;
 
 	syslog(
 		LOG_DEBUG, "packet id=%hu %s-order length=%hu bits=0x%.4hx (%s %d %s %s %s %s %d %d=%s) qd=%hu an=%hu ns=%hu ar=%hu",
 		pkt_hdr.id, is_network_order ? "net" : "host",
 		packet->length, pkt_hdr.bits,
-		(pkt_hdr.bits & BITS_QR) ? "AN" : "QR",
+		(pkt_hdr.bits & PDQ_BITS_QR) ? "AN" : "QR",
 		(pkt_hdr.bits >> SHIFT_OP) & 0xF,
-		(pkt_hdr.bits & BITS_AA) ? "AA" : "--",
-		(pkt_hdr.bits & BITS_TC) ? "TC" : "--",
-		(pkt_hdr.bits & BITS_RD) ? "RD" : "--",
-		(pkt_hdr.bits & BITS_RA) ? "RA" : "--",
+		(pkt_hdr.bits & PDQ_BITS_AA) ? "AA" : "--",
+		(pkt_hdr.bits & PDQ_BITS_TC) ? "TC" : "--",
+		(pkt_hdr.bits & PDQ_BITS_RD) ? "RD" : "--",
+		(pkt_hdr.bits & PDQ_BITS_RA) ? "RA" : "--",
 		(pkt_hdr.bits >> SHIFT_Z) & 0x7,
 		rcode, pdqRcodeName(rcode),
 		pkt_hdr.qdcount, pkt_hdr.ancount,
@@ -461,7 +449,8 @@ pdqDestroy(void *_record)
 	PDQ_rr *record = _record;
 
 	if (record != NULL) {
-		if ((record->type == PDQ_TYPE_TXT || record->type == PDQ_TYPE_NULL)
+		if (record->section != PDQ_SECTION_QUERY
+		&& (record->type == PDQ_TYPE_TXT || record->type == PDQ_TYPE_NULL)
 		&& ((PDQ_TXT *) record)->text.value != NULL
 		) {
 			free(((PDQ_TXT *) record)->text.value);
@@ -564,7 +553,6 @@ pdqCreate(PDQ_type type)
 		return NULL;
 
 	if ((record = calloc(1, size)) != NULL) {
-		record->created = time(NULL);
 		record->type = type;
 	}
 
@@ -678,7 +666,6 @@ pdq_create_rr(PDQ_class class, PDQ_type type, const char *host)
 		syslog(LOG_ERR, "%s(%d) name=%s: %s (%d)", __FILE__, __LINE__, host, strerror(errno), errno);
 	} else {
 		pdqSetName(&record->name, host);
-		record->rcode = PDQ_RCODE_OK;
 		record->class = class;
 		record->next = NULL;
 		record->ttl = 0;
@@ -854,9 +841,11 @@ pdqListPrune5A(PDQ_rr *list, is_ip_t is_ip_mask, int must_have_ip)
 	for (rr = list; rr != NULL; rr = next) {
 		next = rr->next;
 
+		if (rr->section == PDQ_SECTION_QUERY)
+			continue;
+
 		if ((rr->type == PDQ_TYPE_A || rr->type == PDQ_TYPE_AAAA)
-		&& ((rr->rcode != PDQ_RCODE_OK && (must_have_ip || rr->rcode != PDQ_RCODE_SERVER))
-		 || (rr->rcode == PDQ_RCODE_OK && isReservedIPv6(((PDQ_AAAA *) rr)->address.ip.value, is_ip_mask)))) {
+		&& isReservedIPv6(((PDQ_AAAA *) rr)->address.ip.value, is_ip_mask)) {
 			*prev = rr->next;
 			pdqDestroy(rr);
 			continue;
@@ -1077,9 +1066,6 @@ pdqListReverse(PDQ_rr *list)
  * @param type
  *	A PDQ_TYPE_ code of the DNS record type to find.
  *
- * @param rcode
- *	A PDQ_RCODE_ code of the DNS record return code to find.
- *
  * @param name
  *	A record name to find. NULL for any. CNAME redirection
  *	is NOT followed.
@@ -1088,18 +1074,19 @@ pdqListReverse(PDQ_rr *list)
  *	A pointer to the first PDQ_rr record found, or NULL if not found.
  */
 PDQ_rr *
-pdqListFind(PDQ_rr *list, PDQ_class class, PDQ_type type, PDQ_rcode rcode, const char *name)
+pdqListFind(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *name)
 {
+	/* A PDQ_QUERY might be the head of the list, skip it. */
 	for ( ; list != NULL; list = list->next) {
+		if (list->section == PDQ_SECTION_QUERY)
+			continue;
+
 		if (! (list->type == type
 		||  type == PDQ_TYPE_ANY
 		|| (type == PDQ_TYPE_5A && (list->type == PDQ_TYPE_A || list->type == PDQ_TYPE_AAAA))) )
 			continue;
 
 		if (class != PDQ_CLASS_ANY && list->class != class)
-			continue;
-
-		if (rcode != PDQ_RCODE_ANY && list->rcode != rcode)
 			continue;
 
 		if (name != NULL && TextInsensitiveCompare(list->name.string.value, name) != 0)
@@ -1110,78 +1097,6 @@ pdqListFind(PDQ_rr *list, PDQ_class class, PDQ_type type, PDQ_rcode rcode, const
 
 	return list;
 }
-
-#ifdef NOT_SURE
-int
-pdqListAllRcode(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *name, PDQ_rcode rcode)
-{
-	int count, match;
-
-	for (count = match = 0; list != NULL; list = list->next) {
-		if (! (list->type == type
-		||  type == PDQ_TYPE_ANY
-		|| (type == PDQ_TYPE_5A && (list->type == PDQ_TYPE_A || list->type == PDQ_TYPE_AAAA))) )
-			continue;
-
-		if (name != NULL && TextInsensitiveCompare(list->name.string.value, name) != 0)
-			continue;
-
-		if (class != PDQ_CLASS_ANY && list->class != class)
-			continue;
-
-		count++;
-
-		if (rcode != PDQ_RCODE_ANY && list->rcode != rcode)
-			continue;
-
-		match++;
-	}
-
-	return count == match;
-}
-
-pdqListHasAll(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *name, PDQ_rcode rcode)
-{
-	unsigned count, class_count, type_count, name_count, rcode_count;
-
-	for (count = match = 0; list != NULL; list = list->next) {
-		count++;
-
-		if (! (list->type == type
-		||  type == PDQ_TYPE_ANY
-		|| (type == PDQ_TYPE_5A && (list->type == PDQ_TYPE_A || list->type == PDQ_TYPE_AAAA))) )
-			continue;
-
-		type_count++;
-
-		if (class != PDQ_CLASS_ANY && list->class != class)
-			continue;
-
-		class_count++;
-
-		if (name != NULL && TextInsensitiveCompare(list->name.string.value, name) != 0)
-			continue;
-
-		name_count++;
-
-		if (rcode != PDQ_RCODE_ANY && list->rcode != rcode)
-			continue;
-
-		rcode_count++;
-	}
-
-	if (class != PDQ_CLASS_ANY && class_count >= rcode_count)
-		return 0;
-
-	if (type != PDQ_TYPE_ANY && type_count != rcode_count)
-		return 0;
-
-	if (name != NULL && name_count >= rcode_count)
-		return 0;
-
-	return 1;
-}
-#endif
 
 /**
  * @param list
@@ -1291,14 +1206,14 @@ pdqListFindIP(PDQ_rr *list, PDQ_class class, PDQ_type type, const unsigned char 
 		return NULL;
 
 	for ( ; list != NULL; list = list->next) {
+		if (list->section == PDQ_SECTION_QUERY)
+			continue;
+
 		if (! (list->type == type
 		|| (type == PDQ_TYPE_5A && (list->type == PDQ_TYPE_A || list->type == PDQ_TYPE_AAAA))) )
 			continue;
 
 		if (class != PDQ_CLASS_ANY && list->class != class)
-			continue;
-
-		if (list->rcode != PDQ_RCODE_OK)
 			continue;
 
 		if (memcmp(ipv6, ((PDQ_AAAA *) list)->address.ip.value, sizeof (((PDQ_AAAA *) list)->address.ip.value)) == 0)
@@ -1335,14 +1250,14 @@ pdqListFindAddress(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *ip)
 		return NULL;
 
 	for ( ; list != NULL; list = list->next) {
+		if (list->section == PDQ_SECTION_QUERY)
+			continue;
+
 		if (! (list->type == type
 		|| (type == PDQ_TYPE_5A && (list->type == PDQ_TYPE_A || list->type == PDQ_TYPE_AAAA))) )
 			continue;
 
 		if (class != PDQ_CLASS_ANY && list->class != class)
-			continue;
-
-		if (list->rcode != PDQ_RCODE_OK)
 			continue;
 
 		if (TextInsensitiveCompare(ip, ((PDQ_AAAA *) list)->address.string.value) == 0)
@@ -1393,7 +1308,7 @@ pdqListFindHost(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *host)
 	}
 
 	for ( ; list != NULL; list = list->next) {
-		if (list->rcode != PDQ_RCODE_OK)
+		if (list->section == PDQ_SECTION_QUERY)
 			continue;
 
 		if (type != PDQ_TYPE_ANY && list->type != type)
@@ -1451,61 +1366,63 @@ pdqDump(FILE *fp, PDQ_rr *record)
 
 	(void) fprintf(fp, PDQ_LOG_FMT, PDQ_LOG_ARG(record));
 
-	switch (record->type) {
-	case PDQ_TYPE_A:
-		(void) fprintf(fp, "%s", ((PDQ_A *) record)->address.string.value);
-		break;
+	if (record->section != PDQ_SECTION_QUERY) {
+		switch (record->type) {
+		case PDQ_TYPE_A:
+			(void) fprintf(fp, "%s", ((PDQ_A *) record)->address.string.value);
+			break;
 
-	case PDQ_TYPE_AAAA:
-		(void) fprintf(fp, "%s", ((PDQ_AAAA *) record)->address.string.value);
-		break;
+		case PDQ_TYPE_AAAA:
+			(void) fprintf(fp, "%s", ((PDQ_AAAA *) record)->address.string.value);
+			break;
 
-	case PDQ_TYPE_SOA:
-		(void) fprintf(
-			fp, "%s %s (%lu %ld %ld %ld %lu)",
-			((PDQ_SOA *) record)->mname.string.value,
-			((PDQ_SOA *) record)->rname.string.value,
-			(unsigned long)((PDQ_SOA *) record)->serial,
-			(long)((PDQ_SOA *) record)->refresh,
-			(long)((PDQ_SOA *) record)->retry,
-			(long)((PDQ_SOA *) record)->expire,
-			(unsigned long)((PDQ_SOA *) record)->minimum
-		);
-		break;
+		case PDQ_TYPE_SOA:
+			(void) fprintf(
+				fp, "%s %s (%lu %ld %ld %ld %lu)",
+				((PDQ_SOA *) record)->mname.string.value,
+				((PDQ_SOA *) record)->rname.string.value,
+				(unsigned long)((PDQ_SOA *) record)->serial,
+				(long)((PDQ_SOA *) record)->refresh,
+				(long)((PDQ_SOA *) record)->retry,
+				(long)((PDQ_SOA *) record)->expire,
+				(unsigned long)((PDQ_SOA *) record)->minimum
+			);
+			break;
 
-	case PDQ_TYPE_MX:
-		(void) fprintf(fp, "%d ", ((PDQ_MX *) record)->preference);
-		/*@fallthrough@*/
+		case PDQ_TYPE_MX:
+			(void) fprintf(fp, "%d ", ((PDQ_MX *) record)->preference);
+			/*@fallthrough@*/
 
-	case PDQ_TYPE_NS:
-	case PDQ_TYPE_PTR:
-	case PDQ_TYPE_CNAME:
-	case PDQ_TYPE_DNAME:
-		(void) fprintf(fp, "%s", ((PDQ_NS *) record)->host.string.value);
-		break;
+		case PDQ_TYPE_NS:
+		case PDQ_TYPE_PTR:
+		case PDQ_TYPE_CNAME:
+		case PDQ_TYPE_DNAME:
+			(void) fprintf(fp, "%s", ((PDQ_NS *) record)->host.string.value);
+			break;
 
-	case PDQ_TYPE_TXT:
-		(void) fprintf(fp, "\"%s\"", TextEmpty((char *) ((PDQ_TXT *) record)->text.value));
-		break;
+		case PDQ_TYPE_TXT:
+			(void) fprintf(fp, "\"%s\"", TextEmpty((char *) ((PDQ_TXT *) record)->text.value));
+			break;
 
-	case PDQ_TYPE_NULL:
-		(void) fprintf(fp, "%lu bytes", ((PDQ_NULL *) record)->text.length);
-		break;
+		case PDQ_TYPE_NULL:
+			(void) fprintf(fp, "%lu bytes", ((PDQ_NULL *) record)->text.length);
+			break;
 
-	case PDQ_TYPE_HINFO:
-	case PDQ_TYPE_MINFO:
-		(void) fprintf(
-			fp, "\"%s\" \"%s\"",
-			((PDQ_HINFO *) record)->cpu.string.value,
-			((PDQ_HINFO *) record)->os.string.value
-		);
-		break;
+		case PDQ_TYPE_HINFO:
+		case PDQ_TYPE_MINFO:
+			(void) fprintf(
+				fp, "\"%s\" \"%s\"",
+				((PDQ_HINFO *) record)->cpu.string.value,
+				((PDQ_HINFO *) record)->os.string.value
+			);
+			break;
+		}
 	}
 
 	(void) fprintf(fp, PDQ_LOG_FMT_END, PDQ_LOG_ARG_END(record));
 
-	if (record->rcode != PDQ_RCODE_OK)
-		(void) fprintf(fp, " rcode=%s", pdqRcodeName(record->rcode));
+	if (record->section == PDQ_SECTION_QUERY)
+		(void) fprintf(fp, " rcode=%s", pdqRcodeName(((PDQ_QUERY *)record)->rcode));
 
 	(void) fputc('\n', fp);
 }
@@ -1521,10 +1438,11 @@ pdqListDump(FILE *fp, PDQ_rr *list)
 void
 pdqLog(PDQ_rr *record)
 {
-	if (record->rcode != PDQ_RCODE_OK) {
+	if (record->section == PDQ_SECTION_QUERY) {
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%s", PDQ_LOG_ARG(record),
-			pdqRcodeName(record->rcode)
+			LOG_DEBUG, PDQ_LOG_FMT "%s" PDQ_LOG_FMT_END, PDQ_LOG_ARG(record),
+			pdqRcodeName(((PDQ_QUERY *)record)->rcode),
+			PDQ_LOG_ARG_END(record)
 		);
 		return;
 	}
@@ -2122,7 +2040,7 @@ pdq_query_fill(PDQ *pdq, PDQ_query *query, PDQ_class class, PDQ_type type, const
 
 	if (use_recursion)
 		/* ASSUMPTION: the DNS servers support recursion. */
-		q->header.bits = htons((OP_QUERY << SHIFT_OP) | BITS_RD);
+		q->header.bits = htons((OP_QUERY << SHIFT_OP) | PDQ_BITS_RD);
 
 	q->header.qdcount = htons(1);
 	q->header.ancount = 0;
@@ -2226,6 +2144,47 @@ pdq_query_send(PDQ *pdq, PDQ_query *query)
 	return -(error_count == servers_length);
 }
 
+int
+pdq_fill_rr(PDQ_rr *rr, struct udp_packet *packet, unsigned char *ptr, unsigned char **stop)
+{
+	unsigned char *packet_end;
+
+	packet_end = (unsigned char *) &packet->header + packet->length;
+
+	errno = 0;
+
+	rr->name.string.length = pdq_name_copy(
+		packet, ptr,
+		(unsigned char *) rr->name.string.value,
+		sizeof (rr->name.string.value)
+	);
+	if ((ptr = pdq_name_skip(packet, ptr)) == NULL) {
+		syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
+		return -1;
+	}
+
+	rr->type = NET_GET_SHORT(ptr);
+	ptr += NET_SHORT_BYTE_LENGTH;
+	if (packet_end <= ptr) {
+		syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
+		errno = EFAULT;
+		return -1;
+	}
+
+	rr->class = NET_GET_SHORT(ptr);
+	ptr += NET_SHORT_BYTE_LENGTH;
+	if (packet_end < ptr) {
+		syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
+		errno = EFAULT;
+		return -1;
+	}
+
+	if (stop != NULL)
+		*stop = ptr;
+
+	return 0;
+}
+
 /*
  * Parse name, type, and class into a PDQ_rr structure.
  */
@@ -2266,8 +2225,6 @@ pdq_reply_rr(struct udp_packet *packet, unsigned char *ptr, unsigned char **stop
 		syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
 	} else {
 		record->class = class;
-		record->flags = packet->header.bits;
-		record->ancount = packet->header.ancount;
 		record->name.string.length = pdq_name_copy(
 			packet, name,
 			(unsigned char *) record->name.string.value,
@@ -2286,7 +2243,7 @@ pdq_query_send_all(PDQ *pdq)
 {
 	time_t now;
 	PDQ_query *query, *next;
-	PDQ_rr *record, *timedout = NULL;
+	PDQ_rr *answer, *timedout = NULL;
 
 	(void) time(&now);
 
@@ -2296,10 +2253,10 @@ pdq_query_send_all(PDQ *pdq)
 			(void) pdq_query_send(pdq, query);
 		} else {
 			/* Return a record reporting the failed query. */
-			record = pdq_reply_rr(&query->packet, query->packet.data, NULL);
-			if (record != NULL)
-				record->rcode = PDQ_RCODE_TIMEDOUT;
-			timedout = pdqListAppend(timedout, record);
+			answer = pdq_reply_rr(&query->packet, query->packet.data, NULL);
+			if (answer != NULL && answer->section == PDQ_SECTION_QUERY)
+				((PDQ_QUERY *)answer)->rcode = PDQ_RCODE_TIMEDOUT;
+			timedout = pdqListAppend(timedout, answer);
 			pdq_link_remove(&pdq->pending, query);
 			free(query);
 		}
@@ -2313,16 +2270,16 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 {
 	int i, j;
 	PDQ_rcode rcode;
+	PDQ_QUERY *query;
 	unsigned short length;
-	PDQ_rr *record, *head, **p, *q;
+	PDQ_rr *record, **p, *q;
 	unsigned char *ptr, *packet_end;
 
-	head = NULL;
 	ptr = packet->data;
 	packet_end = (unsigned char *) &packet->header + packet->length;
 
 	/* Already converted in pdq_query_reply. */
-	rcode = packet->header.bits & BITS_RCODE;
+	rcode = packet->header.bits & PDQ_BITS_RCODE;
 
 	packet->header.id = ntohs(packet->header.id);
 	packet->header.qdcount = ntohs(packet->header.qdcount);
@@ -2336,26 +2293,27 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 	if (1 < debug)
 		pdqLogPacket(packet, 0);
 
-	if (rcode != PDQ_RCODE_OK) {
-		/* Return a record reporting the failed query. */
-		if ((record = pdq_reply_rr(packet, ptr, NULL)) == NULL) {
-			syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
-			goto error0;
-		}
-
-		record->rcode = rcode;
-		*list = record;
-		return rcode;
+	/* Create a PDQ_query entry to start a section. */
+	if ((query = malloc(sizeof (*query))) == NULL) {
+		syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
+		goto error0;
 	}
 
-	/* Skip question section. */
-	for (i = 0; i < packet->header.qdcount; i++) {
-		ptr = pdq_name_skip(packet, ptr);
-		if (ptr == NULL) {
-			syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
-			goto error0;
-		}
-		ptr += 2 * NET_SHORT_BYTE_LENGTH;
+	query->rcode = rcode;
+	query->rr.next = NULL;
+	(void) time(&query->created);
+	query->flags = packet->header.bits;
+	query->rr.section = PDQ_SECTION_QUERY;
+	query->qdcount = packet->header.qdcount;
+	query->ancount = packet->header.ancount;
+	query->nscount = packet->header.nscount;
+	query->arcount = packet->header.arcount;
+	pdq_fill_rr(&query->rr, packet, ptr, &ptr);
+
+	if (rcode != PDQ_RCODE_OK) {
+		/* Report a failed query. */
+		*list = (PDQ_rr *) query;
+		return rcode;
 	}
 
 	/* Add all the returned resource-records to the list. */
@@ -2403,8 +2361,6 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
 			goto error1;
 		}
-
-		record->rcode = rcode;
 
 		record->ttl = NET_GET_LONG(ptr);
 		ptr += NET_LONG_BYTE_LENGTH;
@@ -2469,7 +2425,6 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 
 		case PDQ_TYPE_TXT:
 			if (pdq_txt_create((PDQ_TXT *) record, ptr, length)) {
-				record->rcode = PDQ_RCODE_ERRNO;
 				break;
 			}
 			ptr += length;
@@ -2477,7 +2432,6 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 
 		case PDQ_TYPE_NULL:
 			if ((((PDQ_NULL *) record)->text.value = malloc(length)) == NULL) {
-				record->rcode = PDQ_RCODE_ERRNO;
 				break;
 			}
 
@@ -2569,19 +2523,21 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			goto error1;
 		}
 
+#ifdef OFF
 #ifndef ONLY_ANSWER_SECTION
 		/* Do we already have one of these in the list? */
 		if ((record->type == PDQ_TYPE_NS || record->type == PDQ_TYPE_SOA)
-		&& pdqListFindHost(head, record->class, record->type, ((PDQ_NS *) record)->host.string.value) != NULL) {
+		&& pdqListFindHost(query->rr.net, record->class, record->type, ((PDQ_NS *) record)->host.string.value) != NULL) {
 			pdqListFree(record);
 			continue;
 		}
+#endif
 #endif
 		/* Insert MX in reverse sorted order. Remember the list
 		 * being added to in reverse order from the order received.
 		 * We reverse the list before returning it below.
 		 */
-		for (p = &head, q = head; q != NULL; p = &q->next, q = q->next) {
+		for (p = &query->rr.next, q = query->rr.next; q != NULL; p = &q->next, q = q->next) {
 			if (q->type != PDQ_TYPE_MX || record->type != PDQ_TYPE_MX
 			|| ((PDQ_MX *) q)->preference <= ((PDQ_MX *) record)->preference)
 				break;
@@ -2594,7 +2550,8 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 		*p = record;
 	}
 
-	*list = pdqListReverse(head);
+	query->rr.next = pdqListReverse(query->rr.next);
+	*list = (PDQ_rr *) query;
 
 	if (rcode == PDQ_RCODE_OK)
 		return PDQ_RCODE_OK;
@@ -2602,10 +2559,10 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 	/* If at least one RR was successfully parsed, return
 	 * the rcode from the reply packet, otherwise errno.
 	 */
-	return head == NULL ? PDQ_RCODE_ERRNO : rcode;
+	return rcode;
 error1:
 	pdqListFree(record);
-	pdqListFree(head);
+	pdqListFree((PDQ_rr *) query);
 error0:
 	return PDQ_RCODE_ERRNO;
 }
@@ -2690,7 +2647,7 @@ pdq_query_tcp(PDQ *pdq, PDQ_query *query, SocketAddress *address, PDQ_rr **list)
 	/* If we're doing a TCP query in place of a UDP then we
 	 * should not see the TC bit or a small amount of data.
 	 */
-	if ((packet->header.bits & BITS_TC) || packet->length <= 512) {
+	if ((packet->header.bits & PDQ_BITS_TC) || packet->length <= 512) {
 		syslog(LOG_WARN, "id=%u TCP query returned TC bit or short data len=%u", query->packet.header.id, packet->length);
 		goto error2;
 	}
@@ -2744,7 +2701,7 @@ pdq_query_reply(PDQ *pdq, struct udp_packet *packet, SocketAddress *address, PDQ
 		return PDQ_RCODE_ERRNO;
 	}
 
-	if (packet->header.bits & BITS_TC)
+	if (packet->header.bits & PDQ_BITS_TC)
 		rcode = pdq_query_tcp(pdq, query, address, list);
 	else
 		rcode = pdq_reply_parse(pdq, packet, list);
@@ -3073,10 +3030,10 @@ pdqPoll(PDQ *pdq, unsigned ms)
 				else
 #endif
 					(void) formatIP((unsigned char *) &reply->from.in.sin_addr, IPV4_BYTE_LENGTH, 1, ipv6, sizeof (ipv6));
-				syslog(LOG_DEBUG, "< recv id=%u rcode=%d length=%u from=%s", ntohs(reply->packet.header.id), reply->packet.header.bits & BITS_RCODE, reply->packet.length, ipv6);
+				syslog(LOG_DEBUG, "< recv id=%u rcode=%d length=%u from=%s", ntohs(reply->packet.header.id), reply->packet.header.bits & PDQ_BITS_RCODE, reply->packet.length, ipv6);
 			}
 
-			if ((reply->packet.header.bits & BITS_RCODE) == PDQ_RCODE_REFUSED)
+			if ((reply->packet.header.bits & PDQ_BITS_RCODE) == PDQ_RCODE_REFUSED)
 				free(reply);
 			else
 				pdq_link_add(&replies, reply);
@@ -3224,7 +3181,7 @@ pdqIsCircular(PDQ_rr *list)
  *	A PDQ_SOA_ code.
  */
 PDQ_valid_soa
-pdqListHasValidSOA(PDQ_rr *rr_list, const char *name)
+pdqListHasValidSOA(PDQ_rr *list, const char *name)
 {
 	int offset;
 	PDQ_rr *rr;
@@ -3243,13 +3200,11 @@ pdqListHasValidSOA(PDQ_rr *rr_list, const char *name)
 		return PDQ_SOA_OK;
 	}
 
-	for (rr = rr_list; rr != NULL; rr = rr->next) {
-		if (rr->rcode == PDQ_RCODE_UNDEFINED && rr->type == PDQ_TYPE_SOA) {
-			if (0 < debug)
-				syslog(LOG_DEBUG, "pdqIsValidSOA: %s undefined", rr->name.string.value);
-			rc = PDQ_SOA_UNDEFINED;
-			break;
-		} else if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_CNAME) {
+	while (list != NULL && list->section == PDQ_SECTION_QUERY)
+		list = list->next;
+
+	for (rr = list; rr != NULL; rr = rr->next) {
+		if (rr->type == PDQ_TYPE_CNAME) {
 			name = ((PDQ_CNAME *) rr)->host.string.value;
 			if ((offset = indexValidTLD(name)) < 0) {
 				if (0 < debug)
@@ -3263,7 +3218,7 @@ pdqListHasValidSOA(PDQ_rr *rr_list, const char *name)
 			/*** TODO SOA lookup of CNAME target.
 			 ***/
 
-		} else if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_SOA) {
+		} else if (rr->type == PDQ_TYPE_SOA) {
 			/* Is SOA LHS the root domain and query name is not? */
 			if (name[0] != '.' && name[1] != '\0' && rr->name.string.length == 1) {
 				if (0 < debug)
@@ -3354,29 +3309,30 @@ pdqListHasValidSOA(PDQ_rr *rr_list, const char *name)
 PDQ_rr *
 pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *ns)
 {
-	PDQ_rr *head, *rr;
+	PDQ_rr *rr;
+	PDQ_QUERY *answer;
 
-	head = NULL;
+	answer = NULL;
 
 	if (pdqQuery(pdq, class, type, name, ns))
 		goto error0;
 
-	head = pdqWaitAll(pdq);
+	answer = (PDQ_QUERY *) pdqWaitAll(pdq);
 
-	if (type == PDQ_TYPE_MX && pdqListFind(head, PDQ_CLASS_ANY, PDQ_TYPE_MX, PDQ_RCODE_ANY, NULL) == NULL) {
+	if (type == PDQ_TYPE_MX && pdqListFind(answer->rr.next, PDQ_CLASS_ANY, PDQ_TYPE_MX, NULL) == NULL) {
 		/* When there is no MX found, apply the implicit MX 0 rule. */
-		pdqListFree(head);
+		pdqListFree(answer->rr.next);
 
-		if ((head = pdq_create_rr(class, PDQ_TYPE_MX, name)) == NULL)
+		if ((answer->rr.next = pdq_create_rr(class, PDQ_TYPE_MX, name)) == NULL)
 			goto error0;
 
-		pdqSetName(&((PDQ_MX *) head)->host, name);
+		pdqSetName(&((PDQ_MX *) answer->rr.next)->host, name);
 	}
 
 	/* Make sure we have all the associated A / AAAA records. */
-	if (head != NULL && !pdq->short_query && (type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA)) {
-		for (rr = head; rr != NULL; rr = rr->next) {
-			if (rr->rcode == PDQ_RCODE_OK && rr->type == type) {
+	if (answer != NULL && !pdq->short_query && (type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA)) {
+		for (rr = answer->rr.next; rr != NULL; rr = rr->next) {
+			if (rr->type == type) {
 				/* "domain IN MX ." is a short hand to indicate
 				 * that a domain has no MX records. No point in
 				 * looking up A/AAAA records. Like wise for NS
@@ -3392,13 +3348,13 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 			}
 		}
 
-		head = pdqListAppend(head, pdqWaitAll(pdq));
-		head = pdqListPruneDup(head);
+		answer->rr.next = pdqListAppend(answer->rr.next, pdqWaitAll(pdq));
+		answer->rr.next = pdqListPruneDup(answer->rr.next);
 	}
 	if (0 < debug)
-		pdqListLog(head);
+		pdqListLog((PDQ_rr *) answer);
 error0:
-	return head;
+	return (PDQ_rr *) answer;
 }
 
 /**
@@ -3510,7 +3466,7 @@ pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name,
 	do {
 		head = (*wait_fn)(pdq);
 		answer = pdqListAppend(answer, head);
-
+#ifdef DONT_RETURN_UNDEFINED
 		/* When wait_fn == pdqWait, then we have to ignore
 		 * responses that are PDQ_RCODE_UNDEFINED (or similar)
 		 * as other DNS lists might return a useful answer.
@@ -3520,7 +3476,6 @@ pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name,
 			if (rr->rcode == PDQ_RCODE_OK)
 				break;
 		}
-#ifdef DONT_RETURN_UNDEFINED
 		if (rr == NULL && wait_fn == pdqWait) {
 			pdqListFree(answer);
 			answer = NULL;
@@ -3673,9 +3628,9 @@ pdqGetMX(PDQ *pdq, PDQ_class class, const char *name, is_ip_t is_ip_mask)
 	list = pdqGet(pdq, class, PDQ_TYPE_MX, name, NULL);
 
 	/* Did we get a result we can use and is it a valid domain? */
-	if (list != NULL && list->rcode == PDQ_RCODE_OK) {
+	if (list != NULL && ((PDQ_QUERY *) list)->rcode == PDQ_RCODE_OK) {
 		/* Remove impossible to reach MX and A/AAAA records. */
-		list = pdqListPrune(list, is_ip_mask);
+		list = pdqListPrune(list->next, is_ip_mask);
 	}
 
 	if (0 < debug)
@@ -3786,11 +3741,6 @@ pdq_list_find_5A_by_name(PDQ *pdq, PDQ_class class, const char *name, PDQ_rr **l
 	if (PDQ_RR_IS_NOT_VALID(a_rr)) {
 		/* No IP address for the NS, get it now. */
 		a_rr = pdqGet5A(pdq, class, name);
-		if (a_rr == NULL || a_rr->rcode != PDQ_RCODE_OK) {
-			pdqListFree(a_rr);
-			return NULL;
-		}
-
 		a_rr = pdqListKeepType(a_rr, PDQ_KEEP_5A|PDQ_KEEP_CNAME);
 
 		/* Append the found list of addresses to the current list
@@ -3829,7 +3779,7 @@ pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const cha
 		ns_list = root_hints;
 	} else {
 		ns_list = pdqGet(pdq, class, PDQ_TYPE_NS, name, ns);
-		if (ns_list != NULL && (ns_list->flags & BITS_AA)) {
+		if (ns_list != NULL && (ns_list->flags & PDQ_BITS_AA)) {
 			(void) pdqSetBasicQuery(pdq, old_basic_query);
 			(void) pdqSetLinearQuery(pdq, old_linear_query);
 
@@ -3936,7 +3886,7 @@ pdqRootGetNS(PDQ *pdq, PDQ_class class, const char *name)
 		offset = strlrcspn(name, offset-1, ".");
 
 		for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
-			if (ns_rr->rcode != PDQ_RCODE_OK
+			if (ns_rr->section == PDQ_SECTION_QUERY
 			|| (ns_rr->type != PDQ_TYPE_NS && ns_rr->type != PDQ_TYPE_CNAME))
 				continue;
 
@@ -3950,15 +3900,15 @@ pdqRootGetNS(PDQ *pdq, PDQ_class class, const char *name)
 			answer = pdqGet(pdq, class, PDQ_TYPE_NS, name+offset, ((PDQ_AAAA *) a_rr)->address.string.value);
 
 			if (answer != NULL) {
-				if (answer->rcode == PDQ_RCODE_OK) {
+				if (((PDQ_QUERY *) answer)->rcode == PDQ_RCODE_OK) {
 #ifdef MORE_DIG_LIKE
 /* Consider dig ns www.snert.com will return a CNAME and SOA,
  * which this code will duplicate, BUT we want to find the NS
  * for a name, be it authoritative or parent zone's glue.
  */
-					if ((answer->flags & BITS_AA) && answer->ancount == 0) {
+					if ((((PDQ_QUERY *) answer)->flags & PDQ_BITS_AA) && ((PDQ_QUERY *) answer)->ancount == 0) {
 #else
-					if ((answer->flags & BITS_AA)) {
+					if ((((PDQ_QUERY *) answer)->flags & PDQ_BITS_AA)) {
 						/* Use glue records that got us here. */
 #endif
 						ns_rr = NULL;
@@ -4019,7 +3969,7 @@ pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const cha
 
 	answer = NULL;
 	for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
-		if (ns_rr->rcode != PDQ_RCODE_OK
+		if (ns_rr->section != PDQ_SECTION_QUERY
 		|| (ns_rr->type != PDQ_TYPE_NS && ns_rr->type != PDQ_TYPE_CNAME))
 			continue;
 
@@ -4030,7 +3980,7 @@ pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const cha
 		answer = pdqGet(pdq, class, type, name, ((PDQ_AAAA *) a_rr)->address.string.value);
 
 		if (answer != NULL) {
-			if (answer->rcode == PDQ_RCODE_OK)
+			if (((PDQ_QUERY *) answer)->rcode == PDQ_RCODE_OK)
 				break;
 			pdqListFree(answer);
 			answer = NULL;

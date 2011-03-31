@@ -291,9 +291,9 @@ dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 
 	suffixes = (const char **) VectorBase(dns_list->suffixes);
 	for (rr = (PDQ_A *) list; rr != NULL; rr = (PDQ_A *) rr->rr.next) {
-		if (rr->rr.rcode != PDQ_RCODE_OK
+		if (
 		/* Confine ourselves to the answer section. */
-		|| rr->rr.section != PDQ_SECTION_ANSWER
+		   rr->rr.section != PDQ_SECTION_ANSWER
 		/* The DNS BL return one or more numeric results as A records.
 		 * There may be informational TXT records present, but are
 		 * ignored here.
@@ -437,7 +437,7 @@ dnsListCheckIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name,
 		if (PDQ_RR_IS_NOT_VALID(rr))
 			break;
 
-		if (rr->rcode != PDQ_RCODE_OK
+		if (rr->section == PDQ_SECTION_QUERY
 		/* Only compare A records related to the query.
 		 * Some DNS servers will provide extra A records
 		 * related to the authority NS servers listed.
@@ -668,10 +668,13 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 			syslog(LOG_DEBUG, "dnsListQueryNs name=\"%s\" offset=%d tld_offset=%d", name, offset, tld_offset);
 
 		if ((ns_list = pdqRootGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_NS, name+offset, NULL)) != NULL) {
-			ns_rcode_ok = ns_list->rcode == PDQ_RCODE_OK;
+			if (ns_list->section == PDQ_SECTION_QUERY)
+				ns_rcode_ok = ((PDQ_QUERY *)ns_list)->rcode == PDQ_RCODE_OK;
+			else
+				ns_rcode_ok = PDQ_RCODE_OK;
 
 			for (rr = ns_list; rr != NULL; rr = rr->next) {
-				if (rr->rcode != PDQ_RCODE_OK)
+				if (rr->section == PDQ_SECTION_QUERY)
 					continue;
 
 				switch (rr->section) {

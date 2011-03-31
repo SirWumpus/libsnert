@@ -106,8 +106,10 @@ spfMatchIp(unsigned char ipv6[IPV6_BYTE_LENGTH], PDQ_rr *list, unsigned long cid
 	PDQ_rr *rr;
 
 	for (rr = list; rr != NULL; rr = rr->next) {
-		if (rr->rcode == PDQ_RCODE_OK
-		&& (rr->type == PDQ_TYPE_A || rr->type == PDQ_TYPE_AAAA)
+		if (rr->section == PDQ_SECTION_QUERY)
+			continue;
+
+		if ((rr->type == PDQ_TYPE_A || rr->type == PDQ_TYPE_AAAA)
 		&& networkContainsIp(((PDQ_AAAA *) rr)->address.ip.value, cidr, ipv6))
 			return 1;
 	}
@@ -251,7 +253,7 @@ spfMacro(spfContext *ctx, const char *domain, const char *fmt)
 				break;
 
 			for (match = 0, rr = list; !match && rr != NULL; rr = rr->next) {
-				if (rr->rcode != PDQ_RCODE_OK)
+				if (rr->section == PDQ_SECTION_QUERY)
 					continue;
 				value = ((PDQ_PTR *) rr)->host.string.value;
 				alist = pdqFetch5A(PDQ_CLASS_IN, ((PDQ_PTR *) rr)->host.string.value);
@@ -475,35 +477,39 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 			goto error2;
 		}
 
-		err = pdqRcodeName(list->rcode);
+		if (list->section == PDQ_SECTION_QUERY) {
+			err = pdqRcodeName(((PDQ_QUERY *)list)->rcode);
 
-		switch (list->rcode) {
-		case PDQ_RCODE_OK:
+			switch (((PDQ_QUERY *)list)->rcode) {
+			case PDQ_RCODE_OK:
+				err = NULL;
+				break;
+
+			/* This result code is not to spec. but treats
+			 * broken DNS servers as Neutral (not None),
+			 * instead of TempError. This allows include: of
+			 * non-exsistant/broken domains to be ignored.
+			 */
+			case PDQ_RCODE_SERVER:
+				qualifier = SPF_NEUTRAL;
+				goto error3;
+
+			case PDQ_RCODE_ERRNO:
+			case PDQ_RCODE_UNDEFINED:
+			case PDQ_RCODE_NOT_IMPLEMENTED:
+				goto error3;
+
+			default:
+				qualifier = SPF_TEMP_ERROR;
+				goto error3;
+			}
+		} else {
 			err = NULL;
-			break;
-
-		/* This result code is not to spec. but treats
-		 * broken DNS servers as Neutral (not None),
-		 * instead of TempError. This allows include: of
-		 * non-exsistant/broken domains to be ignored.
-		 */
-		case PDQ_RCODE_SERVER:
-			qualifier = SPF_NEUTRAL;
-			goto error3;
-
-		case PDQ_RCODE_ERRNO:
-		case PDQ_RCODE_UNDEFINED:
-		case PDQ_RCODE_NOT_IMPLEMENTED:
-			goto error3;
-
-		default:
-			qualifier = SPF_TEMP_ERROR;
-			goto error3;
 		}
 
 		txt = NULL;
 		for (rr = list; rr != NULL; rr = rr->next) {
-			if (rr->rcode != PDQ_RCODE_OK || rr->type != PDQ_TYPE_TXT)
+			if (rr->section == PDQ_SECTION_QUERY || rr->type != PDQ_TYPE_TXT)
 				continue;
 
 			if (((PDQ_TXT *) rr)->text.value != NULL
@@ -597,18 +603,21 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto error5;
 			}
 
-			if (list->rcode != PDQ_RCODE_OK) {
-				if (list->rcode == PDQ_RCODE_UNDEFINED)
-					continue;
+			if (list->section == PDQ_SECTION_QUERY) {
+				if (((PDQ_QUERY *)list)->rcode != PDQ_RCODE_OK) {
+					if (((PDQ_QUERY *)list)->rcode == PDQ_RCODE_UNDEFINED)
+						continue;
 
-				if (!spfTempErrorDns.value) {
-					ctx->temp_error = 1;
-					continue;
+					if (!spfTempErrorDns.value) {
+						ctx->temp_error = 1;
+						continue;
+					}
+
+					err = pdqRcodeName(((PDQ_QUERY *)list)->rcode);
+					qualifier = SPF_TEMP_ERROR;
+					goto error5;
 				}
-
-				err = pdqRcodeName(list->rcode);
-				qualifier = SPF_TEMP_ERROR;
-				goto error5;
+				list = list->next;
 			}
 
 			if (spfMatchIp(ctx->ipv6, list, cidr))
@@ -644,13 +653,16 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto error5;
 			}
 
-			if (list->rcode != PDQ_RCODE_OK) {
-				if (list->rcode == PDQ_RCODE_UNDEFINED || !spfTempErrorDns.value)
-					continue;
+			if (list->section == PDQ_SECTION_QUERY) {
+				if (((PDQ_QUERY *)list)->rcode != PDQ_RCODE_OK) {
+					if (((PDQ_QUERY *)list)->rcode == PDQ_RCODE_UNDEFINED || !spfTempErrorDns.value)
+						continue;
 
-				err = pdqRcodeName(list->rcode);
-				qualifier = SPF_TEMP_ERROR;
-				goto error5;
+					err = pdqRcodeName(((PDQ_QUERY *)list)->rcode);
+					qualifier = SPF_TEMP_ERROR;
+					goto error5;
+				}
+				list = list->next;
 			}
 
 			if (spfMatchIp(ctx->ipv6, list, cidr))
@@ -678,18 +690,21 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto error5;
 			}
 
-			if (list->rcode != PDQ_RCODE_OK) {
-				if (list->rcode == PDQ_RCODE_UNDEFINED)
-					continue;
+			if (list->section == PDQ_SECTION_QUERY) {
+				if (((PDQ_QUERY *)list)->rcode != PDQ_RCODE_OK) {
+					if (((PDQ_QUERY *)list)->rcode == PDQ_RCODE_UNDEFINED)
+						continue;
 
-				if (!spfTempErrorDns.value) {
-					ctx->temp_error = 1;
-					continue;
+					if (!spfTempErrorDns.value) {
+						ctx->temp_error = 1;
+						continue;
+					}
+
+					err = pdqRcodeName(((PDQ_QUERY *)list)->rcode);
+					qualifier = SPF_TEMP_ERROR;
+					goto error5;
 				}
-
-				err = pdqRcodeName(list->rcode);
-				qualifier = SPF_TEMP_ERROR;
-				goto error5;
+				list = list->next;
 			}
 
 			cidr = cidr6;
@@ -710,7 +725,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 
 				match = 0;
 				for (ar = alist; ar != NULL; ar = ar->next) {
-					if (ar->rcode != PDQ_RCODE_OK)
+					if (ar->section == PDQ_SECTION_QUERY)
 						continue;
 
 					if (ar->type != PDQ_TYPE_A && ar->type != PDQ_TYPE_AAAA)
@@ -808,8 +823,8 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 			}
 
 			if ((list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_A, target, NULL)) != NULL) {
-				if (list->rcode != PDQ_RCODE_OK) {
-					if (list->rcode == PDQ_RCODE_UNDEFINED)
+				if (list->section == PDQ_SECTION_QUERY && ((PDQ_QUERY *)list)->rcode != PDQ_RCODE_OK) {
+					if (((PDQ_QUERY *)list)->rcode == PDQ_RCODE_UNDEFINED)
 						continue;
 
 					if (!spfTempErrorDns.value) {
@@ -817,7 +832,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 						continue;
 					}
 
-					err = pdqRcodeName(list->rcode);
+					err = pdqRcodeName(((PDQ_QUERY *)list)->rcode);
 					qualifier = SPF_TEMP_ERROR;
 					goto error5;
 				}

@@ -207,8 +207,9 @@ socketAddressCreate(const char *host, unsigned port)
 		list = pdqFetch5A(PDQ_CLASS_IN, name);
 
 		for (rr = list; rr != NULL; rr = rr->next) {
-			if (rr->rcode == PDQ_RCODE_OK
-			&& (rr->type == PDQ_TYPE_A || rr->type == PDQ_TYPE_AAAA)) {
+			if (rr->section == PDQ_SECTION_QUERY)
+				continue;
+			if ((rr->type == PDQ_TYPE_A || rr->type == PDQ_TYPE_AAAA)) {
 				memcpy(ipv6, ((PDQ_AAAA *) rr)->address.ip.value, IPV6_BYTE_LENGTH);
 				break;
 			}
@@ -374,7 +375,9 @@ socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 # endif
 	if ((list = pdqFetch(PDQ_CLASS_IN, PDQ_TYPE_PTR, buffer, NULL)) != NULL) {
 		for (rr = list; rr != NULL; rr = rr->next) {
-			if (rr->rcode == PDQ_RCODE_OK && rr->type == PDQ_TYPE_PTR) {
+			if (rr->section == PDQ_SECTION_QUERY)
+				continue;
+			if (rr->type == PDQ_TYPE_PTR) {
 				length = TextCopy(buffer, size, ((PDQ_PTR *) rr)->host.string.value);
 				break;
 			}
