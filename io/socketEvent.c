@@ -94,6 +94,8 @@ socketEventsWait(SocketEvents *loop, long ms)
 		errno = ETIMEDOUT;
 
 	(void) time(&now);
+	if (SIGSETJMP(loop->on_error, 1) != 0)
+		goto next_event;
 	for (i = 0; i < fd_ready; i++) {
 		event = loop->set[i].udata;
 		if (loop->set[i].flags & (EV_EOF|EV_ERROR)) {
@@ -101,10 +103,12 @@ socketEventsWait(SocketEvents *loop, long ms)
 			if (event->on.error != NULL)
 				(*event->on.error)(loop, event);
 		} else if (loop->set[i].filter == EVFILT_READ || loop->set[i].filter == EVFILT_WRITE) {
-			socketEventExpire(event, &now, event->socket->readTimeout);
+			socketEventExpire(event, &now, socketGetTimeout(event->socket));
 			if (event->on.io != NULL)
 				(*event->on.io)(loop, event);
 		}
+next_event:
+		;
 	}
 
 	(void) close(kq);
@@ -143,6 +147,8 @@ error0:
 		errno = ETIMEDOUT;
 
 	(void) time(&now);
+	if (SIGSETJMP(loop->on_error, 1) != 0)
+		goto next_event;
 	for (i = 0; i < fd_ready; i++) {
 		event = loop->set[i].data.ptr;
 		if (loop->set[i].events & (EPOLLHUP|EPOLLERR)) {
@@ -163,10 +169,12 @@ error0:
 					continue;
 				}
 			}
-			socketEventExpire(event, &now, event->socket->readTimeout);
+			socketEventExpire(event, &now, socketGetTimeout(event->socket));
 			if (event->on.io != NULL)
 				(*event->on.io)(loop, event);
 		}
+next_event:
+		;
 	}
 error1:
 	(void) close(ev_fd);
@@ -200,6 +208,8 @@ error0:
 		errno = ETIMEDOUT;
 
 	(void) time(&now);
+	if (SIGSETJMP(loop->on_error, 1) != 0)
+		goto next_event;
 	for (i = 0; i < fd_active; i++) {
 		event = VectorGet(loop->events, i);
 		if (loop->set[i].fd == socketGetFd(event->socket)) {
@@ -214,7 +224,7 @@ error0:
 						continue;
 					}
 				}
-				socketEventExpire(event, &now, event->socket->readTimeout);
+				socketEventExpire(event, &now, socketGetTimeout(event->socket));
 				if (event->on.io != NULL)
 					(*event->on.io)(loop, event);
 			} else if (loop->set[i].revents & (POLLHUP|POLLERR|POLLNVAL)) {
@@ -223,6 +233,8 @@ error0:
 					(*event->on.error)(loop, event);
 			}
 		}
+next_event:
+		;
 	}
 error0:
 	;
@@ -306,7 +318,7 @@ socketEventAdd(SocketEvents *loop, SocketEvent *event)
 	}
 
 	(void) time(&now);
-	socketEventExpire(event, &now, event->socket->readTimeout);
+	socketEventExpire(event, &now, socketGetTimeout(event->socket));
 
 	return 0;
 }
@@ -353,7 +365,7 @@ socketEventsTimeout(SocketEvents *loop, const time_t *start)
 	expire = now + seconds;
 
 	for (item = (SocketEvent **) VectorBase(loop->events); *item != NULL; item++) {
-		if (now <= (*item)->expire && (*item)->expire < expire) {
+		if ((*item)->enable && now <= (*item)->expire && (*item)->expire < expire) {
 			expire = (*item)->expire;
 			seconds = expire - now;
 		}
@@ -372,7 +384,7 @@ socketEventsExpire(SocketEvents *loop, const time_t *expire)
 
 	for (item = (SocketEvent **) VectorBase(loop->events); *item != NULL; item++) {
 		event = *item;
-		if (event->expire <= when) {
+		if (event->enable && event->expire <= when) {
 			errno = ETIMEDOUT;
 			if (event->on.error != NULL)
 				(*event->on.error)(loop, event);

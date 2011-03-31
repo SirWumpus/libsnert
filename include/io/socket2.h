@@ -934,6 +934,9 @@ typedef struct pollfd socket_ev;
 # error "kqueue, epoll, or poll APIs required."
 #endif
 
+#ifdef HAVE_SETJMP_H
+# include <setjmp.h>
+#endif
 #include <com/snert/lib/type/Vector.h>
 
 typedef struct socket_event SocketEvent;
@@ -960,6 +963,9 @@ struct socket_event {
 };
 
 struct socket_events {
+	/* Public read only */
+	JMP_BUF on_error;
+
 	/* Private */
 	int running;
 	Vector events;
