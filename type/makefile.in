@@ -71,9 +71,10 @@ $O$E :
 
 #######################################################################
 
-OBJS = Object$O Data$O Integer$O Decimal$O Hash$O Vector$O queue$O Text$O kvm$O mcc$O
-TEST = Object$E Data$E Integer$E Decimal$E Hash$E Vector$E Text$E kvmc$E kvmd$E kvmap$E mcc$E
-#SUPPORT = ../io/Log$O ../util/DebugMalloc$O ../util/Memory$O
+IDIR := ${top_srcdir}/include
+HDIR := ${IDIR}/type
+OBJS := Object$O Data$O Integer$O Decimal$O Hash$O Vector$O list$O queue$O Text$O kvm$O mcc$O
+TEST := Object$E Data$E Integer$E Decimal$E Hash$E Vector$E Text$E kvmc$E kvmd$E kvmap$E mcc$E
 
 .MAIN : build
 
@@ -129,6 +130,22 @@ lint: title
 
 ../crc/crc32$O: ../crc/crc32.tbl
 	cd ../crc; ${MAKE} build; if test $$? -ne 0; then exit 1; fi
+
+list.c : ${HDIR}/list.h
+
+queue.h : ${HDIR}/list.h
+
+queue.c : ${IDIR}/sys/pthread.h ${IDIR}/util/timer.h ${HDIR}/queue.h
+
+kvm.h : ${IDIR}/sys/pthread.h
+
+kvm.c : ${IDIR}/io/socket2.h ${HDIR}/kvm.h
+
+mcc.h : ${IDIR}/io/socket2.h ${IDIR}/net/network.h ${IDIR}/sys/pthread.h ${HDIR}/Vector.h
+
+mcc.c : ${IDIR}/io/Log.h ${IDIR}/util/md5.h ${IDIR}/util/Text.h ${HDIR}/mcc.h
+
+Vector.c : ${HDIR}/Vector.h
 
 Object$E: ../util/DebugMalloc$O Object.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Object$E Object.c ${SUPPORT} ${LIBSNERT} ${LIBS}

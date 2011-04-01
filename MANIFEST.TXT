@@ -146,6 +146,7 @@ com/snert/src/lib/type/kvmap.c
 com/snert/src/lib/type/kvmap.txt
 com/snert/src/lib/type/kvmc.c
 com/snert/src/lib/type/mcc.c
+com/snert/src/lib/type/list.c
 com/snert/src/lib/type/queue.c
 com/snert/src/lib/type/socketmap.txt
 com/snert/src/lib/util/b64.c
@@ -274,6 +275,7 @@ com/snert/src/lib/include/type/Text.h
 com/snert/src/lib/include/type/Vector.h
 com/snert/src/lib/include/type/kvm.h
 com/snert/src/lib/include/type/mcc.h
+com/snert/src/lib/include/type/list.h
 com/snert/src/lib/include/type/queue.h
 com/snert/src/lib/include/util/b64.h
 com/snert/src/lib/include/util/Base64.h
