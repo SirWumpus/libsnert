@@ -180,6 +180,7 @@ DNS Support Functions
 		dns.type.DNAME
 		dns.type.MX
 		dns.type.NS
+		dns.type.PTR
 		dns.type.SOA
 		dns.type.TXT
 
@@ -476,7 +477,7 @@ SMTP Client
 
 	Functions
 
-smtp.code, n_rcpt_ok = smtp.sendfile(host, mail, rcpts[], spool)
+smtp.code, n_rcpt_ok = smtp.sendfile(hosts[], mail, rcpts[], spool)
 
 	Send the spool file to host, which can be a host name, ipv4, or
 	ipv6 address with optional colon port suffix, eg.
@@ -487,4 +488,4 @@ smtp.code, n_rcpt_ok = smtp.sendfile(host, mail, rcpts[], spool)
 	last RCPT command and before DATA.
 
 
-smtp.code, n_rcpt_ok = smtp.sendstring(host, mail, rcpts[], message)
+smtp.code, n_rcpt_ok = smtp.sendstring(hosts[], mail, rcpts[], message)

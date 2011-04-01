@@ -243,7 +243,8 @@ struct stmp_ctx {
 	int transaction_count;
 	JMP_BUF on_error;
 	ParsePath *sender;
-	Vector recipients;
+	Vector rcpts;		/* Vector of char * */
+	char **rcpt;		/* For interating over rcpts list. */
 	long mail_size;		/* RFC 1870 */
 	unsigned char ipv6[IPV6_BYTE_LENGTH];
 
@@ -265,7 +266,6 @@ struct stmp_ctx {
 
 	/* Coroutine & hook state. */
 	pt_t pt;		/* Protothread state of current command. */
-	ParsePath **rcpt;	/* For interating over recipients list. */
 	SMTP_Reply_Code smtp_rc;
 
 	/* SMTP state */
@@ -306,7 +306,7 @@ struct stmp_ctx {
 #define LOG_FMT			"%s "
 #define LOG_LINE		__FILE__, __LINE__
 #define LOG_ID(ctx)		(ctx)->id_sess
-#define LOG_TRAN(ctx)		(ctx)->id_trans
+#define LOG_TRAN(ctx)		((*(ctx)->id_trans == '\0') ? LOG_ID(ctx) : (ctx)->id_trans)
 #define LOG_INT(ctx)		LOG_ID(ctx), LOG_LINE
 
 #define CLIENT_FMT		"%s [%s] "
@@ -709,9 +709,11 @@ Option *verb_table[] = {
 	NULL
 };
 
+static Vector smart_hosts;
 static unsigned rand_seed;
 static int parse_path_flags;
 static SocketEvents main_loop;
+static const char *smtp_default_at_dot;
 static char my_host_name[SMTP_DOMAIN_LENGTH+1];
 void client_send(SmtpCtx *ctx, const char *fmt, ...);
 
@@ -805,6 +807,36 @@ lua_array_push_string(lua_State *L, int table_index, const char *value)
 	lua_pushstring(L, value);
 	size = lua_objlen(L, table_index - (table_index < 0));
 	lua_rawseti(L, table_index - (table_index < 0), size+1);
+}
+
+static Vector
+lua_array_to_vector(lua_State *L, int table_index)
+{
+	Vector v;
+	char *string;
+	size_t i, length;
+
+	if (!lua_istable(L, table_index))
+		return NULL;
+
+	length = lua_objlen(L, table_index);
+
+	if ((v = VectorCreate(length)) == NULL)
+		return NULL;
+	VectorSetDestroyEntry(v, free);
+
+	for (i = 1; i <= length; i++) {
+		lua_pushinteger(L, i);				/* i */
+		lua_gettable(L, table_index-(table_index < 0));	/* el */
+		string = strdup(lua_tostring(L, -1));		/* el */
+		lua_pop(L, 1);					/* -- */
+		if (string == NULL || VectorAdd(v, string)) {
+			VectorDestroy(v);
+			return NULL;
+		}
+	}
+
+	return v;
 }
 
 static void
@@ -972,6 +1004,9 @@ mx_open(SmtpCtx *ctx, const char *host)
 		return -1;
 	}
 
+	if (verb_smtp.value)
+		syslog(LOG_DEBUG, LOG_FMT ">> connected %s", LOG_TRAN(ctx), host);
+
 	(void) fileSetCloseOnExec(socketGetFd(ctx->mx.socket), 1);
 	(void) socketSetNonBlocking(ctx->mx.socket, 1);
 	(void) socketSetLinger(ctx->mx.socket, 0);
@@ -1054,19 +1089,30 @@ mx_printf(SmtpCtx *ctx, const char *fmt, ...)
 }
 
 static
-PT_THREAD(mx_send(SmtpCtx *ctx, const char *host, const char *mail, Vector rcpts, const char *spool_msg, size_t length))
+PT_THREAD(mx_send(SmtpCtx *ctx, Vector hosts, const char *mail, Vector rcpts, const char *spool_msg, size_t length))
 {
 	int err;
+	char **host;
 
 	PT_BEGIN(&ctx->mx.pt);
 
+	ctx->reply.length = 0;
 	ctx->mx.read.smtp_rc = 0;
-	if (mx_open(ctx, host)) {
-		ctx->reply.length = 0;
-		goto mx_tempfail1;
-	}
 
-	ctx->mx.host = host;
+	if (hosts == NULL)
+		goto mx_tempfail1;
+
+	for (host = (char **) VectorBase(hosts); *host != NULL; host++) {
+		if (verb_smtp.value)
+			syslog(LOG_DEBUG, LOG_FMT ">> trying %s", LOG_TRAN(ctx), *host);
+
+		if (mx_open(ctx, *host) == 0)
+			break;
+	}
+	if (*host == NULL)
+		goto mx_tempfail1;
+
+	ctx->mx.host = *host;
 	ctx->mx.mail = mail;
 	ctx->mx.rcpts = rcpts;
 	ctx->mx.rcpts_ok = 0;
@@ -1075,7 +1121,7 @@ PT_THREAD(mx_send(SmtpCtx *ctx, const char *host, const char *mail, Vector rcpts
 
 	PT_SPAWN(&ctx->mx.pt, &ctx->mx.read.pt, mx_read(ctx));
 	if (ctx->mx.read.smtp_rc != SMTP_WELCOME) {
-		syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), host, ctx->mx.read.lines[0]);
+		syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
 		ctx->reply.length = 0;
 		goto mx_tempfail2;
 	}
@@ -1085,7 +1131,7 @@ PT_THREAD(mx_send(SmtpCtx *ctx, const char *host, const char *mail, Vector rcpts
 		mx_print(ctx, ctx->auth.data, ctx->auth.length);
 		PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
 		if (ctx->mx.read.smtp_rc != SMTP_AUTH_OK) {
-			syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), host, ctx->mx.read.lines[0]);
+			syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
 			ctx->reply.length = 0;
 			goto mx_tempfail2;
 		}
@@ -1099,7 +1145,7 @@ PT_THREAD(mx_send(SmtpCtx *ctx, const char *host, const char *mail, Vector rcpts
 		mx_printf(ctx, "HELO %s" CRLF, my_host_name);
 		PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
 		if (ctx->mx.read.smtp_rc != SMTP_OK) {
-			syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), host, ctx->mx.read.lines[0]);
+			syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
 			ctx->reply.length = 0;
 			goto mx_tempfail2;
 		}
@@ -1109,17 +1155,17 @@ PT_THREAD(mx_send(SmtpCtx *ctx, const char *host, const char *mail, Vector rcpts
 	mx_printf(ctx, "MAIL FROM:<%s>" CRLF, mail);
 	PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
 	if (ctx->mx.read.smtp_rc != SMTP_OK) {
-		syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), host, ctx->mx.read.lines[0]);
+		syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
 		ctx->reply.length = 0;
 		goto mx_tempfail2;
 	}
 	free(ctx->mx.read.lines);
 
-	for (ctx->rcpt = (ParsePath **) VectorBase(rcpts); *ctx->rcpt != NULL; ctx->rcpt++) {
-		mx_printf(ctx, "RCPT TO:<%s>" CRLF, (*ctx->rcpt)->address.string);
+	for (ctx->rcpt = (char **) VectorBase(rcpts); *ctx->rcpt != NULL; ctx->rcpt++) {
+		mx_printf(ctx, "RCPT TO:<%s>" CRLF, *ctx->rcpt);
 		PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
 		if (ctx->mx.read.smtp_rc != SMTP_OK) {
-			syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), host, ctx->mx.read.lines[0]);
+			syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
 			ctx->reply.length = 0;
 			continue;
 		}
@@ -1133,7 +1179,7 @@ PT_THREAD(mx_send(SmtpCtx *ctx, const char *host, const char *mail, Vector rcpts
 	mx_print(ctx, "DATA" CRLF, STRLEN("DATA" CRLF));
 	PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
 	if (ctx->mx.read.smtp_rc != SMTP_WAITING) {
-		syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), host, ctx->mx.read.lines[0]);
+		syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
 		ctx->reply.length = 0;
 		goto mx_tempfail2;
 	}
@@ -1168,7 +1214,7 @@ PT_THREAD(mx_send(SmtpCtx *ctx, const char *host, const char *mail, Vector rcpts
 	mx_print(ctx, "." CRLF, STRLEN("." CRLF));
 	PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
 	if (ctx->mx.read.smtp_rc != SMTP_OK) {
-		syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), host, ctx->mx.read.lines[0]);
+		syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
 		ctx->reply.length = 0;
 	}
 mx_tempfail3:
@@ -1205,7 +1251,7 @@ mx_tempfail1:
 static int
 lua_mx_senduntil(lua_State *L, SmtpCtx *ctx)
 {
-	return !PT_SCHEDULE(mx_send(ctx, ctx->mx.host, ctx->mx.mail, ctx->mx.rcpts, ctx->mx.spool, ctx->mx.length));
+	return !PT_SCHEDULE(mx_send(ctx, NULL, ctx->mx.mail, ctx->mx.rcpts, ctx->mx.spool, ctx->mx.length));
 }
 
 static int
@@ -1221,40 +1267,29 @@ lua_mx_sendresult(lua_State *L, SmtpCtx *ctx)
 static int
 lua_mx_send(lua_State *L, size_t string_length)
 {
-	Vector rcpts;
-	ParsePath *rcpt;
-	size_t i, length;
-	const char *error;
+	int is_scheduled;
+	Vector hosts, rcpts;
 	SmtpCtx *ctx = lua_getctx(L);
 
 	if (ctx == NULL)
 		return luaL_error(L, "client context not found %s.%d", LOG_LINE);
 
+	luaL_checktype(L, 1, LUA_TTABLE);
+	if ((hosts = lua_array_to_vector(L, 1)) == NULL)
+		return luaL_error(L, "hosts table error %s.%d: %s (%d)", LOG_LINE, strerror(errno), errno);
+
 	luaL_checktype(L, 3, LUA_TTABLE);
-	length = lua_objlen(L, -2);
-
-	if (length == 0)
-		return luaL_error(L, "recipient array cannot be empty %s.%d", LOG_LINE);
-
-	if ((rcpts = VectorCreate(length)) == NULL)
-		return luaL_error(L, log_oom, LOG_INT(ctx));
-
-	/* Convert the Lua array of recipients to a Vector. */
-	for (i = 1; i <= length; i++) {
-		lua_pushinteger(L, i);		/* host mail rcpts spool i */
-		lua_gettable(L, -3);		/* host mail rcpts spool rcpt */
-		if ((error = parsePath(lua_tostring(L, -1), parse_path_flags, 0, &rcpt)) != NULL
-		|| VectorAdd(rcpts, rcpt)) {
-			VectorDestroy(rcpts);
-			return luaL_error(L, "recipient parse error: %s", error);
-		}
-		lua_pop(L, 1);			/* host mail rcpts spool */
-	}
+	if ((rcpts = lua_array_to_vector(L, 3)) == NULL)
+		return luaL_error(L, "rcpts table error %s.%d: %s (%d)", LOG_LINE, strerror(errno), errno);
 
 	ctx->lua.yield_until = lua_mx_senduntil;
 	ctx->lua.yield_after = lua_mx_sendresult;
 
-	if (!PT_SCHEDULE(mx_send(ctx, luaL_checkstring(L, 1), luaL_checkstring(L, 2), rcpts, luaL_checkstring(L, 4), string_length))) {
+	is_scheduled = PT_SCHEDULE(mx_send(ctx, hosts, luaL_checkstring(L, 2), rcpts, luaL_checkstring(L, 4), string_length));
+
+	VectorDestroy(hosts);
+
+	if (!is_scheduled) {
 		VectorDestroy(rcpts);
 		return luaL_error(L, "%s %s error", LOG_ID(ctx), __FUNCTION__);
 	}
@@ -1430,11 +1465,7 @@ lua_syslog(lua_State *L)
 	} else {
 		if (verb_debug.value)
 			syslog(LOG_DEBUG, LOG_FMT "%s ctx=%lx thread=%d L=%lx", LOG_ID(ctx), __FUNCTION__, (long) ctx, ctx->lua.thread, (long) L);
-		syslog(
-			level, LOG_FMT "%s",
-			(*ctx->id_trans == '\0') ? LOG_ID(ctx) : LOG_TRAN(ctx),
-			luaL_checkstring(L, 2)
-		);
+		syslog(level, LOG_FMT "%s", LOG_TRAN(ctx), luaL_checkstring(L, 2));
 	}
 
 	return 0;
@@ -2449,7 +2480,7 @@ LUA_CMD_DEF(mail)
 
 LUA_CMD_DEF(rcpt)
 {
-	lua_pushlstring(L1, (*ctx->rcpt)->address.string, (*ctx->rcpt)->address.length);	/* func arg */
+	lua_pushstring(L1, *ctx->rcpt);		/* func arg */
 	return 1;
 }
 
@@ -3141,7 +3172,7 @@ client_reset(SmtpCtx *ctx)
 	mimeFree(ctx->mime);
 	ctx->mime = NULL;
 	ctx->state = ctx->state_helo;
-	VectorRemoveAll(ctx->recipients);
+	VectorRemoveAll(ctx->rcpts);
 	free(ctx->sender);
 	ctx->sender = NULL;
 }
@@ -3591,19 +3622,25 @@ SMTP_CMD_DEF(rcpt)
 		free(rcpt);
 		PT_EXIT(&ctx->pt);
 	}
+	if ((recipient = strdup(rcpt->address.string)) == NULL) {
+		client_send(ctx, fmt_internal, opt_smtp_error_url.string, strerror(errno));
+		free(rcpt);
+		PT_EXIT(&ctx->pt);
+	}
+	free(rcpt);
 
-	ctx->rcpt = &rcpt;
+	ctx->rcpt = &recipient;
 
 	LUA_PT_CALL(rcpt);
 
-	if ((ctx->smtp_rc == 0 || SMTP_IS_OK(ctx->smtp_rc)) && VectorAdd(ctx->recipients, rcpt)) {
+	if ((ctx->smtp_rc == 0 || SMTP_IS_OK(ctx->smtp_rc)) && VectorAdd(ctx->rcpts, recipient)) {
 		client_send(ctx, fmt_internal, opt_smtp_error_url.string, strerror(errno));
 		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
-		free(rcpt);
+		free(recipient);
 		SIGLONGJMP(ctx->on_error, 1);
 	}
 
-	client_send(ctx, fmt_rcpt_ok, rcpt->address.string);
+	client_send(ctx, fmt_rcpt_ok, recipient);
 
 	PT_END(&ctx->pt);
 }
@@ -3620,7 +3657,7 @@ SMTP_CMD_DEF(data)
 		return SMTP_CMD_DO(out_seq);
 	}
 
-	if (VectorLength(ctx->recipients) == 0) {
+	if (VectorLength(ctx->rcpts) == 0) {
 		if (ctx->input.size != ctx->pipe.length - ctx->pipe.offset) {
 			ctx->input.data[STRLEN("DATA")] = '\0';
 			client_send(ctx, fmt_no_piping, SMTP_TRANSACTION_FAILED, opt_smtp_error_url.string, ctx->input.data);
@@ -3705,15 +3742,15 @@ SMTP_CMD_DEF(content)
 				PT_SPAWN(
 					&ctx->pt, &ctx->mx.pt,
 					mx_send(
-						ctx, opt_smtp_smart_host.string,
+						ctx, smart_hosts,
 						ctx->sender->address.string,
-						ctx->recipients, ctx->path.data, 0
+						ctx->rcpts, ctx->path.data, 0
 					)
 				);
 			}
 		}
 
-		client_send(ctx, opt_smtp_default_at_dot.string, opt_smtp_error_url.string, ctx->id_trans);
+		client_send(ctx, smtp_default_at_dot, opt_smtp_error_url.string, ctx->id_trans);
 		client_reset(ctx);
 
 		/* When there is input remaining, it is possibly a
@@ -3968,11 +4005,11 @@ client_newctx(void)
 	ctx->reply.data = &ctx->work.data[ctx->work.size];
 	ctx->pipe.data = &ctx->reply.data[ctx->reply.size];
 
-	if ((ctx->recipients = VectorCreate(10)) == NULL) {
+	if ((ctx->rcpts = VectorCreate(10)) == NULL) {
 		free(ctx);
 		return NULL;
 	}
-	VectorSetDestroyEntry(ctx->recipients, free);
+	VectorSetDestroyEntry(ctx->rcpts, free);
 
 	return ctx;
 }
@@ -4129,7 +4166,7 @@ client_close_cb(SocketEvents *loop, SocketEvent *event)
 		LUA_CALL0(close);
 		lua_hook_endthread(lua_live, ctx);
 
-		VectorDestroy(ctx->recipients);
+		VectorDestroy(ctx->rcpts);
 		dns_close(loop, event);
 		mimeFree(ctx->mime);
 		free(ctx->sender);
@@ -4264,6 +4301,13 @@ server_io_cb(SocketEvents *loop, SocketEvent *event)
  ***********************************************************************/
 
 void
+at_exit_cleanup(void)
+{
+	optionFree(opt_table, NULL);
+	VectorDestroy(smart_hosts);
+}
+
+void
 serverOptions(int argc, char **argv)
 {
 	int argi;
@@ -4304,20 +4348,19 @@ serverOptions(int argc, char **argv)
 		parse_path_flags |= STRICT_LITERAL_PLUS;
 
 	/* Convert the smtp-default-at-dot option into the matching default reply. */
-	if (opt_smtp_default_at_dot.initial != opt_smtp_default_at_dot.string)
-		free(opt_smtp_default_at_dot.string);
 	switch (opt_smtp_default_at_dot.value) {
 	case SMTP_OK:
-		opt_smtp_default_at_dot.string = strdup(fmt_msg_ok);
+		smtp_default_at_dot = fmt_msg_ok;
 		break;
 	case SMTP_REJECT:
-		opt_smtp_default_at_dot.string = strdup(fmt_msg_reject);
+		smtp_default_at_dot = fmt_msg_reject;
 		break;
 	default:
-		opt_smtp_default_at_dot.string = strdup(fmt_msg_try_again);
+		smtp_default_at_dot = fmt_msg_try_again;
 		break;
 	}
-	if (opt_smtp_default_at_dot.string == NULL) {
+
+	if ((smart_hosts = TextSplit(opt_smtp_smart_host.string, ";, ", 0)) == NULL) {
 		syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
 		exit(EX_SOFTWARE);
 	}
@@ -4473,6 +4516,8 @@ main(int argc, char **argv)
 {
 	verboseInit();
 	serverOptions(argc, argv);
+	if (atexit(at_exit_cleanup))
+		exit(EX_SOFTWARE);
 
 	if (opt_version.string != NULL) {
 		printVersion();
