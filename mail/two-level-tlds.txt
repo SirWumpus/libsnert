@@ -275,7 +275,7 @@ avocat.fr
 avoues.fr
 axis.museum
 az.us
-aéroport.ci
+xn--aroport-bya.ci
 b.bg
 b.se
 ba.it
@@ -890,7 +890,7 @@ dr.tr
 drammen.no
 drangedal.no
 drobak.no
-drøbak.no
+xn--drbak-wua.no
 dudinka.ru
 durham.museum
 dyroy.no
@@ -1952,7 +1952,7 @@ law.pro
 law.za
 lc.it
 le.it
-lea?gaviika.no
+xn--leagaviika-52b.no
 leangaviika.no
 leasing.aero
 lebesby.no
@@ -2832,7 +2832,7 @@ oskol.ru
 oslo.no
 osoyro.no
 osteroy.no
-osterøy.no
+xn--ostery-fya.no
 ostre-toten.no
 ostroda.pl
 ostroleka.pl
@@ -3551,7 +3551,7 @@ tynset.no
 tysfjord.no
 tysnes.no
 tysvar.no
-tysvær.no
+xn--tysvr-vra.no
 tyumen.ru
 u.bg
 u.se
@@ -3584,7 +3584,7 @@ union.aero
 uniti.al
 university.museum
 unjarga.no
-unjárga.no
+xn--unjrga-rta.no
 unlugar.com
 unsa.ba
 upt.al
@@ -3647,7 +3647,7 @@ ve.it
 vefsn.no
 vega.no
 vegarshei.no
-vegårshei.no
+xn--vegrshei-c0a.no
 venezia.it
 venice.it
 vennesla.no
