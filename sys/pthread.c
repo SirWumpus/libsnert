@@ -94,7 +94,7 @@ thread_free(void *_thread)
 }
 
 static int
-thread_find(ListItem *item, long key)
+thread_find(List *list, ListItem *item, long key)
 {
 	return ((struct _pthread_thread *) item->data)->thread_id == key;
 }
@@ -107,7 +107,7 @@ _pthread_cleanup_push(struct _pthread_cleanup_buffer *buffer, void (*fn)(void *)
 
 	EnterCriticalSection(&thread_mutex);
 
-	item = listFind(&thread_list, (ListFindFn) thread_find, (void *) GetCurrentThreadId());
+	item = listFind(&thread_list, thread_find, (void *) GetCurrentThreadId());
 
 	if (item == NULL) {
 		/* Keep track of threads with cleanup routines. */
