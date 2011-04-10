@@ -466,11 +466,15 @@ extern int socket_wait(SOCKET fd, long timeout, unsigned rw_flags);
 # define SOCKET_WAIT_READ		EVFILT_READ
 # define SOCKET_WAIT_WRITE		EVFILT_WRITE
 
+extern int socket_wait_kqueue(SOCKET fd, long ms, unsigned rw_flags);
+
 #elif defined(HAVE_EPOLL_CREATE)
 # include <sys/epoll.h>
 
 # define SOCKET_WAIT_READ		(EPOLLIN | EPOLLHUP)
 # define SOCKET_WAIT_WRITE		(EPOLLOUT | EPOLLHUP)
+
+extern int socket_wait_epoll(SOCKET fd, long ms, unsigned rw_flags);
 
 #elif defined(HAVE_POLL)
 # if defined(HAVE_POLL_H)
@@ -482,18 +486,23 @@ extern int socket_wait(SOCKET fd, long timeout, unsigned rw_flags);
 # define SOCKET_WAIT_READ		(POLLIN | POLLHUP)
 # define SOCKET_WAIT_WRITE		(POLLOUT | POLLHUP)
 
+extern int socket_wait_poll(SOCKET fd, long ms, unsigned rw_flags);
+
 #elif defined(HAVE_SELECT)
 
 # define SOCKET_WAIT_READ		0x1
 # define SOCKET_WAIT_WRITE		0x2
 
+extern int socket_wait_select(SOCKET fd, long ms, unsigned rw_flags);
+
 #else
 # error "kqueue, epoll, poll, or select APIs required."
 #endif
 
-#define SOCKET_WAIT_RW			(SOCKET_WAIT_READ|SOCKET_WAIT_WRITE)
 #define socket_has_input(fd, ms)	socket_wait(fd, ms, SOCKET_WAIT_READ)
 #define socket_can_send(fd, ms)		socket_wait(fd, ms, SOCKET_WAIT_WRITE)
+
+extern int (*socket_wait_fn)(SOCKET, long, unsigned);
 
 /***********************************************************************
  ***

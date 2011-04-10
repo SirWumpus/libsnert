@@ -49,8 +49,18 @@ socket_init(void)
 	int rc;
 	static int initialised = 0;
 
-	if (!initialised && (rc = pdqInit()) == 0)
+	if (!initialised && (rc = pdqInit()) == 0) {
+#if defined(HAVE_KQUEUE)
+		socket_wait_fn = socket_wait_kqueue;
+#elif defined(HAVE_EPOLL_CREATE)
+		socket_wait_fn = socket_wait_epoll;
+#elif defined(HAVE_POLL)
+		socket_wait_fn = socket_wait_poll;
+#elif defined(HAVE_SELECT)
+		socket_wait_fn = socket_wait_select;
+#endif
 		initialised = 1;
+	}
 
 	return rc;
 }
@@ -395,7 +405,7 @@ socket_connect(const char *host, unsigned port, long timeout)
 	PDQ_rr *list, *rr, *a_rr;
 
 	/* Simple case of IP address or local domain path? */
-	if ((fd = socket_basic_connect(host, port, timeout)) < 0)
+	if (0 <= (fd = socket_basic_connect(host, port, timeout)))
 		return fd;
 
 	/* We have a host[:port] where the host might be multi-homed. */
@@ -437,7 +447,7 @@ socket_connect(const char *host, unsigned port, long timeout)
 		host = a_rr->name.string.value;
 
 		/* Now try to connect to this IP address. */
-		if ((fd = socket_basic_connect(((PDQ_AAAA *) a_rr)->address.string.value, port, timeout)) < 0)
+		if (0 <= (fd = socket_basic_connect(((PDQ_AAAA *) a_rr)->address.string.value, port, timeout)))
 			break;
 
 		rr = a_rr;
@@ -779,10 +789,9 @@ socket_multicast_ttl(SOCKET fd, int ttl)
 #endif
 }
 
-int
-socket_wait(SOCKET fd, long ms, unsigned rw_flags)
-{
 #if defined(HAVE_KQUEUE)
+int
+socket_wait_kqueue(SOCKET fd, long ms, unsigned rw_flags)
 {
 	int kq;
 	struct kevent event;
@@ -798,16 +807,21 @@ socket_wait(SOCKET fd, long ms, unsigned rw_flags)
 	/* Wait for I/O or timeout. */
 	if (kevent(kq, &event, 1, &event, 1, to) == 0 && errno != EINTR)
 		errno = ETIMEDOUT;
-	else if (event.flags & (EV_EOF|EV_ERROR))
-		errno = (event.flags & EV_EOF) ? EPIPE : EIO;
 	else if (event.filter == EVFILT_READ || event.filter == EVFILT_WRITE)
 		errno = 0;
+	else if (event.flags & EV_EOF)
+		errno = EPIPE;
+	else if (event.flags & EV_ERROR)
+		errno = socket_get_error(fd);
 
 	(void) close(kq);
 error0:
-	;
+	return errno == 0;
 }
-#elif defined(HAVE_EPOLL_CREATE)
+#endif
+#if defined(HAVE_EPOLL_CREATE)
+int
+socket_wait_epoll(SOCKET fd, long ms, unsigned rw_flags)
 {
 	SOCKET ev_fd;
 	struct epoll_event event;
@@ -827,16 +841,21 @@ error0:
 	/* Wait for I/O or timeout. */
 	if (epoll_wait(ev_fd, &event, 1, ms) == 0 && errno != EINTR)
 		errno = ETIMEDOUT;
-	else if (event.events & (EPOLLHUP|EPOLLERR))
-		errno = (event.events & EPOLLHUP) ? EPIPE : EIO;
 	else if (event.events & (EPOLLIN|EPOLLOUT))
 		errno = 0;
+	else if (event.events & EPOLLHUP)
+		errno = EPIPE;
+	else if (event.events & EPOLLERR)
+		errno = socket_get_error(fd);
 error1:
 	(void) close(ev_fd);
 error0:
-	;
+	return errno == 0;
 }
-#elif defined(HAVE_POLL)
+#endif
+#if defined(HAVE_POLL)
+int
+socket_wait_poll(SOCKET fd, long ms, unsigned rw_flags)
 {
 	struct pollfd event;
 
@@ -849,18 +868,25 @@ error0:
 	/* Wait for some I/O or timeout. */
 	if (poll(&event, 1, ms) == 0 && errno != EINTR)
 		errno = ETIMEDOUT;
-	else if (event.revents & (POLLHUP|POLLERR))
-		errno = (event.events & POLLHUP) ? EPIPE : EIO;
 	else if (event.revents & (POLLIN|POLLOUT))
 		errno = 0;
+	else if (event.revents & POLLHUP)
+		errno = EPIPE;
+	else if (event.revents & POLLERR)
+		errno = socket_get_error(fd);
+
+	return errno == 0;
 }
-#elif defined(HAVE_SELECT)
+#endif
+#if defined(HAVE_SELECT)
+int
+socket_wait_select(SOCKET fd, long ms, unsigned rw_flags)
 {
 	fd_set rd, wr, err;
 	struct timeval tv, *to;
 
-	timevalSetMs(&tv, timeout);
-	to = timeout < 0 ? NULL : &tv;
+	timevalSetMs(&tv, ms);
+	to = ms < 0 ? NULL : &tv;
 
 	FD_ZERO(&rd);
 	FD_ZERO(&wr);
@@ -873,16 +899,36 @@ error0:
 
 	if (select(2, &rd, &wr, &err, to) == 0)
 		errno = ETIMEDOUT;
-	else if (FD_ISSET(fd, err))
-		errno = EPIPE;
+	else if (FD_ISSET(fd, &err))
+		errno = socket_get_error(fd);
 	else
 		errno = 0;
-}
-#else
-# error "kqueue, epoll, or poll APIs required."
-	errno = EIO;
-#endif
+
 	return errno == 0;
+}
+#endif
+
+#if defined(HAVE_KQUEUE)
+int (*socket_wait_fn)(SOCKET, long, unsigned) = socket_wait_kqueue;
+#elif defined(HAVE_EPOLL_CREATE)
+int (*socket_wait_fn)(SOCKET, long, unsigned) = socket_wait_epoll;
+#elif defined(HAVE_POLL)
+int (*socket_wait_fn)(SOCKET, long, unsigned) = socket_wait_poll;
+#elif defined(HAVE_SELECT)
+int (*socket_wait_fn)(SOCKET, long, unsigned) = socket_wait_select;
+#else
+# error "No suitable socket_wait function."
+#endif
+
+int
+socket_wait(SOCKET fd, long ms, unsigned rw_flags)
+{
+	if (socket_wait_fn == NULL) {
+		errno = EIO;
+		return 0;
+	}
+
+	return (*socket_wait_fn)(fd, ms, rw_flags);
 }
 
 
