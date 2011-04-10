@@ -63,8 +63,13 @@ typedef void * lc_t;
 
 #define LC_INIT(s) s = NULL
 
+#define LC_IS_INIT(s)	(s == NULL)
+
 #define LC_RESUME(s)				\
   do {						\
+    lc_begin: 			  	        \
+    if ((s) < lc_begin || lc_end < (s))		\
+    	goto lc_chain;				\
     if(s != NULL) {				\
       goto *s;					\
     }						\
@@ -79,7 +84,10 @@ typedef void * lc_t;
     (s) = &&LC_CONCAT(LC_LABEL, __LINE__);	\
   } while(0)
 
-#define LC_END(s)
+#define LC_CHAIN(s)	lc_chain:
+
+#define LC_END(s)	lc_end:
+
 
 #endif /* __LC_ADDRLABELS_H__ */
 /** @} */

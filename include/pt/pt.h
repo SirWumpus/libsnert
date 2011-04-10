@@ -52,7 +52,7 @@
 #include <com/snert/lib/pt/lc.h>
 
 /**
- * Natural word size of used by machine.
+ * Natural word size used by machine.
  */
 typedef int pt_word_t;
 
@@ -83,6 +83,9 @@ typedef struct pt {
  * \hideinitializer
  */
 #define PT_INIT(pt)   LC_INIT((pt)->lc)
+
+#define PT_IS_INIT(pt)	LC_IS_INIT((pt)->lc)
+#define PT_RUNNING(pt)	!PT_IS_INIT(pt)
 
 /** @} */
 
@@ -118,6 +121,20 @@ typedef struct pt {
  * \hideinitializer
  */
 #define PT_BEGIN(pt) { pt_word_t PT_YIELD_FLAG = 1; LC_RESUME((pt)->lc)
+
+/**
+ * Chain one protothread into another protothead using the same
+ * protothread control structure.
+ *
+ * This macro is used at the end of a protothread just before PT_END().
+ *
+ * \param pt A pointer to the protothread control structure.
+ *
+ * \param thread The next protothread with arguments.
+ *
+ * \hideinitializer
+ */
+#define PT_CHAIN(pt, thread)	PT_INIT(pt); LC_CHAIN((pt)->lc); return (thread)
 
 /**
  * Declare the end of a protothread.
