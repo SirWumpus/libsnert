@@ -20,6 +20,7 @@ typedef struct {
 	unsigned char *bytes;
 	size_t capacity;
 	size_t length;
+	size_t offset;
 } Buf;
 
 /**

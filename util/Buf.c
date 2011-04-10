@@ -367,6 +367,8 @@ BufAddBytes(Buf *a, unsigned char *bytes, size_t len)
 int
 BufAddString(Buf *a, const char *s)
 {
+	if (s == NULL)
+		return 0;
 	return BufAddBytes(a, (unsigned char *) s, strlen(s));
 }
 
