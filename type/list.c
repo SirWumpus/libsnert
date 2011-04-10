@@ -36,7 +36,7 @@ listFini(void *_list)
 		for (item = list->head; item != NULL; item = next) {
 			next = item->next;
 			if (item->free != NULL)
-				(*item->free)(item);
+				(*item->free)(item->data);
 		}
 	}
 }
