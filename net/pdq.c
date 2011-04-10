@@ -77,7 +77,7 @@
 #include <com/snert/lib/io/Log.h>
 
 #include <com/snert/lib/io/file.h>
-#include <com/snert/lib/io/socket2.h>
+#include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/mail/tlds.h>
 #include <com/snert/lib/type/Vector.h>
 #include <com/snert/lib/util/Text.h>
@@ -249,7 +249,6 @@ static struct mapping soaMap[] = {
 };
 
 static struct mapping sectionMap[] = {
-	{ PDQ_SECTION_UNKNOWN,		"UNKNOWN" 	},
 	{ PDQ_SECTION_QUERY,		"QUERY" 	},
 	{ PDQ_SECTION_ANSWER,		"ANSWER" 	},
 	{ PDQ_SECTION_AUTHORITY,	"AUTHORITY" 	},
@@ -2300,6 +2299,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 	}
 
 	query->rcode = rcode;
+	query->rr.ttl = 0;
 	query->rr.next = NULL;
 	(void) time(&query->created);
 	query->flags = packet->header.bits;
@@ -2884,6 +2884,12 @@ pdqQueryIsPending(PDQ *pdq)
 }
 
 int
+pdqGetBasicQuery(PDQ *pdq)
+{
+	return pdq->short_query;
+}
+
+int
 pdqSetBasicQuery(PDQ *pdq, int flag)
 {
 	int old = pdq->short_query;
@@ -2929,7 +2935,7 @@ pdqQuery(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char 
 	char *buffer = NULL;
 
 	errno = EFAULT;
-	if (pdq == NULL || name == NULL || (query = pdq_query_create()) == NULL)
+	if (pdq == NULL || name == NULL || *name == '\0' || (query = pdq_query_create()) == NULL)
 		goto error0;
 
 	/* If a PTR request is not already rooted in .arpa,
@@ -3005,7 +3011,7 @@ pdqPoll(PDQ *pdq, unsigned ms)
 	 */
 	sleep(1);
 #endif
-	if (socketTimeoutIO(pdq->fd, ms, 1)) {
+	if (socket_wait(pdq->fd, ms, SOCKET_WAIT_READ)) {
 		int saved_errno = 0;
 		PDQ_reply *reply, *replies = NULL, *next;
 
@@ -3037,7 +3043,7 @@ pdqPoll(PDQ *pdq, unsigned ms)
 				free(reply);
 			else
 				pdq_link_add(&replies, reply);
-		} while (socketTimeoutIO(pdq->fd, PDQ_POLL_NEXT_PACKET_TIMEOUT_MS, 1));
+		} while (socket_wait(pdq->fd, PDQ_POLL_NEXT_PACKET_TIMEOUT_MS, SOCKET_WAIT_READ));
 
 		/* Restore the errno related to recvfrom, since we know
 		 * that socketTimeoutIO will more than likely set errno

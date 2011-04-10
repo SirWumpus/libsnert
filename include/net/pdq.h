@@ -60,9 +60,12 @@ extern "C" {
 # endif
 #endif
 
-#include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/type/Vector.h>
+
+#ifndef SOCKET
+#define SOCKET				int
+#endif
 
 /***********************************************************************
  *** PDQ Types
@@ -174,11 +177,10 @@ typedef enum {
 #endif
 
 typedef enum {
-	PDQ_SECTION_UNKNOWN		= 0,
-	PDQ_SECTION_QUERY		= 1,
-	PDQ_SECTION_ANSWER		= 2,
-	PDQ_SECTION_AUTHORITY		= 3,
-	PDQ_SECTION_EXTRA		= 4,
+	PDQ_SECTION_QUERY,
+	PDQ_SECTION_ANSWER,
+	PDQ_SECTION_AUTHORITY,
+	PDQ_SECTION_EXTRA,
 } PDQ_section;
 
 #define PDQ_CNAME_TOO_DEEP		((PDQ_rr *) 1)
@@ -187,15 +189,15 @@ typedef enum {
 #define PDQ_RR_IS_NOT_VALID(rr)		((rr) == NULL || (rr) == PDQ_CNAME_TOO_DEEP || (rr) == PDQ_CNAME_IS_CIRCULAR)
 
 typedef enum {
-	PDQ_SOA_OK 			= 0,	/* OK (or query name is NULL or an IP) */
-	PDQ_SOA_BAD_NAME,			/* Query name has invalid TLD. */
-	PDQ_SOA_UNDEFINED,			/* Query name is not defined.     */
-	PDQ_SOA_MISSING,			/* No SOA in list. */
-	PDQ_SOA_BAD_CNAME,			/* CNAME value in list has invalid TLD */
-	PDQ_SOA_ROOTED,				/* LHS of SOA is the root domain, query name does not exist */
-	PDQ_SOA_MISMATCH,			/* LHS of SOA RR does not match query name */
-	PDQ_SOA_BAD_NS,				/* MNAME of SOA has invalid TLD */
-	PDQ_SOA_BAD_CONTACT,			/* RNAME of SOA has invalid TLD or missing user name portion */
+	PDQ_SOA_OK, 			/* OK (or query name is NULL or an IP) */
+	PDQ_SOA_BAD_NAME,		/* Query name has invalid TLD. */
+	PDQ_SOA_UNDEFINED,		/* Query name is not defined.     */
+	PDQ_SOA_MISSING,		/* No SOA in list. */
+	PDQ_SOA_BAD_CNAME,		/* CNAME value in list has invalid TLD */
+	PDQ_SOA_ROOTED,			/* LHS of SOA is the root domain, query name does not exist */
+	PDQ_SOA_MISMATCH,		/* LHS of SOA RR does not match query name */
+	PDQ_SOA_BAD_NS,			/* MNAME of SOA has invalid TLD */
+	PDQ_SOA_BAD_CONTACT,		/* RNAME of SOA has invalid TLD or missing user name portion */
 } PDQ_valid_soa;
 
 /*
@@ -271,13 +273,16 @@ typedef struct {
 } PDQ_MINFO;
 
 #ifndef PDQ_TIMEOUT_START
+/* The initial timeout delay. Doubles each iteration until
+ * PDQ_TIMEOUT_MAX is reached.
+ */
 #define PDQ_TIMEOUT_START		3
 #endif
 
 #ifndef PDQ_TIMEOUT_MAX
 /* The overall time that pdqWait() and pdqWaitAll() are allowed.
  * With an initial timeout of 3 seconds, doubling every interation,
- * limited to 4 iterations, they will take 45 seconds to timeout.
+ * limited to 4 iterations, then it will take 45 seconds to timeout.
  */
 #define PDQ_TIMEOUT_MAX			(PDQ_TIMEOUT_START+(PDQ_TIMEOUT_START*2)+(PDQ_TIMEOUT_START*4)+(PDQ_TIMEOUT_START*8))
 #endif
@@ -489,6 +494,7 @@ extern void pdqClose(PDQ *pdq);
 extern void pdqSetTimeout(PDQ *pdq, unsigned seconds);
 
 extern unsigned pdqGetTimeout(PDQ *pdq);
+extern int pdqGetBasicQuery(PDQ *pdq);
 extern int pdqSetBasicQuery(PDQ *pdq, int flag);
 extern int pdqSetLinearQuery(PDQ *pdq, int flag);
 extern int pdqQueryIsPending(PDQ *pdq);
@@ -805,6 +811,8 @@ extern PDQ_rr *pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *
  *	A pointer to a PDQ_rr record of the given type.
  */
 extern PDQ_rr *pdqCreate(PDQ_type type);
+
+extern void pdqSetName(PDQ_name *name, const char *string);
 
 /**
  * @param record
