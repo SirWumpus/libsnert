@@ -90,7 +90,8 @@ compare_left(const unsigned char *a, const unsigned char *b)
 }
 
 
-static int strnatcmp0(const unsigned char *a, const unsigned char *b, int fold_case)
+int
+strnatcmp0(const unsigned char *a, const unsigned char *b, int fold_case)
 {
      int ai, bi;
      unsigned char  ca, cb;

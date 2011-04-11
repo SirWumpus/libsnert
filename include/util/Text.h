@@ -352,6 +352,8 @@ int strnatcmp(const char *s1, const char *s2);
  */
 int strnatcasecmp(const char *s1, const char *s2);
 
+extern int strnatcmp0(const unsigned char *a, const unsigned char *b, int fold_case);
+
 /**
  * Match or find the first occurence of "needle" in "haystack".
  *
