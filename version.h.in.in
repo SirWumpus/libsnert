@@ -226,6 +226,7 @@ typedef unsigned long time_t;
 #undef HAVE_READ
 #undef HAVE_RENAME
 #undef HAVE_RMDIR
+#undef HAVE_SYMLINK
 #undef HAVE_STAT
 #undef HAVE_TRUNCATE
 #undef HAVE_UMASK
