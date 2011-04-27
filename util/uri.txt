@@ -1,4 +1,39 @@
 Return-Path: <uri@snert.test>
+Comment: long headers should not cause header/body state change.
+X-Spam-Report: * 1.2 RCVD_IN_BL_SPAMCOP_NET RBL: Received via a relay in
+	bl.spamcop.net
+	*      [Blocked - see <http://www.spamcop.net/bl.shtml?93.56.96.132>]
+	*  0.7 RCVD_IN_XBL RBL: Received via a relay in Spamhaus XBL
+	*      [93.56.96.132 listed in zen.spamhaus.org]
+	*  2.7 RCVD_IN_PSBL RBL: Received via a relay in PSBL
+	*      [93.56.96.132 listed in psbl.surriel.com]
+	* 1.7 URIBL_WS_SURBL Contains an URL listed in the WS SURBL blocklist
+	*      [URIs: piebrain.ru]
+	* 1.9 URIBL_JP_SURBL Contains an URL listed in the JP SURBL blocklist
+	*      [URIs: piebrain.ru]
+	*  1.7 URIBL_DBL_SPAM Contains an URL listed in the DBL blocklist
+	*      [URIs: piebrain.ru]
+	*  1.8 URIBL_BLACK Contains an URL listed in the URIBL blacklist
+	*      [URIs: piebrain.ru]
+	*  3.6 FS_REPLICA Subject says "replica"
+	*  1.3 RCVD_IN_RP_RNBL RBL: Relay in RNBL,
+	*      https://senderscore.org/blacklistlookup/
+	*      [93.56.96.132 listed in bl.score.senderscore.com]
+	*  2.3 FSL_RU_URL URI: FSL_RU_URL
+	*  0.0 HTML_MESSAGE BODY: HTML included in message
+	* 2.4 RAZOR2_CF_RANGE_E8_51_100 Razor2 gives engine 8 confidence level
+	*      above 50% *      [cf: 100]
+	*  0.4 RAZOR2_CF_RANGE_51_100 Razor2 gives confidence level above 50%
+	*      [cf: 100]
+	*  1.7 RAZOR2_CHECK Listed in Razor2 (http://razor.sf.net/)
+	*  2.0 PYZOR_CHECK Listed in Pyzor (http://pyzor.sf.net/)
+	*  0.6 URIBL_SBL Contains an URL listed in the SBL blocklist
+	*      [URIs: piebrain.ru]
+	* 0.0 DIGEST_MULTIPLE Message hits more than one network digest check
+	*  0.0 T_URIBL_BLACK_OVERLAP T_URIBL_BLACK_OVERLAP
+	*  1.3 RDNS_NONE Delivered to internal network by a host with no rDNS
+	*  0.0 T_SURBL_MULTI1 T_SURBL_MULTI1
+	*  3.1 DOS_OE_TO_MX Delivered direct to MX with OE headers
 Content-Type: multipart/mixed; boundary="--=_test_boundary"
 Content-Transfer-Encoding: 7bit
 
@@ -87,11 +122,11 @@ The following test cases
 
  Y  -  -  Y	http://www.google.com/pagead/iclk?sa=l&ai=EJVqDJ&num=65520&adurl=http://%73%6B%69%6E%61%70%70%6C%65%2E%63%6F%6D
 
- N  -  -  -	192.0.2.99
+ Y  -  -  -	192.0.2.99
 
- N  -  -  -	2001:0DB8::1234
+ Y  -  -  -	2001:0DB8::1234
 
- N  -  -  -	2001:0DB8::192.0.2.99
+ Y  -  -  -	2001:0DB8::192.0.2.99
 
  Y  -  -  -	http://[2001:0DB8::1234]:8008
 
@@ -149,10 +184,6 @@ http://test.com
 Content-Type: text/plain; charset="ISO-2022-JP"
 
  Y  -  Y  -	URI prefixed by multibyte charset パソコン・携帯　http://www.c-evian.com
-
-----=_test_boundary
-
- Y  -  N  -	URI at EOF without a newline http://no-newline.com/
 
 ----=_test_boundary
 Content-type: text/plain; charset=iso-8859-1
@@ -255,8 +286,8 @@ Content-type: text/plain
 Content-transfer-encoding: BASE64
 Content-disposition: inline
 Comment: source newline should not flush decode buffer
-	 expect http://sedona.arizona.bestcareerin.com/TO12O179O3272674
-	 expect http://summerbay.resorts.bestcareerin.com/ZO8O179O3272674
+	 expect http :// sedona. arizona. bestcareerin. com/TO12O179O3272674
+	 expect http :// summerbay. resorts. bestcareerin. com/ZO8O179O3272674
 
 U2Vkb25hIEFyaXpvbmEgQXdhaXRzICBFbmpveSBhIDIgTmlnaHQgU3RheSEgCjxodHRwOi8v
 c2Vkb25hLmFyaXpvbmEuYmVzdGNhcmVlcmluLmNvbS9UTzEyTzE3OU8zMjcyNjc0PgoKU2Vl
@@ -274,7 +305,7 @@ aXpvbmEuYmVzdGNhcmVlcmluLmNvbS9UTzEyTzE3OU8zMjcyNjc0PgoKCgoKCg==
 ----=_test_boundary
 Content-type: text/plain
 Comment: The string belowe decordes to...
-	 document.write(unescape('<FORM name=affiliateForm onsubmit=\"return fara_date();\" action=http://213.210.237.83/webscr/cmd/protect_files/yassino-file.php method=post>'));
+	 document.write(unescape('<FORM name=affiliateForm onsubmit=\"return fara_date();\" action=http :// 213. 210. 237. 83/webscr/cmd/protect_files/yassino-file.php method=post>'));
 
 document.write(unescape('%3C%46%4F%52%4D%20%6E%61%6D%65%3D%61%66%66%69%6C%69%61%74%65%46%6F%72%6D%20%6F%6E%73%75%62%6D%69%74%3D%22%72%65%74%75%72%6E%20%66%61%72%61%5F%64%61%74%65%28%29%3B%22%20%61%63%74%69%6F%6E%3D%68%74%74%70%3A%2F%2F%32%31%33%2E%32%31%30%2E%32%33%37%2E%38%33%2F%77%65%62%73%63%72%2F%63%6D%64%2F%70%72%6F%74%65%63%74%5F%66%69%6C%65%73%2F%79%61%73%73%69%6E%6F%2D%66%69%6C%65%2E%70%68%70%20%6D%65%74%68%6F%64%3D%70%6F%73%74%3E'));
 
@@ -297,6 +328,8 @@ Comment: URL obfuscation using HTML entity &shy; (soft-hyphen)
 http://e&shy;&shy;x&shy;&shy;a&shy;&shy;m&shy;p&shy;l&shy;e&shy;&shy;.&shy;&shy;com/zT7btk1qlUMjBX10001aqyykbtlqvi/VJ4TBBE9203/hN6foQ
 http://e&shy;&shy;x&shy;&shy;a&shy;&shy;m&shy;p&shy;l&shy;e&shy;&shy;.&shy;&shy;com/foo?a=&#128;&q=&quot;
 
-----=_test_boundary--
+----=_test_boundary
+Comment: This should the last test, no end boundary, no last newline.
 
+ Y  -  N  -	URI at EOF without a newline http://no-newline.com/
 

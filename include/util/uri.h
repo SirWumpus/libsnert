@@ -233,6 +233,10 @@ extern int uriIsHostBL(const char *host, const char *dnsbl_suffix, unsigned long
  * @param uri_found_cb
  *	A call-back function when a URI is found.
  *
+ * @param is_text
+ *	Treat the parsed content as body-only text content. ie.
+ *	text without headers.
+ *
  * @param data
  *	Application data to be passed to URI call-backs.
  *
@@ -241,7 +245,7 @@ extern int uriIsHostBL(const char *host, const char *dnsbl_suffix, unsigned long
  *	mimeHooksAdd(). The UriMime * will have to cast to MimeHooks *.
  *	This structure and data are freed by mimeFree().
  */
-extern UriMime *uriMimeInit(UriMimeHook uri_found_cb, void *data);
+extern UriMime *uriMimeInit(UriMimeHook uri_found_cb, int is_text, void *data);
 
 #ifdef  __cplusplus
 }

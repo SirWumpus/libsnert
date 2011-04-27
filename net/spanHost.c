@@ -87,8 +87,8 @@ spanHost(const char *host, int minDots)
 {
 	int span;
 
-	if (0 < (span = spanDomain(host, minDots)))
+	if (0 < (span = spanIP(host)))
 		return span;
 
-	return spanIP(host);
+	return spanDomain(host, minDots);
 }

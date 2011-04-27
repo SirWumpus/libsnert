@@ -254,6 +254,7 @@ struct mapping {
 };
 
 static struct mapping schemeTable[] = {
+	{ "ip",		sizeof ("ip")-1, 		0 },
 	{ "cid",	sizeof ("cid")-1, 		0 },
 	{ "file",	sizeof ("file")-1,		0 },
 	{ "about",	sizeof ("about")-1,		0 },
@@ -551,31 +552,6 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		uri->path = value;
 	}
 
-	/* This used to be spanDomain, but it is useful to also
-	 * try and find either IPv4 or IPv6 addresses.
-	 */
-	else if (uri->scheme == NULL && 0 < (span = spanHost(value, implicit_domain_min_dots))) {
-		if (value[span] == '/') {
-			/* Shift the host left one byte to retain the
-			 * leading slash in path and to make room for
-			 * a null byte after the host name.
-			 */
-			memmove(value-1, value, span);
-			uri->path = value + span;
-			uri->path[-1] = '\0';
-			value--;
-
-		}
-
-		if (0 < indexValidTLD(value)) {
-#ifdef NOT_YET
-			uri->schemeInfo = uri->uriDecoded;
-#endif
-			uri->scheme = "http";
-			uri->host = value;
-		}
-	}
-
 	else if ((uri->scheme == NULL || uriGetSchemePort(uri) == 25) && (uri->host = strchr(value, '@')) != NULL && value < uri->host) {
 		*uri->host++ = '\0';
 
@@ -589,6 +565,36 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		uri->scheme = "mailto";
 		uri->schemeInfo = uri->uriDecoded;
 		snprintf(uri->uriDecoded, length+1, "%s%c%s", uri->userInfo, at_sign_delim, uri->host);
+	}
+
+	/* This used to be spanDomain, but it is useful to also
+	 * try and find either IPv4 or IPv6 addresses.
+	 */
+	else if (uri->scheme == NULL) {
+		if (0 < (span = spanIP(value))) {
+			uri->scheme = "ip";
+			uri->host = value;
+		} else if (0 < (span = spanDomain(value, implicit_domain_min_dots))) {
+			if (value[span] == '/') {
+				/* Shift the host left one byte to retain the
+				 * leading slash in path and to make room for
+				 * a null byte after the host name.
+				 */
+				memmove(value-1, value, span);
+				uri->path = value + span;
+				uri->path[-1] = '\0';
+				value--;
+
+			}
+
+			if (0 < indexValidTLD(value)) {
+#ifdef NOT_YET
+				uri->schemeInfo = uri->uriDecoded;
+#endif
+				uri->scheme = "http";
+				uri->host = value;
+			}
+		}
 	}
 
 	/* RFC 3986 allows everything after the scheme to be empty.
@@ -1009,7 +1015,9 @@ struct uri_mime {
 	MimeHooks hook;
 
 	int length;
+	int is_body;
 	int is_text_part;
+	int headers_and_body;
 	char buffer[URI_MIME_BUFFER_SIZE];
 	UriMimeHook uri_found_cb;
 	void *data;
@@ -1026,15 +1034,6 @@ uri_mime_free(Mime *m, void *_data)
 }
 
 static void
-uri_mime_header(Mime *m, void *_data)
-{
-	UriMime *hold = _data;
-
-	if (TextMatch((char *) m->source.buffer, "Content-Type:*text/*", m->source.length, 1))
-		hold->is_text_part = 1;
-}
-
-static void
 uri_mime_body_start(Mime *m, void *_data)
 {
 	UriMime *hold = _data;
@@ -1046,6 +1045,7 @@ uri_mime_body_start(Mime *m, void *_data)
 	if (!m->state.has_content_type)
 		hold->is_text_part = 1;
 
+	hold->is_body = 1;
 	hold->length = 0;
 }
 
@@ -1055,6 +1055,7 @@ uri_mime_body_finish(Mime *m, void *_data)
 	UriMime *hold = _data;
 
 	hold->is_text_part = 0;
+	hold->is_body = 0;
 	hold->length = 0;
 }
 
@@ -1068,7 +1069,7 @@ uri_mime_decoded_octet(Mime *m, int ch, void *_data)
 	 * implicit URI rules, decoding binary attachments like
 	 * images can result in false positives.
 	 */
-	if (!hold->is_text_part)
+	if (!hold->headers_and_body && !hold->is_text_part)
 		return;
 
         /* Ignore CR as it does not help us with parsing.
@@ -1161,9 +1162,30 @@ uri_mime_decoded_octet(Mime *m, int ch, void *_data)
 	}
 }
 
+static void
+uri_mime_header(Mime *m, void *_data)
+{
+	UriMime *hold = _data;
+
+	if (hold->headers_and_body) {
+		char *s;
+		for (s = m->source.buffer; *s != '\0'; s++)
+			uri_mime_decoded_octet(m, *s, _data);
+		uri_mime_decoded_octet(m, '\r', _data);
+		uri_mime_decoded_octet(m, '\n', _data);
+	}
+
+	if (TextMatch((char *) m->source.buffer, "Content-Type:*text/*", m->source.length, 1))
+		hold->is_text_part = 1;
+}
+
 /**
  * @param uri_found_cb
  *	A call-back function when a URI is found.
+ *
+ * @param all
+ *	When set search both headers and body for URI, otherwise
+ *	just the body portion.
  *
  * @param data
  *	Application data to be passed to URI call-backs.
@@ -1174,12 +1196,13 @@ uri_mime_decoded_octet(Mime *m, int ch, void *_data)
  *	This structure and data are freed by mimeFree().
  */
 UriMime *
-uriMimeInit(UriMimeHook uri_found_cb, void *data)
+uriMimeInit(UriMimeHook uri_found_cb, int all, void *data)
 {
 	UriMime *hold;
 
 	if ((hold = calloc(1, sizeof (UriMime))) != NULL) {
 		hold->data = data;
+		hold->headers_and_body = all;
 		hold->uri_found_cb = uri_found_cb;
 
 		hold->hook.data = hold;
@@ -1201,14 +1224,17 @@ uriMimeInit(UriMimeHook uri_found_cb, void *data)
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef HAVE_SYS_STAT_H
+# include <sys/stat.h>
+#endif
+
 #include <com/snert/lib/sys/sysexits.h>
 #include <com/snert/lib/util/getopt.h>
 #include <com/snert/lib/net/pdq.h>
 
 static int exit_code;
-static int check_all;
+static int headers_and_body;
 static int check_link;
-static int check_files;
 static int check_query;
 static int check_subdomains;
 static int print_uri_parse;
@@ -1254,14 +1280,15 @@ static Vector mail_bl_domains;
 #endif
 
 static char usage[] =
-"usage: uri [-aflLpqRsUv][-A delim][-d dbl,...][-i ip-bl,...][-m mail-bl,...]\n"
+"usage: uri [-ablLpqRsUv][-A delim][-d dbl,...][-i ip-bl,...][-m mail-bl,...]\n"
 "           [-M domain-pat,...][-n ns-bl,...][-N ns-ip-bl,...][-u uri-bl,...]\n"
-"           [-P port,...][-Q ns,...][-t sec][-T sec][arg ...]\n"
+"           [-P port,...][-Q ns,...][-t sec][-T sec][arg ...][<input]\n"
 "\n"
-"-a\t\tcheck all (headers & body), otherwise assume body only\n"
+"-a\t\tcheck headers and body\n"
+"-b\t\tcheck body only (default)\n"
 "-A delim\tan alternative delimiter to replace the at-sign (@)\n"
+"-b\t\tassume text body, otherwise mail message headers & body\n"
 "-d dbl,...\tcomma separate list of domain black lists\n"
-"-f\t\tcommand line arguments are file names\n"
 "-i ip-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
 "-l\t\tcheck HTTP links are valid & find origin server\n"
@@ -1288,9 +1315,9 @@ static char usage[] =
 "-U\t\tcheck sub-domains segments of URI domains\n"
 "-v\t\tverbose logging to system's user log\n"
 "\n"
-"Each argument is a URI to be parsed and tested. If -f is specified\n"
-"then each argument is a filename (use \"-\" for standard input) to be\n"
-"searched for URIs, parsed, and tested.\n"
+"Each argument is either a filepath or string to be parsed and tested. If\n"
+"the filepath \"-\" is given, then standard input is read. Also input can\n"
+"be redirected.\n"
 "\n"
 "Exit Codes\n"
 QUOTE(EXIT_SUCCESS) "\t\tall URI tested are OK\n"
@@ -1298,7 +1325,7 @@ QUOTE(EXIT_FAILURE) "\t\tone or more URI are blacklisted\n"
 QUOTE(EX_USAGE) "\t\tusage error\n"
 QUOTE(EX_SOFTWARE) "\t\tinternal error\n"
 "\n"
-LIBSNERT_COPYRIGHT "\n"
+LIBSNERT_STRING " " LIBSNERT_COPYRIGHT "\n"
 ;
 
 #if ! defined(__MINGW32__)
@@ -1536,10 +1563,11 @@ process_file(const char *filename)
 	if ((mime = mimeCreate()) == NULL)
 		goto error1;
 
-	if ((hold = uriMimeInit(process_uri, (void *)filename)) == NULL)
+	if ((hold = uriMimeInit(process_uri, headers_and_body, (void *)filename)) == NULL)
 		goto error2;
 
 	mimeHooksAdd(mime, (MimeHooks *)hold);
+	mimeHeadersFirst(mime, !headers_and_body);
 	rc = process_input(mime, fp, filename);
 error2:
 	mimeFree(mime);
@@ -1549,24 +1577,43 @@ error0:
 	return rc;
 }
 
-URI *
-parse_arg(char *s)
+void
+process_string(const char *s)
 {
-	size_t length = strlen(s);
-	length = htmlEntityDecode(s, length, s, length+1);
-	return uriParse2(s, length, 1);
+	Mime *mime;
+	UriMime *hold;
+
+	if ((mime = mimeCreate()) == NULL)
+		return;
+
+	mimeHeadersFirst(mime, 0);
+
+	if ((hold = uriMimeInit(process_uri, 1, (void *) "(arg)")) != NULL) {
+		mimeHooksAdd(mime, (MimeHooks *)hold);
+		for ( ; *s != '\0'; s++)
+			(void) mimeNextCh(mime, *s);
+		(void) mimeNextCh(mime, EOF);
+		(void) fflush(stdout);
+	}
+
+	mimeFree(mime);
 }
 
 int
 main(int argc, char **argv)
 {
-	URI *uri;
 	int i, ch;
 
-	while ((ch = getopt(argc, argv, "aA:d:m:M:i:n:N:u:UflLmpP:qQ:RsT:t:v")) != -1) {
+	while ((ch = getopt(argc, argv, "fabA:d:m:M:i:n:N:u:UlLmpP:qQ:RsT:t:v")) != -1) {
 		switch (ch) {
+		case 'f':
+			/* Place holder for old -f option for AlexB. */
+			break;
 		case 'a':
-			check_all = 1;
+			headers_and_body = 1;
+			break;
+		case 'b':
+			headers_and_body = 0;
 			break;
 		case 'A':
 			at_sign_delim = *optarg;
@@ -1596,9 +1643,6 @@ main(int argc, char **argv)
 			break;
 		case 'U':
 			check_subdomains = 1;
-			break;
-		case 'f':
-			check_files = 1;
 			break;
 		case 'l':
 			check_link = 1;
@@ -1650,11 +1694,6 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (argc <= optind) {
-		(void) fputs(usage, stderr);
-		return EX_USAGE;
-	}
-
 	if (pdqInit()) {
 		fprintf(stderr, "pdqInit() failed\n");
 		exit(EX_SOFTWARE);
@@ -1699,18 +1738,16 @@ main(int argc, char **argv)
 
 	exit_code = EXIT_SUCCESS;
 
-	if (argv[optind][0] == '-' && argv[optind][1] == '\0')
-		check_files = 1;
-
-	for (i = optind; i < argc; i++) {
-		if (check_files) {
-			if (process_file((const char *) argv[i]))
-				break;
-		} else if ((uri = parse_arg(argv[i])) != NULL) {
-			process(uri, NULL);
-			if (check_query)
-				process_query(uri, NULL);
-			free(uri);
+	if (argc <= optind) {
+		(void) process_file("-");
+	} else {
+		for (i = optind; i < argc; i++) {
+			struct stat sb;
+			if ((argv[i][0] == '-' && argv[i][1] == '\0') || stat(argv[i], &sb) == 0) {
+				(void) process_file(argv[i]);
+			} else {
+				process_string(argv[i]);
+			}
 		}
 	}
 
