@@ -483,58 +483,106 @@ mimeStateHdrBdy(Mime *m, int ch)
 }
 
 static int
+mimeStateEOH(Mime *m, int ch)
+{
+	MimeHooks *hook;
+
+	/* End of headers. */
+	mimeDecodeFlush(m);
+	m->mime_body_length = 0;
+	m->mime_body_decoded_length = 0;
+	m->source.buffer[0] = '\0';
+
+	for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
+		if (hook->body_start != NULL)
+			(*hook->body_start)(m, hook->data);
+	}
+
+	/* HACK for uri.c:
+	 *
+	 * When crossing from MIME part headers to a body
+	 * message/rfc822, we want to continue parsing
+	 * the embedded message headers so we can properly
+	 * URI parse the embedded message.
+	 *
+	 * Ideally the URI MIME hooks should handle this,
+	 * but there is currently no MIME API mechanism to
+	 * say "no state change" or to change the state
+	 * since the state functions are private.
+	 */
+	if (m->state.is_message_rfc822)
+		/* Remain in the header parse state. */
+		m->state.is_message_rfc822 = 0;
+	else
+		/* Normal header to body transition. */
+		m->state.source_state = mimeStateHdrBdy;
+
+	return ch;
+}
+
+static int
 mimeStateHdrLF(Mime *m, int ch)
 {
 	MimeHooks *hook;
 
-	if (ch == ASCII_SPACE || ch == ASCII_TAB) {
+	if (ch == ASCII_CR) {
+		/* For single CR, remain in this state waiting for the
+		 * LF that marks end-of-headers. If we see CRCR, then
+		 * treat as a folded header; though illegal, this
+		 * should be safer.
+		 */
+		m->source.length--;
+	} else if (ch == ASCII_SPACE || ch == ASCII_TAB) {
 		/* Folded header, resume header gathering. */
 		m->state.source_state = mimeStateHdr;
-	} else if (0 < m->source.length) {
-		/* End of unfolded header line less newline. */
-		m->state.source_state = mimeStateHdr;
-		m->source.buffer[--m->source.length] = '\0';
+	} else {
+		if (0 < m->source.length) {
+			/* End of unfolded header line less newline. */
+			m->state.source_state = mimeStateHdr;
+			m->source.buffer[--m->source.length] = '\0';
 
-		/* Check the header for MIME behaviour. */
-		if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*multipart/*", m->source.length, 1)) {
-			m->state.is_multipart = 1;
-			m->state.has_content_type = 1;
-		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*message/rfc822", m->source.length, 1)) {
-			m->state.has_content_type = 1;
-			m->state.is_message_rfc822 = 1;
-		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*/*", m->source.length, 1)) {
-			/* Simply skip decoding this content. Look
-			 * only for the MIME boundary line.
-			 */
-			m->state.has_content_type = 1;
+			/* Check the header for MIME behaviour. */
+			if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*multipart/*", m->source.length, 1)) {
+				m->state.is_multipart = 1;
+				m->state.has_content_type = 1;
+			} else if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*message/rfc822", m->source.length, 1)) {
+				m->state.has_content_type = 1;
+				m->state.is_message_rfc822 = 1;
+			} else if (0 <= TextFind((char *) m->source.buffer, "Content-Type:*/*", m->source.length, 1)) {
+				/* Simply skip decoding this content. Look
+				 * only for the MIME boundary line.
+				 */
+				m->state.has_content_type = 1;
 
-			/* If the state.encoding has not yet been determined,
-			 * then set the default literal decoding.
+				/* If the state.encoding has not yet been determined,
+				 * then set the default literal decoding.
+				 */
+				if (m->state.encoding == MIME_NONE)
+					m->state.decode_state = mimeDecodeAdd;
+			} else if (0 <= TextFind((char *) m->source.buffer, "Content-Transfer-Encoding:*quoted-printable*", m->source.length, 1)) {
+				m->state.decode_state = mimeStateQpLiteral;
+				m->state.encoding = MIME_QUOTED_PRINTABLE;
+			} else if (0 <= TextFind((char *) m->source.buffer, "Content-Transfer-Encoding:*base64*", m->source.length, 1)) {
+				m->state.decode_state = mimeStateBase64;
+				m->state.encoding = MIME_BASE64;
+				b64Reset(&m->state.b64);
+			}
+
+			for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
+				if (hook->header != NULL)
+					(*hook->header)(m, hook->data);
+			}
+			mimeSourceFlush(m);
+
+			m->source.buffer[m->source.length++] = ch;
+
+			/* When newlines are LF instead of CRLF, then we have
+			 * initiate the End Of Header transition manually.
 			 */
-			if (m->state.encoding == MIME_NONE)
-				m->state.decode_state = mimeDecodeAdd;
-		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Transfer-Encoding:*quoted-printable*", m->source.length, 1)) {
-			m->state.decode_state = mimeStateQpLiteral;
-			m->state.encoding = MIME_QUOTED_PRINTABLE;
-		} else if (0 <= TextFind((char *) m->source.buffer, "Content-Transfer-Encoding:*base64*", m->source.length, 1)) {
-			m->state.decode_state = mimeStateBase64;
-			m->state.encoding = MIME_BASE64;
-			b64Reset(&m->state.b64);
 		}
 
-		for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
-			if (hook->header != NULL)
-				(*hook->header)(m, hook->data);
-		}
-		mimeSourceFlush(m);
-
-		m->source.buffer[m->source.length++] = ch;
-
-		/* When newlines are LF instead of CRLF, then we have
-		 * initiate the End Of Header transition manually.
-		 */
 		if (ch == ASCII_LF)
-			(void) mimeStateHdr(m, ASCII_LF);
+			(void) mimeStateEOH(m, ch);
 	}
 
 	return ch;
@@ -543,48 +591,16 @@ mimeStateHdrLF(Mime *m, int ch)
 static int
 mimeStateHdr(Mime *m, int ch)
 {
-	MimeHooks *hook;
-
 	if (ch == ASCII_LF) {
 		/* Remove trailing newline (LF or CRLF). */
 		m->source.length--;
 		if (0 < m->source.length && m->source.buffer[m->source.length-1] == ASCII_CR)
 			m->source.length--;
 
-		if (m->source.length == 0) {
-			/* End of headers. */
-			mimeDecodeFlush(m);
-			m->mime_body_length = 0;
-			m->mime_body_decoded_length = 0;
-			m->source.buffer[0] = '\0';
-
-			for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
-				if (hook->body_start != NULL)
-					(*hook->body_start)(m, hook->data);
-			}
-
-			/* HACK for uri.c:
-			 *
-			 * When crossing from MIME part headers to a body
-			 * message/rfc822, we want to continue parsing
-			 * the embedded message headers so we can properly
-			 * URI parse the embedded message.
-			 *
-			 * Ideally the URI MIME hooks should handle this,
-			 * but there is currently no MIME API mechanism to
-			 * say "no state change" or to change the state
-			 * since the state functions are private.
-			 */
-			if (m->state.is_message_rfc822)
-				/* Remain in the header parse state. */
-				m->state.is_message_rfc822 = 0;
-			else
-				/* Normal header to body transition. */
-				m->state.source_state = mimeStateHdrBdy;
-		} else {
-			/* Check for folded header line next octet. */
-			m->state.source_state = mimeStateHdrLF;
-		}
+		/* Check for folded header line, start of next
+		 * header line, or end-of-headers with next octet.
+		 */
+		m->state.source_state = mimeStateHdrLF;
 	}
 
 	return ch;
@@ -762,7 +778,7 @@ static char usage[] =
 "-m\t\tgenerate MD5s for MIME part\n"
 "-p num\t\textract MIME part\n"
 "\n"
-LIBSNERT_COPYRIGHT "\n"
+LIBSNERT_STRING " " LIBSNERT_COPYRIGHT "\n"
 ;
 
 #if ! defined(__MINGW32__)
@@ -872,7 +888,7 @@ processInput(Mime *m, FILE *fp)
 
 		do {
 			ch = fgetc(fp);
-			mimeNextCh(m, ch);
+			(void) mimeNextCh(m, ch);
 		} while (ch != EOF);
 
 		(void) fflush(stdout);
