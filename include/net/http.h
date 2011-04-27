@@ -19,7 +19,8 @@ extern "C" {
 
 #include <com/snert/lib/version.h>
 
-#include <com/snert/lib/io/socket2.h>
+#include <com/snert/lib/pt/pt.h>
+#include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/sys/Time.h>
 #include <com/snert/lib/util/Buf.h>
 #include <com/snert/lib/util/uri.h>
@@ -85,6 +86,7 @@ typedef struct {
 	int debug;
 	URI *url;
 	long timeout;
+	const char *id_log;
 	const char *from;
 	const char *method;
 	const char *credentials;
@@ -107,9 +109,17 @@ typedef struct {
 } HttpHooks;
 
 struct http_response {
+	/* Private */
+	pt_t pt;			/* httpDoPt / httpReadPt */
+	pt_t pt_read;			/* http_read */
+	SOCKET socket;			/* Needed for httpDoPt */
+
+	/* Public */
 	int debug;
 	void *data;
 	Buf *content;
+	long timeout;
+	size_t eoh;			/* Offset in content to end of headers. */
 	HttpHooks hook;
 	HttpCode result;
 	char id_log[20];
@@ -136,8 +146,9 @@ extern void httpContentFree(HttpContent *);
 extern int httpResponseInit(HttpResponse *);
 extern void httpResponseFree(HttpResponse *);
 
-extern Socket2 *httpSend(HttpRequest *, const char *id_log);
-extern HttpCode httpRead(Socket2 *, HttpResponse *, const char *id_log);
+extern SOCKET httpSend(HttpRequest *);
+extern HttpCode httpRead(HttpResponse *);
+extern PT_THREAD(httpReadPt(HttpResponse *));
 extern char *httpGetHeader(Buf *buf, const char *hdr_pat, size_t hdr_len);
 
 extern HttpCode httpDoGet(const char *url, time_t modified_since, HttpResponse *response);
