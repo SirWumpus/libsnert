@@ -21,46 +21,70 @@ extern "C" {
 #  define INFTIM	(-1)
 # endif
 
+typedef struct event Event;
+typedef struct events Events;
+typedef void (*EventHook)(Events *loop, Event *event);
+
 #if defined(HAVE_KQUEUE)
 # include <sys/types.h>
 # include <sys/event.h>
 # include <sys/time.h>
 
-# define EVENT_READ		EVFILT_READ
-# define EVENT_WRITE		EVFILT_WRITE
+# define KQUEUE_READ		EVFILT_READ
+# define KQUEUE_WRITE		EVFILT_WRITE
 
-typedef struct kevent os_event;
+//typedef struct kevent os_event;
 
-#elif defined(HAVE_EPOLL_CREATE)
+extern int events_wait_kqueue(Events *loop, long ms);
+
+#endif
+#if defined(HAVE_EPOLL_CREATE)
 # include <sys/epoll.h>
 
-# define EVENT_READ		(EPOLLIN | EPOLLHUP)
-# define EVENT_WRITE		(EPOLLOUT | EPOLLHUP)
+# define EPOLL_READ		(EPOLLIN | EPOLLHUP | EPOLLERR)
+# define EPOLL_WRITE		(EPOLLOUT | EPOLLHUP | EPOLLERR)
 
-typedef struct epoll_event os_event;
+//typedef struct epoll_event os_event;
 
-#elif defined(HAVE_POLL)
+extern int events_wait_epoll(Events *loop, long ms);
+
+#endif
+#if defined(HAVE_POLL)
 # if defined(HAVE_POLL_H)
 #  include <poll.h>
 # elif defined(HAVE_SYS_POLL_H)
 #  include <sys/poll.h>
 # endif
 
-# define EVENT_READ		(POLLIN | POLLHUP)
-# define EVENT_WRITE		(POLLOUT | POLLHUP)
+# define POLL_READ		(POLLIN | POLLHUP | POLLERR | POLLNVAL)
+# define POLL_WRITE		(POLLOUT | POLLHUP | POLLERR | POLLNVAL)
 
-typedef struct pollfd os_event;
+//typedef struct pollfd os_event;
 
-#elif defined(HAVE_SELECT)
+extern int events_wait_poll(Events *loop, long ms);
 
-# define EVENT_READ		0x1
-# define EVENT_WRITE		0x2
+#endif
+#if defined(HAVE_SELECT)
+extern int events_wait_select(Events *loop, long ms);
 
 #else
 # error "kqueue, epoll, or poll APIs required."
 #endif
 
-#define EVENT_RW		(EVENT_READ|EVENT_WRITE)
+#define EVENT_READ		0x1
+#define EVENT_WRITE		0x2
+
+typedef union {
+#if defined(HAVE_KQUEUE)
+	struct kevent k_ev;
+#endif
+#if defined(HAVE_EPOLL_CREATE)
+	struct epoll_event e_ev;
+#endif
+#if defined(HAVE_POLL)
+	struct pollfd p_ev;
+#endif
+} os_event;
 
 #ifdef HAVE_SETJMP_H
 # include <setjmp.h>
@@ -68,14 +92,9 @@ typedef struct pollfd os_event;
 
 #include <com/snert/lib/type/Vector.h>
 
-typedef struct event Event;
-typedef struct events Events;
-typedef void (*EventHook)(Events *loop, Event *event);
-
 typedef struct {
 	EventHook io;			/* input ready or output buffer available */
-	EventHook close;		/* called immediately before close() */
-	EventHook error;		/* errno will be explicitly set */
+	EventHook timeout;
 } EventOn;
 
 struct event {
@@ -83,7 +102,7 @@ struct event {
 	FreeFn free;
 	time_t expire;
 	int io_type;
-	int enable;
+	int enabled;
 
 	/* Public */
 	int fd;
@@ -104,16 +123,15 @@ struct events {
 };
 
 extern void eventFree(void *_event);
-extern Event *eventAlloc(int fd, int type);
+extern Event *eventNew(int fd, int type);
 extern void eventInit(Event *event, int fd, int type);
 extern void eventResetExpire(Event *event, const time_t *now);
-extern void eventSetTimeout(Event *event, long ms);
+extern void eventSetTimeout(Event *event, long seconds);
 extern long eventGetTimeout(Event *event);
-extern void eventSetEnable(Event *event, int flag);
-extern  int eventGetEnable(Event *event);
+extern void eventSetEnabled(Event *event, int flag);
+extern  int eventGetEnabled(Event *event);
 
 extern  int eventAdd(Events *loop, Event *event);
-extern void eventClose(Events *loop, Event *event);
 extern void eventRemove(Events *loop, Event *event);
 
 extern  int eventsInit(Events *loop);
@@ -123,6 +141,8 @@ extern void eventsRun(Events *loop);
 extern  int eventsWait(Events *loop, long ms);
 extern long eventsTimeout(Events *loop, const time_t *now);
 extern void eventsExpire(Events *loop, const time_t *expire);
+
+extern int (*events_wait_fn)(Events *loop, long ms);
 
 /***********************************************************************
  ***

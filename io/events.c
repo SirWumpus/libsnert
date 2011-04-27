@@ -6,10 +6,6 @@
  * Copyright 2011 by Anthony Howe. All rights reserved.
  */
 
-#ifndef MAX_MILLI_SECONDS
-#define MAX_MILLI_SECONDS		(LONG_MAX / UNIT_MILLI)
-#endif
-
 #ifndef EVENT_GROWTH
 #define EVENT_GROWTH			100
 #endif
@@ -35,21 +31,16 @@
 #include <com/snert/lib/type/Vector.h>
 #include <com/snert/lib/util/timer.h>
 
-/* Only needed for EPOLL/POLL EOF detection. Need to find way to remove
- * the need of socket_peek().
- */
-#include <com/snert/lib/io/socket3.h>
-
 int
-eventGetEnable(Event *event)
+eventGetEnabled(Event *event)
 {
-	return event->enable;
+	return event->enabled;
 }
 
 void
-eventSetEnable(Event *event, int flag)
+eventSetEnabled(Event *event, int flag)
 {
-	event->enable = flag;
+	event->enabled = flag;
 }
 
 long
@@ -59,26 +50,30 @@ eventGetTimeout(Event *event)
 }
 
 void
-eventSetTimeout(Event *event, long ms)
+eventSetTimeout(Event *event, long seconds)
 {
-	event->timeout = ms;
+	time_t now;
+	(void) time(&now);
+	event->timeout = seconds;
+	eventResetExpire(event, &now);
 }
 
 void
 eventResetExpire(Event *event, const time_t *now)
 {
-	event->expire = *now + (event->timeout < 0 ? MAX_MILLI_SECONDS : event->timeout / UNIT_MILLI);
+	event->expire = *now + (event->timeout < 0 ? LONG_MAX/UNIT_MILLI : event->timeout);
 }
 
+#if defined(HAVE_KQUEUE)
 int
-eventsWait(Events *loop, long ms)
+events_wait_kqueue(Events *loop, long ms)
 {
 	time_t now;
 	Event *event;
-	int i, fd_length, fd_active, fd_ready;
+	struct kevent *k_ev;
+	int io_want, io_seen;
+	int i, fd_length, fd_active, fd_ready, saved_errno;
 
-#if defined(HAVE_KQUEUE)
-{
 	int kq;
 	struct timespec ts, *to = NULL;
 
@@ -95,10 +90,11 @@ eventsWait(Events *loop, long ms)
 	fd_active = 0;
 	for (i = 0; i < fd_length; i++) {
 		event = VectorGet(loop->events, i);
-		if (event->enable) {
+		if (event->enabled) {
+			io_want = (event->io_type & EVENT_READ) ? EVFILT_READ : EVFILT_WRITE;
 			EV_SET(
-				&loop->set[fd_active], event->fd,
-				event->io_type, EV_ADD|EV_ENABLE, 0, 0, event
+				&((struct kevent *)loop->set)[fd_active], event->fd,
+				io_want, EV_ADD|EV_ENABLE, 0, 0, event
 			);
 			fd_active++;
 		}
@@ -107,33 +103,82 @@ eventsWait(Events *loop, long ms)
 	errno = 0;
 
 	/* Wait for some I/O or timeout. */
-	if ((fd_ready = kevent(kq, loop->set, fd_active, loop->set, fd_active, to)) == 0 && errno != EINTR)
-		errno = ETIMEDOUT;
+	switch (fd_ready = kevent(kq, (struct kevent *)loop->set, fd_active, (struct kevent *)loop->set, fd_active, to)) {
+	case 0:
+		if (errno != EINTR)
+			errno = ETIMEDOUT;
+		/*@fallthrough@*/
+	case -1:
+		goto error1;
+	}
+
+	saved_errno = errno;
 
 	(void) time(&now);
 	if (SIGSETJMP(loop->on_error, 1) != 0)
 		goto next_event;
 	for (i = 0; i < fd_ready; i++) {
-		event = loop->set[i].udata;
-		if (loop->set[i].flags & (EV_EOF|EV_ERROR)) {
-			errno = (loop->set[i].flags & EV_EOF) ? EPIPE : EIO;
-			if (event->on.error != NULL)
-				(*event->on.error)(loop, event);
-		} else if (loop->set[i].filter == EVFILT_READ || loop->set[i].filter == EVFILT_WRITE) {
+		k_ev = &((struct kevent *) loop->set)[i];
+
+		if ((event = k_ev->udata) == NULL || !event->enabled)
+			continue;
+
+		io_seen = 0;
+		io_want = event->io_type;
+
+		if (k_ev->flags & EV_ERROR) {
+			errno = k_ev->data;
+		} else if(k_ev->filter == EVFILT_READ) {
+			if ((k_ev->flags & EV_EOF) && k_ev->data == 0)
+				errno = k_ev->flags == 0 ? EPIPE : k_ev->flags;
+			else
+				errno = 0;
+			io_seen = EVENT_READ;
+		} else if(k_ev->filter == EVFILT_WRITE) {
+			if (k_ev->flags & EV_EOF)
+				errno = k_ev->flags == 0 ? EPIPE : k_ev->flags;
+			else
+				errno = 0;
+			io_seen = EVENT_WRITE;
+		} else {
+			/* errno might be changed by the event hook, so
+			 * restore before calling the next event hook.
+			 */
+			errno = saved_errno;
+		}
+
+		if (saved_errno == 0 || event->timeout < 0)
+			eventResetExpire(event, &now);
+
+		if (errno != 0 || (io_want & io_seen)) {
+			/* NOTE the event might remove itself from the loop
+			 * and destroy itself, so we cannot reference it
+			 * after the caller the handler.
+			 */
 			if (event->on.io != NULL)
 				(*event->on.io)(loop, event);
-			eventResetExpire(event, &now);
 		}
 next_event:
 		;
 	}
-
+error1:
 	(void) close(kq);
 error0:
-	;
+	return errno;
 }
-#elif defined(HAVE_EPOLL_CREATE)
+#endif
+#if defined(HAVE_EPOLL_CREATE)
+#include <com/snert/lib/io/socket3.h>
+
+int
+events_wait_epoll(Events *loop, long ms)
 {
+	time_t now;
+	int io_want;
+	Event *event;
+	struct epoll_event *e_ev;
+	int i, fd_length, fd_active, fd_ready, saved_errno;
+
 	int ev_fd;
 
 	errno = 0;
@@ -148,10 +193,16 @@ error0:
 	fd_active = 0;
 	for (i = 0; i < fd_length; i++) {
 		event = VectorGet(loop->events, i);
-		if (event->enable) {
-			loop->set[fd_active].data.ptr = event;
-			loop->set[fd_active].events = event->io_type;
-			if (epoll_ctl(ev_fd, EPOLL_CTL_ADD, event->fd, &loop->set[fd_active]))
+		if (event->enabled) {
+			io_want = 0;
+			if (event->io_type & EVENT_READ)
+				io_want |= EPOLL_READ;
+			if (event->io_type & EVENT_WRITE)
+				io_want |= EPOLL_WRITE;
+			e_ev = &((struct epoll_event *) loop->set)[fd_active];
+			e_ev->data.ptr = event;
+			e_ev->events = io_want;
+			if (epoll_ctl(ev_fd, EPOLL_CTL_ADD, event->fd, e_ev))
 				goto error1;
 			fd_active++;
 		}
@@ -160,35 +211,46 @@ error0:
 	errno = 0;
 
 	/* Wait for some I/O or timeout. */
-	if ((fd_ready = epoll_wait(ev_fd, loop->set, fd_active, ms)) == 0 && errno != EINTR)
-		errno = ETIMEDOUT;
+	switch (fd_ready = epoll_wait(ev_fd, (struct epoll_event *)loop->set, fd_active, ms)) {
+	case 0:
+		if (errno != EINTR)
+			errno = ETIMEDOUT;
+		/*@fallthrough@*/
+	case -1:
+		goto error1;
+	}
+
+	saved_errno = errno;
 
 	(void) time(&now);
 	if (SIGSETJMP(loop->on_error, 1) != 0)
 		goto next_event;
 	for (i = 0; i < fd_ready; i++) {
-		event = loop->set[i].data.ptr;
-		if (loop->set[i].events & (EPOLLHUP|EPOLLERR)) {
-			errno = (loop->set[i].events & EPOLLHUP) ? EPIPE : EIO;
-			if (event->on.error != NULL)
-				(*event->on.error)(loop, event);
-		} else if (loop->set[i].events & (EPOLLIN|EPOLLOUT)) {
-			/* On disconnect, Linux returns EPOLLIN and zero
-			 * bytes sent instead of a more sensible EPOLLHUP.
-			 */
-			if (loop->set[i].events & EPOLLIN) {
-				unsigned char peek_a_boo;
-				long nbytes = socket_peek(event->fd, &peek_a_boo, sizeof (peek_a_boo));
-				if (nbytes == 0) {
-					errno = EPIPE;
-					if (event->on.error != NULL)
-						(*event->on.error)(loop, event);
-					continue;
-				}
-			}
+		e_ev = &((struct epoll_event *) loop->set)[i];
+
+		if ((event = e_ev->data.ptr) == NULL || !event->enabled)
+			continue;
+
+		if ((e_ev->events & (EPOLLHUP|EPOLLIN)) == EPOLLHUP)
+			errno = EPIPE;
+		else if (e_ev->events & EPOLLERR)
+			errno = socket_get_error(event->fd);
+		else if (e_ev->events & (EPOLLIN|EPOLLOUT))
+			errno = 0;
+		else
+			errno = saved_errno;
+
+		io_want = 0;
+		if (event->io_type & EVENT_READ)
+			io_want |= EPOLL_READ;
+		if (event->io_type & EVENT_WRITE)
+			io_want |= EPOLL_WRITE;
+
+		if (errno != 0 || (e_ev->events & io_want)) {
+			if (saved_errno == 0 || event->timeout < 0)
+				eventResetExpire(event, &now);
 			if (event->on.io != NULL)
 				(*event->on.io)(loop, event);
-			eventResetExpire(event, &now);
 		}
 next_event:
 		;
@@ -196,10 +258,19 @@ next_event:
 error1:
 	(void) close(ev_fd);
 error0:
-	;
+	return errno;
 }
-#elif defined(HAVE_POLL)
+#endif
+#if defined(HAVE_POLL)
+int
+events_wait_poll(Events *loop, long ms)
 {
+	time_t now;
+	int io_want;
+	Event *event;
+	struct pollfd *p_ev;
+	int i, fd_length, fd_active, fd_ready, saved_errno;
+
 	if (ms < 0)
 		ms = INFTIM;
 
@@ -211,9 +282,15 @@ error0:
 	fd_active = 0;
 	for (i = 0; i < fd_length; i++) {
 		event = VectorGet(loop->events, i);
-		if (event->enable) {
-			loop->set[fd_active].events = event->enable ? event->io_type : 0;
-			loop->set[fd_active].fd = event->fd;
+		if (event->enabled) {
+			io_want = 0;
+			if (event->io_type & EVENT_READ)
+				io_want |= POLL_READ;
+			if (event->io_type & EVENT_WRITE)
+				io_want |= POLL_WRITE;
+			p_ev = &((struct pollfd *) loop->set)[fd_active];
+			p_ev->events = event->enabled ? io_want : 0;
+			p_ev->fd = event->fd;
 			fd_active++;
 		}
 	}
@@ -221,54 +298,68 @@ error0:
 	errno = 0;
 
 	/* Wait for some I/O or timeout. */
-	if ((fd_ready = poll(loop->set, fd_active, ms)) == 0 && errno != EINTR)
-		errno = ETIMEDOUT;
+	switch (fd_ready = poll((struct pollfd *)loop->set, fd_active, ms)) {
+	case 0:
+		if (errno != EINTR)
+			errno = ETIMEDOUT;
+		/*@fallthrough@*/
+	case -1:
+		goto error0;
+	}
+
+	saved_errno = errno;
 
 	(void) time(&now);
 	if (SIGSETJMP(loop->on_error, 1) != 0)
 		goto next_event;
 	for (i = 0; i < fd_active; i++) {
-		event = VectorGet(loop->events, i);
-		if (loop->set[i].fd == event->fd) {
-			if (loop->set[i].revents & (POLLIN|POLLOUT)) {
-				if (loop->set[i].revents & POLLIN) {
-					unsigned char peek_a_boo;
-					long nbytes = socket_peek(event->fd, &peek_a_boo, sizeof (peek_a_boo));
-					if (nbytes == 0) {
-						errno = EPIPE;
-						if (event->on.error != NULL)
-							(*event->on.error)(loop, event);
-						continue;
-					}
-				}
+		if ((event = VectorGet(loop->events, i)) == NULL || !event->enabled)
+			continue;
+
+		p_ev = &((struct pollfd *) loop->set)[i];
+
+		if (p_ev->fd == event->fd) {
+			if ((p_ev->events & (POLLHUP|POLLIN)) == POLLHUP)
+				errno = EPIPE;
+			else if (p_ev->events & POLLERR)
+				errno = EIO;
+			else if (p_ev->events & (POLLIN|POLLOUT))
+				errno = 0;
+			else
+				errno = saved_errno;
+
+			io_want = 0;
+			if (event->io_type & EVENT_READ)
+				io_want |= POLL_READ;
+			if (event->io_type & EVENT_WRITE)
+				io_want |= POLL_WRITE;
+
+			if (errno != 0 || (p_ev->revents & io_want)) {
+				if (saved_errno == 0 || event->timeout < 0)
+					eventResetExpire(event, &now);
 				if (event->on.io != NULL)
 					(*event->on.io)(loop, event);
-				eventResetExpire(event, &now);
-			} else if (loop->set[i].revents & (POLLHUP|POLLERR|POLLNVAL)) {
-				errno = (loop->set[i].revents & POLLHUP) ? EPIPE : EIO;
-				if (event->on.error != NULL)
-					(*event->on.error)(loop, event);
 			}
 		}
 next_event:
 		;
 	}
 error0:
-	;
-}
-#else
-# error "kqueue, epoll, or poll APIs required."
-	errno = EIO;
-#endif
 	return errno;
 }
+#endif
 
-void
-eventClose(Events *loop, Event *event)
+int (*events_wait_fn)(Events *loop, long ms);
+
+int
+eventsWait(Events *loop, long ms)
 {
-	if (event->on.close != NULL)
-		(*event->on.close)(loop, event);
-	eventRemove(loop, event);
+	if (events_wait_fn == NULL) {
+		errno = EIO;
+		return 0;
+	}
+
+	return (*events_wait_fn)(loop, ms);
 }
 
 void
@@ -278,7 +369,7 @@ eventInit(Event *event, int fd, int io_type)
 		memset(event, 0, sizeof (*event));
 		event->io_type = io_type;
 		event->timeout = -1;
-		event->enable = 1;
+		event->enabled = 1;
 		event->fd = fd;
 	}
 }
@@ -287,26 +378,18 @@ void
 eventFree(void *_event)
 {
 	Event *event = _event;
-
-	if (event != NULL) {
-		/*** This is a little odd due to how VectorDestroy works.
-		 *** The vector may contain a mix of static and dynamic
-		 *** elements.
-		 ***/
-		if (event->free == eventFree) {
-			free(event);
-		}
-	}
+	if (event != NULL && event->free != NULL)
+		(*event->free)(event);
 }
 
 Event *
-eventAlloc(int fd, int io_type)
+eventNew(int fd, int io_type)
 {
 	Event *event;
 
 	if ((event = malloc(sizeof (*event))) != NULL) {
 		eventInit(event, fd, io_type);
-		event->free = eventFree;
+		event->free = free;
 	}
 
 	return event;
@@ -363,7 +446,7 @@ eventRemove(Events *loop, Event *event)
  *	A pointer to a time_t start time.
  *
  * @return
- *	The minimum timeout in milli-seconds or -1 for infinite.
+ *	The minimum timeout in seconds or -1 for infinite.
  */
 long
 eventsTimeout(Events *loop, const time_t *start)
@@ -376,33 +459,35 @@ eventsTimeout(Events *loop, const time_t *start)
 		return -1;
 
 	now = *start;
-	seconds = MAX_MILLI_SECONDS;
+	seconds = LONG_MAX / UNIT_MILLI - 1;
 	expire = now + seconds;
 
 	for (item = (Event **) VectorBase(loop->events); *item != NULL; item++) {
-		if ((*item)->enable && now <= (*item)->expire && (*item)->expire < expire) {
+		if ((*item)->enabled && now <= (*item)->expire && (*item)->expire < expire) {
 			expire = (*item)->expire;
 			seconds = expire - now;
 		}
 	}
 
-	return seconds * UNIT_MILLI;
+	return seconds;
 }
 
 void
 eventsExpire(Events *loop, const time_t *expire)
 {
 	time_t when;
-	Event *event, **item;
+	Event *event;
+	long i, length;
 
 	when = *expire;
 
-	for (item = (Event **) VectorBase(loop->events); *item != NULL; item++) {
-		event = *item;
-		if (event->enable && event->expire <= when) {
+	length = VectorLength(loop->events);
+	for (i = 0; i < length; i++) {
+		event = VectorGet(loop->events, i);
+		if (event->enabled && event->expire <= when) {
 			errno = ETIMEDOUT;
-			if (event->on.error != NULL)
-				(*event->on.error)(loop, event);
+			if (event->on.timeout != NULL)
+				(*event->on.timeout)(loop, event);
 		}
 	}
 }
@@ -410,7 +495,7 @@ eventsExpire(Events *loop, const time_t *expire)
 void
 eventsRun(Events *loop)
 {
-	long ms;
+	long seconds;
 	time_t now, expire;
 
 	if (loop == NULL || loop->events == NULL || VectorLength(loop->events) == 0)
@@ -418,9 +503,9 @@ eventsRun(Events *loop)
 
 	for (loop->running = 1; loop->running; ) {
 		(void) time(&now);
-		ms = eventsTimeout(loop, &now);
-		if (eventsWait(loop, ms) == ETIMEDOUT && 0 <= ms) {
-			expire = now + ms / UNIT_MILLI;
+		seconds = eventsTimeout(loop, &now);
+		if (eventsWait(loop, seconds * UNIT_MILLI) == ETIMEDOUT && 0 <= seconds) {
+			expire = now + seconds;
 			eventsExpire(loop, &expire);
 		}
 	}
@@ -447,6 +532,16 @@ eventsInit(Events *loop)
 	if ((loop->set = calloc(loop->set_size, sizeof (*loop->set))) == NULL) {
 		VectorDestroy(loop->events);
 		return -1;
+	}
+
+	if (events_wait_fn == NULL) {
+#if defined(HAVE_KQUEUE)
+		events_wait_fn = events_wait_kqueue;
+#elif defined(HAVE_EPOLL_CREATE)
+		events_wait_fn = events_wait_epoll;
+#elif defined(HAVE_POLL)
+		events_wait_fn = events_wait_poll;
+#endif
 	}
 
 	return 0;
