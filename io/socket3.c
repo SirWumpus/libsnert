@@ -805,14 +805,29 @@ socket_wait_kqueue(SOCKET fd, long ms, unsigned rw_flags)
 	EV_SET(&event, fd, rw_flags, EV_ADD|EV_ENABLE, 0, 0, NULL);
 
 	/* Wait for I/O or timeout. */
-	if (kevent(kq, &event, 1, &event, 1, to) == 0 && errno != EINTR)
-		errno = ETIMEDOUT;
-	else if (event.filter == EVFILT_READ || event.filter == EVFILT_WRITE)
-		errno = 0;
-	else if (event.flags & EV_EOF)
-		errno = EPIPE;
-	else if (event.flags & EV_ERROR)
-		errno = socket_get_error(fd);
+	switch (kevent(kq, &event, 1, &event, 1, to)) {
+	default:
+		if (event.flags & EV_ERROR) {
+			errno = event.data;
+		} else if (event.filter == EVFILT_READ) {
+			if ((event.flags & EV_EOF) && event.data == 0)
+				errno = event.fflags == 0 ? EPIPE : event.fflags;
+			else
+				errno = 0;
+		} else if (event.filter == EVFILT_WRITE) {
+			if (event.flags & EV_EOF)
+				errno = event.fflags == 0 ? EPIPE : event.fflags;
+			else
+				errno = 0;
+		}
+		break;
+	case 0:
+		if (errno != EINTR)
+			errno = ETIMEDOUT;
+		/*@fallthrough@*/
+	case -1:
+		break;
+	}
 
 	(void) close(kq);
 error0:
@@ -839,14 +854,22 @@ socket_wait_epoll(SOCKET fd, long ms, unsigned rw_flags)
 		goto error1;
 
 	/* Wait for I/O or timeout. */
-	if (epoll_wait(ev_fd, &event, 1, ms) == 0 && errno != EINTR)
-		errno = ETIMEDOUT;
-	else if (event.events & (EPOLLIN|EPOLLOUT))
-		errno = 0;
-	else if (event.events & EPOLLHUP)
-		errno = EPIPE;
-	else if (event.events & EPOLLERR)
-		errno = socket_get_error(fd);
+	switch (epoll_wait(ev_fd, &event, 1, ms)) {
+	default:
+		if ((event.events & (EPOLLHUP|EPOLLIN)) == EPOLLHUP)
+			errno = EPIPE;
+		else if (event.events & EPOLLERR)
+			errno = socket_get_error(fd);
+		else if (event.events & (EPOLLIN|EPOLLOUT))
+			errno = 0;
+		break;
+	case 0:
+		if (errno != EINTR)
+			errno = ETIMEDOUT;
+		/*@fallthrough@*/
+	case -1:
+		break;
+	}
 error1:
 	(void) close(ev_fd);
 error0:
@@ -866,14 +889,22 @@ socket_wait_poll(SOCKET fd, long ms, unsigned rw_flags)
 	event.events = rw_flags;
 
 	/* Wait for some I/O or timeout. */
-	if (poll(&event, 1, ms) == 0 && errno != EINTR)
-		errno = ETIMEDOUT;
-	else if (event.revents & (POLLIN|POLLOUT))
-		errno = 0;
-	else if (event.revents & POLLHUP)
-		errno = EPIPE;
-	else if (event.revents & POLLERR)
-		errno = socket_get_error(fd);
+	switch (poll(&event, 1, ms)) {
+	default:
+		if ((event.revents & (POLLHUP|POLLIN)) == POLLHUP)
+			errno = EPIPE;
+		else if (event.revents & POLLERR)
+			errno = socket_get_error(fd);
+		else if (event.revents & (POLLIN|POLLOUT))
+			errno = 0;
+		break;
+	case 0:
+		if (errno != EINTR)
+			errno = ETIMEDOUT;
+		/*@fallthrough@*/
+	case -1:
+		break;
+	}
 
 	return errno == 0;
 }
