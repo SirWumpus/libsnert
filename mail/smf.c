@@ -2545,7 +2545,7 @@ smfMainStart(smfInfo *smf)
 	syslog(LOG_INFO, "libmilter version %d.%d.%d", major, minor, patch);
 }
 #else
-	syslog(LOG_INFO, "libmilter version %d (%d)", smf->handlers.xxfi_version, SET_SMFI_VERSION);
+	syslog(LOG_INFO, "libmilter version %d", SMFI_VERSION);
 #endif
 #ifdef HAVE_SQLITE3_H
 	syslog(LOG_INFO, "SQLite %s Public Domain by D. Richard Hipp", sqlite3_libversion());
