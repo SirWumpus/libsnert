@@ -111,7 +111,7 @@ LogPrintV(int level, const char *msg, va_list args)
 	}
 
 #if defined(HAVE_FLOCKFILE)
-	(void) flockfile(logFile);
+	flockfile(logFile);
 #endif
 
 	(void) fputs(buffer, logFile);
@@ -119,7 +119,7 @@ LogPrintV(int level, const char *msg, va_list args)
 	(void) fflush(logFile);
 
 #if defined(HAVE_FLOCKFILE)
-	(void) funlockfile(logFile);
+	funlockfile(logFile);
 #endif
 
 	return 0;
@@ -214,7 +214,7 @@ LogStderrV(int level, const char *msg, va_list args)
 	(void) LogErrorV(msg, args);
 
 #if defined(HAVE_FLOCKFILE)
-	(void) flockfile(stderr);
+	flockfile(stderr);
 #endif
 
 	(void) fprintf(stderr, "%s: ", programName);
@@ -225,7 +225,7 @@ LogStderrV(int level, const char *msg, va_list args)
 	(void) fflush(stderr);
 
 #if defined(HAVE_FLOCKFILE)
-	(void) funlockfile(stderr);
+	funlockfile(stderr);
 #endif
 
 	return 0;
