@@ -50,6 +50,60 @@ is no set schedule for releases.
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
 
+--1.75.0--
+
+  !!	Refactored the PDQ API so that the query section is returned as
+	part of the PDQ_rr list and delimits a group of replies. The
+	PDQ_rr structure change will require products using the PDQ API
+	to make some minor changes as to how they handle a PDQ_rr list.
+
+   !	As a result of the changes to PDQ API the following were updated
+	to handle the changes in PDQ_rr list structure: socket2.c,
+	socketAddress.c, digestbl.c, siq.c, smtp2.c, spf.c, dnsList.c
+
+  !!	Refactored the MIME API to support a linked-list of MimeHooks.
+	This is to allow one Mime object to be used by many different
+	APIs at once and so avoid duplicate parsing and decoding of a
+	message. The Mime structure and setup have changed so will
+	require products using the MIME API to make some minor changes.
+
+	Add -m option to the mime CLI to generate MD5 for the encoded
+	and decoded MIME part as proof of concept.
+
+   !	The above MIME API change found three bug: the body_finish
+	handler was not called on EOF; when a MIME part does not end in
+	a CRLF, which is part of the boundary, then the decoded portion
+	should also not end in a CRLF; the mime_part_length should be
+	reset between parts.
+
+  !!	Refactored the URI API to work with the refactored MIME API and
+	use a call-back when a URI is found. This replaces the
+	previously klunky uriMime*() functions with just uriMimeInit().
+	This change will require products using the URI API to make some
+	minor changes.
+
+   !	Updated the TLD data.
+
+   !	Split list API from queue API.
+
+   !	socket3 and Events APIs to replace socket2 and SocketEvents,
+	which have limitations with respect to IO event model. socket3
+	reverts to using a socket file descriptor and simply acts as a
+	portability layer. Events provides a simple IO event model using
+	file descriptors similar to libev.
+
+   !	PDQ API converted to socket3 API using the simplified socket_wait().
+
+   !	The URI API should now parse and detect implicit IP addresses.
+   	Requested by Steven Freegard.
+
+   !	Fix on-the-fly MIME parsing inadvertant switch of state from
+	headers to body when a header exceeds the size of the source
+	buffer. Reported by AlexB.
+
+   !	Revised build process to illimate a much as possibe linking to
+	unnecessary dynamic libraries.
+
 --1.74.22--
 
   !!	Fix smtp2Read() when it grows the multi-line input beyond the initial

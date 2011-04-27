@@ -43,6 +43,8 @@ com/snert/src/lib/io/fnext.c
 com/snert/src/lib/io/makefile.in
 com/snert/src/lib/io/mkpath.c
 com/snert/src/lib/io/socket2.c
+com/snert/src/lib/io/socket3.c
+com/snert/src/lib/io/events.c
 com/snert/src/lib/io/socketEvent.c
 com/snert/src/lib/io/socketAddress.c
 com/snert/src/lib/io/socketAddressIsLocal.c
@@ -236,6 +238,9 @@ com/snert/src/lib/include/io/Pushback.h
 com/snert/src/lib/include/io/file.h
 com/snert/src/lib/include/io/posix.h
 com/snert/src/lib/include/io/socket2.h
+com/snert/src/lib/include/io/socket3.h
+com/snert/src/lib/include/io/events.h
+com/snert/src/lib/include/io/socketAddress.h
 com/snert/src/lib/include/mail/MailSpan.h
 com/snert/src/lib/include/mail/grey.h
 com/snert/src/lib/include/mail/limits.h
