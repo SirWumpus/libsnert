@@ -1,7 +1,7 @@
 /*
  * smtpe.c
  *
- * SMTP using IO events; a SocketEvent test.
+ * SMTP Engine using IO events; an Events test.
  *
  * Copyright 2011 by Anthony Howe & Fort Systems Ltd. All rights reserved.
  */
@@ -75,6 +75,10 @@
 #define MAX_LINEAR_PROBE		24
 #endif
 
+#if !defined(SMTP_PIPELINING_TIMEOUT)
+#define SMTP_PIPELINING_TIMEOUT		300
+#endif
+
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/
@@ -121,13 +125,18 @@
 #include <com/snert/lib/pt/pt.h>
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/io/file.h>
-#include <com/snert/lib/io/socket2.h>
+#include <com/snert/lib/io/events.h>
+#include <com/snert/lib/io/socket3.h>
+#include <com/snert/lib/mail/tlds.h>
 #include <com/snert/lib/mail/smtp2.h>
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/net/pdq.h>
+#include <com/snert/lib/net/http.h>
 #include <com/snert/lib/sys/sysexits.h>
 #include <com/snert/lib/sys/process.h>
+#include <com/snert/lib/type/list.h>
+#include <com/snert/lib/util/convertDate.h>
 #include <com/snert/lib/util/option.h>
 #include <com/snert/lib/util/time62.h>
 #include <com/snert/lib/util/timer.h>
@@ -139,6 +148,11 @@
  ***
  ***********************************************************************/
 
+#ifndef PTHREAD_MUTEX_LOCK
+#define PTHREAD_MUTEX_LOCK(m)
+#define PTHREAD_MUTEX_UNLOCK(m)
+#endif
+
 #ifdef HAVE_RAND_R
 # define RANDOM_NUMBER(max)	((int)((double)(max) * (double) rand_r(&rand_seed) / (RAND_MAX+1.0)))
 #else
@@ -149,15 +163,12 @@
 #define RAND_MSG_COUNT		RANDOM_NUMBER(62.0*62.0)
 #endif
 
-#define SMTP_PIPELINING_TIMEOUT	300
-#define PEEK_DELAY_NS		(SMTP_PIPELINING_TIMEOUT * UNIT_MICRO)
-
 typedef struct stmp_ctx SmtpCtx;
-typedef pt_word_t (*SmtpCmdHook)(SocketEvents *loop, SocketEvent *event);
+typedef pt_word_t (*SmtpCmdHook)(Events *loop, Event *event);
 
-#define SMTP_CMD_NAME(fn)	cmd_ ## fn
-#define SMTP_CMD_DEF(fn)	PT_THREAD( SMTP_CMD_NAME(fn)(SocketEvents *loop, SocketEvent *event) )
-#define SMTP_CMD_DO(fn)		(*SMTP_CMD_NAME(fn))(loop, event)
+#define SMTP_NAME(fn)		cmd_ ## fn
+#define SMTP_DEF(fn)		PT_THREAD( SMTP_NAME(fn)(Events *loop, Event *event) )
+#define SMTP_DO(fn)		(*SMTP_NAME(fn))(loop, event)
 
 typedef struct {
 	const char *cmd;
@@ -216,8 +227,8 @@ typedef struct {
 typedef struct {
 	pt_t pt;
 	MxRead read;
-	Socket2 *socket;
-	SocketEvent event;
+	SOCKET socket;
+	Event event;
 	const char *host;
 	const char *mail;
 	Vector rcpts;
@@ -230,10 +241,20 @@ typedef struct {
 	PDQ *pdq;
 	int wait_all;
 	PDQ_rr *answer;
-	Socket2 *socket;
-	SocketEvent event;
-	time_t stop_after;	/* overall timeout for PDQ lookup */
+	Event event;
+	long timeout_sum;	/* overall tally of timeouts */
+	long timeout_next;	/* timeout doubles each iteration. */
 } Dns;
+
+typedef struct {
+	Event event;
+	Events *loop;
+	SOCKET socket;
+	SocketAddress addr;
+	int is_pipelining;
+	int dropped;
+	int enabled;
+} Client;
 
 #define ID_SIZE		20
 
@@ -271,29 +292,33 @@ struct stmp_ctx {
 	/* SMTP state */
 	int is_dot;		/* 0 no trailing dot, else length of "dot" tail */
 	unsigned eoh;		/* Offset to end-of-header seperator. */
+	unsigned long length;	/* Message length. */
 	SmtpCmdHook state;
 	SmtpCmdHook state_helo;
-	SocketEvents *loop;	/* Convience data for Lua / C interface. */
-	SocketEvent *event;	/* Convience data for Lua / C interface. */
 
 	Lua lua;
 	Dns pdq;
 	MxSend mx;
 	Mime *mime;
 	MD5Mime md5;
+	List services;
 
-	Socket2 *client;
+	Client client;
 	FILE *spool_fp;
-	int is_enabled;
-	int is_pipelining;
-	int drop_client;
 };
 
 #define SETJMP_PUSH(this_jb) \
-	{ JMP_BUF jb; memcpy(&jb, this_jb, sizeof (jb))
+	{ JMP_BUF _jb; memcpy(&_jb, this_jb, sizeof (_jb))
 
 #define SETJMP_POP(this_jb) \
-	memcpy(this_jb, &jb, sizeof (jb)); }
+	memcpy(this_jb, &_jb, sizeof (_jb)); }
+
+typedef enum {
+	JMP_SET,
+	JMP_DROP,
+	JMP_ERROR,
+	JMP_INTERNAL
+} JmpCode;
 
 /***********************************************************************
  *** Strings
@@ -308,6 +333,8 @@ struct stmp_ctx {
 #define LOG_ID(ctx)		(ctx)->id_sess
 #define LOG_TRAN(ctx)		((*(ctx)->id_trans == '\0') ? LOG_ID(ctx) : (ctx)->id_trans)
 #define LOG_INT(ctx)		LOG_ID(ctx), LOG_LINE
+#define LOG_FN_FMT		"%s %s "
+#define LOG_FN(ctx)		LOG_ID(ctx), __FUNCTION__
 
 #define CLIENT_FMT		"%s [%s] "
 #define CLIENT_INFO(c)		(c)->host.data, (c)->addr.data
@@ -317,7 +344,7 @@ struct stmp_ctx {
 
 static const char empty[] = "";
 
-static const char log_init[] = "init error %s(%d): %s (%d)";
+static const char log_init[] = "initialisation error %s(%d): %s (%d)";
 static const char log_oom[] = LOG_FMT "out of memory %s(%d)";
 static const char log_internal[] = LOG_FMT "internal error %s(%d)";
 static const char log_buffer[] = LOG_FMT "buffer overflow %s(%d)";
@@ -332,6 +359,7 @@ static const char fmt_quit[] = "221 2.0.0 %s closing connection %s" CRLF;
 static const char fmt_pipeline[] = "550 5.3.3" FMT(000) "pipelining not allowed" CRLF;
 static const char fmt_no_rcpts[] = "554 5.5.0" FMT(000) "no recipients" CRLF;
 static const char fmt_no_piping[] = "%d 5.5.0" FMT(000) "pipeline data after %s command" CRLF;
+static const char fmt_missing_arg[] = "501 5.5.2" FMT(000) "missing argument" CRLF;
 static const char fmt_unknown[] = "502 5.5.1" FMT(000) "%s command unknown" CRLF;
 static const char fmt_out_seq[] = "503 5.5.1" FMT(000) "%s out of sequence" CRLF;
 static const char fmt_data[] = "354 enter mail, end with \".\" on a line by itself" CRLF;
@@ -351,6 +379,7 @@ static const char fmt_rcpt_ok[] = "250 2.1.0 recipient <%s> OK" CRLF;
 static const char fmt_msg_ok[] = "250 2.0.0" FMT(000) "message %s accepted" CRLF;
 static const char fmt_msg_try_again[] = "451 4.4.5" FMT(000) "try again later %s" CRLF;
 static const char fmt_msg_reject[] = "550 5.7.0" FMT(000) "message %s rejected" CRLF;
+static const char fmt_msg_empty[] = "550 5.6.0" FMT(000) "message %s is empty" CRLF;
 
 static const char fmt_helo[] = "250 Hello %s (%s, %s)" CRLF;
 
@@ -712,7 +741,7 @@ Option *verb_table[] = {
 static Vector smart_hosts;
 static unsigned rand_seed;
 static int parse_path_flags;
-static SocketEvents main_loop;
+static Events main_loop;
 static const char *smtp_default_at_dot;
 static char my_host_name[SMTP_DOMAIN_LENGTH+1];
 void client_send(SmtpCtx *ctx, const char *fmt, ...);
@@ -840,6 +869,17 @@ lua_array_to_vector(lua_State *L, int table_index)
 }
 
 static void
+lua_vector_to_array(lua_State *L, Vector v)
+{
+	char **string;
+
+	lua_newtable(L);					/* t */
+	for (string = (char **)VectorBase(v); *string != NULL; string++) {
+		lua_array_push_string(L, -1, *string);
+	}
+}
+
+static void
 lua_pushthread2(lua_State *L, lua_State *thread)
 {
 	/* lua_pushthread is really wierd pushing itself onto its
@@ -860,6 +900,332 @@ lua_getctx(lua_State *L)
 
 	return ctx;
 }
+
+static lua_State *
+lua_getthread(lua_State *L, SmtpCtx *ctx)
+{
+	lua_State *thread;
+
+	lua_rawgeti(L, LUA_REGISTRYINDEX, ctx->lua.thread);
+	thread = lua_tothread(L, -1);
+	lua_pop(L, 1);
+
+	if (thread == NULL)
+		syslog(LOG_ERR, log_internal, LOG_INT(ctx));
+
+	if (verb_debug.value)
+		syslog(LOG_DEBUG, LOG_FMT "%s ctx=%lx thread=%d", LOG_ID(ctx), __FUNCTION__, (long) ctx, ctx->lua.thread);
+
+	return thread;
+}
+
+static void
+lua_checkmain(lua_State *L)
+{
+	if (lua_pushthread(L))
+		luaL_error(L, "function requires SMTP command hook");
+	lua_pop(L, 1);
+}
+
+#define SERVICE_FRAMEWORK
+#ifdef SERVICE_FRAMEWORK
+/***********************************************************************
+ *** Service Event Support
+ ***********************************************************************/
+
+typedef struct service Service;
+typedef int (*ServiceFn)(Service *, SmtpCtx *);
+typedef pt_word_t (*ServicePt)(Service *, SmtpCtx *);
+
+struct service {
+	pt_t pt;
+	void *data;
+	FreeFn free;		/* How to free data. */
+	char *host;
+	SmtpCtx *ctx;
+	ListItem link;
+	SOCKET socket;
+	Event event;
+	ServicePt service;
+	ServiceFn results;
+	int client_is_enabled;
+};
+
+Option verb_service		= { "service",		"-", empty };
+
+static int
+service_find(List *list, ListItem *node, void *key_data)
+{
+	return node->free == key_data || ((Service *) node->data)->service == key_data;
+}
+
+void
+service_event_free(void *_event)
+{
+	SmtpCtx *ctx;
+	Service *svc;
+
+	if (_event != NULL) {
+		svc = ((Event *)_event)->data;
+		ctx = svc->ctx;
+
+		TRACE_CTX(ctx, 000);
+
+		eventSetEnabled(&ctx->client.event, svc->client_is_enabled);
+		listDelete(&ctx->services, &svc->link);
+		if (svc->free != NULL)
+			(*svc->free)(svc->data);
+		free(svc->host);
+		free(svc);
+	}
+}
+
+void
+service_close_cb(Events *loop, Event *event)
+{
+	eventRemove(loop, event);
+}
+
+void
+service_io_cb(Events *loop, Event *event)
+{
+	Service *svc = event->data;
+	SmtpCtx *ctx = svc->ctx;
+
+	TRACE_CTX(ctx, 000);
+
+	SETJMP_PUSH(&ctx->on_error);
+	if (SIGSETJMP(ctx->on_error, 1) != JMP_SET || !PT_SCHEDULE((*svc->service)(svc, ctx))) {
+		eventRemove(loop, &svc->event);
+	}
+	SETJMP_POP(&ctx->on_error);
+}
+
+static Service *
+service_new(SmtpCtx *ctx)
+{
+	Service *svc;
+
+	if ((svc = calloc(1, sizeof (*svc))) != NULL) {
+		svc->ctx = ctx;
+		PT_INIT(&svc->pt);
+		svc->link.data = svc;
+
+		/* NOTE svc->link.free should always remain NULL.
+		 * eventRemove() handles the clean up of a service
+		 * via VectorRemove() > service_event_free().
+		 */
+	}
+
+	return svc;
+}
+
+static int
+service_add(SmtpCtx *ctx, Service *svc, long timeout)
+{
+	if (ctx == NULL || svc == NULL)
+		return -1;
+
+	eventInit(&svc->event, svc->socket, SOCKET_EVENT_READ|SOCKET_EVENT_WRITE);
+
+	eventSetTimeout(&svc->event, timeout);
+	svc->event.on.timeout = service_close_cb;
+	svc->event.on.io = service_io_cb;
+	svc->event.free = service_event_free;
+	svc->event.data = svc;
+
+	if (eventAdd(ctx->client.loop, &svc->event)) {
+		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
+		return -1;
+	}
+
+	/* Disable the client event until the service completes. */
+	svc->client_is_enabled = eventGetEnabled(&ctx->client.event);
+	eventSetEnabled(&ctx->client.event, 0);
+
+	listInsertBefore(&ctx->services, NULL, &svc->link);
+
+	return 0;
+}
+
+static Service *
+service_open(SmtpCtx *ctx, const char *hosts, int port, long timeout)
+{
+	char **host;
+	Vector array;
+	Service *svc;
+
+	if ((svc = service_new(ctx)) == NULL) {
+		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
+		goto error0;
+	}
+	if ((array = TextSplit(hosts, ";, ", 0)) == NULL) {
+		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
+		goto error1;
+	}
+	for (host = (char **)VectorBase(array); *host != NULL; host++) {
+		if (verb_service.value)
+			syslog(LOG_DEBUG, LOG_FMT ">> trying %s", LOG_TRAN(ctx), *host);
+		if ((svc->socket = socket_connect(*host, port, timeout * UNIT_MILLI)) < 0)
+			break;
+	}
+	if (*host == NULL)
+		goto error2;
+
+	(void) fileSetCloseOnExec(svc->socket, 1);
+	(void) socket_set_nonblocking(svc->socket, 1);
+	(void) socket_set_linger(svc->socket, 0);
+	svc->host = *host;
+	*host = NULL;
+
+	if (service_add(ctx, svc, timeout)) {
+		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
+		goto error3;
+	}
+
+	if (verb_service.value)
+		syslog(LOG_DEBUG, LOG_FMT ">> connected %s", LOG_TRAN(ctx), *host);
+
+	VectorDestroy(array);
+
+	return svc;
+error3:
+	socket_close(svc->socket);
+error2:
+	VectorDestroy(array);
+error1:
+	free(svc);
+error0:
+	return NULL;
+}
+
+static int
+lua_service_until(lua_State *L, SmtpCtx *ctx)
+{
+	Service *svc = ctx->client.event.data;
+	return !PT_SCHEDULE((*svc->service)(svc, ctx));
+}
+
+static int
+lua_service_result(lua_State *L, SmtpCtx *ctx)
+{
+	Service *svc = ctx->client.event.data;
+	if (svc->results != NULL)
+		return (*svc->results)(svc, ctx);
+	return 0;
+}
+
+static int
+lua_service_wait(lua_State *L)
+{
+	SmtpCtx *ctx = lua_getctx(L);
+
+	if (ctx != NULL) {
+		ctx->lua.yield_until = lua_service_until;
+		ctx->lua.yield_after = lua_service_result;
+
+		return lua_yield(L, 0);
+	}
+
+	return 0;
+}
+#endif
+
+#ifdef NOT_YET
+/***********************************************************************
+ *** Clamd Support
+ ***********************************************************************/
+
+#ifndef CLAMD_PORT
+#define CLAMD_PORT			3310
+#endif
+
+static const char usage_clamd_hosts[] =
+  "A list of unix domain sockets, ip[:port], and/or host[:port] of one\n"
+"# or more clamd servers. Specify the empty string to disable clamd scan.\n"
+"# The default clamd port is 3310.\n"
+"#"
+;
+static Option opt_clamd_hosts	= { "clamd-hosts",	"",	usage_clamd_hosts };
+static Option opt_clamd_timeout	= { "clamd-timeout",	"120",	"The clamd I/O timeout in seconds." };
+
+static
+PT_THREAD(clamd_svc(Servce *svc, SmtpCtx *ctx))
+{
+	int is_scan;
+	uint32_t size;
+	char data[SMTP_TEXT_LINE_LENGTH];
+	Buffer buffer = { sizeof (data), 0, 0, data };
+
+	if (svc == NULL
+	&& (svc = service_open(ctx, opt_clamd_hosts.string, CLAMD_PORT, opt_clamd_timeout.value)) == NULL)
+		return PT_EXITED;
+
+	PT_BEGIN(&svc->pt);
+
+	svc->service = clamd_svc;
+
+	if ((is_scan = *svc->host == '/' || isReservedIP(svc->host, IS_IP_LOCAL))
+		buffer.length = snprintf(buffer.data, buffer.size, "nSCAN %s\n", ctx->path.data);
+	else
+		buffer.length = TextCopy(buffer.data, buffer.size, "nINSTREAM\n");
+
+	/* Send the clamd command. */
+	if (socketWrite(svc->socket, buffer.data, buffer.length) != buffer.length) {
+		syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
+		PT_EXIT(&svc->pt);
+	}
+
+	if (!is_scan) {
+		/* Stream the file to clamd. */
+		FILE *fp;
+
+		if ((fp = fopen(ctx->path.data, "rb")) == NULL) {
+			syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
+			PT_EXIT(&svc->pt);
+		}
+
+		for (;;) {
+			buffer.length = fread(buffer.data, 1, buffer.size, fp);
+			size = htonl(buffer.length);
+
+			if (socketWrite(svc->socket, (unsigned char *) &size, sizeof (size)) != sizeof (size))
+				syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
+				break;
+			}
+
+			if (length == 0)
+				break;
+
+			if (socketWrite(svc->socket, buffer.data, buffer.length) != buffer.length) {
+				syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
+				break;
+			}
+
+			PT_YIELD(&svc->pt);
+		}
+
+		(void) fclose(fp);
+	}
+
+	/* Get the clamd response line. */
+	buffer.length = 0;
+	do {
+		PT_YIELD(&svc->pt);
+		buffer.offset = socketRead(svc->socket, buffer.data+buffer.length, buffer.size-buffer.length);
+		buffer.length += buffer.offset;
+	} while (0 < buffer.length && buffer.data[buffer.length-1] != '\n');
+
+	if ((L1 = lua_getthread(lua_live, ctx)) != NULL) {
+		lua_getglobal(L1, "service");				/* service */
+		lua_pushlstring(L1, buffer.data, buffer.length);	/* service clamd */
+		lua_setfield(L1, -2, "clamd");				/* service */
+		lua_pop(L1, 1);						/* -- */
+	}
+
+	PT_END(&svc->pt);
+}
+#endif
 
 /***********************************************************************
  *** SMTP Client Support
@@ -882,6 +1248,8 @@ PT_THREAD(mx_read(SmtpCtx *ctx))
 	ctx->mx.read.length = 0;
 	ctx->mx.read.line_no = 0;
 	ctx->mx.read.line_max = 0;
+	ctx->mx.read.smtp_rc = 0;
+	free(ctx->mx.read.lines);
 	ctx->mx.read.lines = NULL;
 	ctx->mx.read.smtp_rc = 0;
 
@@ -906,7 +1274,12 @@ PT_THREAD(mx_read(SmtpCtx *ctx))
 
 			/* Read input. */
 			buffer = (char *) &ctx->mx.read.lines[ctx->mx.read.line_max + 1];
-			length = socketRead(ctx->mx.socket, buffer+ctx->mx.read.length, ctx->mx.read.size-ctx->mx.read.length);
+			length = socket_read(
+				ctx->mx.socket,
+				buffer+ctx->mx.read.length,
+				ctx->mx.read.size-ctx->mx.read.length,
+				NULL
+			);
 
 			switch (length) {
 			case SOCKET_EOF:
@@ -964,42 +1337,37 @@ error1:
 	PT_END(&ctx->mx.read.pt);
 }
 
-void
-mx_io_cb(SocketEvents *loop, SocketEvent *event)
+static void
+mx_close(SmtpCtx *ctx)
 {
-	SocketEvent *client_event = event->data;
-	SmtpCtx *ctx = client_event->data;
+	TRACE_CTX(ctx, 000);
+
+	eventSetEnabled(&ctx->client.event, ctx->client.enabled);
+	eventRemove(ctx->client.loop, &ctx->mx.event);
+	socket_close(ctx->mx.socket);
+	free(ctx->mx.read.lines);
+}
+
+void
+mx_io_cb(Events *loop, Event *event)
+{
+	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
 
 	SETJMP_PUSH(&ctx->on_error);
-	if (SIGSETJMP(ctx->on_error, 1) != 0) {
-		if (verb_smtp.value)
-			syslog(LOG_DEBUG, LOG_FMT "close %s cc=%ld", LOG_ID(ctx), ctx->addr.data, VectorLength(loop->events)-1);
-		if (client_event->on.error != NULL)
-			(*client_event->on.error)(loop, client_event);
+	if (SIGSETJMP(ctx->on_error, 1) != JMP_SET) {
+		mx_close(ctx);
 	} else {
-		(*ctx->state)(loop, client_event);
+		(*ctx->state)(loop, &ctx->client.event);
 	}
 	SETJMP_POP(&ctx->on_error);
-}
-
-void
-mx_error_cb(SocketEvents *loop, SocketEvent *event)
-{
-	SocketEvent *client_event = event->data;
-	SmtpCtx *ctx = client_event->data;
-
-	TRACE_CTX(ctx, 000);
-
-	ctx->mx.read.smtp_rc = SMTP_ERROR_IO;
-	(*ctx->state)(loop, client_event);
 }
 
 static int
 mx_open(SmtpCtx *ctx, const char *host)
 {
-	if ((ctx->mx.socket = socketConnect(host, SMTP_PORT, opt_smtp_accept_timeout.value)) == NULL) {
+	if ((ctx->mx.socket = socket_connect(host, SMTP_PORT, opt_smtp_accept_timeout.value * UNIT_MILLI)) < 0) {
 		syslog(LOG_ERR, LOG_FMT "%s: %s (%d)", LOG_TRAN(ctx), host, strerror(errno), errno);
 		return -1;
 	}
@@ -1007,41 +1375,29 @@ mx_open(SmtpCtx *ctx, const char *host)
 	if (verb_smtp.value)
 		syslog(LOG_DEBUG, LOG_FMT ">> connected %s", LOG_TRAN(ctx), host);
 
-	(void) fileSetCloseOnExec(socketGetFd(ctx->mx.socket), 1);
-	(void) socketSetNonBlocking(ctx->mx.socket, 1);
-	(void) socketSetLinger(ctx->mx.socket, 0);
+	(void) fileSetCloseOnExec(ctx->mx.socket, 1);
+	(void) socket_set_nonblocking(ctx->mx.socket, 1);
+	(void) socket_set_linger(ctx->mx.socket, 0);
 
 	/* Create an event for the forward host. */
-	socketEventInit(&ctx->mx.event, ctx->mx.socket, SOCKET_EVENT_READ);
+	eventInit(&ctx->mx.event, ctx->mx.socket, SOCKET_EVENT_READ);
 
-	ctx->mx.event.data = ctx->event;
+	ctx->mx.event.data = ctx;
 	ctx->mx.event.on.io = mx_io_cb;
-	ctx->mx.event.on.error = mx_error_cb;
+	eventSetTimeout(&ctx->mx.event, opt_smtp_command_timeout.value);
 
-	if (socketEventAdd(ctx->loop, &ctx->mx.event)) {
+	if (eventAdd(ctx->client.loop, &ctx->mx.event)) {
 		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
-		socketClose(ctx->mx.socket);
-		ctx->mx.socket = NULL;
+		socket_close(ctx->mx.socket);
 		return -1;
 	}
 
 	/* Disable the client event until the forwarding completes. */
-	ctx->is_enabled = socketEventGetEnable(ctx->event);
-	socketEventSetEnable(ctx->event, 0);
+	ctx->client.enabled = eventGetEnabled(&ctx->client.event);
+	eventSetEnabled(&ctx->client.event, 0);
+	ctx->mx.read.lines = NULL;
 
 	return 0;
-}
-
-static void
-mx_close(SmtpCtx *ctx)
-{
-	TRACE_CTX(ctx, 000);
-
-	if (ctx->mx.socket != NULL) {
-		socketEventSetEnable(ctx->event, ctx->is_enabled);
-		socketEventRemove(ctx->loop, &ctx->mx.event);
-		ctx->mx.socket = NULL;
-	}
 }
 
 static long
@@ -1056,7 +1412,7 @@ mx_print(SmtpCtx *ctx, const char *line, size_t length)
 	if (verb_smtp.value)
 		syslog(LOG_DEBUG, LOG_FMT ">> %lu:%s", LOG_TRAN(ctx), (unsigned long) length, line);
 
-	if ((sent = socketWrite(ctx->mx.socket, (char *) line, length)) < 0) {
+	if ((sent = socket_write(ctx->mx.socket, (char *) line, length, NULL)) < 0) {
 		syslog(LOG_ERR, LOG_FMT "%s: %s (%d)", LOG_TRAN(ctx), ctx->mx.host, strerror(errno), errno);
 		ctx->mx.read.smtp_rc = SMTP_ERROR;
 	}
@@ -1097,9 +1453,9 @@ PT_THREAD(mx_send(SmtpCtx *ctx, Vector hosts, const char *mail, Vector rcpts, co
 	PT_BEGIN(&ctx->mx.pt);
 
 	ctx->reply.length = 0;
-	ctx->mx.read.smtp_rc = 0;
+	ctx->mx.read.smtp_rc = SMTP_TRY_AGAIN_LATER;
 
-	if (hosts == NULL)
+	if (hosts == NULL || VectorLength(hosts) <= 0)
 		goto mx_tempfail1;
 
 	for (host = (char **) VectorBase(hosts); *host != NULL; host++) {
@@ -1122,54 +1478,49 @@ PT_THREAD(mx_send(SmtpCtx *ctx, Vector hosts, const char *mail, Vector rcpts, co
 	PT_SPAWN(&ctx->mx.pt, &ctx->mx.read.pt, mx_read(ctx));
 	if (ctx->mx.read.smtp_rc != SMTP_WELCOME) {
 		syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
-		ctx->reply.length = 0;
 		goto mx_tempfail2;
 	}
-	free(ctx->mx.read.lines);
+//	free(ctx->mx.read.lines);
 
 	if (0 < ctx->auth.length) {
 		mx_print(ctx, ctx->auth.data, ctx->auth.length);
 		PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
 		if (ctx->mx.read.smtp_rc != SMTP_AUTH_OK) {
 			syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
-			ctx->reply.length = 0;
 			goto mx_tempfail2;
 		}
-		free(ctx->mx.read.lines);
+//		free(ctx->mx.read.lines);
 	}
 
 	mx_printf(ctx, "EHLO %s" CRLF, my_host_name);
 	PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
-	free(ctx->mx.read.lines);
+//	free(ctx->mx.read.lines);
 	if (ctx->mx.read.smtp_rc != SMTP_OK) {
 		mx_printf(ctx, "HELO %s" CRLF, my_host_name);
 		PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
 		if (ctx->mx.read.smtp_rc != SMTP_OK) {
 			syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
-			ctx->reply.length = 0;
 			goto mx_tempfail2;
 		}
-		free(ctx->mx.read.lines);
+//		free(ctx->mx.read.lines);
 	}
 
 	mx_printf(ctx, "MAIL FROM:<%s>" CRLF, mail);
 	PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
 	if (ctx->mx.read.smtp_rc != SMTP_OK) {
 		syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
-		ctx->reply.length = 0;
 		goto mx_tempfail2;
 	}
-	free(ctx->mx.read.lines);
+//	free(ctx->mx.read.lines);
 
 	for (ctx->rcpt = (char **) VectorBase(rcpts); *ctx->rcpt != NULL; ctx->rcpt++) {
 		mx_printf(ctx, "RCPT TO:<%s>" CRLF, *ctx->rcpt);
 		PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
 		if (ctx->mx.read.smtp_rc != SMTP_OK) {
 			syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
-			ctx->reply.length = 0;
 			continue;
 		}
-		free(ctx->mx.read.lines);
+//		free(ctx->mx.read.lines);
 		ctx->mx.rcpts_ok++;
 	}
 
@@ -1180,10 +1531,9 @@ PT_THREAD(mx_send(SmtpCtx *ctx, Vector hosts, const char *mail, Vector rcpts, co
 	PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
 	if (ctx->mx.read.smtp_rc != SMTP_WAITING) {
 		syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
-		ctx->reply.length = 0;
 		goto mx_tempfail2;
 	}
-	free(ctx->mx.read.lines);
+//	free(ctx->mx.read.lines);
 
 	if (0 < length) {
 		/* Send message string. */
@@ -1193,7 +1543,6 @@ PT_THREAD(mx_send(SmtpCtx *ctx, Vector hosts, const char *mail, Vector rcpts, co
 		if ((ctx->spool_fp = fopen(spool_msg, "rb")) == NULL) {
 			syslog(LOG_ERR, LOG_FMT "%s %s: %s (%d)", LOG_ID(ctx), ctx->id_trans, spool_msg, strerror(errno), errno);
 			ctx->mx.read.smtp_rc = SMTP_ERROR_IO;
-			ctx->reply.length = 0;
 			goto mx_tempfail2;
 		}
 
@@ -1206,44 +1555,24 @@ PT_THREAD(mx_send(SmtpCtx *ctx, Vector hosts, const char *mail, Vector rcpts, co
 
 		if (err) {
 			syslog(LOG_ERR, LOG_FMT "%s %s: %s (%d)", LOG_ID(ctx), ctx->id_trans, spool_msg, strerror(errno), errno);
-			ctx->reply.length = 0;
-			goto mx_tempfail3;
+			goto mx_abort;
 		}
 	}
 
+	eventSetTimeout(&ctx->mx.event, opt_smtp_dot_timeout.value);
 	mx_print(ctx, "." CRLF, STRLEN("." CRLF));
 	PT_WAIT_THREAD(&ctx->mx.pt, mx_read(ctx));
 	if (ctx->mx.read.smtp_rc != SMTP_OK) {
 		syslog(LOG_ERR, LOG_FMT "%s: %s", LOG_TRAN(ctx), ctx->mx.host, ctx->mx.read.lines[0]);
-		ctx->reply.length = 0;
 	}
-mx_tempfail3:
-	if (SMTP_IS_TEMP(ctx->mx.read.smtp_rc))
-		goto mx_tempfail1;
-	if (SMTP_IS_PERM(ctx->mx.read.smtp_rc)) {
-		ctx->smtp_rc = SMTP_REJECT;
-		PT_EXIT(&ctx->mx.pt);
-	}
+	eventSetTimeout(&ctx->mx.event, opt_smtp_command_timeout.value);
 mx_tempfail2:
 	mx_print(ctx, "QUIT" CRLF, STRLEN("QUIT" CRLF));
-	free(ctx->mx.read.lines);
+mx_abort:
+//	free(ctx->mx.read.lines);
 	mx_close(ctx);
-
-	if (ctx->mx.read.smtp_rc != SMTP_OK) {
-		ctx->reply.length = 0;
-		goto mx_tempfail1;
-	}
-
-	/* We've successfully forwarded the message.
-	 * Any cached reply has to be positive else
-	 * reset the reply and use the default.
-	 */
-	if (0 < ctx->reply.length && !SMTP_ISS_OK(ctx->reply.data))
-		ctx->reply.length = 0;
-	ctx->smtp_rc = ctx->mx.read.smtp_rc;
-	PT_EXIT(&ctx->mx.pt);
 mx_tempfail1:
-	ctx->smtp_rc = SMTP_TRY_AGAIN_LATER;
+	ctx->smtp_rc = ctx->mx.read.smtp_rc;
 
 	PT_END(&ctx->mx.pt);
 }
@@ -1271,27 +1600,34 @@ lua_mx_send(lua_State *L, size_t string_length)
 	Vector hosts, rcpts;
 	SmtpCtx *ctx = lua_getctx(L);
 
+	lua_checkmain(L);
 	if (ctx == NULL)
-		return luaL_error(L, "client context not found %s.%d", LOG_LINE);
+		return luaL_error(L, LOG_FN_FMT "client context not found ", LOG_FN(ctx));
 
 	luaL_checktype(L, 1, LUA_TTABLE);
 	if ((hosts = lua_array_to_vector(L, 1)) == NULL)
-		return luaL_error(L, "hosts table error %s.%d: %s (%d)", LOG_LINE, strerror(errno), errno);
+		return luaL_error(L, LOG_FN_FMT "hosts table error: %s (%d)", LOG_FN(ctx), strerror(errno), errno);
+	if (VectorLength(hosts) <= 0)
+		return luaL_error(L, LOG_FN_FMT "hosts table cannot be empty", LOG_FN(ctx));
 
 	luaL_checktype(L, 3, LUA_TTABLE);
 	if ((rcpts = lua_array_to_vector(L, 3)) == NULL)
-		return luaL_error(L, "rcpts table error %s.%d: %s (%d)", LOG_LINE, strerror(errno), errno);
+		return luaL_error(L, LOG_FN_FMT "rcpts table error: %s (%d)", LOG_FN(ctx), strerror(errno), errno);
+	if (VectorLength(rcpts) <= 0)
+		return luaL_error(L, LOG_FN_FMT "rcpts table cannot be empty", LOG_FN(ctx));
 
 	ctx->lua.yield_until = lua_mx_senduntil;
 	ctx->lua.yield_after = lua_mx_sendresult;
 
-	is_scheduled = PT_SCHEDULE(mx_send(ctx, hosts, luaL_checkstring(L, 2), rcpts, luaL_checkstring(L, 4), string_length));
+	is_scheduled = PT_SCHEDULE(
+		mx_send(ctx, hosts, luaL_checkstring(L, 2), rcpts, luaL_optstring(L, 4, NULL), string_length)
+	);
 
 	VectorDestroy(hosts);
 
 	if (!is_scheduled) {
 		VectorDestroy(rcpts);
-		return luaL_error(L, "%s %s error", LOG_ID(ctx), __FUNCTION__);
+		return luaL_error(L, LOG_FN_FMT "%s error", LOG_FN(ctx));
 	}
 
 	return lua_yield(L, 0);
@@ -1303,6 +1639,13 @@ lua_mx_send(lua_State *L, size_t string_length)
 static int
 lua_mx_sendfile(lua_State *L)
 {
+	struct stat sb;
+	SmtpCtx *ctx = lua_getctx(L);
+	const char *file = luaL_optstring(L, 4, NULL);
+
+	if (file != NULL && stat(file, &sb) != 0)
+		return luaL_error(L, LOG_FN_FMT "%s error: %s (%d)", LOG_FN(ctx), file, strerror(errno), errno);
+
 	return lua_mx_send(L, 0);
 }
 
@@ -1312,9 +1655,6 @@ lua_mx_sendfile(lua_State *L)
 static int
 lua_mx_sendstring(lua_State *L)
 {
-	const char *msg = luaL_checkstring(L, 4);
-	if (msg == NULL || *msg == '\0')
-		return luaL_error(L, "missing or empty message string");
 	return lua_mx_send(L, lua_objlen(L, -1));
 }
 
@@ -1553,50 +1893,109 @@ lua_define_syslog(lua_State *L)
  ***********************************************************************/
 
 void
-dns_io_cb(SocketEvents *loop, SocketEvent *event)
+dns_close(Events *loop, Event *event)
 {
-	SocketEvent *client_event = event->data;
+	SmtpCtx *ctx = event->data;
+
+	TRACE_CTX(ctx, 000);
+
+	if (ctx->pdq.pdq != NULL) {
+		eventSetEnabled(event, ctx->client.enabled);
+		pdqListFree(ctx->pdq.answer);
+		ctx->pdq.answer = NULL;
+
+		eventRemove(loop, &ctx->pdq.event);
+		pdqClose(ctx->pdq.pdq);
+		ctx->pdq.pdq = NULL;
+	}
+}
+
+void
+dns_io_cb(Events *loop, Event *event)
+{
+	Event *client_event = event->data;
 	SmtpCtx *ctx = client_event->data;
 
 	TRACE_CTX(ctx, 000);
 
 	SETJMP_PUSH(&ctx->on_error);
-	if (SIGSETJMP(ctx->on_error, 1) != 0) {
-		if (verb_smtp.value)
-			syslog(LOG_DEBUG, LOG_FMT "close %s cc=%ld", LOG_ID(ctx), ctx->addr.data, VectorLength(loop->events)-1);
-		if (client_event->on.error != NULL)
-			(*client_event->on.error)(loop, client_event);
+	if (SIGSETJMP(ctx->on_error, 1) != JMP_SET) {
+		dns_close(loop, client_event);
 	} else {
+		if (errno == ETIMEDOUT) {
+			/* Double the timeout for next iteration. */
+			ctx->pdq.timeout_sum += ctx->pdq.timeout_next;
+			ctx->pdq.timeout_next += ctx->pdq.timeout_next;
+
+			if (verb_dns.value)
+				syslog(LOG_DEBUG, LOG_FMT "dns timeout sum=%ld next=%ld",  LOG_ID(ctx), ctx->pdq.timeout_sum, ctx->pdq.timeout_next);
+
+			eventSetTimeout(&ctx->pdq.event, ctx->pdq.timeout_next);
+		}
 		(*ctx->state)(loop, client_event);
 	}
 	SETJMP_POP(&ctx->on_error);
 
 }
 
-void
-dns_error_cb(SocketEvents *loop, SocketEvent *event)
+static int
+dns_check_answer(PDQ *pdq, PDQ_rr *head, int wait_all)
 {
-	long ms;
-	time_t now;
-	SocketEvent *client_event = event->data;
-	SmtpCtx *ctx = client_event->data;
+	PDQ_type type;
+	PDQ_class class;
+	PDQ_rr *rr, *mx0;
+	int short_query;
 
-	TRACE_CTX(ctx, 000);
+	short_query = pdqGetBasicQuery(pdq);
 
-	if (errno == ETIMEDOUT) {
-		/* Double the timeout for next iteration. */
-		ms = socketGetTimeout(ctx->pdq.socket);
-		ms += ms;
+	for (rr = head; rr != NULL; rr = rr->next) {
+		if (rr->section == PDQ_SECTION_QUERY) {
+			class = rr->class;
+			type = rr->type;
+		}
 
-		if (verb_debug.value)
-			syslog(LOG_DEBUG, LOG_FMT "%s ms=%ld", LOG_ID(ctx), __FUNCTION__, ms);
+		/* When there is no MX found, apply the implicit MX 0 rule. */
+		if (rr->section == PDQ_SECTION_QUERY && type == PDQ_TYPE_MX
+		&& pdqListFind(rr->next, PDQ_CLASS_ANY, PDQ_TYPE_MX, NULL) == NULL
+		&& (mx0 = pdqCreate(PDQ_TYPE_MX)) != NULL) {
+			pdqSetName(&((PDQ_MX *) mx0)->rr.name, rr->name.string.value);
+			pdqSetName(&((PDQ_MX *) mx0)->host, rr->name.string.value);
 
-		(void) time(&now);
-		socketEventExpire(event, &now, ms);
-		socketSetTimeout(ctx->pdq.socket, ms);
+			mx0->section = PDQ_SECTION_ANSWER;
+			mx0->type = PDQ_TYPE_MX;
+			mx0->class = class;
 
-		(*ctx->state)(loop, client_event);
+			/* Insert MX 0 directly after the query. */
+			mx0->next = rr->next;
+			rr->next = mx0;
+
+			/* Continue for A/AAAA checks below. */
+			rr = mx0;
+		}
+
+		if (short_query || rr->section == PDQ_SECTION_QUERY
+		|| !(type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA))
+			continue;
+
+		if (rr->type == type) {
+			/* "domain IN MX ." is a short hand to indicate
+			 * that a domain has no MX records. No point in
+			 * looking up A/AAAA records. Like wise for NS
+			 * and SOA records.
+			 */
+			if (strcmp(".", ((PDQ_MX *) rr)->host.string.value) == 0)
+				continue;
+
+			if (pdqListFindName(head, class, PDQ_TYPE_A, ((PDQ_MX *) rr)->host.string.value) == NULL)
+				(void) pdqQuery(pdq, class, PDQ_TYPE_A, ((PDQ_MX *) rr)->host.string.value, NULL);
+			if (pdqListFindName(head, class, PDQ_TYPE_AAAA, ((PDQ_MX *) rr)->host.string.value) == NULL)
+				(void) pdqQuery(pdq, class, PDQ_TYPE_AAAA, ((PDQ_MX *) rr)->host.string.value, NULL);
+
+			wait_all = 1;
+		}
 	}
+
+	return wait_all;
 }
 
 int
@@ -1615,15 +2014,17 @@ dns_wait(SmtpCtx *ctx, int wait_all)
 					pdqListLog(head);
 				pdqListFree(head);
 			} else {
+				ctx->pdq.wait_all = dns_check_answer(ctx->pdq.pdq, head, wait_all);
 				ctx->pdq.answer = pdqListAppend(ctx->pdq.answer, head);
 			}
 		}
-		if (pdqQueryIsPending(ctx->pdq.pdq) && (wait_all || ctx->pdq.answer == NULL))
+		if (pdqQueryIsPending(ctx->pdq.pdq)
+		&& ctx->pdq.timeout_sum < pdqGetTimeout(ctx->pdq.pdq)
+		&& (wait_all || ctx->pdq.answer == NULL))
 			return errno = EAGAIN;
 	}
 
-	socketEventSetEnable(&ctx->pdq.event, 0);
-	ctx->pdq.stop_after = 0;
+	eventSetEnabled(&ctx->pdq.event, 0);
 
 	return errno;
 }
@@ -1631,14 +2032,15 @@ dns_wait(SmtpCtx *ctx, int wait_all)
 void
 dns_reset(SmtpCtx *ctx)
 {
-	socketSetTimeout(ctx->pdq.socket, PDQ_TIMEOUT_START * 1000);
-	ctx->pdq.stop_after = time(NULL) + pdqGetTimeout(ctx->pdq.pdq);
+	ctx->pdq.timeout_sum = 0;
+	ctx->pdq.timeout_next = PDQ_TIMEOUT_START;
+	eventSetTimeout(&ctx->pdq.event, ctx->pdq.timeout_next);
 	pdqListFree(ctx->pdq.answer);
 	ctx->pdq.answer = NULL;
 }
 
 int
-dns_open(SocketEvents *loop, SocketEvent *event)
+dns_open(Events *loop, Event *event)
 {
 	SmtpCtx *ctx = event->data;
 
@@ -1652,71 +2054,34 @@ dns_open(SocketEvents *loop, SocketEvent *event)
 		goto error0;
 	}
 
-	/* Create a Socket2 wrapper for socketEventInit(). */
-	if ((ctx->pdq.socket = socketFdOpen(pdqGetFd(ctx->pdq.pdq))) == NULL) {
-		syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
-		goto error1;
-	}
-
-	dns_reset(ctx);
-
 	/* Create an event for the DNS lookup. */
-	socketEventInit(&ctx->pdq.event, ctx->pdq.socket, SOCKET_EVENT_READ);
+	eventInit(&ctx->pdq.event, pdqGetFd(ctx->pdq.pdq), SOCKET_EVENT_READ);
 
 	/* Disable the event until dns_wait() is explicity called
 	 * otherwise we get timeouts errors.
 	 */
-	socketEventSetEnable(&ctx->pdq.event, 0);
+	eventSetEnabled(&ctx->pdq.event, 0);
 
 	ctx->pdq.event.data = event;
 	ctx->pdq.event.on.io = dns_io_cb;
-	ctx->pdq.event.on.error = dns_error_cb;
 
-	if (socketEventAdd(loop, &ctx->pdq.event)) {
+	if (eventAdd(loop, &ctx->pdq.event)) {
 		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
-		goto error2;
+		goto error1;
 	}
 
 	/* Disable the client event until the DNS lookup completes. */
-	ctx->is_enabled = socketEventGetEnable(event);
-	socketEventSetEnable(event, opt_test.value);
+	ctx->client.enabled = eventGetEnabled(event);
+	eventSetEnabled(event, opt_test.value);
 	ctx->pdq.answer = NULL;
+	dns_reset(ctx);
 
 	return 0;
-error2:
-	/* Don't use socketFdClose() or socketClose(). */
-	free(ctx->pdq.socket);
-	ctx->pdq.socket = NULL;
 error1:
 	pdqClose(ctx->pdq.pdq);
 	ctx->pdq.pdq = NULL;
 error0:
 	return -1;
-}
-
-void
-dns_close(SocketEvents *loop, SocketEvent *event)
-{
-	SmtpCtx *ctx = event->data;
-
-	TRACE_CTX(ctx, 000);
-
-	if (ctx->pdq.pdq != NULL) {
-		socketEventSetEnable(event, ctx->is_enabled);
-		pdqListFree(ctx->pdq.answer);
-		ctx->pdq.answer = NULL;
-
-		/* Don't use socketFdClose() or socketClose(). pdqClose() will
-		 * close the socket file descriptor, so just free the Socket2
-		 * wrapper.
-		 */
-		ctx->pdq.event.socket = NULL;
-		socketEventRemove(loop, &ctx->pdq.event);
-		free(ctx->pdq.socket);
-
-		pdqClose(ctx->pdq.pdq);
-		ctx->pdq.pdq = NULL;
-	}
 }
 
 static struct map_integer dns_class_constants[] = {
@@ -1815,8 +2180,9 @@ lua_dns_open(lua_State *L)
 {
 	SmtpCtx *ctx;
 
+	lua_checkmain(L);
 	if ((ctx = lua_getctx(L)) != NULL)
-		(void) dns_open(ctx->loop, ctx->event);
+		(void) dns_open(ctx->client.loop, &ctx->client.event);
 
 	return 0;
 }
@@ -1829,8 +2195,9 @@ lua_dns_close(lua_State *L)
 {
 	SmtpCtx *ctx;
 
+	lua_checkmain(L);
 	if ((ctx = lua_getctx(L)) != NULL)
-		(void) dns_close(ctx->loop, ctx->event);
+		(void) dns_close(ctx->client.loop, &ctx->client.event);
 
 	return 0;
 }
@@ -1843,6 +2210,7 @@ lua_dns_reset(lua_State *L)
 {
 	SmtpCtx *ctx;
 
+	lua_checkmain(L);
 	if ((ctx = lua_getctx(L)) != NULL) {
 		pdqQueryRemoveAll(ctx->pdq.pdq);
 		dns_reset(ctx);
@@ -1858,11 +2226,16 @@ static int
 lua_dns_query(lua_State *L)
 {
 	SmtpCtx *ctx;
+	const char *name;
 
+	lua_checkmain(L);
 	if ((ctx = lua_getctx(L)) == NULL)
 		return 0;
 
-	if (pdqQuery(ctx->pdq.pdq, luaL_checkint(L, 1), luaL_checkint(L, 2), luaL_checkstring(L, 3), NULL)) {
+	if ((name = luaL_optstring(L, 3, NULL)) == NULL || *name == '\0')
+		return 0;
+
+	if (pdqQuery(ctx->pdq.pdq, luaL_optint(L, 1, PDQ_CLASS_IN), luaL_optint(L, 2, PDQ_TYPE_ANY), name, NULL)) {
 		syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
 	}
 
@@ -1876,18 +2249,14 @@ lua_dns_waituntil(lua_State *L, SmtpCtx *ctx)
 }
 
 static int
-lua_dns_getresult(lua_State *L, SmtpCtx *ctx)
+lua_dns_getresult(lua_State *L, PDQ_rr *rr)
 {
-	PDQ_rr *rr;
+	lua_newtable(L);				/* answers */
+	if (rr == NULL)
+		return 1;
 
-	if (ctx->pdq.answer == NULL) {
-		return 0;
-	}
-
-	lua_newtable(L);			/* answers */
-
-	for (rr = ctx->pdq.answer; rr != NULL; rr = rr->next) {
-		lua_newtable(L);		/* answers rr */
+	for ( ; rr != NULL; rr = rr->next) {
+		lua_newtable(L);			/* answers rr */
 
 		/* Common RR fields. */
 		lua_pushlstring(L, rr->name.string.value, rr->name.string.length);
@@ -1901,8 +2270,19 @@ lua_dns_getresult(lua_State *L, SmtpCtx *ctx)
 			lua_pushinteger(L, ((PDQ_QUERY *)rr)->rcode);
 			lua_setfield(L, -2, "rcode");
 
-			lua_pushvalue(L, -1);	/* answers qy qy */
-			lua_array_push(L, -3);	/* answers qy */
+			/* Index queries. */
+			lua_pushvalue(L, -1);		/* answers qy qy */
+			lua_array_push(L, -3);		/* answers qy */
+
+			/* Also save queries by key in same table. */
+			(void) lua_pushfstring(
+				L, "%s,%s,%s",
+				pdqClassName(rr->class),
+				pdqTypeName(rr->type),
+				rr->name.string.value
+			);				/* answers qy key */
+			lua_pushvalue(L, -2);		/* answers qy key qy */
+			lua_settable(L, -4);		/* answers qy */
 
 			if (rr->next != NULL && rr->next->section != PDQ_SECTION_QUERY) {
 				lua_newtable(L);	/* answers qy extra */
@@ -1960,18 +2340,25 @@ lua_dns_getresult(lua_State *L, SmtpCtx *ctx)
 			break;
 		}
 
+								/* answers qy extra authority answer rr */
 		/* See PDQ_SECTION_ indices for why this works. */
-		lua_array_push(L, -rr->section); 		/* answers qy extra authority answer */
+		lua_array_push(L, -1 -rr->section); 		/* answers qy extra authority answer */
 
 		if (rr->next == NULL || rr->next->section == PDQ_SECTION_QUERY) {
 			lua_setfield(L, -4, "answer");		/* answers qr extra authority */
 			lua_setfield(L, -3, "authority");	/* answers qr extra */
-			lua_setfield(L, -2, "extra");		/* answers qr table */
+			lua_setfield(L, -2, "extra");		/* answers qr */
 			lua_pop(L, 1);				/* answers */
 		}
 	}
 
 	return 1;
+}
+
+static int
+lua_dns_yieldafter(lua_State *L, SmtpCtx *ctx)
+{
+	return lua_dns_getresult(L, ctx->pdq.answer);
 }
 
 /**
@@ -1982,14 +2369,34 @@ lua_dns_wait(lua_State *L)
 {
 	SmtpCtx *ctx;
 
+	lua_checkmain(L);
 	if ((ctx = lua_getctx(L)) != NULL) {
-		socketEventSetEnable(&ctx->pdq.event, 1);
-		ctx->pdq.wait_all = luaL_checkint(L, 1);
+		eventSetEnabled(&ctx->pdq.event, 1);
+		ctx->pdq.wait_all = luaL_optint(L, 1, 1);
 		ctx->lua.yield_until = lua_dns_waituntil;
-		ctx->lua.yield_after = lua_dns_getresult;
+		ctx->lua.yield_after = lua_dns_yieldafter;
 	}
 
 	return lua_yield(L, 0);
+}
+
+/**
+ * table = dns.poll(all_flag)
+ */
+static int
+lua_dns_poll(lua_State *L)
+{
+	SmtpCtx *ctx;
+
+	lua_checkmain(L);
+	if ((ctx = lua_getctx(L)) != NULL) {
+		ctx->pdq.wait_all = luaL_optint(L, 1, 1);
+		while (dns_wait(ctx, ctx->pdq.wait_all) == EAGAIN)
+			;
+		return lua_dns_getresult(L, ctx->pdq.answer);
+	}
+
+	return 0;
 }
 
 static const luaL_Reg lua_dns_package[] = {
@@ -1997,6 +2404,7 @@ static const luaL_Reg lua_dns_package[] = {
 	{ "reset", 	lua_dns_reset },
 	{ "query", 	lua_dns_query },
 	{ "wait", 	lua_dns_wait },
+	{ "poll",	lua_dns_poll },
 	{ "close", 	lua_dns_close },
 	{ "classname",	lua_dns_classname },
 	{ "typename",	lua_dns_typename },
@@ -2037,11 +2445,48 @@ lua_define_dns(lua_State *L)
  *** Lua Network API
  ***********************************************************************/
 
+static struct map_integer is_ip_constants[] = {
+	{ "BENCHMARK",		IS_IP_BENCHMARK },	/* 198.18.0.0/15   RFC 2544       */
+	{ "LINK_LOCAL",		IS_IP_LINK_LOCAL },	/* 169.254.0.0/16  link local (private use) */
+	{ "LOCALHOST",		IS_IP_LOCALHOST },	/* 127.0.0.1/32    localhost      */
+	{ "LOOPBACK",		IS_IP_LOOPBACK },	/* 127.0.0.0/8     loopback, excluding 127.0.0.1 */
+	{ "MULTICAST",		IS_IP_MULTICAST },	/* 224.0.0.0/4     RFC 3171       */
+	{ "PRIVATE_A",		IS_IP_PRIVATE_A },	/* 10.0.0.0/8      private use    */
+	{ "PRIVATE_B",		IS_IP_PRIVATE_B },	/* 172.16.0.0/12   private use    */
+	{ "PRIVATE_C",		IS_IP_PRIVATE_C },	/* 192.168.0.0/16  private use    */
+	{ "RESERVED",		IS_IP_RESERVED },	/* IPv6 reserved prefix (not global unicast) */
+	{ "SITE_LOCAL",		IS_IP_SITE_LOCAL }, 	/* IPv6 site local autoconfiguration */
+	{ "TEST_NET",		IS_IP_TEST_NET },	/* 192.0.2.0/24    test network   */
+	{ "THIS_HOST",		IS_IP_THIS_HOST },	/* 0.0.0.0/32      "this" host */
+	{ "THIS_NET",		IS_IP_THIS_NET },	/* 0.0.0.0/8       "this" network */
+	{ "V4_COMPATIBLE",	IS_IP_V4_COMPATIBLE },  /* is this an IPv4-compatible IPv6 address */
+	{ "V4_MAPPED",		IS_IP_V4_MAPPED },  	/* is this an IPv4-mapped IPv6 address */
+	{ "V6",			IS_IP_V6 },
+	{ "V4",			IS_IP_V4 },
+	{ "ANY",		IS_IP_ANY },
+	{ "TEST",		IS_IP_TEST },
+	{ "LOCAL",		IS_IP_LOCAL },
+	{ "LAN",		IS_IP_LAN },
+	{ "RESTICTED",		IS_IP_RESTRICTED },
+	{ NULL,			0 }
+};
+
+/**
+ * boolean = net.is_ip_reserved(address, is_ip_flags)
+ */
+static int
+lua_net_is_ip_reserved(lua_State *L)
+{
+	lua_pushboolean(L, isReservedIP( luaL_optstring(L, 1, NULL), luaL_optint(L, 2, 0)));
+
+	return 1;
+}
+
 /**
  * string = net.reverse_ip(address, suffix_flag)
  */
 static int
-lua_net_reverseip(lua_State *L)
+lua_net_reverse_ip(lua_State *L)
 {
 	long length;
 	char buffer[DOMAIN_STRING_LENGTH];
@@ -2052,15 +2497,140 @@ lua_net_reverseip(lua_State *L)
 	return 1;
 }
 
+/**
+ * boolean = net.contains_ip(net_cidr_string, ip_string)
+ */
+static int
+lua_net_contains_ip(lua_State *L)
+{
+	unsigned long cidr;
+	const char *net, *slash;
+	unsigned char network[IPV6_BYTE_LENGTH], ip[IPV6_BYTE_LENGTH];
+
+	net = luaL_optstring(L, 1, "::0/0");
+	if ((slash = strchr(net, '/')) != NULL) {
+		slash++;
+		cidr = strtol(slash, NULL, 10);
+		if (parseIPv6(slash, network) <= 0)
+			goto error1;
+		if (parseIPv6(luaL_optstring(L, 2, "::0"), ip) <= 0)
+			goto error1;
+		lua_pushboolean(L, networkContainsIp(network, cidr, ip));
+	} else {
+error1:
+		lua_pushboolean(L, 0);
+	}
+
+	return 1;
+}
+
+/**
+ * boolean = net.has_valid_tld(string)
+ */
+static int
+lua_net_has_valid_tld(lua_State *L)
+{
+	lua_pushboolean(L, hasValidTLD(luaL_optstring(L, 1, NULL)));
+
+	return 1;
+}
+
+/**
+ * boolean = net.has_valid_nth_tld(string, level)
+ */
+static int
+lua_net_has_valid_nth_tld(lua_State *L)
+{
+	lua_pushboolean(L, hasValidNthTLD(luaL_optstring(L, 1, NULL), luaL_optint(L, 2, 1)));
+
+	return 1;
+}
+
+/**
+ * offset = net.index_valid_tld(string)
+ */
+static int
+lua_net_index_valid_tld(lua_State *L)
+{
+	lua_pushinteger(L, indexValidTLD(luaL_optstring(L, 1, NULL))+1);
+
+	return 1;
+}
+
+/**
+ * offset = net.index_valid_nth_tld(string, level)
+ */
+static int
+lua_net_index_valid_nth_tld(lua_State *L)
+{
+	lua_pushinteger(L, indexValidNthTLD(luaL_optstring(L, 1, NULL), luaL_optint(L, 2, 1))+1);
+
+	return 1;
+}
+
+/**
+ * integer = net.is_ipv4_in_name(ipv4, string)
+ */
+static int
+lua_net_is_ipv4_in_name(lua_State *L)
+{
+	const char *name, *address;
+	unsigned char ipv6[IPV6_BYTE_LENGTH];
+
+	address = luaL_optstring(L, 1, "");
+	name = luaL_optstring(L, 2, "");
+
+	if (parseIPv6(address, ipv6) <= 0)
+		lua_pushnil(L);
+	else
+		lua_pushinteger(L, isIPv4InName(name, ipv6+IPV6_OFFSET_IPV4, NULL, NULL));
+
+	return 1;
+}
+
+/**
+ * offset, span = net.find_ip(string)
+ */
+static int
+lua_net_find_ip(lua_State *L)
+{
+	int offset, span;
+
+	if (findIP(luaL_optstring(L, 1, ""), &offset, &span) != NULL) {
+		lua_pushinteger(L, offset);
+		lua_pushinteger(L, span);
+		return 2;
+	}
+
+	return 0;
+}
+
 static const luaL_Reg lua_net_package[] = {
-	{ "reverseip", 	lua_net_reverseip },
+	{ "reverse_ip",			lua_net_reverse_ip },
+	{ "contains_ip", 		lua_net_contains_ip },
+	{ "find_ip",			lua_net_find_ip },
+	{ "has_valid_tld",		lua_net_has_valid_tld },
+	{ "has_valid_nth_tld",		lua_net_has_valid_nth_tld },
+	{ "index_valid_tld",		lua_net_index_valid_tld },
+	{ "index_valid_nth_tld",	lua_net_index_valid_nth_tld },
+	{ "is_ipv4_in_name",		lua_net_is_ipv4_in_name },
+	{ "is_ip_reserved",		lua_net_is_ip_reserved },
 	{ NULL, NULL },
 };
 
 static void
 lua_define_net(lua_State *L)
 {
-	luaL_register(L, "net", lua_net_package);	/* net */
+	struct map_integer *map;
+
+	luaL_register(L, "net", lua_net_package);	/* pkg */
+
+	lua_newtable(L);				/* pkg is_ip */
+	for (map = is_ip_constants; map->name != NULL; map++) {
+		lua_table_set_integer(L, -1, map->name, map->value);
+	}
+	lua_setfield(L, -2, "is_ip");			/* pkg */
+
 	lua_pop(L, 1);					/* -- */
 }
 
@@ -2112,14 +2682,85 @@ lua_md5_end(lua_State *L)
 	return 1;
 }
 
+#include <com/snert/lib/util/ixhash.h>
+
+static int
+lua_md5_use_ixhash(lua_State *L, int (*ixhash_test)(const unsigned char *, size_t))
+{
+	size_t length;
+	const char *string;
+
+	string = luaL_optlstring(L, 2, "", &length);
+	lua_pushboolean(L, (*ixhash_test)(string, length));
+
+	return 1;
+}
+
+static int
+lua_md5_use_ixhash1(lua_State *L)
+{
+	return lua_md5_use_ixhash(L, ixhash_condition1);
+}
+
+static int
+lua_md5_use_ixhash2(lua_State *L)
+{
+	return lua_md5_use_ixhash(L, ixhash_condition2);
+}
+
+static int
+lua_md5_use_ixhash3(lua_State *L)
+{
+	return lua_md5_use_ixhash(L, ixhash_condition3);
+}
+
+static int
+lua_md5_ixhash(lua_State *L, void (*ixhash_fn)(md5_state_t *, const unsigned char *, size_t))
+{
+	size_t length;
+	const char *string;
+	md5_state_t *md5;
+
+	md5 = (md5_state_t *)luaL_checkudata(L, 1, lua_md5_type);
+	string = luaL_optlstring(L, 2, "", &length);
+	(*ixhash_fn)(md5, string, length);
+
+	return 0;
+}
+
+static int
+lua_md5_ixhash1(lua_State *L)
+{
+	return lua_md5_ixhash(L, ixhash_hash1);
+}
+
+static int
+lua_md5_ixhash2(lua_State *L)
+{
+	return lua_md5_ixhash(L, ixhash_hash2);
+}
+
+static int
+lua_md5_ixhash3(lua_State *L)
+{
+	return lua_md5_ixhash(L, ixhash_hash3);
+}
+
 static const luaL_Reg lua_md5_package_f[] = {
 	{ "new", 	lua_md5_new },
 	{ NULL, NULL },
 };
 
 static const luaL_Reg lua_md5_package_m[] = {
-	{ "append", 	lua_md5_append },
-	{ "done", 	lua_md5_end },
+	{ "append", 		lua_md5_append },
+	{ "done", 		lua_md5_end },
+//	{ "end", 		lua_md5_end },
+	{ "ixhash1",		lua_md5_ixhash1 },
+	{ "ixhash2",		lua_md5_ixhash2 },
+	{ "ixhash3",		lua_md5_ixhash3 },
+	{ "use_ixhash1",	lua_md5_use_ixhash1 },
+	{ "use_ixhash2",	lua_md5_use_ixhash2 },
+	{ "use_ixhash3",	lua_md5_use_ixhash3 },
 	{ NULL, NULL },
 };
 
@@ -2132,6 +2773,404 @@ lua_define_md5(lua_State *L)
 	luaL_register(L, NULL, lua_md5_package_m);	/* meta */
 	luaL_register(L, "md5", lua_md5_package_f);	/* meta md5 */
 	lua_pop(L, 2);					/* -- */
+}
+
+/***********************************************************************
+ *** Lua Uri API
+ ***********************************************************************/
+
+static void
+lua_pushuri(lua_State *L, URI *uri)
+{
+	lua_newtable(L);			/* uri */
+
+	lua_table_set_string(L, -1, "uri_raw", uri->uri);
+	lua_table_set_string(L, -1, "uri_decoded", uri->uriDecoded);
+	lua_table_set_string(L, -1, "scheme", uri->scheme);
+	lua_table_set_string(L, -1, "scheme_info", uri->schemeInfo);
+	lua_table_set_string(L, -1, "user_info", uri->userInfo);
+	lua_table_set_string(L, -1, "host", uri->host);
+	lua_table_set_integer(L, -1, "port", uriGetSchemePort(uri));
+	lua_table_set_string(L, -1, "query", uri->query);
+	lua_table_set_string(L, -1, "fragment", uri->fragment);
+}
+
+/**
+ * table = uri.parse(string)
+ */
+static int
+lua_uri_parse(lua_State *L)
+{
+	URI *uri;
+	size_t length;
+	const char *string;
+
+	string = luaL_optlstring(L, 1, NULL, &length);
+	if ((uri = uriParse(string, (int) length)) == NULL) {
+		lua_pushnil(L);
+	} else {
+		lua_pushuri(L, uri);
+		free(uri);
+	}
+
+	return 1;
+}
+
+static const luaL_Reg lua_uri_package[] = {
+	{ "parse", 			lua_uri_parse },
+	{ NULL, NULL },
+};
+
+static void
+lua_define_uri(lua_State *L)
+{
+	luaL_register(L, "uri", lua_uri_package);	/* pkg */
+	lua_pop(L, 1);					/* -- */
+}
+
+/***********************************************************************
+ *** Lua Utility API
+ ***********************************************************************/
+
+/**
+ * boolean = util.mkpath(string)
+ */
+static int
+lua_util_mkpath(lua_State *L)
+{
+	int bool = mkpath(luaL_optstring(L, 1, "."));
+	lua_pushboolean(L, !bool);
+	return 1;
+}
+
+/**
+ * length[, integer] = util.date_to_time(string)
+ */
+static int
+lua_util_date_to_time(lua_State *L)
+{
+	time_t value;
+	const char *start, *stop;
+
+	start = luaL_optstring(L, 1, NULL);
+	if (convertDate(start, &value, &stop) == 0) {
+		lua_pushinteger(L, stop - start);
+		lua_pushinteger(L, (lua_Integer) value);
+		return 2;
+	}
+
+	lua_pushinteger(L, 0);
+
+	return 1;
+}
+
+
+static const luaL_Reg lua_util_pkg[] = {
+	{ "mkpath",		lua_util_mkpath },
+	{ "date_to_time",	lua_util_date_to_time },
+	{ NULL, NULL },
+};
+
+static void
+lua_define_util(lua_State *L)
+{
+	luaL_register(L, "util", lua_util_pkg);		/* pkg */
+	lua_pop(L, 1);					/* -- */
+}
+
+/***********************************************************************
+ *** Lua Text API
+ ***********************************************************************/
+
+/**
+ * array = text.split(string, delims)
+ */
+static int
+lua_text_split(lua_State *L)
+{
+	Vector v;
+	const char *string;
+
+	if ((string = luaL_optstring(L, 1, NULL)) == NULL) {
+		lua_pushnil(L);
+	} else {
+		v = TextSplit(string, luaL_optstring(L, 2, " \t"), 0);
+		lua_vector_to_array(L, v);
+		VectorDestroy(v);
+	}
+
+	return 1;
+}
+
+/**
+ * offset = text.find(haystack, needle, caseless)
+ */
+static int
+lua_text_find(lua_State *L)
+{
+	long offset;
+
+	offset = TextFind(
+		luaL_optstring(L, 1, NULL),
+		luaL_optstring(L, 2, NULL),
+		-1, luaL_optint(L, 3, 0)
+	);
+
+	lua_pushinteger(L, offset+1);
+
+	return 1;
+}
+
+/**
+ * diff = text.natcmp(a, b, caseless)
+ */
+static int
+lua_text_natcmp(lua_State *L)
+{
+	int diff;
+	const char *a, *b;
+
+	a = luaL_optstring(L, 1, NULL);
+	b = luaL_optstring(L, 2, NULL);
+
+	if (a == NULL && b != NULL)
+		diff = 1;
+	else if (a != NULL && b == NULL)
+		diff = -1;
+	else if (a == NULL && b == NULL)
+		diff = 0;
+	else
+		diff = strnatcmp0(a, b, luaL_optint(L, 3, 0));
+
+	lua_pushinteger(L, diff);
+
+	return 1;
+}
+
+
+static const luaL_Reg lua_text_pkg[] = {
+	{ "find",		lua_text_find },
+	{ "split",		lua_text_split },
+	{ "natcmp",		lua_text_natcmp },
+	{ NULL, NULL },
+};
+
+static void
+lua_define_text(lua_State *L)
+{
+	luaL_register(L, "text", lua_text_pkg);		/* pkg */
+	lua_pop(L, 1);					/* -- */
+}
+
+/***********************************************************************
+ *** Lua HTTP API
+ ***********************************************************************/
+
+static
+PT_THREAD(lua_http_yielduntil(Service *svc, SmtpCtx *ctx))
+{
+	return httpReadPt(svc->data);
+}
+
+static int
+lua_http_yieldafter(Service *svc, SmtpCtx *ctx)
+{
+	int nargs = 0;
+	lua_State *L1;
+	HttpResponse *response = svc->data;
+
+	if ((L1 = lua_getthread(lua_live, ctx)) != NULL) {
+		lua_newtable(L1);
+		lua_pushstring(L1, response->id_log);
+		lua_setfield(L1, -2, "id");
+		lua_pushinteger(L1, response->result);
+		lua_setfield(L1, -2, "rcode");
+		lua_pushlstring(L1, response->content->bytes, response->eoh);
+		lua_setfield(L1, -2, "headers");
+		lua_pushlstring(L1, response->content->bytes+response->eoh, response->content->length-response->eoh);
+		lua_setfield(L1, -2, "content");
+		nargs = 1;
+	}
+
+	eventRemove(ctx->client.loop, &svc->event);
+
+	return nargs;
+}
+
+static void
+lua_http_free(void *_svc)
+{
+	HttpResponse *response = ((Service *)_svc)->data;
+	httpResponseFree(response);
+}
+
+/**
+ * table = http.do(method, url, modified_since, post)
+ */
+static int
+lua_http_do(lua_State *L)
+{
+	Service *svc;
+	HttpRequest request;
+	HttpResponse *response;
+	SmtpCtx *ctx = lua_getctx(L);
+
+	if (ctx == NULL)
+//		return luaL_error(L, LOG_FN_FMT "client context not found ", LOG_FN(ctx));
+		goto error0;
+
+	if ((response = malloc(sizeof (*response))) == NULL)
+		goto error0;
+
+	httpResponseInit(response);
+	response->timeout = HTTP_TIMEOUT_MS;
+
+	if (lua_isstring(L, 3)) {
+		if (convertDate(luaL_optstring(L, 3, NULL), &request.if_modified_since, NULL))
+			request.if_modified_since = 0;
+	} else {
+		request.if_modified_since = luaL_optlong(L, 3, 0);
+	}
+
+	request.timeout = HTTP_TIMEOUT_MS;
+	request.method = luaL_optstring(L, 1, "HEAD");
+	request.post_buffer = (char *)luaL_optlstring(L, 4, NULL, &request.post_size);
+
+	if ((request.url = uriParse(luaL_optstring(L, 2, "http://127.0.0.1/"), -1)) == NULL)
+		goto error1;
+	if ((response->socket = httpSend(&request)) < 0)
+		goto error2;
+	if ((svc = service_new(ctx)) == NULL)
+		goto error3;
+	if (service_add(ctx, svc, HTTP_TIMEOUT_MS/UNIT_MILLI))
+		goto error4;
+
+	svc->data = response;
+	svc->free = lua_http_free;
+	svc->service = lua_http_yielduntil;
+	svc->results = lua_http_yieldafter;
+
+	if (PT_SCHEDULE(httpReadPt(response))) {
+		free(request.url);
+		return lua_service_wait(L);
+	}
+error4:
+	free(svc);
+error3:
+	socket_close(response->socket);
+error2:
+	free(request.url);
+error1:
+	httpResponseFree(response);
+	free(response);
+error0:
+	return 0;
+}
+
+/**
+ * table = http.get(url, modified_since)
+ */
+static int
+lua_http_doget(lua_State *L)
+{
+	lua_pushliteral(L, "GET");
+	lua_insert(L, -3);
+	return lua_http_do(L);
+}
+
+/**
+ * table = http.head(url, modified_since)
+ */
+static int
+lua_http_dohead(lua_State *L)
+{
+	lua_pushliteral(L, "HEAD");
+	lua_insert(L, -3);
+	return lua_http_do(L);
+}
+
+/**
+ * table = http.post(url, modified_since, post)
+ */
+static int
+lua_http_dopost(lua_State *L)
+{
+	lua_pushliteral(L, "POST");
+	lua_insert(L, -4);
+	return lua_http_do(L);
+}
+
+static struct map_integer http_code_constants[] = {
+	{ "CONTINUE",			/* 0 */		HTTP_CONTINUE },
+	{ "DROP",			/* 10 */	HTTP_DROP },
+
+	{ "OK",				/* 200 */	HTTP_OK },
+	{ "CREATED",			/* 201 */	HTTP_CREATED },
+	{ "ACCEPTED",			/* 202 */	HTTP_ACCEPTED },
+	{ "NON_AUTH_INFO",		/* 203 */	HTTP_NON_AUTH_INFO },
+	{ "NO_CONTENT",			/* 204 */	HTTP_NO_CONTENT },
+	{ "RESET_CONTENT",		/* 205 */	HTTP_RESET_CONTENT },
+	{ "PARTIAL_CONTENT",		/* 206 */	HTTP_PARTIAL_CONTENT },
+
+	{ "MULTIPLE_CHOICES",		/* 300 */	HTTP_MULTIPLE_CHOICES },
+	{ "MOVED_PERMANENTLY",		/* 301 */	HTTP_MOVED_PERMANENTLY },
+	{ "FOUND",			/* 302 */	HTTP_FOUND },
+	{ "SEE_OTHER",			/* 303 */	HTTP_SEE_OTHER },
+	{ "NOT_MODIFIED",		/* 304 */	HTTP_NOT_MODIFIED },
+	{ "USE_PROXY",			/* 305 */	HTTP_USE_PROXY },
+	{ "TEMPORARY_REDIRECT",		/* 307 */	HTTP_TEMPORARY_REDIRECT },
+
+	{ "BAD_REQUEST",		/* 400 */	HTTP_BAD_REQUEST },
+	{ "UNAUTHORIZED",		/* 401 */	HTTP_UNAUTHORIZED },
+	{ "PAYMENT_REQUIRED",		/* 402 */	HTTP_PAYMENT_REQUIRED },
+	{ "FORBIDDEN",			/* 403 */	HTTP_FORBIDDEN },
+	{ "NOT_FOUND",			/* 404 */	HTTP_NOT_FOUND },
+	{ "METHOD_NOT_ALLOWED",		/* 405 */	HTTP_METHOD_NOT_ALLOWED },
+	{ "NOT_ACCEPTABLE",		/* 406 */	HTTP_NOT_ACCEPTABLE },
+	{ "PROXY_AUTH_REQUIRED",	/* 407 */	HTTP_PROXY_AUTH_REQUIRED },
+	{ "REQUEST_TIMEOUT",		/* 408 */	HTTP_REQUEST_TIMEOUT },
+	{ "CONFLICT",			/* 409 */	HTTP_CONFLICT },
+	{ "GONE",			/* 410 */	HTTP_GONE },
+	{ "LENGTH_REQUIRED",		/* 411 */	HTTP_LENGTH_REQUIRED },
+	{ "PRECOND_FAILED",		/* 412 */	HTTP_PRECOND_FAILED },
+	{ "REQUEST_TOO_LARGE",		/* 413 */	HTTP_REQUEST_TOO_LARGE },
+	{ "URI_TOO_LONG",		/* 414 */	HTTP_URI_TOO_LONG },
+	{ "UNSUPPORTED_MEDIA",		/* 415 */	HTTP_UNSUPPORTED_MEDIA },
+	{ "RANGE_NOT_POSSIBLE",		/* 416 */	HTTP_RANGE_NOT_POSSIBLE },
+	{ "EXPECTATION_FAILED",		/* 417 */	HTTP_EXPECTATION_FAILED },
+
+	{ "INTERNAL",			/* 500 */	HTTP_INTERNAL },
+	{ "NOT_IMPLEMENTED",		/* 501 */	HTTP_NOT_IMPLEMENTED },
+	{ "BAD_GATEWAY",		/* 502 */	HTTP_BAD_GATEWAY },
+	{ "SERVICE_UNAVAILABLE",	/* 503 */	HTTP_SERVICE_UNAVAILABLE },
+	{ "GATEWAY_TIMEOUT",		/* 504 */	HTTP_GATEWAY_TIMEOUT },
+	{ "VERSION_NOT_SUPPORTED",	/* 505 */	HTTP_VERSION_NOT_SUPPORTED },
+	{ NULL, 0 }
+};
+
+static const luaL_Reg lua_http_pkg[] = {
+//	{ "do", 			lua_http_do },
+	{ "action", 			lua_http_do },
+	{ "get", 			lua_http_doget },
+	{ "head", 			lua_http_dohead },
+	{ "post", 			lua_http_dopost },
+	{ NULL, NULL },
+};
+
+static void
+lua_define_http(lua_State *L)
+{
+	struct map_integer *map;
+
+	luaL_register(L, "http", lua_http_pkg);		/* pkg */
+
+	lua_newtable(L);				/* pkg code */
+	for (map = http_code_constants; map->name != NULL; map++) {
+		lua_table_set_integer(L, -1, map->name, map->value);
+	}
+	lua_setfield(L, -2, "code");			/* pkg */
+
+	lua_pop(L, 1);					/* -- */
 }
 
 /***********************************************************************
@@ -2152,7 +3191,7 @@ lua_define_md5(lua_State *L)
 #define LUA_CALL_INIT(fn, init) \
 	PT_INIT(&ctx->lua.pt); \
 	while (PT_SCHEDULE(lua_hook_do(lua_live, ctx, #fn, init))); \
-	dns_close(ctx->loop, ctx->event)
+	dns_close(ctx->client.loop, &ctx->client.event)
 
 #define LUA_PT_CALL0(fn)	LUA_PT_CALL_INIT(fn, lua_hook_noargs)
 #define LUA_PT_CALL(fn)		LUA_PT_CALL_INIT(fn, LUA_CMD_INIT(fn))
@@ -2160,26 +3199,20 @@ lua_define_md5(lua_State *L)
 #define LUA_CALL0(fn)		LUA_CALL_INIT(fn, lua_hook_noargs)
 #define LUA_CALL(fn)		LUA_CALL_INIT(fn, LUA_CMD_INIT(fn))
 
+#define LUA_PROTECT_STATE0(fn) \
+	ctx->lua.smtp_state = ctx->state; \
+	ctx->state = SMTP_NAME(fn); \
+	LUA_PT_CALL0(fn); \
+	ctx->state = ctx->lua.smtp_state
+
+#define LUA_PROTECT_STATE(fn) \
+	ctx->lua.smtp_state = ctx->state; \
+	ctx->state = SMTP_NAME(fn); \
+	LUA_PT_CALL(fn); \
+	ctx->state = ctx->lua.smtp_state
+
 #define LUA_HOOK_DEFAULT(x)	((x) < 200)
 #define LUA_HOOK_OK(x)		(LUA_HOOK_DEFAULT(x) || SMTP_IS_OK(x))
-
-static lua_State *
-lua_hook_getthread(lua_State *L, SmtpCtx *ctx)
-{
-	lua_State *thread;
-
-	lua_rawgeti(L, LUA_REGISTRYINDEX, ctx->lua.thread);
-	thread = lua_tothread(L, -1);
-	lua_pop(L, 1);
-
-	if (thread == NULL)
-		syslog(LOG_ERR, log_internal, LOG_INT(ctx));
-
-	if (verb_debug.value)
-		syslog(LOG_DEBUG, LOG_FMT "%s ctx=%lx thread=%d", LOG_ID(ctx), __FUNCTION__, (long) ctx, ctx->lua.thread);
-
-	return thread;
-}
 
 static int
 lua_hook_noargs(lua_State *L, SmtpCtx *ctx)
@@ -2198,7 +3231,7 @@ PT_THREAD(lua_hook_do(lua_State *L, SmtpCtx *ctx, const char *hook, LuaHookInit 
 	size_t reply_len;
 	const char *reply, *crlf;
 
-	if (L == NULL || (L1 = lua_hook_getthread(L, ctx)) == NULL) {
+	if (L == NULL || (L1 = lua_getthread(L, ctx)) == NULL) {
 		PT_EXIT(&ctx->lua.pt);
 	}
 
@@ -2206,16 +3239,17 @@ PT_THREAD(lua_hook_do(lua_State *L, SmtpCtx *ctx, const char *hook, LuaHookInit 
 
 	ctx->smtp_rc = 0;
 	lua_getglobal(L1, "hook");		/* hook */
-	lua_getfield(L1, -1, hook);		/* hook func */
-	lua_remove(L1, -2);			/* func */
+	lua_getfield(L1, -1, hook);		/* hook fn */
+	lua_remove(L1, -2);			/* fn */
 
-	nargs = (*initfn)(L1, ctx);		/* func ... */
+	nargs = (*initfn)(L1, ctx);		/* fn ... */
 
-	if (!lua_isfunction(L1, -1 - nargs)) {
+	if (nargs < 0 || !lua_isfunction(L1, -1 - nargs)) {
 		lua_pop(L1, lua_gettop(L1));
 		PT_EXIT(&ctx->lua.pt);
 	}
 
+	/* Force hook.fn environment to that of the thread. */
 	lua_pushvalue(L1, LUA_GLOBALSINDEX);
 	(void) lua_setfenv(L1, -2 - nargs);
 
@@ -2252,7 +3286,7 @@ PT_THREAD(lua_hook_do(lua_State *L, SmtpCtx *ctx, const char *hook, LuaHookInit 
 			ctx->reply.length = snprintf(ctx->reply.data, ctx->reply.size, "%s%s", reply, crlf);
 
 		if (1 < lua_gettop(L1))
-			ctx->drop_client = lua_toboolean(L1, -2);
+			ctx->client.dropped = lua_toboolean(L1, -2);
 	}
 
 	if (initfn == LUA_CMD_INIT(interpret) && 0 < lua_gettop(L1)) {
@@ -2264,15 +3298,6 @@ PT_THREAD(lua_hook_do(lua_State *L, SmtpCtx *ctx, const char *hook, LuaHookInit 
 	lua_pop(L1, lua_gettop(L1));
 
 	PT_END(&ctx->lua.pt);
-}
-
-static LuaCode
-lua_hook_endthread(lua_State *L, SmtpCtx *ctx)
-{
-	/* Unanchor client Lua thread so it can be gc'ed. */
-	luaL_unref(L, LUA_REGISTRYINDEX, ctx->lua.thread);
-
-	return Lua_OK;
 }
 
 /*
@@ -2393,6 +3418,15 @@ lua_table_inherit(lua_State *L, int index)
 }
 
 static LuaCode
+lua_hook_endthread(lua_State *L, SmtpCtx *ctx)
+{
+	/* Unanchor client Lua thread so it can be gc'ed. */
+	luaL_unref(L, LUA_REGISTRYINDEX, ctx->lua.thread);
+
+	return Lua_OK;
+}
+
+static LuaCode
 lua_hook_newthread(lua_State *L, SmtpCtx *ctx)
 {
 	lua_State *L1;
@@ -2415,83 +3449,88 @@ lua_hook_newthread(lua_State *L, SmtpCtx *ctx)
 	lua_pushlightuserdata(L1, ctx);			/* ctx */
 	lua_setglobal(L1, "__ctx");			/* -- */
 
-	/* Create client connection table. */
-	lua_newtable(L1);				/* client */
-//	lua_table_inherit(L, -1);
-	lua_table_set_string(L1, -1, "id_sess", ctx->id_sess);
-	lua_setglobal(L1, "client");			/* -- */
-
-	if (verb_debug.value)
-		syslog(LOG_DEBUG, LOG_FMT "%s top=%d", LOG_ID(ctx), __FUNCTION__, lua_gettop(L1));
-
 	return Lua_OK;
 }
 
 LUA_CMD_DEF(accept)
 {
-	lua_getglobal(L1, "client");				/* func client */
-	if (lua_isnil(L1, -1))
-		syslog(LOG_ERR, log_internal, LOG_INT(ctx));
+	/* Create client connection table. */
+	lua_newtable(L1);					/* fn client */
+	lua_pushvalue(L1, -1);					/* fn client client */
+	lua_setglobal(L1, "client");				/* fn client */
+
+	lua_pushstring(L1, ctx->id_sess);			/* fn client id */
+	lua_setfield(L1, -2, "id_sess");			/* fn client */
 
 	lua_table_set_integer(L1, -1, "thread", ctx->lua.thread);
-	lua_table_set_integer(L1, -1, "port", opt_test.value ? 0 : socketAddressGetPort(&ctx->client->address));
+	lua_table_set_integer(L1, -1, "port", opt_test.value ? 0 : socketAddressGetPort(&ctx->client.addr));
 
-	lua_pushlstring(L1, ctx->addr.data, ctx->addr.length);	/* func client ip */
-	lua_pushvalue(L1, -1);					/* func client ip ip */
-	lua_setfield(L1, -3, "address");			/* func client ip */
+	lua_pushlstring(L1, ctx->addr.data, ctx->addr.length);	/* fn client ip */
+	lua_pushvalue(L1, -1);					/* fn client ip ip */
+	lua_setfield(L1, -3, "address");			/* fn client ip */
 
-	lua_pushlstring(L1, ctx->host.data, ctx->host.length);	/* func client ip host */
-	lua_pushvalue(L1, -1);					/* func client ip host host */
-	lua_setfield(L1, -4, "host");				/* func client ip host */
-	lua_remove(L1, -3);					/* func ip host */
+	lua_pushlstring(L1, ctx->host.data, ctx->host.length);	/* fn client ip host */
+	lua_pushvalue(L1, -1);					/* fn client ip host host */
+	lua_setfield(L1, -4, "host");				/* fn client ip host */
+	lua_remove(L1, -3);					/* fn ip host */
 
 	return 2;
 }
 
+LUA_CMD_DEF(close)
+{
+	lua_pushboolean(L1, ctx->client.dropped);			/* fn arg */
+	return 1;
+}
+
 LUA_CMD_DEF(helo)
 {
-	lua_pushlstring(L1, ctx->helo.data, ctx->helo.length);		/* func arg */
+	lua_pushlstring(L1, ctx->helo.data, ctx->helo.length);		/* fn arg */
 	return 1;
 }
 
 LUA_CMD_DEF(ehlo)
 {
-	lua_pushlstring(L1, ctx->helo.data, ctx->helo.length);		/* func arg */
+	lua_pushlstring(L1, ctx->helo.data, ctx->helo.length);		/* fn arg */
 	return 1;
 }
 
 LUA_CMD_DEF(auth)
 {
-	lua_pushlstring(L1, ctx->auth.data, ctx->auth.length);		/* func arg */
+	lua_pushlstring(L1, ctx->auth.data, ctx->auth.length);		/* fn arg */
 	return 1;
 }
 
 LUA_CMD_DEF(mail)
 {
-	lua_getglobal(L1, "client");		/* func client */
+	lua_getglobal(L1, "client");		/* fn client */
 	lua_table_set_string(L1, -1, "id_trans", ctx->id_trans);
-	lua_pushlstring(L1, ctx->path.data, ctx->path.length);
-	lua_setfield(L1, -2, "msg_file");
 	lua_pop(L1, 1);
 
-	lua_pushlstring(L1, ctx->sender->address.string, ctx->sender->address.length);	/* func arg */
+	lua_pushlstring(L1, ctx->sender->address.string, ctx->sender->address.length);	/* fn arg */
 	return 1;
 }
 
 LUA_CMD_DEF(rcpt)
 {
-	lua_pushstring(L1, *ctx->rcpt);		/* func arg */
+	lua_pushstring(L1, *ctx->rcpt);		/* fn arg */
 	return 1;
 }
 
-LUA_CMD_DEF(reset)
+LUA_CMD_DEF(data)
 {
-	lua_getglobal(L1, "client");		/* func client */
-	lua_table_clear(L1, -1, "id_trans");
-	lua_table_clear(L1, -1, "msg_file");
+	lua_getglobal(L1, "client");		/* fn client */
+	lua_pushlstring(L1, ctx->path.data, ctx->path.length);
+	lua_setfield(L1, -2, "msg_file");
 	lua_pop(L1, 1);
 
 	return 0;
+}
+
+LUA_CMD_DEF(out_seq)
+{
+	lua_pushlstring(L1, ctx->input.data, ctx->input.length);
+	return 1;
 }
 
 LUA_CMD_DEF(unknown)
@@ -2508,13 +3547,33 @@ LUA_CMD_DEF(content)
 
 #define STARTS_WITH(s)	(STRLEN(s) <= ctx->input.length && strncasecmp(ctx->input.data+ctx->input.offset, s, STRLEN(s)) == 0)
 
+#define DOT_CRLF		"." CRLF
+#define DOT_LF			"." LF
+
 LUA_CMD_DEF(header)
 {
 	int span, is_crlf;
 
+	/* This line is EOH? */
+	if (STARTS_WITH(CRLF)) {
+		ctx->input.offset += STRLEN(CRLF);
+		ctx->length += STRLEN(CRLF);
+		ctx->eoh = ctx->length;
+
+		/* Tell lua_hook_do() to abort. */
+		return -1;
+	} else if (STARTS_WITH(LF)) {
+		ctx->input.offset += STRLEN(LF);
+		ctx->length += STRLEN(LF);
+		ctx->eoh = ctx->length;
+
+		/* Tell lua_hook_do() to abort. */
+		return -1;
+	}
+
 	/* Find end of header line. */
 	for (span = 0; ; span++) {
-		span = strcspn(ctx->input.data+ctx->input.offset+span, LF);
+		span += strcspn(ctx->input.data+ctx->input.offset+span, LF);
 		if (ctx->input.length <= ctx->input.offset+span)
 			break;
 		if (!isblank(ctx->input.data[ctx->input.offset+span+1]))
@@ -2529,15 +3588,7 @@ LUA_CMD_DEF(header)
 
 	/* Skip over the newline. */
 	ctx->input.offset += span + is_crlf + 1;
-
-	/* Next line is EOH? */
-	if (STARTS_WITH(CRLF)) {
-		ctx->input.offset += STRLEN(CRLF);
-		ctx->eoh = ctx->input.offset;
-	} else if (STARTS_WITH(LF)) {
-		ctx->input.offset += STRLEN(LF);
-		ctx->eoh = ctx->input.offset;
-	}
+	ctx->length += span + is_crlf + 1;
 
 	return 1;
 }
@@ -2557,6 +3608,7 @@ LUA_CMD_DEF(body)
 
 	/* Skip over the newline. */
 	ctx->input.offset += span + is_crlf + 1;
+	ctx->length += span + is_crlf + 1;
 
 	return 1;
 }
@@ -2569,12 +3621,16 @@ LUA_CMD_DEF(dot)
 
 LUA_CMD_DEF(forward)
 {
-	lua_pushlstring(L1, ctx->input.data, ctx->input.length);
+	lua_pushlstring(L1, ctx->path.data, ctx->path.length);
 	return 1;
 }
 
 LUA_CMD_DEF(error)
 {
+	if (errno == 0)
+		/* Tell lua_hook_do() to abort. */
+		return -1;
+
 	lua_pushinteger(L1, errno);
 	lua_pushstring(L1, strerror(errno));
 	return 2;
@@ -2590,7 +3646,7 @@ LUA_CMD_DEF(interpret)
 			printf("error: %s\n", msg);
 		}
 		lua_pop(L1, lua_gettop(L1));
-		SIGLONGJMP(ctx->on_error, 1);
+		SIGLONGJMP(ctx->on_error, JMP_ERROR);
 	}
 
 	return 0;
@@ -2622,10 +3678,14 @@ lua_hook_init(void)
 	lua_setglobal(L, "hook");
 
 	lua_define_dns(L);
+	lua_define_http(L);
 	lua_define_md5(L);
 	lua_define_net(L);
 	lua_define_smtp(L);
 	lua_define_syslog(L);
+	lua_define_text(L);
+	lua_define_uri(L);
+	lua_define_util(L);
 
 	lua_getglobal(L, "syslog");	/* syslog */
 	lua_getfield(L, -1, "error");	/* syslog errfn */
@@ -2680,6 +3740,7 @@ volatile unsigned long connections_per_second;
 RateInterval cpm_intervals[RATE_INTERVALS];
 
 static RateHash rate_hashes[HASH_TABLE_SIZE];
+static pthread_mutex_t rate_mutex;
 static time_t last_connection;
 
 /*
@@ -2730,6 +3791,8 @@ rate_global(void)
 
 	TRACE_FN(000);
 
+	PTHREAD_MUTEX_LOCK(&rate_mutex);
+
 	cpm = rate_update(cpm_intervals, now / RATE_TICK, 1);
 	if (verb_debug.value)
 		syslog(LOG_DEBUG, "connection-per-minute=%lu", cpm);
@@ -2752,6 +3815,8 @@ rate_global(void)
 		syslog(LOG_ERR, "%lu connections exceeds %ld per second", connections_per_second, opt_rate_global.value);
 		nap(1, 0);
 	}
+
+	PTHREAD_MUTEX_UNLOCK(&rate_mutex);
 }
 
 static SMTP_Reply_Code
@@ -2759,11 +3824,13 @@ rate_client(SmtpCtx *ctx)
 {
 	int i;
 	time_t now;
+	SMTP_Reply_Code rc;
 	RateHash *entry, *oldest;
 	unsigned long hash, client_rate;
 
 	TRACE_FN(000);
 
+	rc = SMTP_OK;
 	if (opt_rate_client.value <= 0)
 		return SMTP_OK;
 
@@ -2771,7 +3838,7 @@ rate_client(SmtpCtx *ctx)
 	hash = djb_hash_index(ctx->ipv6, sizeof (ctx->ipv6), HASH_TABLE_SIZE);
 	oldest = &rate_hashes[hash];
 
-//	PTHREAD_MUTEX_LOCK(&rate_mutex);
+	PTHREAD_MUTEX_LOCK(&rate_mutex);
 
 	for (i = 0; i < MAX_LINEAR_PROBE; i++) {
 		entry = &rate_hashes[(hash + i) & (HASH_TABLE_SIZE-1)];
@@ -2805,18 +3872,18 @@ rate_client(SmtpCtx *ctx)
 	client_rate = rate_update(entry->intervals, now / RATE_TICK, 1);
 	entry->touched = now;
 
-//	PTHREAD_MUTEX_UNLOCK(&rate_mutex);
-
 	if (opt_rate_client.value < client_rate) {
 		(void) rate_update(entry->intervals, now / RATE_TICK, -1);
 		ctx->reply.length = snprintf(ctx->reply.data, ctx->reply.size, fmt_rate_client, opt_smtp_error_url.string, CLIENT_INFO(ctx), client_rate, opt_rate_client.value);
 		if (verb_debug.value)
 			syslog(LOG_DEBUG,  "%s", ctx->reply.data);
-		ctx->drop_client = 1;
-		return SMTP_TRY_AGAIN_LATER;
+		ctx->client.dropped = 1;
+		rc = SMTP_TRY_AGAIN_LATER;
 	}
 
-	return SMTP_OK;
+	PTHREAD_MUTEX_UNLOCK(&rate_mutex);
+
+	return rc;
 }
 
 /***********************************************************************
@@ -2871,7 +3938,7 @@ md5_body_finish(Mime *m, void *data)
 	md5_byte_t digest[16];
 	char digest_string[33];
 
-	if (ctx == NULL || (L1 = lua_hook_getthread(lua_live, ctx)) == NULL)
+	if (ctx == NULL || (L1 = lua_getthread(lua_live, ctx)) == NULL)
 		return;
 
 	lua_getglobal(L1, "mime");		/* mime */
@@ -2933,7 +4000,7 @@ md5_mime_init(SmtpCtx *ctx)
 		*hook = md5_hook;
 		hook->data = ctx;
 
-		if ((L1 = lua_hook_getthread(lua_live, ctx)) != NULL) {
+		if ((L1 = lua_getthread(lua_live, ctx)) != NULL) {
 			lua_newtable(L1);
 			lua_newtable(L1);
 			lua_setfield(L1, -2, "parts");
@@ -2953,7 +4020,7 @@ uri_mime_found(URI *uri, void *data)
 	md5_byte_t digest[16];
 	char digest_string[33];
 
-	if (ctx == NULL || (L1 = lua_hook_getthread(lua_live, ctx)) == NULL)
+	if (ctx == NULL || (L1 = lua_getthread(lua_live, ctx)) == NULL)
 		return;
 
 	md5_init(&md5_key);
@@ -2961,8 +4028,10 @@ uri_mime_found(URI *uri, void *data)
 	md5_finish(&md5_key, digest);
 	md5_digest_to_string(digest, digest_string);
 
-	lua_getglobal(L1, "uri");		/* uri[] */
-	lua_getfield(L1, -1, digest_string);	/* uri[] uri|nil */
+	lua_getglobal(L1, "uri");		/* uri{} */
+	lua_getfield(L1, -1, "found");		/* uri{} array */
+	lua_remove(L1, -2);			/* array */
+	lua_getfield(L1, -1, digest_string);	/* array uri|nil */
 
 	/* Does the uri already exist in the table? */
 	if (lua_istable(L1, -1)) {
@@ -2970,27 +4039,17 @@ uri_mime_found(URI *uri, void *data)
 		return;
 	}
 
-	lua_pop(L1, 1);				/* uri[] */
+	lua_pop(L1, 1);				/* array */
 
 	/* Add indexed entry of MD5 key for # operator. */
-	lua_pushlstring(L1, digest_string, 32);	/* uri[] key */
-	lua_pushvalue(L1, -1);			/* uri[] key key*/
-	lua_array_push(L1, -3);			/* uri[] key */
+	lua_pushlstring(L1, digest_string, 32);	/* array key */
+	lua_pushvalue(L1, -1);			/* array key key*/
+	lua_array_push(L1, -3);			/* array key */
 
-	lua_newtable(L1);			/* uri[] key uri */
-
-	lua_table_set_string(L1, -1, "uri_raw", uri->uri);
-	lua_table_set_string(L1, -1, "uri_decoded", uri->uriDecoded);
-	lua_table_set_string(L1, -1, "scheme", uri->scheme);
-	lua_table_set_string(L1, -1, "scheme_info", uri->schemeInfo);
-	lua_table_set_string(L1, -1, "user_info", uri->userInfo);
-	lua_table_set_string(L1, -1, "host", uri->host);
-	lua_table_set_integer(L1, -1, "port", uriGetSchemePort(uri));
-	lua_table_set_string(L1, -1, "query", uri->query);
-	lua_table_set_string(L1, -1, "fragment", uri->fragment);
+	lua_pushuri(L1, uri);			/* array key uri */
 
 	/* Add MD5 key and uri table to array. */
-	lua_settable(L1, -3);			/* uri[] */
+	lua_settable(L1, -3);			/* array */
 	lua_pop(L1, 1);				/* -- */
 }
 
@@ -3000,10 +4059,12 @@ uri_mime_init(SmtpCtx *ctx)
 	lua_State *L1;
 	MimeHooks *hook;
 
-	if ((hook = (MimeHooks *)uriMimeInit(uri_mime_found, ctx)) != NULL) {
-		if ((L1 = lua_hook_getthread(lua_live, ctx)) != NULL) {
+	if ((hook = (MimeHooks *)uriMimeInit(uri_mime_found, 0, ctx)) != NULL) {
+		if ((L1 = lua_getthread(lua_live, ctx)) != NULL) {
+			lua_getglobal(L1, "uri");
 			lua_newtable(L1);
-			lua_setglobal(L1, "uri");
+			lua_setfield(L1, -2, "found");
+			lua_pop(L1, 1);
 		}
 	}
 
@@ -3154,9 +4215,17 @@ trim_buffer(Buffer *buf)
 static void
 client_reset(SmtpCtx *ctx)
 {
+	lua_State *L1;
 	TRACE_CTX(ctx, 000);
 
-	LUA_CALL(reset);
+	LUA_CALL0(reset);
+
+	if ((L1 = lua_getthread(lua_live, ctx)) != NULL) {
+		lua_getglobal(L1, "client");		/* client */
+		lua_table_clear(L1, -1, "id_trans");
+		lua_table_clear(L1, -1, "msg_file");
+		lua_pop(L1, 1);				/* -- */
+	}
 
 	if (*opt_spool_dir.string != '\0') {
 		if (ctx->spool_fp != NULL) {
@@ -3177,9 +4246,9 @@ client_reset(SmtpCtx *ctx)
 	ctx->sender = NULL;
 }
 
-extern SMTP_CMD_DEF(ehlo);
-extern SMTP_CMD_DEF(data);
-extern SMTP_CMD_DEF(content);
+extern SMTP_DEF(ehlo);
+extern SMTP_DEF(data);
+extern SMTP_DEF(content);
 
 void
 client_write(SmtpCtx *ctx, Buffer *buffer)
@@ -3187,10 +4256,10 @@ client_write(SmtpCtx *ctx, Buffer *buffer)
 	TRACE_CTX(ctx, 000);
 
 	/* Always detect pipelining. */
-	if (socketHasInput(ctx->client, SMTP_PIPELINING_TIMEOUT)) {
+	if (socket_has_input(ctx->client.socket, SMTP_PIPELINING_TIMEOUT)) {
 		if (verb_info.value)
 			syslog(LOG_INFO, LOG_FMT "pipeline detected", LOG_ID(ctx));
-		ctx->is_pipelining = 1;
+		ctx->client.is_pipelining = 1;
 	}
 
 	/* Ignore any subsequent input that follows the QUIT command
@@ -3207,9 +4276,9 @@ client_write(SmtpCtx *ctx, Buffer *buffer)
 	 * since it's perfectly reasonable to perform some additional
 	 * tests at DATA and return 4xy or 5xy response instead of 354.
 	 */
-	if (opt_rfc2920_pipelining_reject.value && ctx->is_pipelining
-	&& ctx->state != SMTP_CMD_NAME(data) && ctx->state != SMTP_CMD_NAME(content)
-	&& (!opt_rfc2920_pipelining.value || ctx->state_helo != SMTP_CMD_NAME(ehlo))) {
+	if (opt_rfc2920_pipelining_reject.value && ctx->client.is_pipelining
+	&& ctx->state != SMTP_NAME(data) && ctx->state != SMTP_NAME(content)
+	&& (!opt_rfc2920_pipelining.value || ctx->state_helo != SMTP_NAME(ehlo))) {
 		ctx->reply.length = snprintf(ctx->reply.data, ctx->reply.size, fmt_pipeline, opt_smtp_error_url.string);
 		buffer = &ctx->reply;
 	}
@@ -3217,13 +4286,13 @@ client_write(SmtpCtx *ctx, Buffer *buffer)
 	if (verb_smtp.value)
 		syslog(LOG_DEBUG, LOG_FMT "< %ld:%.60s", LOG_ID(ctx), buffer->length, buffer->data);
 
-	if (socketWrite(ctx->client, buffer->data, buffer->length) != buffer->length) {
+	if (socket_write(ctx->client.socket, buffer->data, buffer->length, NULL) != buffer->length) {
 		syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
-		ctx->drop_client = 1;
+		ctx->client.dropped = 1;
 	}
 
-	if (ctx->drop_client)
-		SIGLONGJMP(ctx->on_error, 1);
+	if (ctx->client.dropped)
+		SIGLONGJMP(ctx->on_error, JMP_DROP);
 }
 
 void
@@ -3252,12 +4321,12 @@ client_send(SmtpCtx *ctx, const char *fmt, ...)
 	ctx->reply.length = 0;
 
 	if (ctx->reply.size <= ctx->reply.length)
-		SIGLONGJMP(ctx->on_error, 1);
+		SIGLONGJMP(ctx->on_error, JMP_ERROR);
 }
 
-extern void client_io_cb(SocketEvents *loop, SocketEvent *event);
+extern void client_io_cb(Events *loop, Event *event);
 
-SMTP_CMD_DEF(quit)
+SMTP_DEF(quit)
 {
 	SmtpCtx *ctx = event->data;
 
@@ -3276,15 +4345,14 @@ SMTP_CMD_DEF(quit)
 	client_send(ctx, fmt_quit, my_host_name, ctx->id_sess);
 
 	if (opt_test.value)
-		socketEventsStop(ctx->loop);
+		eventsStop(ctx->client.loop);
 
-	errno = 0;
-	SIGLONGJMP(ctx->on_error, 1);
+	SIGLONGJMP(ctx->on_error, JMP_DROP);
 
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(accept)
+SMTP_DEF(accept)
 {
 	PDQ_rr *rr;
 	SmtpCtx *ctx = event->data;
@@ -3292,18 +4360,22 @@ SMTP_CMD_DEF(accept)
 	TRACE_CTX(ctx, 000);
 	PT_BEGIN(&ctx->pt);
 
-	ctx->state = SMTP_CMD_NAME(accept);
+	ctx->state = SMTP_NAME(accept);
+
+	ctx->reply.length = 0;
+	ctx->smtp_rc = rate_client(ctx);
+	if (!SMTP_IS_OK(ctx->smtp_rc))
+		goto error1;
+
+	/* Preset by XCLIENT? */
+	if (0 < ctx->host.length)
+		goto error2;
 
 	/* Copy the IP address into the host name in case there is no PTR. */
 	ctx->host.data[0] = '[';
 	ctx->host.length = TextCopy(ctx->host.data+1, ctx->host.size-2, ctx->addr.data)+1;
 	ctx->host.data[ctx->host.length++] = ']';
 	ctx->host.data[ctx->host.length] = '\0';
-
-	ctx->reply.length = 0;
-	ctx->smtp_rc = rate_client(ctx);
-	if (!SMTP_IS_OK(ctx->smtp_rc))
-		goto error1;
 
 	if (dns_open(loop, event))
 		goto error2;
@@ -3313,7 +4385,7 @@ SMTP_CMD_DEF(accept)
 		goto error3;
 	}
 
-	socketEventSetEnable(&ctx->pdq.event, 1);
+	eventSetEnabled(&ctx->pdq.event, 1);
 	PT_YIELD_UNTIL(&ctx->pt, dns_wait(ctx, 1) != EAGAIN);
 
 	for (rr = ctx->pdq.answer; rr != NULL; rr = rr->next) {
@@ -3350,8 +4422,7 @@ SMTP_CMD_DEF(accept)
 error3:
 	dns_close(loop, event);
 error2:
-	if (lua_hook_newthread(lua_live, ctx) == 0)
-		LUA_PT_CALL(accept);
+	LUA_PT_CALL(accept);
 error1:
 	client_send(ctx, fmt_welcome, my_host_name, ctx->id_sess);
 
@@ -3367,82 +4438,104 @@ error1:
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(interpret)
+SMTP_DEF(interpret)
 {
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
 	PT_BEGIN(&ctx->pt);
 
-	ctx->lua.smtp_state = ctx->state;
-	ctx->state = SMTP_CMD_NAME(interpret);
-
-	LUA_PT_CALL(interpret);
-
-	ctx->state = ctx->lua.smtp_state;
+	LUA_PROTECT_STATE(interpret);
 
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(unknown)
+SMTP_DEF(unknown)
 {
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
 	PT_BEGIN(&ctx->pt);
 
-	LUA_PT_CALL(unknown);
+	LUA_PROTECT_STATE(unknown);
 	client_send(ctx, fmt_unknown, opt_smtp_error_url.string, ctx->input.data);
 
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(out_seq)
+SMTP_DEF(out_seq)
 {
 	SmtpCtx *ctx = event->data;
+
 	TRACE_CTX(ctx, 000);
 	PT_BEGIN(&ctx->pt);
+
+	LUA_PROTECT_STATE(out_seq);
 	client_send(ctx, fmt_out_seq, opt_smtp_error_url.string, ctx->input.data);
+
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(helo)
+SMTP_DEF(helo)
 {
+	int span;
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
+
 	PT_BEGIN(&ctx->pt);
-	ctx->helo.length = TextCopy(ctx->helo.data, ctx->helo.size, ctx->input.data+5);
+
+	span  = STRLEN("EHLO");
+	span += strspn(ctx->input.data+span, " \t");
+	if (ctx->input.data[span] == '\0') {
+		client_send(ctx, fmt_missing_arg, opt_smtp_error_url.string);
+		PT_EXIT(&ctx->pt);
+	}
+
+	ctx->state = SMTP_NAME(helo);
+	ctx->helo.length = TextCopy(ctx->helo.data, ctx->helo.size, ctx->input.data+span);
+	trim_buffer(&ctx->helo);
 
 	LUA_PT_CALL(helo);
 
 	client_send(ctx, fmt_helo, ctx->helo.data, ctx->addr.data, ctx->host.data);
 
 	if (LUA_HOOK_OK(ctx->smtp_rc)) {
-		ctx->state = ctx->state_helo = SMTP_CMD_NAME(helo);
+		ctx->state_helo = SMTP_NAME(helo);
 		client_reset(ctx);
 	}
 
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(ehlo)
+SMTP_DEF(ehlo)
 {
+	int span;
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
+
 	PT_BEGIN(&ctx->pt);
 
 	if (!opt_test.value
 	&& (ctx->input.size != ctx->pipe.length - ctx->pipe.offset
-	|| socketHasInput(ctx->client, SMTP_PIPELINING_TIMEOUT))) {
+	|| socket_has_input(ctx->client.socket, SMTP_PIPELINING_TIMEOUT))) {
 		ctx->input.data[STRLEN("EHLO")] = '\0';
 		client_send(ctx, fmt_no_piping, SMTP_REJECT, opt_smtp_error_url.string, ctx->input.data);
 		ctx->pipe.length = 0;
 		PT_EXIT(&ctx->pt);
 	}
 
-	ctx->helo.length = TextCopy(ctx->helo.data, ctx->helo.size, ctx->input.data+5);
+	span  = STRLEN("EHLO");
+	span += strspn(ctx->input.data+span, " \t");
+	if (ctx->input.data[span] == '\0') {
+		client_send(ctx, fmt_missing_arg, opt_smtp_error_url.string);
+		PT_EXIT(&ctx->pt);
+	}
+
+	ctx->state = SMTP_NAME(ehlo);
+	ctx->helo.length = TextCopy(ctx->helo.data, ctx->helo.size, ctx->input.data+span);
+	trim_buffer(&ctx->helo);
 
 	LUA_PT_CALL(ehlo);
 
@@ -3454,23 +4547,23 @@ SMTP_CMD_DEF(ehlo)
 	);
 
 	if (LUA_HOOK_OK(ctx->smtp_rc)) {
-		ctx->state = ctx->state_helo = SMTP_CMD_NAME(ehlo);
+		ctx->state_helo = SMTP_NAME(ehlo);
 		client_reset(ctx);
 	}
 
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(auth)
+SMTP_DEF(auth)
 {
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
 	PT_BEGIN(&ctx->pt);
 
-	if (ctx->state != SMTP_CMD_NAME(ehlo)) {
+	if (ctx->state != SMTP_NAME(ehlo)) {
 		PT_INIT(&ctx->pt);
-		return SMTP_CMD_DO(unknown);
+		return SMTP_DO(unknown);
 	}
 	if (0 < ctx->auth.length) {
 		client_send(ctx, fmt_auth_already, opt_smtp_error_url.string);
@@ -3484,13 +4577,16 @@ SMTP_CMD_DEF(auth)
 
 	ctx->auth.length = TextCopy(ctx->auth.data, ctx->auth.size, ctx->input.data);
 
+	ctx->state = SMTP_NAME(auth);
 	LUA_PT_CALL(auth);
+	ctx->state = ctx->state_helo;
+
 	client_send(ctx, fmt_auth_ok);
 
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(mail)
+SMTP_DEF(mail)
 {
 	int span;
 	MimeHooks *hook;
@@ -3501,9 +4597,9 @@ SMTP_CMD_DEF(mail)
 	TRACE_CTX(ctx, 000);
 	PT_BEGIN(&ctx->pt);
 
-	if (ctx->state != SMTP_CMD_NAME(helo) && ctx->state != SMTP_CMD_NAME(ehlo)) {
+	if (ctx->state != SMTP_NAME(helo) && ctx->state != SMTP_NAME(ehlo)) {
 		PT_INIT(&ctx->pt);
-		return SMTP_CMD_DO(out_seq);
+		return SMTP_DO(out_seq);
 	}
 
 	/* Find the end of the "MAIL FROM:" string. */
@@ -3514,6 +4610,10 @@ SMTP_CMD_DEF(mail)
 	sender++;
 
 	span  = strspn(sender, " \t");
+	if (sender[span] == '\0') {
+		client_send(ctx, fmt_missing_arg, opt_smtp_error_url.string);
+		PT_EXIT(&ctx->pt);
+	}
 	span += strcspn(sender+span, " \t");
 
 	/* Split the MAIL FROM: address from any trailing options, in
@@ -3531,7 +4631,7 @@ SMTP_CMD_DEF(mail)
 		);
 		if (SMTP_ISS_TEMP(error)) {
 			syslog(LOG_ERR, log_internal, LOG_INT(ctx));
-			SIGLONGJMP(ctx->on_error, 1);
+			SIGLONGJMP(ctx->on_error, JMP_ERROR);
 		}
 		PT_EXIT(&ctx->pt);
 	}
@@ -3545,37 +4645,35 @@ SMTP_CMD_DEF(mail)
 	}
 
 	if ((ctx->mime = mimeCreate()) == NULL) {
-		client_send(ctx, fmt_internal, opt_smtp_error_url.string, strerror(errno));
 		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
-		SIGLONGJMP(ctx->on_error, 1);
+		SIGLONGJMP(ctx->on_error, JMP_INTERNAL);
 	}
 
 	if ((hook = uri_mime_init(ctx)) == NULL) {
-		client_send(ctx, fmt_internal, opt_smtp_error_url.string, strerror(errno));
 		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
-		SIGLONGJMP(ctx->on_error, 1);
+		SIGLONGJMP(ctx->on_error, JMP_INTERNAL);
 	}
 	mimeHooksAdd(ctx->mime, hook);
 
 	if ((hook = md5_mime_init(ctx)) == NULL) {
-		client_send(ctx, fmt_internal, opt_smtp_error_url.string, strerror(errno));
 		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
-		SIGLONGJMP(ctx->on_error, 1);
+		SIGLONGJMP(ctx->on_error, JMP_INTERNAL);
 	}
 	mimeHooksAdd(ctx->mime, hook);
 
 	next_transaction(ctx);
-
+	ctx->state = SMTP_NAME(mail);
 	LUA_PT_CALL(mail);
+
 	client_send(ctx, fmt_mail_ok, ctx->sender->address.string);
 
-	if (LUA_HOOK_OK(ctx->smtp_rc))
-		ctx->state = SMTP_CMD_NAME(mail);
+	if (!LUA_HOOK_OK(ctx->smtp_rc))
+		ctx->state = ctx->state_helo;
 
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(rcpt)
+SMTP_DEF(rcpt)
 {
 	int span;
 	ParsePath *rcpt;
@@ -3586,9 +4684,9 @@ SMTP_CMD_DEF(rcpt)
 	TRACE_CTX(ctx, 000);
 	PT_BEGIN(&ctx->pt);
 
-	if (ctx->state != SMTP_CMD_NAME(mail)) {
+	if (ctx->state != SMTP_NAME(mail) && ctx->state != SMTP_NAME(rcpt)) {
 		PT_INIT(&ctx->pt);
-		return SMTP_CMD_DO(out_seq);
+		return SMTP_DO(out_seq);
 	}
 
 	/* Find the end of the "RCPT TO:" string. */
@@ -3599,6 +4697,10 @@ SMTP_CMD_DEF(rcpt)
 	recipient++;
 
 	span  = strspn(recipient, " \t");
+	if (recipient[span] == '\0') {
+		client_send(ctx, fmt_missing_arg, opt_smtp_error_url.string);
+		PT_EXIT(&ctx->pt);
+	}
 	span += strcspn(recipient+span, " \t");
 
 	/* Split the RCPT TO: address from any trailing options. */
@@ -3613,7 +4715,7 @@ SMTP_CMD_DEF(rcpt)
 		);
 		if (SMTP_ISS_TEMP(error)) {
 			syslog(LOG_ERR, log_internal, LOG_INT(ctx));
-			SIGLONGJMP(ctx->on_error, 1);
+			SIGLONGJMP(ctx->on_error, JMP_ERROR);
 		}
 		PT_EXIT(&ctx->pt);
 	}
@@ -3622,39 +4724,36 @@ SMTP_CMD_DEF(rcpt)
 		free(rcpt);
 		PT_EXIT(&ctx->pt);
 	}
-	if ((recipient = strdup(rcpt->address.string)) == NULL) {
-		client_send(ctx, fmt_internal, opt_smtp_error_url.string, strerror(errno));
-		free(rcpt);
-		PT_EXIT(&ctx->pt);
-	}
+
+	recipient = strdup(rcpt->address.string);
 	free(rcpt);
 
+	if (recipient == NULL || VectorAdd(ctx->rcpts, recipient)) {
+		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
+		SIGLONGJMP(ctx->on_error, JMP_INTERNAL);
+	}
+
 	ctx->rcpt = &recipient;
+	ctx->state = SMTP_NAME(rcpt);
 
 	LUA_PT_CALL(rcpt);
 
-	if ((ctx->smtp_rc == 0 || SMTP_IS_OK(ctx->smtp_rc)) && VectorAdd(ctx->rcpts, recipient)) {
-		client_send(ctx, fmt_internal, opt_smtp_error_url.string, strerror(errno));
-		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
-		free(recipient);
-		SIGLONGJMP(ctx->on_error, 1);
-	}
-
+	recipient = VectorGet(ctx->rcpts, VectorLength(ctx->rcpts)-1);
 	client_send(ctx, fmt_rcpt_ok, recipient);
 
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(data)
+SMTP_DEF(data)
 {
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
 	PT_BEGIN(&ctx->pt);
 
-	if (ctx->state != SMTP_CMD_NAME(mail)) {
+	if (ctx->state != SMTP_NAME(rcpt)) {
 		PT_INIT(&ctx->pt);
-		return SMTP_CMD_DO(out_seq);
+		return SMTP_DO(out_seq);
 	}
 
 	if (VectorLength(ctx->rcpts) == 0) {
@@ -3671,112 +4770,186 @@ SMTP_CMD_DEF(data)
 	if (*opt_spool_dir.string != '\0') {
 		ctx->path.length = snprintf(ctx->path.data, ctx->path.size, "%s/%s", opt_spool_dir.string, ctx->id_trans);
 		if ((ctx->spool_fp = fopen(ctx->path.data, "wb")) == NULL) {
-			client_send(ctx, fmt_internal, opt_smtp_error_url.string, strerror(errno));
 			syslog(LOG_ERR, log_internal, LOG_INT(ctx));
-			SIGLONGJMP(ctx->on_error, 1);
+			SIGLONGJMP(ctx->on_error, JMP_INTERNAL);
 		}
 	}
 
-	LUA_PT_CALL0(data);
-
-	if (LUA_HOOK_OK(ctx->smtp_rc))
-		ctx->state = SMTP_CMD_NAME(data);
+	ctx->state = SMTP_NAME(data);
+	LUA_PT_CALL(data);
 
 	client_send(ctx, fmt_data);
 
-//	ctx->pipe.length = 0;
+	if (ctx->smtp_rc == 0 || ctx->smtp_rc == SMTP_WAITING)
+		eventSetTimeout(event, opt_smtp_data_timeout.value);
+	else
+		ctx->state = SMTP_NAME(rcpt);
+
+	ctx->length = 0;
 	ctx->eoh = 0;
 
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(content)
+SMTP_DEF(content)
 {
+	const char *fmt, *nl;
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
+
 	PT_BEGIN(&ctx->pt);
-	ctx->state = SMTP_CMD_NAME(content);
+
+	ctx->state = SMTP_NAME(content);
+
+	/* Does input starts with end-of-message. */
+	ctx->is_dot = 0;
+	nl = ctx->input.data;
+	if (nl[0] == '.' && nl[1] == '\n') {
+		ctx->is_dot = STRLEN(DOT_LF);
+		ctx->input.length = 0;
+	} else if (nl[0] == '.' && nl[1] == '\r' && nl[2] == '\n') {
+		ctx->is_dot = STRLEN(DOT_CRLF);
+		ctx->input.length = 0;
+	} else {
+		/* Feed the input to the MIME parser. */
+		for ( ; *nl != '\0'; nl++) {
+			/* Check for end-of-message. */
+			if (nl[0] == '\n' && nl[1] == '.') {
+				if (nl[2] == '\n')
+					ctx->is_dot = STRLEN(DOT_LF);
+				else if (nl[2] == '\r' && nl[3] == '\n')
+					ctx->is_dot = STRLEN(DOT_CRLF);
+				else
+					continue;
+
+				/* Shorten the input length. */
+				ctx->input.length = nl - ctx->input.data + 1;
+				break;
+			}
+
+			mimeNextCh(ctx->mime, *nl);
+		}
+	}
+
+	/* Update the input size for pipeline handling. */
+	ctx->input.size = ctx->input.length + ctx->is_dot;
 
 	if (ctx->spool_fp != NULL)
 		(void) fwrite(ctx->input.data, ctx->input.length, 1, ctx->spool_fp);
 
-	for (ctx->input.offset = 0; ctx->input.offset < ctx->input.length; ctx->input.offset++) {
-		mimeNextCh(ctx->mime, ctx->input.data[ctx->input.offset]);
-	}
-	ctx->input.offset = 0;
-
 	LUA_PT_CALL(content);
+
+	/* Advance the pipe to the next chunk or command.
+	 * We do this now in case we return for more headers,
+	 * body content, or pipeline commands (see below).
+	 */
+	ctx->pipe.offset += ctx->input.size;
 
 	if (ctx->eoh == 0) {
 		/* Process headers line by line. */
-		do {
+		while (ctx->eoh == 0 && ctx->input.offset < ctx->input.length)
 			LUA_PT_CALL(header);
-		} while (ctx->eoh == 0);
+
+		/* More input needed. */
+		if (ctx->eoh == 0 && !ctx->is_dot)
+			PT_EXIT(&ctx->pt);
 
 		/* End of headers */
 		LUA_PT_CALL0(eoh);
 	}
 
 	/* Process body line by line. */
-	do {
+	while (ctx->input.offset < ctx->input.length)
 		LUA_PT_CALL(body);
-	} while (ctx->input.offset < ctx->input.length);
 
-	if (ctx->is_dot) {
-		if (verb_smtp.value)
-			syslog(LOG_DEBUG, LOG_FMT "> %d:%s", LOG_ID(ctx), ctx->is_dot, ctx->input.data+ctx->input.length);
+	if (!ctx->is_dot)
+		PT_EXIT(&ctx->pt);
 
-		if (ctx->spool_fp != NULL) {
-			(void) fclose(ctx->spool_fp);
-			ctx->spool_fp = NULL;
-		}
+	if (verb_smtp.value)
+		syslog(LOG_DEBUG, LOG_FMT "> %d:%s", LOG_ID(ctx), ctx->is_dot, ctx->input.data+ctx->input.length);
 
-		LUA_PT_CALL(dot);
-
-		if (LUA_HOOK_OK(ctx->smtp_rc)) {
-			LUA_PT_CALL(forward);
-
-			if (LUA_HOOK_DEFAULT(ctx->smtp_rc)
-			&& *opt_smtp_smart_host.string != '\0' && 0 < ctx->path.length) {
-				PT_SPAWN(
-					&ctx->pt, &ctx->mx.pt,
-					mx_send(
-						ctx, smart_hosts,
-						ctx->sender->address.string,
-						ctx->rcpts, ctx->path.data, 0
-					)
-				);
-			}
-		}
-
-		client_send(ctx, smtp_default_at_dot, opt_smtp_error_url.string, ctx->id_trans);
-		client_reset(ctx);
-
-		/* When there is input remaining, it is possibly a
-		 * pipelined QUIT or the start of another transaction
-		 * and we need to process the commands in the pipe
-		 * before we return and resume the IO sevent loop.
-		 */
-		if (0 < ctx->pipe.offset && ctx->pipe.offset < ctx->pipe.length)
-			client_io_cb(loop, event);
+	if (ctx->spool_fp != NULL) {
+		(void) fclose(ctx->spool_fp);
+		ctx->spool_fp = NULL;
 	}
 
+	mimeNextCh(ctx->mime, EOF);
+
+	if (ctx->mime->mime_message_length == 0) {
+		/* RFC 2920 section 3.2 point 4 states
+		 * we must not deliver empty messages.
+		 */
+		fmt = fmt_msg_empty;
+		goto empty_message;
+	}
+
+	LUA_PT_CALL(dot);
+
+	if (LUA_HOOK_OK(ctx->smtp_rc)) {
+		LUA_PT_CALL(forward);
+
+		if (LUA_HOOK_DEFAULT(ctx->smtp_rc)
+		&& *opt_smtp_smart_host.string != '\0' && 0 < ctx->path.length) {
+			PT_SPAWN(
+				&ctx->pt, &ctx->mx.pt,
+				mx_send(
+					ctx, smart_hosts,
+					ctx->sender->address.string,
+					ctx->rcpts, ctx->path.data, 0
+				)
+			);
+
+			/*** TODO: check failed recipients and
+			 *** generate a DSN to the sender.
+			 ***/
+
+			if (SMTP_IS_OK(ctx->smtp_rc))
+				fmt = fmt_msg_ok;
+			else if (SMTP_IS_TEMP(ctx->smtp_rc))
+				fmt = fmt_msg_try_again;
+			else
+				fmt = fmt_msg_reject;
+empty_message:
+			ctx->reply.length = snprintf(
+				ctx->reply.data, ctx->reply.size,
+				fmt, opt_smtp_error_url.string, ctx->id_trans
+			);
+		}
+	}
+
+	client_send(ctx, smtp_default_at_dot, opt_smtp_error_url.string, ctx->id_trans);
+	eventSetTimeout(event, opt_smtp_command_timeout.value);
+	client_reset(ctx);
+
+	/* When there is input remaining, it is possibly a
+	 * pipelined QUIT or the start of another transaction
+	 * and we need to process the commands in the pipe
+	 * before we return and resume the IO event loop.
+	 */
+	if (0 < ctx->pipe.offset && ctx->pipe.offset < ctx->pipe.length)
+		client_io_cb(loop, event);
+
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(rset)
+SMTP_DEF(rset)
 {
 	SmtpCtx *ctx = event->data;
+
 	TRACE_CTX(ctx, 000);
+
 	PT_BEGIN(&ctx->pt);
-	LUA_PT_CALL0(rset);
+
+	LUA_PROTECT_STATE0(rset);
+
 	client_send(ctx, fmt_ok);
 	client_reset(ctx);
+
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(noop)
+SMTP_DEF(noop)
 {
 	SmtpCtx *ctx = event->data;
 
@@ -3785,20 +4958,21 @@ SMTP_CMD_DEF(noop)
 
 	if (!opt_test.value
 	&& (ctx->input.size != ctx->pipe.length - ctx->pipe.offset
-	|| socketHasInput(ctx->client, SMTP_PIPELINING_TIMEOUT))) {
+	|| socket_has_input(ctx->client.socket, SMTP_PIPELINING_TIMEOUT))) {
 		ctx->input.data[STRLEN("NOOP")] = '\0';
 		client_send(ctx, fmt_no_piping, SMTP_REJECT, opt_smtp_error_url.string, ctx->input.data);
 		ctx->pipe.length = 0;
 		PT_EXIT(&ctx->pt);
 	}
 
-	LUA_PT_CALL0(noop);
+	LUA_PROTECT_STATE0(noop);
+
 	client_send(ctx, fmt_ok);
 
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(help)
+SMTP_DEF(help)
 {
 	SmtpCtx *ctx = event->data;
 	TRACE_CTX(ctx, 000);
@@ -3856,7 +5030,7 @@ verboseInit(void)
 //	optionString(opt_verbose.string, verb_table, NULL);
 }
 
-SMTP_CMD_DEF(verb)
+SMTP_DEF(verb)
 {
 	char *nl;
 	SmtpCtx *ctx = event->data;
@@ -3870,16 +5044,16 @@ SMTP_CMD_DEF(verb)
 	nl = strrchr(ctx->reply.data, '\n');
 	nl[4] = ' ';
 
-	if (socketWrite(ctx->client, ctx->reply.data, ctx->reply.length) != ctx->reply.length) {
+	if (socket_write(ctx->client.socket, ctx->reply.data, ctx->reply.length, NULL) != ctx->reply.length) {
 		syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
-		SIGLONGJMP(ctx->on_error, 1);
+		SIGLONGJMP(ctx->on_error, JMP_ERROR);
 	}
 	ctx->reply.length = 0;
 
 	PT_END(&ctx->pt);
 }
 
-SMTP_CMD_DEF(xclient)
+SMTP_DEF(xclient)
 {
 	Vector args;
 	const char **list, *value;
@@ -3888,19 +5062,20 @@ SMTP_CMD_DEF(xclient)
 	TRACE_CTX(ctx, 000);
 	PT_BEGIN(&ctx->pt);
 
-	if (!opt_smtp_xclient.value || (ctx->state_helo != NULL && ctx->state != ctx->state_helo)) {
+	if (ctx->state != ctx->state_helo) {
 		PT_INIT(&ctx->pt);
-		return SMTP_CMD_DO(out_seq);
+		return SMTP_DO(out_seq);
 	}
 
-	LUA_PT_CALL0(xclient);
+	if (ctx->state != NULL)
+		LUA_PT_CALL0(xclient);
 
 	if (!LUA_HOOK_OK(ctx->smtp_rc)) {
 		PT_INIT(&ctx->pt);
-		return SMTP_CMD_DO(out_seq);
+		return SMTP_DO(out_seq);
 	}
 
-	args = TextSplit(ctx->input.data+STRLEN("XCLIENT "), " ", 0);
+	args = TextSplit(ctx->input.data+STRLEN("XCLIENT "), " "CRLF, 0);
 	for (list = (const char **) VectorBase(args);  *list != NULL; list++) {
 		if (0 <= TextInsensitiveStartsWith(*list, "NAME=")) {
 			value = *list + STRLEN("NAME=");
@@ -3928,63 +5103,58 @@ SMTP_CMD_DEF(xclient)
 		} else if (0 <= TextInsensitiveStartsWith(*list, "PROTO=")) {
 			value = *list + STRLEN("PROTO=");
 			if (TextInsensitiveCompare(value, "SMTP") == 0) {
-				ctx->state = ctx->state_helo = SMTP_CMD_NAME(helo);
+				ctx->state_helo = SMTP_NAME(helo);
 			} else if (TextInsensitiveCompare(value, "ESMTP") == 0) {
-				ctx->state = ctx->state_helo = SMTP_CMD_NAME(ehlo);
+				ctx->state_helo = SMTP_NAME(ehlo);
 			}
 			continue;
 		}
 
 		client_send(ctx, fmt_bad_args, opt_smtp_error_url.string, *list);
+		VectorDestroy(args);
 		PT_EXIT(&ctx->pt);
 	}
 
-	/* A new thread will allocated by the accept hook,
-	 * so to avoid a memory leak we discard this one.
-	 */
-	lua_hook_endthread(lua_live, ctx);
-
+	VectorDestroy(args);
 	PT_INIT(&ctx->pt);
-	return SMTP_CMD_DO(accept);
+	return SMTP_DO(accept);
 
 	PT_END(&ctx->pt);
 }
 
 static Command smtp_cmd_table[] = {
-	{ "HELO", SMTP_CMD_NAME(helo) },
-	{ "EHLO", SMTP_CMD_NAME(ehlo) },
-	{ "AUTH", SMTP_CMD_NAME(auth) },
-	{ "MAIL", SMTP_CMD_NAME(mail) },
-	{ "RCPT", SMTP_CMD_NAME(rcpt) },
-	{ "DATA", SMTP_CMD_NAME(data) },
-	{ "RSET", SMTP_CMD_NAME(rset) },
-	{ "NOOP", SMTP_CMD_NAME(noop) },
-	{ "QUIT", SMTP_CMD_NAME(quit) },
-	{ "HELP", SMTP_CMD_NAME(help) },
-	{ "VERB", SMTP_CMD_NAME(verb) },
-	{ "XCLIENT", SMTP_CMD_NAME(xclient) },
+	{ "HELO", SMTP_NAME(helo) },
+	{ "EHLO", SMTP_NAME(ehlo) },
+	{ "AUTH", SMTP_NAME(auth) },
+	{ "MAIL", SMTP_NAME(mail) },
+	{ "RCPT", SMTP_NAME(rcpt) },
+	{ "DATA", SMTP_NAME(data) },
+	{ "RSET", SMTP_NAME(rset) },
+	{ "NOOP", SMTP_NAME(noop) },
+	{ "QUIT", SMTP_NAME(quit) },
+	{ "HELP", SMTP_NAME(help) },
+	{ "VERB", SMTP_NAME(verb) },
+	{ "XCLIENT", SMTP_NAME(xclient) },
 	{ NULL, NULL }
 };
 
 /***********************************************************************
- *** IO Event Callbacks
+ *** Client IO Event Callbacks
  ***********************************************************************/
 
 #define ENDS_WITH(s)	(STRLEN(s) <= ctx->pipe.length && strcasecmp(ctx->pipe.data+ctx->pipe.length-STRLEN(s), s) == 0)
-#define DOT_QUIT_CRLF	CRLF "." CRLF "QUIT" CRLF
-#define DOT_QUIT_LF	LF "." LF "QUIT" LF
-#define DOT_CRLF	CRLF "." CRLF
-#define DOT_LF		LF "." LF
+
+#define CRLF_DOT_CRLF		CRLF DOT_CRLF
+#define LF_DOT_LF		LF DOT_LF
 
 SmtpCtx *
-client_newctx(void)
+client_event_new(void)
 {
 	SmtpCtx *ctx;
 
 	if ((ctx = calloc(1, SMTP_CTX_SIZE)) == NULL)
-		return NULL;
+		goto error0;
 
-	ctx->is_enabled = 1;
 	ctx->transaction_count = (int) RAND_MSG_COUNT;
 
 	ctx->path.size = PATH_MAX;
@@ -4005,18 +5175,53 @@ client_newctx(void)
 	ctx->reply.data = &ctx->work.data[ctx->work.size];
 	ctx->pipe.data = &ctx->reply.data[ctx->reply.size];
 
-	if ((ctx->rcpts = VectorCreate(10)) == NULL) {
-		free(ctx);
-		return NULL;
-	}
+	if ((ctx->rcpts = VectorCreate(10)) == NULL)
+		goto error1;
 	VectorSetDestroyEntry(ctx->rcpts, free);
 
 	return ctx;
+error1:
+	free(ctx);
+error0:
+	return NULL;
 }
 
 void
-client_io_cb(SocketEvents *loop, SocketEvent *event)
+client_event_free(void *_event)
 {
+	SmtpCtx *ctx;
+
+	if (_event != NULL) {
+		ctx = ((Event *)_event)->data;
+		TRACE_CTX(ctx, 000);
+
+		*ctx->id_trans = '\0';
+		LUA_CALL(close);
+		lua_hook_endthread(lua_live, ctx);
+
+		dns_close(ctx->client.loop, &ctx->client.event);
+//		service_close_all(&ctx->services);
+		if (0 < ctx->client.socket)
+			socket_close(ctx->client.socket);
+		VectorDestroy(ctx->rcpts);
+		mimeFree(ctx->mime);
+		free(ctx->sender);
+		free(ctx);
+	}
+}
+
+void
+client_close_cb(Events *loop, Event *event)
+{
+	SmtpCtx *ctx = event->data;
+	LUA_CALL(error);
+	eventRemove(loop, event);
+}
+
+void
+client_io_cb(Events *loop, Event *event)
+{
+	JmpCode jc;
 	long nbytes;
 	lua_State *L1;
 	Command *entry;
@@ -4025,71 +5230,63 @@ client_io_cb(SocketEvents *loop, SocketEvent *event)
 	TRACE_CTX(ctx, 000);
 
 	SETJMP_PUSH(&ctx->on_error);
-	if (SIGSETJMP(ctx->on_error, 1) != 0) {
-		if (verb_smtp.value)
-			syslog(LOG_DEBUG, LOG_FMT "close %s cc=%ld", LOG_ID(ctx), ctx->addr.data, VectorLength(loop->events)-1);
-		if (event->on.error != NULL)
-			(*event->on.error)(loop, event);
-		goto end;
-	}
+	if ((jc = SIGSETJMP(ctx->on_error, 1)) != JMP_SET)
+		goto setjmp_pop;
 
-	ctx->loop = loop;
-	ctx->event = event;
 	ctx->smtp_rc = 0;
+	ctx->client.loop = loop;
 
 	/* Read the SMTP command line or DATA input. */
-	if (ctx->pipe.offset == 0) {
+	if (ctx->pipe.offset <= 0 || ctx->pipe.length <= ctx->pipe.offset) {
+		if (ctx->pipe.length <= ctx->pipe.offset)
+			ctx->pipe.length = ctx->pipe.offset = 0;
+
+		if (!opt_daemon.value) {
+			fflush(stderr);
+			fflush(stdout);
+		}
 		if (opt_test.value) {
 			nbytes = read(
 				0, ctx->pipe.data+ctx->pipe.length,
 				ctx->pipe.size-1-ctx->pipe.length
 			);
 		} else {
-			nbytes = socketRead(
-				event->socket,
-				ctx->pipe.data+ctx->pipe.length, ctx->pipe.size-1-ctx->pipe.length
+			nbytes = socket_read(
+				event->fd,
+				ctx->pipe.data+ctx->pipe.length,
+				ctx->pipe.size-1-ctx->pipe.length,
+				NULL
 			);
 		}
 
 		/* EOF or error? */
 		if (nbytes <= 0)
-			SIGLONGJMP(ctx->on_error, 1);
+			SIGLONGJMP(ctx->on_error, JMP_ERROR);
 
 		ctx->pipe.length += nbytes;
 		ctx->pipe.data[ctx->pipe.length] = '\0';
 	}
 
-	if (ctx->state == SMTP_CMD_NAME(data)) {
+	if (ctx->state == SMTP_NAME(data) || ctx->state == SMTP_NAME(content)) {
 piped_test_data:
-		ctx->is_dot = 0;
-		if (ENDS_WITH(DOT_QUIT_CRLF))
-			ctx->is_dot = STRLEN(DOT_QUIT_CRLF)-STRLEN(CRLF);
-		else if (ENDS_WITH(DOT_QUIT_LF))
-			ctx->is_dot = STRLEN(DOT_QUIT_LF)-STRLEN(LF);
-		else if (ENDS_WITH(DOT_CRLF))
-			ctx->is_dot = STRLEN(DOT_CRLF)-STRLEN(CRLF);
-		else if (ENDS_WITH(DOT_LF))
-			ctx->is_dot = STRLEN(DOT_LF)-STRLEN(LF);
+		/* Set input to be remainder of pipe buffer. This
+		 * might be adjusted downwards while processing
+		 * the content when the end-of-message is seen.
+		 */
+		ctx->input.offset = 0;
+		ctx->input.data = ctx->pipe.data + ctx->pipe.offset;
+		ctx->input.length = ctx->pipe.length - ctx->pipe.offset;
+		ctx->input.size = ctx->input.length;
 
-		/* End of message or pipe buffer near full. */
-		if (ctx->is_dot || ctx->pipe.size <= ctx->pipe.length+SMTP_TEXT_LINE_LENGTH) {
-			ctx->input.offset = 0;
-			ctx->input.data = ctx->pipe.data+ctx->pipe.offset;
-			ctx->input.length = ctx->pipe.length - ctx->pipe.offset - ctx->is_dot;
-			ctx->input.size = ctx->input.length + 1;
-			ctx->input.size += strspn(ctx->input.data+ctx->input.size, CRLF);
-			ctx->pipe.offset += ctx->input.size;
+		PT_INIT(&ctx->pt);
+		(void) SMTP_DO(content);
 
-			PT_INIT(&ctx->pt);
-			(void) SMTP_CMD_DO(content);
-		}
-
-		goto end;
+		goto setjmp_pop;
 	}
 
 	/* Wait for a complete line unit. */
 	else if (ctx->pipe.data[ctx->pipe.length-1] != '\n') {
-		goto end;
+		goto setjmp_pop;
 	}
 
 	/* Process all pipelined commands. */
@@ -4109,14 +5306,15 @@ piped_test_data:
 		if (verb_smtp.value)
 			syslog(LOG_DEBUG, LOG_FMT "> %ld:%.60s", LOG_ID(ctx), ctx->input.length, ctx->input.data);
 
-		if ((L1 = lua_hook_getthread(lua_live, ctx)) != NULL) {
+		if ((L1 = lua_getthread(lua_live, ctx)) != NULL) {
 			lua_getglobal(L1, "client");
-			lua_pushlstring(L1, ctx->input.data, ctx->input.length);
-			lua_setfield(L1, -2, "input");
+			if (lua_istable(L1, -1)) {
+				lua_pushlstring(L1, ctx->input.data, ctx->input.length);
+				lua_setfield(L1, -2, "input");
 
-			lua_pushinteger(L1, ctx->is_pipelining);		/* func client flag */
-			lua_setfield(L1, -2, "is_pipelining");			/* func client */
-
+				lua_pushboolean(L1, ctx->client.is_pipelining);		/* fn client flag */
+				lua_setfield(L1, -2, "client.is_pipelining");		/* fn client */
+			}
 			lua_pop(L1, 1);
 		}
 
@@ -4126,7 +5324,7 @@ piped_test_data:
 			if (0 < TextInsensitiveStartsWith(ctx->input.data, entry->cmd)) {
 				(*entry->hook)(loop, event);
 
-				if (opt_test.value && ctx->state == SMTP_CMD_NAME(data)) {
+				if (ctx->state == SMTP_NAME(data)) {
 					/* Next input chunk in pipe. */
 					ctx->pipe.offset += ctx->input.size;
 
@@ -4143,92 +5341,93 @@ piped_test_data:
 
 		if (entry->cmd == NULL) {
 			if (opt_test.value)
-				(void) SMTP_CMD_DO(interpret);
+				(void) SMTP_DO(interpret);
 			else
-				(void) SMTP_CMD_DO(unknown);
+				(void) SMTP_DO(unknown);
 		}
 	}
 
 	ctx->pipe.length = ctx->pipe.offset = 0;
-end:
+setjmp_pop:
 	SETJMP_POP(&ctx->on_error);
-}
 
-void
-client_close_cb(SocketEvents *loop, SocketEvent *event)
-{
-	SmtpCtx *ctx = event->data;
-
-	if (ctx != NULL) {
-		TRACE_CTX(ctx, 000);
-		*ctx->id_trans = '\0';
-
-		LUA_CALL0(close);
-		lua_hook_endthread(lua_live, ctx);
-
-		VectorDestroy(ctx->rcpts);
-		dns_close(loop, event);
-		mimeFree(ctx->mime);
-		free(ctx->sender);
-		free(ctx);
+	switch (jc) {
+	case JMP_INTERNAL:
+		client_send(ctx, fmt_internal, opt_smtp_error_url.string, strerror(errno));
+		/*@fallthrough@*/
+	case JMP_ERROR:
+		if ((L1 = lua_getthread(lua_live, ctx)) != NULL)
+			LUA_CALL(error);
+		/*@fallthrough@*/
+	case JMP_DROP:
+		if (verb_smtp.value)
+			syslog(LOG_DEBUG, LOG_FMT "close %s cc=%ld", LOG_ID(ctx), ctx->addr.data, VectorLength(loop->events)-1);
+		eventRemove(loop, event);
+		/*@fallthrough@*/
+	case JMP_SET:
+		break;
 	}
 }
 
 void
-client_error_cb(SocketEvents *loop, SocketEvent *event)
+stdin_bootstrap_cb(Events *loop, Event *event)
 {
-	SmtpCtx *ctx = event->data;
-	if (errno != 0)
-		syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
-	LUA_CALL(error);
-	socketEventRemove(loop, event);
-}
+	SmtpCtx *ctx;
 
-void
-stdin_bootstrap_cb(SocketEvents *loop, SocketEvent *event)
-{
-	time_t now;
-	SmtpCtx *ctx = event->data;
+	if ((ctx = client_event_new()) == NULL) {
+		syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
+		return;
+	}
 
 	next_session(ctx->id_sess);
 
 	TRACE_CTX(ctx, 000);
 
-	SETJMP_PUSH(&ctx->on_error);
-	if (SIGSETJMP(ctx->on_error, 1) != 0) {
-		if (verb_smtp.value)
-			syslog(LOG_DEBUG, LOG_FMT "close %s cc=%ld", LOG_ID(ctx), ctx->addr.data, VectorLength(loop->events)-1);
-		if (event->on.error != NULL)
-			(*event->on.error)(loop, event);
-	} else {
-		ctx->loop = loop;
-		ctx->event = event;
-		ctx->client = event->socket;
+	event->on.io = NULL;
+	eventSetTimeout(event, -1);
 
-		(void) time(&now);
-		socketEventExpire(event, &now, -1);
-		(void) socketSetTimeout(event->socket, -1);
+	ctx->client.loop = loop;
+	ctx->client.socket = event->fd;
 
-		ctx->addr.length = TextCopy(ctx->addr.data, ctx->addr.size, "127.0.0.1");
-
-		if (verb_smtp.value)
-			syslog(LOG_DEBUG, LOG_FMT "accept %s cc=%ld", LOG_ID(ctx), ctx->addr.data, VectorLength(loop->events)-1);
-
-		PT_INIT(&ctx->pt);
-		event->on.io = NULL;
-		event->on.error = NULL;
-		(void) SMTP_CMD_DO(accept);
+	if (lua_hook_newthread(lua_live, ctx)) {
+		syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
+		goto error1;
 	}
-	SETJMP_POP(&ctx->on_error);
+
+	eventInit(&ctx->client.event, ctx->client.socket, EVENT_READ);
+	ctx->client.enabled = eventGetEnabled(&ctx->client.event);
+	ctx->client.event.on.timeout = client_close_cb;
+	ctx->client.event.on.io = client_io_cb;
+	ctx->client.event.free = client_event_free;
+	ctx->client.event.data = ctx;
+	ctx->client.loop = loop;
+
+	if (eventAdd(loop, &ctx->client.event)) {
+		syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
+		goto error2;
+	}
+
+	ctx->pipe.length = snprintf(ctx->pipe.data, ctx->pipe.size, " XCLIENT ADDR=127.0.0.1\r\n");
+	ctx->pipe.offset = 1;
+
+	client_io_cb(loop, &ctx->client.event);
+	return;
+error2:
+	lua_hook_endthread(lua_live, ctx);
+error1:
+	free(ctx);
 }
 
 void
-server_io_cb(SocketEvents *loop, SocketEvent *event)
+server_io_cb(Events *loop, Event *event)
 {
 	SmtpCtx *ctx;
-	Socket2 *client;
-	SocketEvent *client_event;
+	SOCKET client;
 	char id_sess[ID_SIZE];
+	SocketAddress caddr;
+
+	if (errno == ETIMEDOUT)
+		return;
 
 	next_session(id_sess);
 
@@ -4237,63 +5436,65 @@ server_io_cb(SocketEvents *loop, SocketEvent *event)
 
 	rate_global();
 
-	if ((client = socketAccept(event->socket)) == NULL) {
+	if ((client = socket_accept(event->fd, &caddr)) < 0) {
 		if (verb_warn.value)
 			syslog(LOG_WARN, log_error, id_sess, LOG_LINE, strerror(errno), errno);
 		return;
 	}
 
-	(void) socketSetLinger(client, 0);
-	(void) socketSetKeepAlive(client, 1);
-	(void) socketSetNonBlocking(client, 1);
-	(void) fileSetCloseOnExec(socketGetFd(client), 1);
-	socketSetTimeout(client, opt_smtp_command_timeout.value);
+//	(void) socket_set_nagle(client, 1);
+	(void) socket_set_linger(client, 0);
+	(void) socket_set_keep_alive(client, 1, -1, -1, -1);
+	(void) socket_set_nonblocking(client, 1);
+	(void) fileSetCloseOnExec(client, 1);
 
-	if ((client_event = socketEventAlloc(client, SOCKET_EVENT_READ)) == NULL) {
+	if ((ctx = client_event_new()) == NULL) {
 		syslog(LOG_ERR, log_oom, id_sess, LOG_LINE);
-		socketClose(client);
-		return;
-	}
-	if ((ctx = client_newctx()) == NULL) {
-		syslog(LOG_ERR, log_oom, id_sess, LOG_LINE);
-		socketEventFree(client_event);
-		return;
+		goto error0;
 	}
 
-	client_event->data = ctx;
-	client_event->on.io = client_io_cb;
-	client_event->on.close = client_close_cb;
-	client_event->on.error = client_error_cb;
+	ctx->client.addr = caddr;
+	ctx->client.socket = client;
+
+	if (lua_hook_newthread(lua_live, ctx)) {
+		syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
+		goto error1;
+	}
+
+	eventInit(&ctx->client.event, client, EVENT_READ);
+	eventSetTimeout(&ctx->client.event, opt_smtp_command_timeout.value);
+	ctx->client.enabled = eventGetEnabled(&ctx->client.event);
+	ctx->client.event.on.timeout = client_close_cb;
+	ctx->client.event.on.io = client_io_cb;
+	ctx->client.event.free = client_event_free;
+	ctx->client.event.data = ctx;
+	ctx->client.loop = loop;
+
+	if (eventAdd(loop, &ctx->client.event)) {
+		syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
+		goto error2;
+	}
 
 	TextCopy(ctx->id_sess, sizeof (ctx->id_sess), id_sess);
 
-	ctx->loop = loop;
-	ctx->event = client_event;
-	ctx->client = client;
-	ctx->is_enabled = socketEventGetEnable(client_event);
+	socketAddressGetIPv6(&caddr, 0, ctx->ipv6);
+	ctx->addr.length = socketAddressGetString(&caddr, 0, ctx->addr.data, ctx->addr.size);
 
-	socketAddressGetIPv6(&client->address, 0, ctx->ipv6);
-	ctx->addr.length = socketAddressGetString(&client->address, 0, ctx->addr.data, ctx->addr.size);
+	/* Prime the input pipeline so that we can enter the command
+	 * loop to setup the on_error setjmp and then do an XCLIENT
+	 * to chain into client accept code and welcome banner.
+	 */
+	ctx->pipe.length = snprintf(ctx->pipe.data, ctx->pipe.size, " XCLIENT\r\n");
+	ctx->pipe.offset = 1;
 
-	if (SIGSETJMP(ctx->on_error, 1) != 0) {
-		if (verb_smtp.value)
-			syslog(LOG_DEBUG, LOG_FMT "close %s cc=%ld", LOG_ID(ctx), ctx->addr.data, VectorLength(loop->events)-1);
-		if (client_event->on.error != NULL)
-			(*client_event->on.error)(loop, client_event);
-		return;
-	}
-
-	if (socketEventAdd(loop, client_event)) {
-		syslog(LOG_ERR, log_oom, id_sess, LOG_LINE);
-		socketEventFree(client_event);
-		return;
-	}
-
-	if (verb_smtp.value)
-		syslog(LOG_DEBUG, LOG_FMT "accept %s cc=%ld", LOG_ID(ctx), ctx->addr.data, VectorLength(loop->events)-1);
-
-	PT_INIT(&ctx->pt);
-	(void) (*SMTP_CMD_NAME(accept))(loop, client_event);
+	client_io_cb(loop, &ctx->client.event);
+	return;
+error2:
+	lua_hook_endthread(lua_live, ctx);
+error1:
+	free(ctx);
+error0:
+	socket_close(client);
 }
 
 /***********************************************************************
@@ -4332,11 +5533,6 @@ serverOptions(int argc, char **argv)
 	if (opt_test.value)
 		optionString("-daemon", opt_table, NULL);
 
-	opt_smtp_accept_timeout.value *= UNIT_MILLI;
-	opt_smtp_command_timeout.value *= UNIT_MILLI;
-	opt_smtp_data_timeout.value *= UNIT_MILLI;
-	opt_smtp_dot_timeout.value *= UNIT_MILLI;
-
 	parse_path_flags = 0;
 	if (opt_rfc2821_angle_brackets.value)
 		parse_path_flags |= STRICT_SYNTAX;
@@ -4372,7 +5568,7 @@ void
 sig_term(int signum)
 {
 	syslog(LOG_INFO, "signal %d received", signum);
-	socketEventsStop(&main_loop);
+	eventsStop(&main_loop);
 }
 
 #ifdef NOT_YET
@@ -4389,9 +5585,8 @@ int
 serverMain(void)
 {
 	int rc;
-	SmtpCtx *ctx;
-	Socket2 *socket;
-	SocketEvent event;
+	Event event;
+	SOCKET socket;
 	SocketAddress *saddr;
 
 	TRACE_FN(000);
@@ -4427,80 +5622,57 @@ serverMain(void)
 		goto error1;
 	}
 
+	eventsInit(&main_loop);
+
 	if (opt_test.value) {
-		setvbuf(stdout, NULL, _IOLBF, 0);
-
-		/* Socket2 wrapper around stdin file descriptor so that
-		 * we can take advantage of the event loop to detect when
-		 * there is more input ready. The actual read and write
-		 * done using file IO functions, not sockets.
-		 */
-		if ((socket = socketFdOpen(0)) == NULL) {
-			syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
-			rc = EX_SOFTWARE;
-			goto error2;
-		}
-
-		socketEventInit(&event, socket, SOCKET_EVENT_READ);
-		(void) fileSetCloseOnExec(socketGetFd(socket), 1);
 		saddr = NULL;
-
-		/* Create the context with which to simulate a connection. */
-		if ((ctx = client_newctx()) == NULL) {
-			syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
-			rc = EX_SOFTWARE;
-			goto error4;
-		}
+		setvbuf(stdout, NULL, _IOLBF, 0);
+		setvbuf(stderr, NULL, _IOLBF, 0);
+		eventInit(&event, 0, EVENT_READ);
 
 		/* Boot strap the startup by causing an initial timeout
 		 * to simulate a new connection and bring up the banner.
 		 */
-		(void) socketSetTimeout(socket, 1);
-		event.on.error = stdin_bootstrap_cb;
+		eventSetTimeout(&event, 1);
 		event.on.io = stdin_bootstrap_cb;
-		event.data = ctx;
+#if defined(HAVE_POLL)
+		events_wait_fn = events_wait_poll;
+#endif
 	} else {
 		if ((saddr = socketAddressNew("0.0.0.0", opt_smtp_server_port.value)) == NULL) {
 			syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
 			rc = EX_SOFTWARE;
 			goto error2;
 		}
-		if ((socket = socketOpen(saddr, 1)) == NULL) {
+		if ((socket = socket_server(saddr, 1, opt_smtp_server_queue.value)) < 0) {
 			syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
 			rc = EX_SOFTWARE;
 			goto error3;
 		}
-		(void) fileSetCloseOnExec(socketGetFd(socket), 1);
-		(void) socketSetNonBlocking(socket, 1);
-		(void) socketSetLinger(socket, 0);
-		(void) socketSetReuse(socket, 1);
 
-		if (socketServer(socket, opt_smtp_server_queue.value)) {
-			syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
-			rc = EX_SOFTWARE;
-			goto error4;
-		}
+		(void) fileSetCloseOnExec(socket, 1);
+		(void) socket_set_nonblocking(socket, 1);
+		(void) socket_set_linger(socket, 0);
+		(void) socket_set_reuse(socket, 1);
 
-		socketEventInit(&event, socket, SOCKET_EVENT_READ);
+		eventInit(&event, socket, EVENT_READ);
 		event.on.io = server_io_cb;
-
-		(void) socketSetTimeout(socket, -1);
+		eventSetTimeout(&event, -1);
 	}
 
-	socketEventsInit(&main_loop);
-	if (socketEventAdd(&main_loop, &event)) {
+	if (eventAdd(&main_loop, &event)) {
 		syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
 		rc = EX_SOFTWARE;
 		goto error4;
 	}
 
-	socketEventsRun(&main_loop);
-	socketEventsFree(&main_loop);
+	eventsRun(&main_loop);
+	eventsFree(&main_loop);
 	syslog(LOG_INFO, "terminated");
 	rc = EXIT_SUCCESS;
 error4:
 	if (rc != EXIT_SUCCESS)
-		socketClose(socket);
+		socket_close(socket);
 error3:
 	free(saddr);
 error2:

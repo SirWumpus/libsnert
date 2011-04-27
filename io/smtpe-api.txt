@@ -11,23 +11,8 @@ master Lua state. The each Lua hook back into smtpe is optional, ie.
 doesn't need to be defined.
 
 
-Global SMTP Engine Variables
-----------------------------
-
-smtpe.bin_version
-
-
-smtpe.api_version
-
-
-smtpe.copyright
-
-
-smtpe.host
-
-
-Client SMTP Variables
----------------------
+Client Connection Variables
+---------------------------
 
 client.address
 
@@ -52,7 +37,7 @@ client.id_trans
 
 client.msg_file
 
-	Available from hook.mail to hook.forward; discarded by RSET,
+	Available from hook.data to hook.forward; discarded by RSET,
 	HELO, EHLO, or end of transaction.
 
 client.input
@@ -90,6 +75,10 @@ back to the client.
 [drop_flag,] reply = hook.auth(auth_arg)
 
 	Should return 235 for successful authentication.
+
+[drop_flag,] reply = hook.out_seq(smtp_input)
+
+	Should always return 501 out of sequence.
 
 [drop_flag,] reply = hook.unknown(smtp_input)
 
@@ -159,7 +148,7 @@ hook.reset()
 hook.error(errno, errno_text)
 
 
-hook.close()
+hook.close(was_dropped)
 
 	End of SMTP connection and clean-up.
 
@@ -227,22 +216,27 @@ answers = dns.wait(for_all_flag)
 	Return an answer array containing the queries and their results. If
 	an error occured the answers array will be nil.
 
-		answers = [query]
-		query = { rcode, name, dns.class, dns.type, dns.ttl, answer = [RR], extra = [RR], authority = [RR] }
+	answers[i] = { query }
 
-		RR formats for dns.type
-		-----------------------
+	answers[query_key] = { query }
 
-		A = { name, dns.class, dns.type, ttl, address }
-		AAAA = { name, dns.class, dns.type, ttl, address }
-		PTR = { address, dns.class, dns.type, ttl, name }
-		CNAME = { name, dns.class, dns.type, ttl, host }
-		DNAME = { name, dns.class, dns.type, ttl, host }
-		MX = { name, dns.class, dns.type, ttl, host, preference }
-		NS = { name, dns.class, dns.type, ttl, host }
-		SOA = { name, dns.class, dns.type, ttl, mname, rname, serial, refresh, retry, expire, minimum, }
-		TXT = { name, dns.class, dns.type, ttl, text }
+	query_key = dns.class..","..dns.type..","..name
 
+	query = { rcode, name, class, type, ttl, answer = [ RR ], extra = [ RR ], authority = [ RR ] }
+
+
+	Resource Recode formats for dns.type
+	------------------------------------
+
+	A	= { name, class, type, ttl, address }
+	AAAA	= { name, class, type, ttl, address }
+	PTR	= { address, class, type, ttl, name }
+	CNAME	= { name, class, type, ttl, host }
+	DNAME	= { name, class, type, ttl, host }
+	MX	= { name, class, type, ttl, host, preference }
+	NS	= { name, class, type, ttl, host }
+	SOA	= { name, class, type, ttl, mname, rname, serial, refresh, retry, expire, minimum, }
+	TXT	= { name, class, type, ttl, text }
 
 string = dns.classname(dns.class)
 
@@ -253,10 +247,337 @@ string = dns.typename(dns.type)
 string = dns.rcodename(dns.rcode)
 
 
+HTTP API
+--------
+
+	Constants
+
+		http.code.CONTINUE
+		http.code.DROP
+
+		http.code.OK
+		http.code.CREATED
+		http.code.ACCEPTED
+		http.code.NON_AUTH_INFO
+		http.code.NO_CONTENT
+		http.code.RESET_CONTENT
+		http.code.PARTIAL_CONTENT
+
+		http.code.MULTIPLE_CHOICES
+		http.code.MOVED_PERMANENTLY
+		http.code.FOUND
+		http.code.SEE_OTHER
+		http.code.NOT_MODIFIED
+		http.code.USE_PROXY
+		http.code.TEMPORARY_REDIRECT
+
+		http.code.BAD_REQUEST
+		http.code.UNAUTHORIZED
+		http.code.PAYMENT_REQUIRED
+		http.code.FORBIDDEN
+		http.code.NOT_FOUND
+		http.code.METHOD_NOT_ALLOWED
+		http.code.NOT_ACCEPTABLE
+		http.code.PROXY_AUTH_REQUIRED
+		http.code.REQUEST_TIMEOUT
+		http.code.CONFLICT
+		http.code.GONE
+		http.code.LENGTH_REQUIRED
+		http.code.PRECOND_FAILED
+		http.code.REQUEST_TOO_LARGE
+		http.code.URI_TOO_LONG
+		http.code.UNSUPPORTED_MEDIA
+		http.code.RANGE_NOT_POSSIBLE
+		http.code.EXPECTATION_FAILED
+
+		http.code.INTERNAL
+		http.code.NOT_IMPLEMENTED
+		http.code.BAD_GATEWAY
+		http.code.SERVICE_UNAVAILABLE
+		http.code.GATEWAY_TIMEOUT
+		http.code.VERSION_NOT_SUPPORTED
+
+	Functions
+
+table = http.action(method, url, modified_since, post)
+
+	Perform an HTTP request as denoted by a method string ("GET",
+	"HEAD", "POST") to the given url string. The post argument can
+	be nil or a string of data to submit using "POST" method.
+
+	The modified_since argument can be either a number or a string.
+	As a number it represent the GMT seconds since the epoch. As a
+	string it is an RFC 2822 Date & Time or ctime(). The argument
+	is used to make a conditional request based on how recently
+	any changes to the url were made. Specify zero (0) to always
+	do the request.
+
+		table.id
+		table.rcode
+		table.headers
+		table.content
+
+
+table = http.get(url, modified_since)
+
+
+table = http.head(url, modified_since)
+
+
+table = http.post(url, modified_since, post)
+
+
+MD5 Functions
+-------------
+
+md5_obj = md5.new()
+
+
+md5_obj:append(string)
+
+
+digest = md5_obj:done()
+
+
+boolean = md5_obj:use_ixhash1(string)
+
+	Use ixhash1 if the message contains at least 2 lines and at
+	least 20 spaces or tabs.
+
+
+boolean = md5_obj:use_ixhash2(string)
+
+	Use ixhash2 if the message contains at least three occurences
+	of:
+
+		< > ( ) | @ * ' ! ? ,
+
+	or the combination ":/"
+
+
+boolean = md5_obj:use_ixhash3(string)
+
+	Otherwise use ixhash3 if the message has a minimum amount of
+	content.
+
+
+md5_obj:ixhash1(string)
+
+
+md5_obj:ixhash2(string)
+
+
+md5_obj:ixhash3(string)
+
+
+MIME Message Table
+------------------
+
+This table is created when a transaction starts with MAIL and is discard
+by RSET, HELO, EHLO, or at the end of message when the transaction
+completes.
+
+mime.parts
+
+	An array of message MIME parts in linear order of appearance.
+	The top level message headers start with mime.parts[1]. The
+	number of mime parts is given by "# mime.parts".
+
+mime.parts[i].md5_encoded
+
+	The MD5 of the MIME part body encoded.
+
+mime.parts[i].md5_decoded
+
+	The MD5 of the MIME part body after decoding the body based on
+	Content-Transfer-Encoding
+
+mime.parts[i].part_length
+
+	The length of the MIME part, bother headers and body.
+
+mime.parts[i].body_length
+
+	The encoded length of the MIME part body.
+
+mime.parts[i].content_type
+
+	A copy of the Content-Type header.
+
+mime.parts[i].content_transfer_encoding
+
+	A copy of the Content-Transfer-Encoding header.
+
+
 Network Support Functions
 -------------------------
 
-string = net.reverseip(address, arpa_suffix_flag)
+boolean = net.contains_ip(net_cidr_string, ip_string)
+
+
+boolean = net.has_valid_tld(string)
+
+	Return true the string ends with a valid two or one level TLD.
+
+boolean = net.has_valid_nth_tld(string, level)
+
+	Return true if the string ends with a valid top level domain.
+	Check Nth top level domain, ie. .co.uk or .com.au. Valid
+	levels are 1 or 2.
+
+offset = net.index_valid_tld(string)
+
+	The index in the string of a valid two or one level TLD;
+	otherwise 0 if not found.
+
+offset = net.index_valid_nth_tld(string, level)
+
+	Find the Nth level from the right end of the domain string.
+	Valid levels are 1 or 2. The index (1 based) in the string;
+	otherwise 0 if not found.
+
+string = net.reverse_ip(address, arpa_suffix_flag)
+
+
+integer = net.is_ipv4_in_name(ipv4, string)
+
+	Check if the string contains the IPv4 octets in the strings
+	according to a series of adhoc checks. Return 0 if the string
+	does not contain any element of the IPv4 address; otherwise an
+	integer corresponding to the test that matched.
+
+	TODO: document the test return codes.
+
+
+offset, span = net.find_ip(string)
+
+	Return the offset and span of the first occurence of an IPv4 or
+	IPv6 addres in string; otherwise nil if not found.
+
+
+boolean = net.is_ip_reserved(address, is_ip_bits)
+
+		net.is_ip.BENCHMARK
+		net.is_ip.LINK_LOCAL
+		net.is_ip.LOCALHOST
+		net.is_ip.LOOPBACK
+		net.is_ip.MULTICAST
+		net.is_ip.PRIVATE_A
+		net.is_ip.PRIVATE_B
+		net.is_ip.PRIVATE_C
+		net.is_ip.RESERVED
+		net.is_ip.SITE_LOCAL
+		net.is_ip.TEST_NET
+		net.is_ip.THIS_HOST
+		net.is_ip.THIS_NET
+		net.is_ip.V4_COMPATIBLE
+		net.is_ip.V4_MAPPED
+		net.is_ip.V6
+
+		net.is_ip.V4		= net.is_ip.V4_COMPATIBLE
+					+ net.is_ip.V4_MAPPED
+
+		net.is_ip.ANY		= 0xffff - (net.is_ip.V4 + net.is_ip.V6)
+
+		net.is_ip.TEST		= net.is_ip.BENCHMARK
+					+ net.is_ip.TEST_NET
+
+		net.is_ip.LOCAL		= net.is_ip.THIS_HOST
+					+ net.is_ip.LOCALHOST
+					+ net.is_ip.LOOPBACK
+
+		net.is_ip.LAN		= net.is_ip.PRIVATE_A
+					+ net.is_ip.PRIVATE_B
+					+ net.is_ip.PRIVATE_C
+					+ net.is_ip.LINK_LOCAL
+					+ net.is_ip.SITE_LOCAL
+
+		net.is_ip.RESTICTED	= net.is_ip.TEST
+					+ net.is_ip.LOCAL
+					+ net.is_ip.LAN
+					+ net.is_ip.MULTICAST
+					+ net.is_ip.RESERVED
+
+
+SMTP Client
+-----------
+
+	Constants
+
+		--
+		-- RFC 821, 2821, 5321 codes.
+		--
+		smtp.code.STATUS
+		smtp.code.HELP
+		smtp.code.WELCOME
+		smtp.code.GOODBYE
+		smtp.code.AUTH_OK		-- RFC 4954 section 6
+		smtp.code.OK
+		smtp.code.USER_NOT_LOCAL
+
+		smtp.code.WAITING
+
+		smtp.code.CLOSING
+		smtp.code.AUTH_MECHANISM	-- RFC 4954 section 6
+		smtp.code.BUSY
+		smtp.code.TRY_AGAIN_LATER
+		smtp.code.NO_STORAGE
+		smtp.code.AUTH_TEMP		-- RFC 4954 section 6
+
+		smtp.code.BAD_SYNTAX
+		smtp.code.BAD_ARGUMENTS
+		smtp.code.UNKNOWN_COMMAND
+		smtp.code.BAD_SEQUENCE
+		smtp.code.UNKNOWN_PARAM
+		smtp.code.AUTH_REQUIRED		-- RFC 4954 section 6
+		smtp.code.AUTH_WEAK		-- RFC 4954 section 6
+		smtp.code.AUTH_FAIL		-- RFC 4954 section 6
+		smtp.code.AUTH_ENCRYPT		-- RFC 4954 section 6
+		smtp.code.REJECT
+		smtp.code.UNKNOWN_USER
+		smtp.code.OVER_QUOTA
+		smtp.code.BAD_ADDRESS
+		smtp.code.TRANSACTION_FAILED
+
+		--
+		-- Error conditions indicated SMTP like codes.
+		--
+		smtp.code.ERROR
+		smtp.code.ERROR_CONNECT
+		smtp.code.ERROR_TIMEOUT
+		smtp.code.ERROR_EOF
+		smtp.code.ERROR_IO
+
+
+	Functions
+
+smtp.code, n_rcpt_ok = smtp.sendfile(hosts[], mail, rcpts[], spool)
+
+	Send the spool file to host, which can be a host name, ipv4, or
+	ipv6 address with optional colon port suffix, eg.
+	[2001:0Db8::1]:2525. Specify the mail address and an array of
+	one or more recipents. The smtp.code return is the last read.
+	The number of successful recipients accepted is returned. The
+	spool file can be nil, in which case the function ends after the
+	last RCPT command and before DATA.
+
+
+smtp.code, n_rcpt_ok = smtp.sendstring(hosts[], mail, rcpts[], message)
+
+
+SMTP Engine Global Variables
+----------------------------
+
+smtpe.bin_version
+
+
+smtpe.api_version
+
+
+smtpe.copyright
+
+
+smtpe.host
 
 
 Syslog Functions
@@ -336,156 +657,171 @@ syslog.close()
 	by the application.
 
 
-MD5 Functions
--------------
+Text API
+--------
 
-md5_obj = md5.new()
+offset = text.find(haystack, needle, caseless)
+
+	Find the first occurence of "needle" in "haystack" and return
+	the offset into the haystack where found; otherwise zero (0).
+
+	An astrisk (*) acts as wildcard, scanning over zero or more
+	bytes. A question-mark (?) matches any single character; a
+	space ( ) will match any single white space character.
+
+	A left square bracket ([) starts a character class that ends
+	with a right square bracket (]) and matches one character from
+	the class. If the first character of the class is a carat (^),
+	then the remainder of character class is negated. If the first
+	character (after a carat if any) is a right square bracket, then
+	the right square bracket is a literal and loses any special
+	meaning. If the first character (after a carat and/or right
+	square bracket) is a hypen (-), then the hyphen is a literal and
+	loses any special meaning. A range expression expressed as a
+	start character followed by a hyphen followed by an end
+	character matches a character in character-set order between
+	start and end characters inclusive.
+
+	A backslash followed by any character treats that character as a
+	literal (it loses any special meaning).
+
+	(If you need more than that, think about using regex(3) instead.)
+
+		"abc"		exact match for "abc"
+
+		"abc*"		match "abc" at start of string
+
+		"*abc"		match "abc" at the end of string
+
+		"abc*def"	match "abc" at the start and match "def"
+				at the end, maybe with stuff in between.
+
+		"*abc*def*"	find "abc", then find "def"
+
+		"a[]]c"		exact match for "a]c", same as "a]c"
+
+		"[abc]"		match a single "a", "b", or "c".
+
+		"[^abc]"	match a single charcater except "a", "b", or "c".
+
+		"[a-z]"		match a single character "a" through "z" (assumes ASCII)
+
+		"[0-9]"		match a single digit "0" through "9" (assumes ASCII)
+
+		"[-ac]"		match a single charcater "-", "a", or "c".
+
+		"[]-ac]		match a single charcater "]", "-", "a", or "c".
+
+		"[^-ac]"	match a single charcater except "-", "a", or "c".
+
+		"[^]-ac]"	match a single charcater execpt "]", "-", "a", or "c".
 
 
-md5_obj:append(string)
+diff = text.natcmp(s1, s2, caseless)
+
+	Return an integer greater than, equal to, or less than 0,
+	according to whether the string s1 is greater than, equal to, or
+	less than the string s2 according to natural sorting order.
+
+	Note that either s1 or s2 can be nil, in which case nil equals nil
+	and nil is greater than anything else; this means nil would sort
+	to the end of an array of strings.
 
 
-digest = md5_obj:end()
+array = text.split(string, delims)
+
+	The given string contains a list of substrings separated by the
+	specified delimiter characters. The substrings may contain quoted
+	strings and/or contain backslash-escaped characters. The common
+	backslash escape sequences are supported and return their ASCII
+	values.
 
 
-MIME Message Table
-------------------
+URI
+---
 
-This table is created when a transaction starts with MAIL and is discard
-by RSET, HELO, EHLO, or at the end of message when the transaction
-completes.
+table = uri.parse(string)
 
-mime.parts
+	Attempt to parse the given URI string into its component parts.
+	If the string is not a URI, then nil is returned.
 
-	An array of message MIME parts in linear order of appearance.
-	The top level message headers start with mime.parts[1]. The
-	number of mime parts is given by "# mime.parts".
+		table.uri_raw
+		table.uri_decoded
+		table.scheme
+		table.scheme_info
+		table.user_info
+		table.host
+		table.port
+		table.query
+		table.fragment
 
-mime.parts[i].md5_encoded
+uri.found
 
-	The MD5 of the MIME part body encoded.
+	This array is created when a transaction starts with MAIL and is
+	discard by RSET, HELO, EHLO, or at the end of message when the
+	transaction completes. An array of unique uri entries. The
+	number of entries given by "# uri.found".
 
-mime.parts[i].md5_decoded
-
-	The MD5 of the MIME part body after decoding the body based on
-	Content-Transfer-Encoding
-
-mime.parts[i].part_length
-
-	The length of the MIME part, bother headers and body.
-
-mime.parts[i].body_length
-
-	The encoded length of the MIME part body.
-
-mime.parts[i].content_type
-
-	A copy of the Content-Type header.
-
-mime.parts[i].content_transfer_encoding
-
-	A copy of the Content-Transfer-Encoding header.
-
-
-URI Array
----------
-
-This table is created when a transaction starts with MAIL and is
-discard by RSET, HELO, EHLO, or at the end of message when the
-transaction completes.
-
-uri
-
-	An array of unique uri entries. The number of entries given by
-	"# uri"
-
-uri[i] = md5_key
+uri.found[i] = md5_key
 
 	For each URI found, the uri_raw field is converted to an MD5 and
 	used as a key by which to save the URI. The MD5 is added to the
 	table, primarily so that the Lua length operator, #, works. By
 	using the MD5 of the uri_raw as a key, it allows for an
-	existance so as to avoid duplicate entries.
+	existance test so as to avoid duplicate entries.
 
-uri[md5_key].uri_raw
-uri[md5_key].uri_decoded
-uri[md5_key].scheme
-uri[md5_key].scheme_info
-uri[md5_key].user_info
-uri[md5_key].host
-uri[md5_key].port
-uri[md5_key].query
-uri[md5_key].fragment
+		uri.found[md5_key].uri_raw
+		uri.found[md5_key].uri_decoded
+		uri.found[md5_key].scheme
+		uri.found[md5_key].scheme_info
+		uri.found[md5_key].user_info
+		uri.found[md5_key].host
+		uri.found[md5_key].port
+		uri.found[md5_key].query
+		uri.found[md5_key].fragment
 
 	To walk through the table:
 
-		for k,v in pairs(uri) do
+		for k,v in pairs(uri.found) do
 			if type(k) ~= "number" then
 				-- operate on uri[k]
 			end
 		end
 
 
-SMTP Client
------------
+Utility Support
+---------------
 
-	Constants
+boolean = util.mkpath(string)
 
-		--
-		-- RFC 821, 2821, 5321 codes.
-		--
-		smtp.code.STATUS
-		smtp.code.HELP
-		smtp.code.WELCOME
-		smtp.code.GOODBYE
-		smtp.code.AUTH_OK		-- RFC 4954 section 6
-		smtp.code.OK
-		smtp.code.USER_NOT_LOCAL
+	The absolute or relative directory path to create. True on
+	success.
 
-		smtp.code.WAITING
+length[, integer] = util.date_to_time(string)
 
-		smtp.code.CLOSING
-		smtp.code.AUTH_MECHANISM	-- RFC 4954 section 6
-		smtp.code.BUSY
-		smtp.code.TRY_AGAIN_LATER
-		smtp.code.NO_STORAGE
-		smtp.code.AUTH_TEMP		-- RFC 4954 section 6
+	Convert an RFC 2822 Date & Time string into seconds from the epoch.
+	Return the length of the parsed portion of the string and a number
+	of seconds from the epoch; otherwise return a zero length if the
+	string could not be parsed.
 
-		smtp.code.BAD_SYNTAX
-		smtp.code.BAD_ARGUMENTS
-		smtp.code.UNKNOWN_COMMAND
-		smtp.code.BAD_SEQUENCE
-		smtp.code.UNKNOWN_PARAM
-		smtp.code.AUTH_REQUIRED		-- RFC 4954 section 6
-		smtp.code.AUTH_WEAK		-- RFC 4954 section 6
-		smtp.code.AUTH_FAIL		-- RFC 4954 section 6
-		smtp.code.AUTH_ENCRYPT		-- RFC 4954 section 6
-		smtp.code.REJECT
-		smtp.code.UNKNOWN_USER
-		smtp.code.OVER_QUOTA
-		smtp.code.BAD_ADDRESS
-		smtp.code.TRANSACTION_FAILED
+	This conforms:		Sun, 21 Sep 2003 22:04:27 +0200
 
-		--
-		-- Error conditions indicated SMTP like codes.
-		--
-		smtp.code.ERROR
-		smtp.code.ERROR_CONNECT
-		smtp.code.ERROR_TIMEOUT
-		smtp.code.ERROR_EOF
-		smtp.code.ERROR_IO
+	Obsolete form:		Sun, 21 Sep 03 11:30:38 GMT	(named zone)
 
-	Functions
+	Bad, but supported:	Mon Sep 22 01:39:09 2003 -0000	(ctime() + zone)
 
-smtp.code, n_rcpt_ok = smtp.sendfile(hosts[], mail, rcpts[], spool)
+	Not supported:		Mon, 22 Sep 2003 20:02:33 PM	(AM/PM not zones)
 
-	Send the spool file to host, which can be a host name, ipv4, or
-	ipv6 address with optional colon port suffix, eg.
-	[2001:0Db8::1]:2525. Specify the mail address and an array of
-	one or more recipents. The smtp.code return is the last read.
-	The number of successful recipients accepted is returned. The
-	spool file can be nil, in which case the function ends after the
-	last RCPT command and before DATA.
+	Not supported:		Mon 22 Sep 20:02:33 CDT 2003	(year & zone out of order)
+
+	The following formats are supported:
+
+		[www[,]] dd mmm yyyy [HH:MM:SS [zzzzzz]]
+		[www[,]] mmm dd HH:MM:SS yyyy [zzzzzz]
+
+	If the time zone is missing, then GMT (+0000) is assumed, which may
+	cause undefined results if the time values are used for non-local
+	comparisions.
 
 
-smtp.code, n_rcpt_ok = smtp.sendstring(hosts[], mail, rcpts[], message)
+-END-
