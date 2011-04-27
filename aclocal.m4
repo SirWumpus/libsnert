@@ -382,6 +382,8 @@ main(int argc, char **argv)
 							fi
 							if test -n "$l" ; then
 								AC_SUBST(HAVE_LIB_DB, "-l$l")
+								AC_SUBST(CFLAGS_DB, "-I$BDB_I_DIR")
+								AC_SUBST(LDFLAGS_DB, "-L$BDB_L_DIR")
 							fi
 						])
 						AC_MSG_RESULT($bdb_found)
@@ -445,6 +447,8 @@ main(int argc, char **argv)
 		AC_MSG_RESULT(${dbopen_found})
 	fi
 
+	LDFLAGS="$bdb_save_LDFLAGS"
+	CFLAGS="$bdb_save_CFLAGS"
 	AC_MSG_RESULT([checking best Berkeley DB version... $bdb_version])
 fi
 ])
@@ -618,10 +622,12 @@ AC_DEFUN(SNERT_LIBMILTER,[
 	dnl system defaults in a /usr/local hierarchy. Why this is not the
 	dnl default for gcc is beyond me.
 	saved_libs=$LIBS
+	saved_cflags=$CFLAGS
+	save_ldflags=$LDFLAGS
+
 	AC_CHECK_LIB(milter, smfi_main, [LIBS="-lmilter ${HAVE_LIB_PTHREAD} $LIBS"], [], [${HAVE_LIB_PTHREAD}])
 	if test "$ac_cv_lib_milter_smfi_main" = 'no'; then
-		save_ldflags=$LDFLAGS
-		LDFLAGS="-L/usr/local/lib ${LDFLAGS}"
+		LDFLAGS="-L/usr/local/lib ${LDFLAGS} ${LDFLAGS_PTHREAD}"
 		unset ac_cv_lib_milter_smfi_main
 		echo 'retrying with -L/usr/local/lib ...'
 		AC_CHECK_LIB(milter, smfi_main, [LIBS="-lmilter ${HAVE_LIB_PTHREAD} $LIBS"], [], [${HAVE_LIB_PTHREAD}])
@@ -643,8 +649,7 @@ AC_DEFUN(SNERT_LIBMILTER,[
 
 	AC_CHECK_HEADERS([libmilter/mfapi.h],[],[],[/* */])
 	if test "$ac_cv_header_libmilter_mfapi_h" = 'no'; then
-		saved_cflags=$CFLAGS
-		CFLAGS="-I/usr/local/include ${CFLAGS}"
+		CFLAGS="-I/usr/local/include ${CFLAGS} ${CFLAGS_PTHREAD}"
 		unset ac_cv_header_libmilter_mfapi_h
 		echo 'retrying with -I/usr/local/include ...'
 		AC_CHECK_HEADERS([libmilter/mfapi.h],[],[],[/* */])
@@ -660,18 +665,21 @@ AC_DEFUN(SNERT_LIBMILTER,[
 	fi
 
 	if test $ac_cv_header_libmilter_mfapi_h = 'yes' ; then
-		AC_CHECK_FUNCS([smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval smfi_main smfi_register smfi_replacebody smfi_setbacklog smfi_setconn smfi_setdbg smfi_setpriv smfi_setreply smfi_settimeout smfi_stop])
-		AC_CHECK_FUNCS([smfi_insheader smfi_opensocket smfi_progress smfi_quarantine smfi_setmlreply smfi_setsymlist smfi_version smfi_setmaxdatasize])
+		AC_CHECK_FUNCS([smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval smfi_insheader smfi_main smfi_opensocket smfi_progress smfi_quarantine smfi_register smfi_replacebody smfi_setbacklog smfi_setconn smfi_setdbg smfi_setmaxdatasize smfi_setmlreply smfi_setpriv smfi_setreply smfi_setsymlist smfi_settimeout smfi_stop smfi_version])
 	fi
-
-	AC_CHECK_MEMBERS([struct smfiDesc.xxfi_unknown, struct smfiDesc.xxfi_data],[],[],[
-#ifdef HAVE_LIBMILTER_MFAPI_H
-# define SMFI_VERSION	999		/* Look for all enhancements */
-# include <libmilter/mfapi.h>
-#endif
-	])
+dnl TO BE REMOVED
+dnl
+dnl 	AC_CHECK_MEMBERS([struct smfiDesc.xxfi_unknown, struct smfiDesc.xxfi_data],[],[],[
+dnl #ifdef HAVE_LIBMILTER_MFAPI_H
+dnl # define SMFI_VERSION	999		/* Look for all enhancements */
+dnl # include <libmilter/mfapi.h>
+dnl #endif
+dnl 	])
 
 	LIBS=$saved_libs
+	CFLAGS=$saved_cflags
+	LDFLAGS=$save_ldflags
+
 	snert_libmilter=$ac_cv_lib_milter_smfi_main
 ])
 
@@ -771,7 +779,6 @@ AC_DEFUN(SNERT_OPTION_WITH_WINDOWS_SDK,[
 			AC_DEFINE(WITH_WINDOWS_SDK, $with_windows_sdk)
  			CFLAGS="-mno-cygwin -I${with_windows_sdk}/include ${CFLAGS}"
 			LDFLAGS="-mno-cygwin -L${with_windows_sdk}/lib ${LDFLAGS}"
-echo $LDFLAGS
 		]
 	)
 ])
@@ -1171,15 +1178,18 @@ else
 
 		saved_libs="$LIBS"
 		AC_DEFINE(_REENTRANT)
-		CFLAGS="-D_REENTRANT ${CFLAGS}"
+		CFLAGS_PTHREAD="-D_REENTRANT"
 
 		case "$platform" in
 		FreeBSD|OpenBSD|NetBSD)
 			AC_DEFINE(_THREAD_SAFE)
-			CFLAGS="-D_THREAD_SAFE -pthread ${CFLAGS}"
-			LDFLAGS="-pthread ${LDFLAGS}"
+			CFLAGS_PTHREAD="-D_THREAD_SAFE -pthread ${CFLAGS_PTHREAD}"
+			LDFLAGS_PTHREAD="-pthread"
 			;;
 		esac
+
+		AC_SUBST(CFLAGS_PTHREAD)
+		AC_SUBST(LDFLAGS_PTHREAD)
 
 		dnl For SunOS. Beware of using AC_SEARCH_LIBS() on SunOS
 		dnl platforms, because some functions appear as stubs in
@@ -1245,7 +1255,9 @@ AC_DEFUN(SNERT_POSIX_SEMAPHORES,[
 	AC_CHECK_HEADER([semaphore.h],[
 		AC_DEFINE_UNQUOTED(HAVE_SEMAPHORE_H)
 
-dnl		saved_libs=$LIBS
+		saved_libs=$LIBS
+		LIBS=''
+
 		case "${platform}" in
 		SunOS|Solaris)
 			SNERT_CHECK_LIB(rt, sem_init)
@@ -1277,7 +1289,8 @@ dnl		saved_libs=$LIBS
 			snert_posix_semaphores='no'
 		])
 
-dnl		LIBS=$saved_libs
+		AC_SUBST(HAVE_LIB_SEM, ${LIBS})
+		LIBS=$saved_libs
 	],[
 		snert_posix_semaphores='no'
 	],[/* */])
@@ -1495,11 +1508,13 @@ else
 	saved_ldflags=$LDFLAGS
 
 	if test ${with_sqlite3:+set} = 'set' ; then
-		CFLAGS="-I${with_sqlite3}/include $CFLAGS"
-		LDFLAGS="-L${with_sqlite3}/lib $LDFLAGS"
-
-		echo "trying with -L${with_sqlite3}/lib ..."
+		CFLAGS_SQLITE3="-I${with_sqlite3}/include"
+		LDFLAGS_SQLITE3="-L${with_sqlite3}/lib"
+		echo "trying with $LDFLAGS_SQLITE3 ..."
 	fi
+
+	CFLAGS="$CFLAGS_SQLITE3 $CFLAGS"
+	LDFLAGS="$LDFLAGS_SQLITE3 $LDFLAGS"
 
 	dnl Take care in detecting libsqlite3, since its often an .so and
 	dnl not all my software requires it. However, by detecting it,
@@ -1513,37 +1528,40 @@ else
 
 	AC_CHECK_LIB(sqlite3, sqlite3_open, [LIBS="-lsqlite3 ${HAVE_LIB_PTHREAD} $LIBS"], [], [${HAVE_LIB_PTHREAD}])
 	if test "$ac_cv_lib_sqlite3_sqlite3_open" = 'no'; then
-		LDFLAGS="-L/usr/local/lib ${saved_ldflags}"
+		LDFLAGS_SQLITE3="-L/usr/local/lib"
+		LDFLAGS="${LDFLAGS_SQLITE3} ${saved_ldflags}"
 		unset ac_cv_lib_sqlite3_sqlite3_open
 		echo "retrying with -L/usr/local/lib ..."
 		AC_CHECK_LIB(sqlite3, sqlite3_open, [LIBS="-lsqlite3 ${HAVE_LIB_PTHREAD} $LIBS"], [], [${HAVE_LIB_PTHREAD}])
 		if test "$ac_cv_lib_sqlite3_sqlite3_open" = 'no'; then
-			LDFLAGS=$saved_ldflags
+			LDFLAGS_SQLITE3=''
 		fi
 	fi
 	if test "$ac_cv_lib_sqlite3_sqlite3_open" != 'no'; then
-#		AC_SUBST(HAVE_LIB_SQLITE3, '-lsqlite3')
+dnl		AC_SUBST(HAVE_LIB_SQLITE3, '-lsqlite3')
 		dnl Be sure to link with specially built static library.
 		dnl This should avoid Mac OS X linking issues by explicitly
 		dnl specifying the .a filename.
 		AC_SUBST(HAVE_LIB_SQLITE3, "$with_sqlite3/lib/libsqlite3.a")
 	fi
+	AC_SUBST(LDFLAGS_SQLITE3)
 
 	AC_CHECK_HEADERS([sqlite3.h],[],[],[/* */])
-
 	if test "$ac_cv_header_sqlite3_h" = 'no'; then
-		CFLAGS="-I/usr/local/include ${saved_cflags}"
+		CFLAGS_SQLITE3='-I/usr/local/include'
+		CFLAGS="${CFLAGS_SQLITE3} ${saved_cflags}"
 		unset ac_cv_header_sqlite3_h
 		echo "retrying with -I/usr/local/include ..."
 		AC_CHECK_HEADERS([sqlite3.h],[],[],[/* */])
 		if test "$ac_cv_header_sqlite3_h" = 'no'; then
-			CFLAGS=$saved_cflags
+		       CFLAGS_SQLITE3=''
 		fi
 	fi
-
-	AC_CHECK_FUNCS(sqlite3_open)
+	AC_SUBST(CFLAGS_SQLITE3)
 
 	LIBS=$saved_libs
+	CFLAGS=$saved_cflags
+	LDFLAGS=$save_ldflags
 fi
 ])
 
@@ -1611,16 +1629,8 @@ AC_DEFUN(SNERT_BUILD_THREADED_SQLITE3,[
 				)
 				AS_IF([test ${platform} != 'Darwin'],[sqlite3_configure_options="${sqlite3_configure_options} --enable-static --disable-shared"])
 
-				case $platform in
-				FreeBSD)
-					echo CFLAGS="'${sqlite3_cflags} -D_THREAD_SAFE -pthread ${CFLAGS}'" LDFLAGS="'-pthread ${LDFLAGS}'" ./configure ${sqlite3_configure_options}
-					CFLAGS="${sqlite3_cflags} -D_THREAD_SAFE -pthread ${CFLAGS}" LDFLAGS="-pthread ${LDFLAGS}" ./configure ${sqlite3_configure_options}
-					;;
-				*)
-					echo CFLAGS="'${sqlite3_cflags} ${CFLAGS}'" LDFLAGS="'${LDFLAGS}'" ./configure  ${sqlite3_configure_options}
-					CFLAGS="${sqlite3_cflags} ${CFLAGS}" LDFLAGS="${LDFLAGS}" ./configure  ${sqlite3_configure_options}
-					;;
-				esac
+				echo CFLAGS="'${sqlite3_cflags} ${CFLAGS} ${CFLAGS_PTHREAD}'" LDFLAGS="'${LDFLAGS} ${LDFLAGS_PTHREAD}'" ./configure  ${sqlite3_configure_options}
+				CFLAGS="${sqlite3_cflags} ${CFLAGS} ${CFLAGS_PTHREAD}" LDFLAGS="${LDFLAGS} ${LDFLAGS_PTHREAD}" ./configure  ${sqlite3_configure_options}
 				echo
 			fi
 			echo

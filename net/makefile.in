@@ -47,6 +47,14 @@ LIB_RT = @HAVE_LIB_RT@
 LIB_WS2_32 = @HAVE_LIB_WS2_32@
 LIB_IPHLPAPI = @HAVE_LIB_IPHLPAPI@
 
+LIB_PTHREAD	= @HAVE_LIB_PTHREAD@
+CFLAGS_PTHREAD	= @CFLAGS_PTHREAD@
+LDFLAGS_PTHREAD	= @LDFLAGS_PTHREAD@
+
+LIB_SQLITE3	= @HAVE_LIB_SQLITE3@
+CFLAGS_SQLITE3	= @CFLAGS_SQLITE3@
+LDFLAGS_SQLITE3	= @LDFLAGS_SQLITE3@
+
 #######################################################################
 
 #%$O : %.c
@@ -69,6 +77,8 @@ $O$E :
 
 #######################################################################
 
+IDIR := ${top_srcdir}/include
+HDIR := ${IDIR}/net
 OBJS =  getRFC2821DateTime$O formatIP$O isRFC2606$O network$O networkGetMyDetails$O \
 	parseIPv6$O isReservedIPv4$O isReservedIPv6$O isReservedIP$O ipinclient$O \
 	reverse$O pdq$O spanIP$O spanHost$O spanLocalPart$O findIP$O dnsList$O \
@@ -130,18 +140,19 @@ ipinclient$O : ipinclient.c
 	${CC} ${CFLAGS} -c ipinclient.c
 
 pdq$E : pdq.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}pdq$E pdq.c $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}pdq$E pdq.c $(LIBSNERT) ${LIBS} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
 
 formatIP$E: formatIP.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}formatIP$E formatIP.c  $(LIBSNERT) ${LIBS} ${LIB_WS2_32}
 
 server$E : server.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}server$E server.c $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}server$E server.c $(LIBSNERT) ${LIBS} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
 
-geturl$E : ../include/net/http.h http.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}geturl$E http.c $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+${HDIR}/http.h : ${IDIR}/io/socket3.h ${IDIR}/pt/pt.h ${IDIR}/util/Buf.h \
+	${IDIR}/util/uri.h ${IDIR}/sys/Time.h
 
-# Not ready
-#dnspkt$E : dnspkt.c
-#	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}dnspkt$E dnspkt.c $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+http.c : ${IDIR}/util/convertDate.h ${IDIR}/util/time62.h ${IDIR}/util/Text.h \
+	${IDIR}/io/file.h ${HDIR}/http.h
 
+geturl$E : ${LIB} http.c
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}geturl$E http.c $(LIBSNERT) ${LIBS} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}

@@ -2,7 +2,7 @@
 #	Thus it begins...
 #######################################################################
 
-AC_INIT(LibSnert, 1.74, [Anthony Howe <achowe@snert.com>])
+AC_INIT(LibSnert, 1.75, [Anthony Howe <achowe@snert.com>])
 
 dnl The autoconf version I learned to deal with.
 AC_PREREQ(2.59)
@@ -406,13 +406,12 @@ echo $PACKAGE_NAME/$package_major.$package_minor.$package_build
 echo $package_copyright
 echo
 AC_MSG_RESULT([  Platform............: $platform $CC])
-AC_MSG_RESULT([  Berkeley DB.........: $bdb_version ${HAVE_LIB_DB}])
-AC_MSG_RESULT([  POSIX Threads.......: $ac_cv_func_pthread_create $ac_cv_func_pthread_mutex_lock])
-AC_MSG_RESULT([  SQLite3.............: $ac_cv_func_sqlite3_open])
+AC_MSG_RESULT([  Berkeley DB.........: $bdb_version "$CFLAGS_DB" "$LDFLAGS_DB" "${HAVE_LIB_DB}"])
+AC_MSG_RESULT([  POSIX Threads.......: "$CFLAGS_PTHREAD" "$LDFLAGS_PTHREAD" "$HAVE_LIB_PTHREAD"])
+AC_MSG_RESULT([  SQLite3.............: "$CFLAGS_SQLITE3" "$LDFLAGS_SQLITE3" "$HAVE_LIB_SQLITE3"])
 AC_MSG_RESULT([  Sendmail libmilter..: $snert_libmilter])
 AC_MSG_RESULT([  Semaphore API.......: $semaphore_api])
 AC_MSG_RESULT([  Shared Memory API...: $shared_memory_api])
-dnl AC_MSG_RESULT([  Time API............: $time_api])
 AC_MSG_RESULT([  CFLAGS..............: $CFLAGS])
 AC_MSG_RESULT([  LDFLAGS.............: $LDFLAGS])
 AC_MSG_RESULT([  LIBS................: $LIBS])

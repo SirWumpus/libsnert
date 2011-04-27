@@ -778,6 +778,15 @@ typedef int socklen_t;
 #undef HAVE_SMFI_SETTIMEOUT
 #undef HAVE_SMFI_STOP
 #undef HAVE_SMFI_VERSION
+
+#ifdef TO_BE_REMOVED
+/* 2011-4-19 The need for this 8.13 / 8.14 transition handling
+ * has been discontinued. After five years, packages that fail
+ * to move with the times will cause milters to that require
+ * the extra features to not build or not function properly.
+ *
+ * See also aclocal.m4 SNERT_LIBMILTER.
+ */
 #undef HAVE_STRUCT_SMFIDESC_XXFI_UNKNOWN
 #undef HAVE_STRUCT_SMFIDESC_XXFI_DATA
 
@@ -794,6 +803,9 @@ typedef int socklen_t;
 #  define SET_SMFI_VERSION	2
 # endif
 #endif
+
+#endif /* TO_BE_REMOVED */
+
 
 #undef HAVE_POP_BEFORE_SMTP
 

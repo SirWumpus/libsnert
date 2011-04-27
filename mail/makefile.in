@@ -44,12 +44,21 @@ COMPILE	= @COMPILE@
 
 LIBSNERT = @LIBSNERT@
 
-LIB_DB		= @HAVE_LIB_DB@
 LIB_RT		= @HAVE_LIB_RT@
-LIB_PTHREAD	= @HAVE_LIB_PTHREAD@
-LIB_SQLITE3	= @HAVE_LIB_SQLITE3@
 LIB_WS2_32	= @HAVE_LIB_WS2_32@
 LIB_IPHLPAPI	= @HAVE_LIB_IPHLPAPI@
+
+LIB_DB		= @HAVE_LIB_DB@
+CFLAGS_DB	= @CFLAGS_DB@
+LDFLAGS_DB	= @LDFLAGS_DB@
+
+LIB_PTHREAD	= @HAVE_LIB_PTHREAD@
+CFLAGS_PTHREAD	= @CFLAGS_PTHREAD@
+LDFLAGS_PTHREAD	= @LDFLAGS_PTHREAD@
+
+LIB_SQLITE3	= @HAVE_LIB_SQLITE3@
+CFLAGS_SQLITE3	= @CFLAGS_SQLITE3@
+LDFLAGS_SQLITE3	= @LDFLAGS_SQLITE3@
 
 #######################################################################
 
@@ -132,6 +141,7 @@ tlds-alpha-by-domain.txt:
 tlds-alpha-by-domain.c : tlds.sed tlds-alpha-by-domain.txt
 	sed -f tlds.sed tlds-alpha-by-domain.txt >tlds-alpha-by-domain.c
 
+#http://www.surbl.org/tld/two-level-tlds
 two-level-tlds.txt:
 	wget -r -O two-level-tlds.txt http://spamcheck.freeapp.net/two-level-tlds
 
@@ -145,7 +155,7 @@ two-level-tlds.txt:
 # http://rss.uribl.com/hosters/hosters.txt
 
 two-level-tlds.c : tlds.sed two-level-tlds.txt
-	sed -e '/^#/d' -e 's/.*/"&",/' two-level-tlds.txt >two-level-tlds.c
+	sed -e '/^#/d' -e '/[^A-Za-z0-9.-]/d' -e 's/.*/"&",/' two-level-tlds.txt >two-level-tlds.c
 
 tlds$O : tlds-alpha-by-domain.c two-level-tlds.c tlds.c
 	$(CC) $(CFLAGS) -c tlds.c
@@ -168,15 +178,15 @@ smtp1$E : ../io/Dns$O smtpError$O smtpError$O smtpRead$O smtpWrite$O smtpOpen.c
 
 # This cannot be built until AFTER the lib/io routines have been built.
 smtp2$E : ../net/pdq$O ../io/socket2$O smtp2.c
-	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp2$E smtp2.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp2$E smtp2.c $(LIBSNERT) $(LIBS) ${LIB_PTHREAD} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
 
 # This cannot be built until AFTER the lib/io routines have been built.
 spf$E :  ../net/pdq$O spf.c
-	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)spf$E spf.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)spf$E spf.c $(LIBSNERT) $(LIBS) ${LIB_PTHREAD} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
 
 # This cannot be built until AFTER the lib/io routines have been built.
 siq$E :  ../net/pdq$O siq.c
-	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)siq$E siq.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)siq$E siq.c $(LIBSNERT) $(LIBS) ${LIB_PTHREAD} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
 
 tlds$E : tlds-alpha-by-domain.c two-level-tlds.c tlds.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)tlds$E tlds.c $(LIBSNERT) $(LIBS)
@@ -189,4 +199,7 @@ smdb$E : smdb.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smdb$E smdb.c $(LIBSNERT) ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
 
 digestbl$E : digestbl.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)digestbl$E digestbl.c $(LIBSNERT) ${LIBS} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)digestbl$E digestbl.c $(LIBSNERT) ${LIBS} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+
+smf$O : smf.c
+	${CC} ${CFLAGS_SQLITE3} ${CFLAGS} -c $*.c

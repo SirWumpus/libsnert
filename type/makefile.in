@@ -42,12 +42,21 @@ ARCHIVE		= @ARCHIVE@
 COMPILE		= @COMPILE@
 
 LIBSNERT 	= @LIBSNERT@
-LIB_DB		= @HAVE_LIB_DB@
 LIB_RT		= @HAVE_LIB_RT@
-LIB_PTHREAD	= @HAVE_LIB_PTHREAD@
-LIB_SQLITE3	= @HAVE_LIB_SQLITE3@
 LIB_WS2_32	= @HAVE_LIB_WS2_32@
 LIB_IPHLPAPI	= @HAVE_LIB_IPHLPAPI@
+
+LIB_DB		= @HAVE_LIB_DB@
+CFLAGS_DB	= @CFLAGS_DB@
+LDFLAGS_DB	= @LDFLAGS_DB@
+
+LIB_PTHREAD	= @HAVE_LIB_PTHREAD@
+CFLAGS_PTHREAD	= @CFLAGS_PTHREAD@
+LDFLAGS_PTHREAD	= @LDFLAGS_PTHREAD@
+
+LIB_SQLITE3	= @HAVE_LIB_SQLITE3@
+CFLAGS_SQLITE3	= @CFLAGS_SQLITE3@
+LDFLAGS_SQLITE3	= @LDFLAGS_SQLITE3@
 
 #######################################################################
 
@@ -133,17 +142,23 @@ lint: title
 
 list.c : ${HDIR}/list.h
 
-queue.h : ${HDIR}/list.h
+${HDIR}/queue.h : ${HDIR}/list.h
 
 queue.c : ${IDIR}/sys/pthread.h ${IDIR}/util/timer.h ${HDIR}/queue.h
 
-kvm.h : ${IDIR}/sys/pthread.h
+${HDIR}/kvm.h : ${IDIR}/sys/pthread.h
 
 kvm.c : ${IDIR}/io/socket2.h ${HDIR}/kvm.h
 
-mcc.h : ${IDIR}/io/socket2.h ${IDIR}/net/network.h ${IDIR}/sys/pthread.h ${HDIR}/Vector.h
+kvm$O : kvm.c
+	${CC} ${CFLAGS_DB} ${CFLAGS_SQLITE3} $(CFLAGS) -c $*.c
+
+${HDIR}/mcc.h : ${IDIR}/io/socket2.h ${IDIR}/net/network.h ${IDIR}/sys/pthread.h ${HDIR}/Vector.h
 
 mcc.c : ${IDIR}/io/Log.h ${IDIR}/util/md5.h ${IDIR}/util/Text.h ${HDIR}/mcc.h
+
+mcc$O : mcc.c
+	${CC} ${CFLAGS_SQLITE3} $(CFLAGS) -c $*.c
 
 Vector.c : ${HDIR}/Vector.h
 
@@ -170,15 +185,15 @@ Text$E: ../util/DebugMalloc$O Vector$O ../util/Buf$O ../util/Text$O Text.c
 
 # This cannot be built until AFTER the lib/io routines have been built.
 kvmd$E : ../io/socket2$O kvm.c
-	${WRAPPER} $(CC) -DTEST_KVMD $(CFLAGS) $(LDFLAGS) $(CC_E)kvmd$E kvm.c ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	${WRAPPER} $(CC) -DTEST_KVMD ${CFLAGS_DB} ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmd$E kvm.c ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
 
 # This cannot be built until AFTER the lib/io routines have been built.
 kvmc$E : ../io/socket2$O kvm$O kvmc.c
-	${WRAPPER} $(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)kvmc$E kvmc.c ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	${WRAPPER} $(CC) ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmc$E kvmc.c ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
 
 kvmap$E : kvm$O kvmap.c
-	${WRAPPER} $(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)kvmap$E kvmap.c kvm$O ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+	${WRAPPER} $(CC) ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmap$E kvmap.c kvm$O ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
 
 # This cannot be built until AFTER the lib/io routines have been built.
 mcc$E : ../io/socket2$O mcc.c
-	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)mcc$E mcc.c ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	${WRAPPER} $(CC) -DTEST ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)mcc$E mcc.c ${LIBSNERT} ${LIBS} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}

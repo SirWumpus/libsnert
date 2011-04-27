@@ -99,8 +99,7 @@ build: title add-lib
 	@echo '***************************************************************'
 	@echo
 	cd type; ${MAKE} ${MFLAGS} kvmap$E kvmc$E kvmd$E mcc$E
-	cd mail; ${MAKE} ${MFLAGS} mime$E parsePath$E digestbl$E siq$E smtp2$E spf$E
-	cd io;   ${MAKE} ${MFLAGS} Dns$E
+	cd mail; ${MAKE} ${MFLAGS} mime$E parsePath$E siq$E smtp2$E spf$E
 	cd net;  ${MAKE} ${MFLAGS} pdq$E server$E geturl$E
 	cd util; ${MAKE} ${MFLAGS} build-cli
 	@echo
@@ -118,7 +117,6 @@ debug: title add-lib
 	@echo
 	cd type; ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' kvmap$E kvmc$E kvmd$E mcc$E
 	cd mail; ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' siq$E smtp2$E spf$E
-	cd io;   ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' Dns$E
 	cd net;  ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' pdq$E
 	cd util; ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' uri$E
 	@echo
