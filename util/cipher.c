@@ -329,7 +329,7 @@ cipher_init(Cipher *ctx, int ct_size, const char *key, const char *seed)
 void
 cipher_char_to_code(cipher_ct table, const char *message, char *out)
 {
-	int index;
+	int index, i;
 	const char *mp;
 	char *op, *glyph;
 
@@ -343,13 +343,19 @@ cipher_char_to_code(cipher_ct table, const char *message, char *out)
 		if (table[2][index] != ' ')
 			*op++ = table[2][index];
 	}
+
+	for (i = (op - out) % 5; 0 < i && i < 5; i++)
+		*op++ = '0';
+
 	*op = '\0';
 
 	if (debug) {
 		cipher_dump_alphabet(stderr, table);
 		fputc('\n', stdout);
 		fprintf(stderr, "Using conversion table convert message to a numeric form.\n\n");
-		fprintf(stderr, "\t\"%s\"\n\t%s\n\n", message, out);
+		fprintf(stderr, "\t\"%s\"\n", message);
+		cipher_dump_numbers(stderr, out);
+		fputc('\n', stderr);
 	}
 }
 
@@ -368,7 +374,7 @@ cipher_mask_code(const char *key_mask, char *out)
 
 	if (debug) {
 		fprintf(stderr, "Column add MOD 10 using chain addition table.\n\n");
-		fprintf(stderr, "\t%s\n", out);
+//		fprintf(stderr, "\t%s\n", out);
 		cipher_dump_numbers(stderr, out);
 		fputc('\n', stderr);
 	}
@@ -410,6 +416,8 @@ cipher_encode(Cipher *ctx, const char *message)
 	size_t length;
 
 	length = strlen(message) * 2;
+	length = (length + 4) / 5 * 5;
+
 	if ((out = malloc(length+1)) == NULL)
 		return NULL;
 
