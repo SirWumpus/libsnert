@@ -140,23 +140,23 @@ extern int h_error;
 /**
  * Initialise the socket subsystem.
  */
-extern int socket_init(void);
+extern int socket3_init(void);
 
 /**
  * We're finished with the socket subsystem.
  */
-extern void socket_fini(void);
+extern void socket3_fini(void);
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open() or socket_accept().
+ *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @return
  *	Zero (0) for no error, else an errno code number and the error
  *	status of the socket is reset to zero. If there was a problem
  *	fetching the the error status, -1 is returned.
  */
-extern int socket_get_error(SOCKET fd);
+extern int socket3_get_error(SOCKET fd);
 
 /**
  * @param addr
@@ -172,22 +172,22 @@ extern int socket_get_error(SOCKET fd);
  *	A SOCKET. Its the caller's responsibility to
  *	pass this pointer to socketClose() when done.
  */
-extern SOCKET socket_open(SocketAddress *addr, int isStream);
+extern SOCKET socket3_open(SocketAddress *addr, int isStream);
 
 /**
  * Shutdown and close a socket.
  *
  * @param fd
- *	A SOCKET returned by socket_open(), socket_server(),
- *	or socket_accept().
+ *	A SOCKET returned by socket3_open(), socket3_server(),
+ *	or socket3_accept().
  */
-extern void socket_close(SOCKET fd);
+extern void socket3_close(SOCKET fd);
 
-extern void socket_set_keep_alive(SOCKET fd, int flag, int idle, int interval, int count);
+extern void socket3_set_keep_alive(SOCKET fd, int flag, int idle, int interval, int count);
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open() or socket_accept().
+ *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @param addr;
  *	A SocketAddress pointer to which the client or server
@@ -196,13 +196,13 @@ extern void socket_set_keep_alive(SOCKET fd, int flag, int idle, int interval, i
  * @return
  * 	Zero on success, otherwise SOCKET_ERROR on error and errno set.
  */
-extern int socket_bind(SOCKET fd, SocketAddress *addr);
+extern int socket3_bind(SOCKET fd, SocketAddress *addr);
 
 /**
  * Shutdown the socket.
  *
  * @param fd
- *	A SOCKET returned by socket_open() or socket_accept().
+ *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @param fdhut
  *	Shutdown the read, write, or both directions of the socket.
@@ -210,11 +210,11 @@ extern int socket_bind(SOCKET fd, SocketAddress *addr);
  * @return
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
-extern int socket_shutdown(SOCKET fd, int shut);
+extern int socket3_shutdown(SOCKET fd, int shut);
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open() or socket_accept().
+ *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @param flag
  *	If true, the socket is set non-blocking; otherwise to blocking.
@@ -223,11 +223,11 @@ extern int socket_shutdown(SOCKET fd, int shut);
  * @retrun
  *	Zero (0) on success, otherwise -1 on error.
  */
-extern int socket_set_nonblocking(SOCKET fd, int flag);
+extern int socket3_set_nonblocking(SOCKET fd, int flag);
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open(). This socket is assumed
+ *	A SOCKET returned by socket3_open(). This socket is assumed
  *	to be a connection oriented socket.
  *
  * @param flag
@@ -236,11 +236,11 @@ extern int socket_set_nonblocking(SOCKET fd, int flag);
  * @return
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
-extern int socket_set_nagle(SOCKET fd, int flag);
+extern int socket3_set_nagle(SOCKET fd, int flag);
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open(). This socket is assumed
+ *	A SOCKET returned by socket3_open(). This socket is assumed
  *	to be a connection oriented socket.
  *
  * @param fdeconds
@@ -250,11 +250,11 @@ extern int socket_set_nagle(SOCKET fd, int flag);
  * @return
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
-extern int socket_set_linger(SOCKET fd, int seconds);
+extern int socket3_set_linger(SOCKET fd, int seconds);
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open().
+ *	A SOCKET returned by socket3_open().
  *
  * @param flag
  *	True to enable address and port reuse, false to disable (default).
@@ -263,14 +263,14 @@ extern int socket_set_linger(SOCKET fd, int seconds);
  * @return
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
-extern int socket_set_reuse(SOCKET fd, int flag);
+extern int socket3_set_reuse(SOCKET fd, int flag);
 
 /**
  * Establish a TCP connection with the destination address given when
- * socket_open() created the socket.
+ * socket3_open() created the socket.
  *
  * @param fd
- *	A SOCKET returned by socket_open(). This socket is assumed
+ *	A SOCKET returned by socket3_open(). This socket is assumed
  *	to be a connection oriented socket.
  *
  * @param timeout
@@ -281,12 +281,12 @@ extern int socket_set_reuse(SOCKET fd, int flag);
  * @return
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
-extern int socket_client(SOCKET fd, SocketAddress *addr, long timeout);
+extern int socket3_client(SOCKET fd, SocketAddress *addr, long timeout);
 
 /**
  * A convenience function that combines the steps for socketAddressNew(),
- * socket_open() and socket_client() into one function call. This version
- * handles multi-homed hosts and replaces socket_openClient().
+ * socket3_open() and socket3_client() into one function call. This version
+ * handles multi-homed hosts and replaces socket3_openClient().
  *
  * @param host
  *	The server name or IP address string to connect to.
@@ -304,7 +304,7 @@ extern int socket_client(SOCKET fd, SocketAddress *addr, long timeout);
  *	A SOCKET. Its the caller's responsibility to pass this
  *	pointer to socketClose() when done.
  */
-extern SOCKET socket_connect(const char *host, unsigned port, long timeout);
+extern SOCKET socket3_connect(const char *host, unsigned port, long timeout);
 
 /**
  * @param addr
@@ -320,14 +320,14 @@ extern SOCKET socket_connect(const char *host, unsigned port, long timeout);
  * @return
  *	A server SOCKET or SOCKET_ERROR.
  */
-extern SOCKET socket_server(SocketAddress *addr, int is_stream, int queue_size);
+extern SOCKET socket3_server(SocketAddress *addr, int is_stream, int queue_size);
 
 /**
  * Wait for TCP client connections on this server socket.
  *
  * @param fd
- *	A SOCKET returned by socket_open(). This socket must be a
- *	connection oriented socket returned by socket_server().
+ *	A SOCKET returned by socket3_open(). This socket must be a
+ *	connection oriented socket returned by socket3_server().
  *
  * @param addrp
  *	A SocketAddres pointer that will contain the client address.
@@ -335,13 +335,13 @@ extern SOCKET socket_server(SocketAddress *addr, int is_stream, int queue_size);
  *
  * @return
  *	A SOCKET for the client connection. Note that its the caller's
- *	responsiblity to call socket_close() when done.
+ *	responsiblity to call socket3_close() when done.
  */
-extern SOCKET socket_accept(SOCKET fd, SocketAddress *addr);
+extern SOCKET socket3_accept(SOCKET fd, SocketAddress *addr);
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open() or socket_accept().
+ *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @param buffer
  *	A buffer to save input to. The input is first taken from the
@@ -354,13 +354,13 @@ extern SOCKET socket_accept(SOCKET fd, SocketAddress *addr);
  * @return
  *	Return the number of bytes read or SOCKET_ERROR.
  */
-extern long socket_peek(SOCKET fd, unsigned char *buffer, long size);
+extern long socket3_peek(SOCKET fd, unsigned char *buffer, long size);
 
 /**
  * Read in a chunk of input from a socket.
  *
  * @param fd
- *	A SOCKET returned by socket_open().
+ *	A SOCKET returned by socket3_open().
  *
  * @param buffer
  *	A buffer to save input to.
@@ -374,13 +374,13 @@ extern long socket_peek(SOCKET fd, unsigned char *buffer, long size);
  * @return
  *	Return the number of bytes read or SOCKET_ERROR.
  */
-extern long socket_read(SOCKET fd, unsigned char *buf, long size, SocketAddress *from);
+extern long socket3_read(SOCKET fd, unsigned char *buf, long size, SocketAddress *from);
 
 /**
  * Write buffer through a socket to the specified destination.
  *
  * @param fd
- *	A SOCKET returned by socket_open().
+ *	A SOCKET returned by socket3_open().
  *
  * @param buffer
  *	The buffer to send.
@@ -395,11 +395,11 @@ extern long socket_read(SOCKET fd, unsigned char *buf, long size, SocketAddress 
  * @return
  *	The number of bytes written or SOCKET_ERROR.
  */
-extern long socket_write(SOCKET fd, unsigned char *buf, long size, SocketAddress *to);
+extern long socket3_write(SOCKET fd, unsigned char *buf, long size, SocketAddress *to);
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open(). Its
+ *	A SOCKET returned by socket3_open(). Its
  *	assumed that this socket is connectionless.
  *
  * @param group
@@ -411,11 +411,11 @@ extern long socket_write(SOCKET fd, unsigned char *buf, long size, SocketAddress
  * @return
  *	Zero on success or SOCKET_ERROR.
  */
-extern int socket_multicast(SOCKET fd, SocketAddress *group, int join);
+extern int socket3_multicast(SOCKET fd, SocketAddress *group, int join);
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open(). This socket is assumed
+ *	A SOCKET returned by socket3_open(). This socket is assumed
  *	to be a multicast socket previously joined by socketMulticast().
  *
  * @param flag
@@ -424,11 +424,11 @@ extern int socket_multicast(SOCKET fd, SocketAddress *group, int join);
  * @return
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
-extern int socket_multicast_loopback(SOCKET fd, int flag);
+extern int socket3_multicast_loopback(SOCKET fd, int flag);
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open(). This socket is assumed
+ *	A SOCKET returned by socket3_open(). This socket is assumed
  *	to be a multicast socket previously joined by socketMulticast().
  *
  * @param ttl
@@ -437,7 +437,7 @@ extern int socket_multicast_loopback(SOCKET fd, int flag);
  * @return
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
-extern int socket_multicast_ttl(SOCKET fd, int ttl);
+extern int socket3_multicast_ttl(SOCKET fd, int ttl);
 
 /**
  * @param fd
@@ -451,9 +451,12 @@ extern int socket_multicast_ttl(SOCKET fd, int ttl);
  *	Whether to wait for input, output, or both.
  *
  * @return
- *	True if the socket is ready.
+ *	Zero if the socket is ready; otherwise errno code.
  */
-extern int socket_wait(SOCKET fd, long timeout, unsigned rw_flags);
+extern int socket3_wait(SOCKET fd, long timeout, unsigned rw_flags);
+
+#define SOCKET_WAIT_READ		0x1
+#define SOCKET_WAIT_WRITE		0x2
 
 #if defined(HAVE_KQUEUE)
 # include <sys/types.h>
@@ -463,46 +466,36 @@ extern int socket_wait(SOCKET fd, long timeout, unsigned rw_flags);
 #  define INFTIM	(-1)
 # endif
 
-# define SOCKET_WAIT_READ		EVFILT_READ
-# define SOCKET_WAIT_WRITE		EVFILT_WRITE
+extern int socket3_wait_kqueue(SOCKET fd, long ms, unsigned rw_flags);
 
-extern int socket_wait_kqueue(SOCKET fd, long ms, unsigned rw_flags);
-
-#elif defined(HAVE_EPOLL_CREATE)
+#endif
+#if defined(HAVE_EPOLL_CREATE)
 # include <sys/epoll.h>
 
-# define SOCKET_WAIT_READ		(EPOLLIN | EPOLLHUP)
-# define SOCKET_WAIT_WRITE		(EPOLLOUT | EPOLLHUP)
+extern int socket3_wait_epoll(SOCKET fd, long ms, unsigned rw_flags);
 
-extern int socket_wait_epoll(SOCKET fd, long ms, unsigned rw_flags);
-
-#elif defined(HAVE_POLL)
+#endif
+#if defined(HAVE_POLL)
 # if defined(HAVE_POLL_H)
 #  include <poll.h>
 # elif defined(HAVE_SYS_POLL_H)
 #  include <sys/poll.h>
 # endif
 
-# define SOCKET_WAIT_READ		(POLLIN | POLLHUP)
-# define SOCKET_WAIT_WRITE		(POLLOUT | POLLHUP)
+extern int socket3_wait_poll(SOCKET fd, long ms, unsigned rw_flags);
 
-extern int socket_wait_poll(SOCKET fd, long ms, unsigned rw_flags);
+#endif
+#if defined(HAVE_SELECT)
 
-#elif defined(HAVE_SELECT)
+extern int socket3_wait_select(SOCKET fd, long ms, unsigned rw_flags);
 
-# define SOCKET_WAIT_READ		0x1
-# define SOCKET_WAIT_WRITE		0x2
-
-extern int socket_wait_select(SOCKET fd, long ms, unsigned rw_flags);
-
-#else
-# error "kqueue, epoll, poll, or select APIs required."
 #endif
 
-#define socket_has_input(fd, ms)	socket_wait(fd, ms, SOCKET_WAIT_READ)
-#define socket_can_send(fd, ms)		socket_wait(fd, ms, SOCKET_WAIT_WRITE)
+#define socket3_has_input(fd, ms)	socket3_wait(fd, ms, SOCKET_WAIT_READ)
+#define socket3_can_send(fd, ms)	socket3_wait(fd, ms, SOCKET_WAIT_WRITE)
 
-extern int (*socket_wait_fn)(SOCKET, long, unsigned);
+extern int (*socket3_wait_fn)(SOCKET, long, unsigned);
+extern void socket3_wait_fn_set(const char *name);
 
 /***********************************************************************
  ***

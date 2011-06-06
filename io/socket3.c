@@ -12,6 +12,9 @@
 
 #include <com/snert/lib/version.h>
 
+#undef HAVE_KQUEUE
+#undef HAVE_EPOLL_CREATE
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -32,6 +35,20 @@
 #include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/net/pdq.h>
 #include <com/snert/lib/util/timer.h>
+#include <com/snert/lib/util/Text.h>
+
+#if defined(HAVE_KQUEUE)
+# define KQUEUE_READ		EVFILT_READ
+# define KQUEUE_WRITE		EVFILT_WRITE
+#endif
+#if defined(HAVE_EPOLL_CREATE)
+# define EPOLL_READ		(EPOLLIN | EPOLLHUP | EPOLLERR)
+# define EPOLL_WRITE		(EPOLLOUT | EPOLLHUP | EPOLLERR)
+#endif
+#if defined(HAVE_POLL)
+# define POLL_READ		(POLLIN | POLLHUP | POLLERR | POLLNVAL)
+# define POLL_WRITE		(POLLOUT | POLLHUP | POLLERR | POLLNVAL)
+#endif
 
 typedef union {
 	struct ip_mreq mreq;
@@ -44,20 +61,20 @@ typedef union {
  * Initialise the socket subsystem.
  */
 int
-socket_init(void)
+socket3_init(void)
 {
 	int rc;
 	static int initialised = 0;
 
 	if (!initialised && (rc = pdqInit()) == 0) {
 #if defined(HAVE_KQUEUE)
-		socket_wait_fn = socket_wait_kqueue;
+		socket3_wait_fn = socket3_wait_kqueue;
 #elif defined(HAVE_EPOLL_CREATE)
-		socket_wait_fn = socket_wait_epoll;
+		socket3_wait_fn = socket3_wait_epoll;
 #elif defined(HAVE_POLL)
-		socket_wait_fn = socket_wait_poll;
+		socket3_wait_fn = socket3_wait_poll;
 #elif defined(HAVE_SELECT)
-		socket_wait_fn = socket_wait_select;
+		socket3_wait_fn = socket3_wait_select;
 #endif
 		initialised = 1;
 	}
@@ -69,14 +86,14 @@ socket_init(void)
  * We're finished with the socket subsystem.
  */
 void
-socket_fini(void)
+socket3_fini(void)
 {
 	pdqFini();
 }
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open() or socket_accept().
+ *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @return
  *	Zero (0) for no error, else an errno code number and the error
@@ -84,7 +101,7 @@ socket_fini(void)
  *	fetching the the error status, SOCKET_ERROR is returned.
  */
 int
-socket_get_error(SOCKET fd)
+socket3_get_error(SOCKET fd)
 {
 	int so_error;
 	socklen_t socklen;
@@ -98,7 +115,7 @@ socket_get_error(SOCKET fd)
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open() or socket_accept().
+ *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @param flag
  *	If true, the socket is set non-blocking; otherwise to blocking.
@@ -108,7 +125,7 @@ socket_get_error(SOCKET fd)
  *	Zero (0) on success, otherwise SOCKET_ERROR on error.
  */
 int
-socket_set_nonblocking(SOCKET fd, int flag)
+socket3_set_nonblocking(SOCKET fd, int flag)
 {
 	int rc;
 	long flags;
@@ -144,7 +161,7 @@ socket_set_nonblocking(SOCKET fd, int flag)
  *	pass this pointer to socketClose() when done.
  */
 SOCKET
-socket_open(SocketAddress *addr, int isStream)
+socket3_open(SocketAddress *addr, int isStream)
 {
 	SOCKET fd;
 	int so_type;
@@ -168,7 +185,7 @@ socket_open(SocketAddress *addr, int isStream)
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open() or socket_accept().
+ *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @param addr;
  *	A SocketAddress pointer to which the client or server
@@ -178,7 +195,7 @@ socket_open(SocketAddress *addr, int isStream)
  * 	Zero on success, otherwise SOCKET_ERROR on error and errno set.
  */
 int
-socket_bind(SOCKET fd, SocketAddress *addr)
+socket3_bind(SOCKET fd, SocketAddress *addr)
 {
 	int rc;
 	socklen_t socklen;
@@ -196,7 +213,7 @@ socket_bind(SOCKET fd, SocketAddress *addr)
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open(). This socket is assumed
+ *	A SOCKET returned by socket3_open(). This socket is assumed
  *	to be a connection oriented socket.
  *
  * @param flag
@@ -206,7 +223,7 @@ socket_bind(SOCKET fd, SocketAddress *addr)
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
 int
-socket_set_nagle(SOCKET fd, int flag)
+socket3_set_nagle(SOCKET fd, int flag)
 {
 #ifdef TCP_NODELAY
 	flag = !flag;
@@ -218,7 +235,7 @@ socket_set_nagle(SOCKET fd, int flag)
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open(). This socket is assumed
+ *	A SOCKET returned by socket3_open(). This socket is assumed
  *	to be a connection oriented socket.
  *
  * @param fdeconds
@@ -229,7 +246,7 @@ socket_set_nagle(SOCKET fd, int flag)
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
 int
-socket_set_linger(SOCKET fd, int seconds)
+socket3_set_linger(SOCKET fd, int seconds)
 {
 #ifdef SO_LINGER
 	struct linger setlinger = { 1, 0 };
@@ -246,7 +263,7 @@ socket_set_linger(SOCKET fd, int seconds)
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open().
+ *	A SOCKET returned by socket3_open().
  *
  * @param flag
  *	True to enable address and port reuse, false to disable (default).
@@ -256,7 +273,7 @@ socket_set_linger(SOCKET fd, int seconds)
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
 int
-socket_set_reuse(SOCKET fd, int flag)
+socket3_set_reuse(SOCKET fd, int flag)
 {
 #if defined(SO_REUSEPORT)
 	return setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (char *) &flag, sizeof (flag));
@@ -271,7 +288,7 @@ socket_set_reuse(SOCKET fd, int flag)
  * Establish a TCP connection with the destination address.
  *
  * @param fd
- *	A SOCKET returned by socket_open(). This socket is assumed
+ *	A SOCKET returned by socket3_open(). This socket is assumed
  *	to be a connection oriented socket.
  *
  * @param timeout
@@ -283,7 +300,7 @@ socket_set_reuse(SOCKET fd, int flag)
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
 int
-socket_client(SOCKET fd, SocketAddress *addr, long timeout)
+socket3_client(SOCKET fd, SocketAddress *addr, long timeout)
 {
 	int rc = SOCKET_ERROR;
 	socklen_t socklen;
@@ -324,7 +341,7 @@ socket_client(SOCKET fd, SocketAddress *addr, long timeout)
 	 * 	(SO_ERROR  is one of the usual error codes listed here, explain-
 	 * 	ing the reason for the failure).
 	 */
-	if (socket_set_nonblocking(fd, 1))
+	if (socket3_set_nonblocking(fd, 1))
 		goto error0;
 
 	errno = 0;
@@ -337,11 +354,12 @@ socket_client(SOCKET fd, SocketAddress *addr, long timeout)
 	case EWOULDBLOCK:
 #endif
 	case EINPROGRESS:
-		if (!socket_can_send(fd, timeout))
+		(void) socket3_get_error(fd);
+		if (socket3_can_send(fd, timeout) != 0)
 			goto error1;
 
 		/* Resets the socket's copy of the error code. */
-		if (socket_get_error(fd))
+		if (socket3_get_error(fd))
 			goto error1;
 
 		/*@fallthrough@*/
@@ -349,13 +367,13 @@ socket_client(SOCKET fd, SocketAddress *addr, long timeout)
 		rc = 0;
 	}
 error1:
-	(void) socket_set_nonblocking(fd, 0);
+	(void) socket3_set_nonblocking(fd, 0);
 error0:
 	return rc;
 }
 
 static SOCKET
-socket_basic_connect(const char *host, unsigned port, long timeout)
+socket3_basic_connect(const char *host, unsigned port, long timeout)
 {
 	SOCKET fd;
 	SocketAddress *addr;
@@ -363,10 +381,10 @@ socket_basic_connect(const char *host, unsigned port, long timeout)
 	if ((addr = socketAddressNew(host, port)) == NULL)
 		return SOCKET_ERROR;
 
-	fd = socket_open(addr, 1);
+	fd = socket3_open(addr, 1);
 
-	if (socket_client(fd, addr, timeout)) {
-		socket_close(fd);
+	if (socket3_client(fd, addr, timeout)) {
+		socket3_close(fd);
 		fd = SOCKET_ERROR;
 	}
 
@@ -377,7 +395,7 @@ socket_basic_connect(const char *host, unsigned port, long timeout)
 
 /**
  * A convenience function that combines the steps for socketAddressNew()
- * socket_open() and socket_client() into one function call. This version
+ * socket3_open() and socket3_client() into one function call. This version
  * handles multi-homed hosts.
  *
  * @param host
@@ -397,7 +415,7 @@ socket_basic_connect(const char *host, unsigned port, long timeout)
  *	pointer to socketClose() when done.
  */
 SOCKET
-socket_connect(const char *host, unsigned port, long timeout)
+socket3_connect(const char *host, unsigned port, long timeout)
 {
 	int span;
 	SOCKET fd;
@@ -405,7 +423,7 @@ socket_connect(const char *host, unsigned port, long timeout)
 	PDQ_rr *list, *rr, *a_rr;
 
 	/* Simple case of IP address or local domain path? */
-	if (0 <= (fd = socket_basic_connect(host, port, timeout)))
+	if (0 <= (fd = socket3_basic_connect(host, port, timeout)))
 		return fd;
 
 	/* We have a host[:port] where the host might be multi-homed. */
@@ -447,7 +465,7 @@ socket_connect(const char *host, unsigned port, long timeout)
 		host = a_rr->name.string.value;
 
 		/* Now try to connect to this IP address. */
-		if (0 <= (fd = socket_basic_connect(((PDQ_AAAA *) a_rr)->address.string.value, port, timeout)))
+		if (0 <= (fd = socket3_basic_connect(((PDQ_AAAA *) a_rr)->address.string.value, port, timeout)))
 			break;
 
 		rr = a_rr;
@@ -474,13 +492,13 @@ socket_connect(const char *host, unsigned port, long timeout)
  *	A server SOCKET or SOCKET_ERROR.
  */
 SOCKET
-socket_server(SocketAddress *addr, int is_stream, int queue_size)
+socket3_server(SocketAddress *addr, int is_stream, int queue_size)
 {
 	SOCKET fd;
 
-	if ((fd = socket_open(addr, is_stream)) != SOCKET_ERROR) {
-		if (socket_bind(fd, addr) == SOCKET_ERROR || listen(fd, queue_size) < 0) {
-			socket_close(fd);
+	if ((fd = socket3_open(addr, is_stream)) != SOCKET_ERROR) {
+		if (socket3_bind(fd, addr) == SOCKET_ERROR || listen(fd, queue_size) < 0) {
+			socket3_close(fd);
 			fd = SOCKET_ERROR;
 		}
 	}
@@ -492,8 +510,8 @@ socket_server(SocketAddress *addr, int is_stream, int queue_size)
  * Wait for TCP client connections on this server socket.
  *
  * @param fd
- *	A SOCKET returned by socket_open(). This socket must be a
- *	connection oriented socket returned by socket_server().
+ *	A SOCKET returned by socket3_open(). This socket must be a
+ *	connection oriented socket returned by socket3_server().
  *
  * @param addrp
  *	A SocketAddres pointer that will contain the client address.
@@ -501,10 +519,10 @@ socket_server(SocketAddress *addr, int is_stream, int queue_size)
  *
  * @return
  *	A SOCKET for the client connection. Note that its the caller's
- *	responsiblity to call socket_close() when done.
+ *	responsiblity to call socket3_close() when done.
  */
 SOCKET
-socket_accept(SOCKET fd, SocketAddress *addrp)
+socket3_accept(SOCKET fd, SocketAddress *addrp)
 {
 	SOCKET client;
 	socklen_t socklen;
@@ -520,9 +538,9 @@ socket_accept(SOCKET fd, SocketAddress *addrp)
 }
 
 void
-socket_close(SOCKET fd)
+socket3_close(SOCKET fd)
 {
-	socket_shutdown(fd, SHUT_WR);
+	socket3_shutdown(fd, SHUT_WR);
 	closesocket(fd);
 }
 
@@ -530,7 +548,7 @@ socket_close(SOCKET fd)
  * Shutdown the socket.
  *
  * @param fd
- *	A SOCKET returned by socket_open() or socket_accept().
+ *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @param shut
  *	Shutdown the read (SHUT_RD), write (SHUT_WR), or both (SHUT_RDWR)
@@ -540,7 +558,7 @@ socket_close(SOCKET fd)
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
 int
-socket_shutdown(SOCKET fd, int shut)
+socket3_shutdown(SOCKET fd, int shut)
 {
 	int so_type;
 	socklen_t socklen;
@@ -553,7 +571,7 @@ socket_shutdown(SOCKET fd, int shut)
 }
 
 void
-socket_set_keep_alive(SOCKET fd, int flag, int idle, int interval, int count)
+socket3_set_keep_alive(SOCKET fd, int flag, int idle, int interval, int count)
 {
 #ifdef SO_KEEPALIVE
 	if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *) &flag, sizeof (flag)))
@@ -579,7 +597,7 @@ socket_set_keep_alive(SOCKET fd, int flag, int idle, int interval, int count)
  * socket implementation supports it.
  *
  * @param fd
- *	A SOCKET returned by socket_open().
+ *	A SOCKET returned by socket3_open().
  *
  * @param buffer
  *	The buffer to send.
@@ -594,7 +612,7 @@ socket_set_keep_alive(SOCKET fd, int flag, int idle, int interval, int count)
  *	The number of bytes written or SOCKET_ERROR.
  */
 long
-socket_write(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
+socket3_write(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
 {
 	long sent;
 	socklen_t socklen;
@@ -616,7 +634,7 @@ socket_write(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
  * Read in a chunk of input from a connectionless socket.
  *
  * @param fd
- *	A SOCKET returned by socket_open().
+ *	A SOCKET returned by socket3_open().
  *
  * @param buffer
  *	A buffer to save input to.
@@ -631,7 +649,7 @@ socket_write(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
  *	Return the number of bytes read or SOCKET_ERROR.
  */
 long
-socket_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
+socket3_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 {
 	long nbytes;
 	socklen_t socklen;
@@ -676,7 +694,7 @@ socket_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open() or socket_accept().
+ *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @param buffer
  *	A buffer to save input to. The input is first taken from the
@@ -690,14 +708,14 @@ socket_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
  *	Return the number of bytes read or SOCKET_ERROR.
  */
 long
-socket_peek(SOCKET fd, unsigned char *buffer, long size)
+socket3_peek(SOCKET fd, unsigned char *buffer, long size)
 {
 	return recv(fd, buffer, size, MSG_PEEK);
 }
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open(). Its
+ *	A SOCKET returned by socket3_open(). Its
  *	assumed that this socket is connectionless.
  *
  * @param group
@@ -710,7 +728,7 @@ socket_peek(SOCKET fd, unsigned char *buffer, long size)
  *	Zero on success or SOCKET_ERROR.
  */
 int
-socket_multicast(SOCKET fd, SocketAddress *group, int join)
+socket3_multicast(SOCKET fd, SocketAddress *group, int join)
 {
 	int rc = SOCKET_ERROR;
 
@@ -742,8 +760,8 @@ socket_multicast(SOCKET fd, SocketAddress *group, int join)
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open(). This socket is assumed
- *	to be a multicast socket previously joined by socket_multicast().
+ *	A SOCKET returned by socket3_open(). This socket is assumed
+ *	to be a multicast socket previously joined by socket3_multicast().
  *
  * @param flag
  *	True to enable multicast loopback (default), false to disable.
@@ -752,7 +770,7 @@ socket_multicast(SOCKET fd, SocketAddress *group, int join)
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
 int
-socket_multicast_loopback(SOCKET fd, int flag)
+socket3_multicast_loopback(SOCKET fd, int flag)
 {
 #ifdef IP_MULTICAST_LOOP
 	int rc;
@@ -768,7 +786,7 @@ socket_multicast_loopback(SOCKET fd, int flag)
 
 /**
  * @param fd
- *	A SOCKET returned by socket_open(). This socket is assumed
+ *	A SOCKET returned by socket3_open(). This socket is assumed
  *	to be a multicast socket previously joined by socketMulticast().
  *
  * @param ttl
@@ -778,7 +796,7 @@ socket_multicast_loopback(SOCKET fd, int flag)
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
 int
-socket_multicast_ttl(SOCKET fd, int ttl)
+socket3_multicast_ttl(SOCKET fd, int ttl)
 {
 #ifdef IP_MULTICAST_TTL
 	int rc = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, (char *) &ttl, sizeof (ttl));
@@ -791,34 +809,38 @@ socket_multicast_ttl(SOCKET fd, int ttl)
 
 #if defined(HAVE_KQUEUE)
 int
-socket_wait_kqueue(SOCKET fd, long ms, unsigned rw_flags)
+socket3_wait_kqueue(SOCKET fd, long ms, unsigned rw_flags)
 {
-	int kq;
+	int kq, error = 0;
+	struct timespec ts;
 	struct kevent event;
-	struct timespec ts, *to;
 
 	if ((kq = kqueue()) < 0)
-		goto error0;
+		return errno;
 
-	to = ms < 0 ? NULL : &ts;
+	event.ident = fd;
+	event.filter = (rw_flags & SOCKET_WAIT_READ) ? EVFILT_READ : EVFILT_WRITE;
+	event.flags = EV_ADD|EV_ENABLE;
+	event.fflags = 0;
+	event.data = 0;
+	event.udata = (intptr_t) NULL;
+
 	TIMER_SET_MS(&ts, ms);
-	EV_SET(&event, fd, rw_flags, EV_ADD|EV_ENABLE, 0, 0, NULL);
+
+	errno = 0;
 
 	/* Wait for I/O or timeout. */
-	switch (kevent(kq, &event, 1, &event, 1, to)) {
+	switch (kevent(kq, &event, 1, &event, 1, ms < 0 ? NULL : &ts)) {
 	default:
+		error = errno;
 		if (event.flags & EV_ERROR) {
-			errno = event.data;
+			error = event.data;
 		} else if (event.filter == EVFILT_READ) {
 			if ((event.flags & EV_EOF) && event.data == 0)
-				errno = event.fflags == 0 ? EPIPE : event.fflags;
-			else
-				errno = 0;
+				error = (event.fflags == 0) ? EPIPE : event.fflags;
 		} else if (event.filter == EVFILT_WRITE) {
 			if (event.flags & EV_EOF)
-				errno = event.fflags == 0 ? EPIPE : event.fflags;
-			else
-				errno = 0;
+				error = (event.fflags == 0) ? EPIPE : event.fflags;
 		}
 		break;
 	case 0:
@@ -826,59 +848,72 @@ socket_wait_kqueue(SOCKET fd, long ms, unsigned rw_flags)
 			errno = ETIMEDOUT;
 		/*@fallthrough@*/
 	case -1:
+		error = errno;
 		break;
 	}
 
 	(void) close(kq);
-error0:
-	return errno == 0;
+
+	return error;
 }
 #endif
 #if defined(HAVE_EPOLL_CREATE)
 int
-socket_wait_epoll(SOCKET fd, long ms, unsigned rw_flags)
+socket3_wait_epoll(SOCKET fd, long ms, unsigned rw_flags)
 {
 	SOCKET ev_fd;
+	int error = 0;
 	struct epoll_event event;
 
 	if ((ev_fd = epoll_create(1)) < 0)
-		goto error0;
+		return errno;
 
 	if (ms < 0)
 		ms = INFTIM;
 
+	event.events = 0;
 	event.data.ptr = NULL;
-	event.events = rw_flags;
 
-	if (epoll_ctl(ev_fd, EPOLL_CTL_ADD, fd, &event))
+	if (rw_flags & SOCKET_WAIT_READ)
+		event.events |= EPOLL_READ;
+	if (rw_flags & SOCKET_WAIT_WRITE)
+		event.events |= EPOLL_WRITE;
+
+	if (epoll_ctl(ev_fd, EPOLL_CTL_ADD, fd, &event)) {
+		error = errno;
 		goto error1;
+	}
+
+	errno = 0;
 
 	/* Wait for I/O or timeout. */
 	switch (epoll_wait(ev_fd, &event, 1, ms)) {
 	default:
+		error = errno;
 		if ((event.events & (EPOLLHUP|EPOLLIN)) == EPOLLHUP)
-			errno = EPIPE;
+			error = EPIPE;
 		else if (event.events & EPOLLERR)
-			errno = socket_get_error(fd);
+			error = socket3_get_error(fd);
 		else if (event.events & (EPOLLIN|EPOLLOUT))
-			errno = 0;
+			error = 0;
 		break;
 	case 0:
 		if (errno != EINTR)
 			errno = ETIMEDOUT;
 		/*@fallthrough@*/
 	case -1:
+		error = errno;
 		break;
 	}
 error1:
 	(void) close(ev_fd);
-error0:
-	return errno == 0;
+
+	return error;
 }
 #endif
 #if defined(HAVE_POLL)
 int
-socket_wait_poll(SOCKET fd, long ms, unsigned rw_flags)
+socket3_wait_poll(SOCKET fd, long ms, unsigned rw_flags)
 {
 	struct pollfd event;
 
@@ -886,7 +921,15 @@ socket_wait_poll(SOCKET fd, long ms, unsigned rw_flags)
 		ms = INFTIM;
 
 	event.fd = fd;
-	event.events = rw_flags;
+	event.events = 0;
+	event.revents = 0;
+
+	if (rw_flags & SOCKET_WAIT_READ)
+		event.events |= POLL_READ;
+	if (rw_flags & SOCKET_WAIT_WRITE)
+		event.events |= POLL_WRITE;
+
+	errno = 0;
 
 	/* Wait for some I/O or timeout. */
 	switch (poll(&event, 1, ms)) {
@@ -894,7 +937,7 @@ socket_wait_poll(SOCKET fd, long ms, unsigned rw_flags)
 		if ((event.revents & (POLLHUP|POLLIN)) == POLLHUP)
 			errno = EPIPE;
 		else if (event.revents & POLLERR)
-			errno = socket_get_error(fd);
+			errno = socket3_get_error(fd);
 		else if (event.revents & (POLLIN|POLLOUT))
 			errno = 0;
 		break;
@@ -906,12 +949,12 @@ socket_wait_poll(SOCKET fd, long ms, unsigned rw_flags)
 		break;
 	}
 
-	return errno == 0;
+	return errno;
 }
 #endif
 #if defined(HAVE_SELECT)
 int
-socket_wait_select(SOCKET fd, long ms, unsigned rw_flags)
+socket3_wait_select(SOCKET fd, long ms, unsigned rw_flags)
 {
 	fd_set rd, wr, err;
 	struct timeval tv, *to;
@@ -931,36 +974,72 @@ socket_wait_select(SOCKET fd, long ms, unsigned rw_flags)
 	if (select(2, &rd, &wr, &err, to) == 0)
 		errno = ETIMEDOUT;
 	else if (FD_ISSET(fd, &err))
-		errno = socket_get_error(fd);
+		errno = socket3_get_error(fd);
 	else
 		errno = 0;
 
-	return errno == 0;
+	return errno;
 }
 #endif
 
 #if defined(HAVE_KQUEUE)
-int (*socket_wait_fn)(SOCKET, long, unsigned) = socket_wait_kqueue;
+int (*socket3_wait_fn)(SOCKET, long, unsigned) = socket3_wait_kqueue;
 #elif defined(HAVE_EPOLL_CREATE)
-int (*socket_wait_fn)(SOCKET, long, unsigned) = socket_wait_epoll;
+int (*socket3_wait_fn)(SOCKET, long, unsigned) = socket3_wait_epoll;
 #elif defined(HAVE_POLL)
-int (*socket_wait_fn)(SOCKET, long, unsigned) = socket_wait_poll;
+int (*socket3_wait_fn)(SOCKET, long, unsigned) = socket3_wait_poll;
 #elif defined(HAVE_SELECT)
-int (*socket_wait_fn)(SOCKET, long, unsigned) = socket_wait_select;
+int (*socket3_wait_fn)(SOCKET, long, unsigned) = socket3_wait_select;
 #else
-# error "No suitable socket_wait function."
+# error "No suitable socket3_wait function."
 #endif
 
 int
-socket_wait(SOCKET fd, long ms, unsigned rw_flags)
+socket3_wait(SOCKET fd, long ms, unsigned rw_flags)
 {
-	if (socket_wait_fn == NULL) {
+int rc;
+	if (socket3_wait_fn == NULL) {
 		errno = EIO;
 		return 0;
 	}
 
-	return (*socket_wait_fn)(fd, ms, rw_flags);
+	rc = (*socket3_wait_fn)(fd, ms, rw_flags);
+syslog(LOG_DEBUG, "socket3_wait(%d, %ld, %u) rc=%d", fd, ms, rw_flags, rc);
+return rc;
 }
 
 
+typedef struct {
+	const char *name;
+	int (*wait_fn)(SOCKET, long, unsigned);
+} socket3_wait_mapping;
+
+static socket3_wait_mapping wait_mapping[] = {
+#if defined(HAVE_KQUEUE)
+	{ "kqueue", socket3_wait_kqueue },
+#endif
+#if defined(HAVE_EPOLL_CREATE)
+	{ "epoll", socket3_wait_epoll },
+#endif
+#if defined(HAVE_POLL)
+	{ "poll", socket3_wait_poll },
+#endif
+#if defined(HAVE_SELECT)
+	{ "select", socket3_wait_select },
+#endif
+	{ NULL, NULL }
+};
+
+void
+socket3_wait_fn_set(const char *name)
+{
+	socket3_wait_mapping *mapping;
+
+	for (mapping = wait_mapping; mapping->name != NULL; mapping++) {
+		if (TextInsensitiveCompare(mapping->name, name) == 0) {
+			socket3_wait_fn = mapping->wait_fn;
+			break;
+		}
+	}
+}
 
