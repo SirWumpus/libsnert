@@ -104,6 +104,8 @@ is no set schedule for releases.
    !	Revised build process to illimate a much as possibe linking to
 	unnecessary dynamic libraries.
 
+   !	Fixed configure scripts to work better with NetBSD.
+
 --1.74.22--
 
   !!	Fix smtp2Read() when it grows the multi-line input beyond the initial

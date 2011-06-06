@@ -1,7 +1,6 @@
 org/sqlite/makefile
 org/sqlite/sqlite-autoconf-3070500.tar.gz
 com/snert/lib/Log.pm
-com/snert/src/tools
 com/snert/include/com/snert/lib
 com/snert/include/org/valgrind
 com/snert/src/lib/.gitignore
