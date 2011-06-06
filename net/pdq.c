@@ -22,8 +22,8 @@
 #define MAX_SPR_ATTEMPTS	5
 #endif
 
-#ifndef PDQ_POLL_NEXT_PACKET_TIMEOUT_MS
-#define PDQ_POLL_NEXT_PACKET_TIMEOUT_MS		5
+#ifndef socket3_
+#define socket3_		5
 #endif
 
 #ifndef ETC_HOSTS
@@ -3011,7 +3011,7 @@ pdqPoll(PDQ *pdq, unsigned ms)
 	 */
 	sleep(1);
 #endif
-	if (socket_wait(pdq->fd, ms, SOCKET_WAIT_READ)) {
+	if (socket3_wait(pdq->fd, ms, SOCKET_WAIT_READ) == 0) {
 		int saved_errno = 0;
 		PDQ_reply *reply, *replies = NULL, *next;
 
@@ -3043,7 +3043,7 @@ pdqPoll(PDQ *pdq, unsigned ms)
 				free(reply);
 			else
 				pdq_link_add(&replies, reply);
-		} while (socket_wait(pdq->fd, PDQ_POLL_NEXT_PACKET_TIMEOUT_MS, SOCKET_WAIT_READ));
+		} while (socket3_wait(pdq->fd, socket3_, SOCKET_WAIT_READ) == 0);
 
 		/* Restore the errno related to recvfrom, since we know
 		 * that socketTimeoutIO will more than likely set errno

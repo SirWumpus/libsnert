@@ -288,21 +288,21 @@ httpSend(HttpRequest *request)
 	}
 
 	/* Open connection to web server. */
-	if ((socket = socket_connect(request->url->host, uriGetSchemePort(request->url), request->timeout)) < 0)
+	if ((socket = socket3_connect(request->url->host, uriGetSchemePort(request->url), request->timeout)) < 0)
 		goto error1;
 
 	(void) fileSetCloseOnExec(socket, 1);
-	(void) socket_set_linger(socket, 0);
-	(void) socket_set_nonblocking(socket, 1);
+	(void) socket3_set_linger(socket, 0);
+	(void) socket3_set_nonblocking(socket, 1);
 
-	if (socket_write(socket, BufBytes(req), BufLength(req), NULL) != BufLength(req))
+	if (socket3_write(socket, BufBytes(req), BufLength(req), NULL) != BufLength(req))
 		goto error2;
 
 	if (request->post_buffer != NULL) {
 		if (0 < request->debug)
 			syslog(LOG_DEBUG, "%s > (%lu bytes sent)", request->id_log, (unsigned long) request->post_size);
 
-		if (socket_write(socket, request->post_buffer, request->post_size, NULL) != request->post_size)
+		if (socket3_write(socket, request->post_buffer, request->post_size, NULL) != request->post_size)
 			goto error2;
 	}
 
@@ -310,7 +310,7 @@ httpSend(HttpRequest *request)
 
 	return socket;
 error2:
-	socket_close(socket);
+	socket3_close(socket);
 error1:
 	BufDestroy(req);
 error0:
@@ -320,17 +320,18 @@ error0:
 static
 PT_THREAD(http_read(pt_t *pt, SOCKET socket, long ms, Buf *buf))
 {
+	int rc;
 	long length;
 	unsigned char line[HTTP_LINE_SIZE];
 
 	PT_BEGIN(pt);
 
-	PT_YIELD_UNTIL(pt, socket_has_input(socket, ms) || errno != 0);
+	PT_YIELD_UNTIL(pt, (rc = socket3_has_input(socket, ms)) == 0 || rc != EINTR);
 
-	if (errno != 0)
+	if (rc != 0)
 		PT_EXIT(pt);
 
-	length = socket_read(socket, line, sizeof (line), NULL);
+	length = socket3_read(socket, line, sizeof (line), NULL);
 	if (length <= 0)
 		PT_EXIT(pt);
 	line[length] = '\0';
@@ -403,7 +404,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 		/* Stopped on a LF and not a NUL? */
 		is_crlf  = (buf->bytes[buf->offset+span] == '\n');
 
-		/* Is is a CRLF pair? */
+		/* Is it a CRLF pair? */
 		is_crlf += (0 < span && buf->bytes[buf->offset+span-1] == '\r');
 
 		span += is_crlf;
@@ -448,7 +449,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 		/* Stopped on a LF and not a NUL? */
 		is_crlf  = (buf->bytes[buf->offset+span] == '\n');
 
-		/* Is is a CRLF pair? */
+		/* Is it a CRLF pair? */
 		is_crlf += (0 < span && buf->bytes[buf->offset+span-1] == '\r');
 
 		span += is_crlf;
@@ -465,7 +466,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 	&& (*response->hook.body_end)(response, buf->bytes+response->eoh, buf->length-response->eoh) != HTTP_CONTINUE)
 		goto error1;
 error1:
-	socket_close(response->socket);
+	socket3_close(response->socket);
 error0:
 	PT_END(&response->pt);
 }
@@ -684,7 +685,7 @@ main(int argc, char **argv)
 		http_method = "GET";
 	}
 
-	if (socket_init())
+	if (socket3_init())
 		exit(EX_SOFTWARE);
 
 	for (argi = optind; argi < argc; argi++) {
