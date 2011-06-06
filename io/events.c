@@ -27,6 +27,14 @@
 # include <unistd.h>
 #endif
 
+#if HAVE_INTTYPES_H
+# include <inttypes.h>
+#else
+# if HAVE_STDINT_H
+#  include <stdint.h>
+# endif
+#endif
+
 #include <com/snert/lib/io/events.h>
 #include <com/snert/lib/type/Vector.h>
 #include <com/snert/lib/util/timer.h>

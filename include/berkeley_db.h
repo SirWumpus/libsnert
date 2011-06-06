@@ -41,22 +41,20 @@ extern "C" {
 #if defined(HAVE_DBOPEN)
 typedef enum { DB185_BTREE, DB185_HASH, DB185_RECNO } DB185_TYPE;
 
-# if defined(HAVE_DB_CREATE)
-extern DB *dbopen(const char *, int, int, DB185_TYPE, const void *);
-# endif
-
 /* Routine flags. */
-#define R_CURSOR        1               /* del, put, seq */
-#define __R_UNUSED      2               /* UNUSED */
-#define R_FIRST         3               /* seq */
-#define R_IAFTER        4               /* put (RECNO) */
-#define R_IBEFORE       5               /* put (RECNO) */
-#define R_LAST          6               /* seq (BTREE, RECNO) */
-#define R_NEXT          7               /* seq */
-#define R_NOOVERWRITE   8               /* put */
-#define R_PREV          9               /* seq (BTREE, RECNO) */
-#define R_SETCURSOR     10              /* put (RECNO) */
-#define R_RECNOSYNC     11              /* sync (RECNO) */
+#ifndef R_CURSOR
+# define R_CURSOR        1               /* del, put, seq */
+# define __R_UNUSED      2               /* UNUSED */
+# define R_FIRST         3               /* seq */
+# define R_IAFTER        4               /* put (RECNO) */
+# define R_IBEFORE       5               /* put (RECNO) */
+# define R_LAST          6               /* seq (BTREE, RECNO) */
+# define R_NEXT          7               /* seq */
+# define R_NOOVERWRITE   8               /* put */
+# define R_PREV          9               /* seq (BTREE, RECNO) */
+# define R_SETCURSOR     10              /* put (RECNO) */
+# define R_RECNOSYNC     11              /* sync (RECNO) */
+#endif
 
 /*
  * Note that DBT 4.4 has the same initial structure as 1.85.
@@ -77,6 +75,15 @@ typedef struct db_185 {
         void *internal;                 	/* Access method private. */
         int (*fd)(const struct db_185 *);
 } DB185;
+
+extern DB185 *db185open(const char *, int, mode_t, DB185_TYPE, const void *);
+
+# if defined(__NetBSD__)
+extern DB *dbopen(const char *, int, mode_t, DBTYPE, const void *);
+# else
+extern DB *dbopen(const char *, int, int, DBTYPE, const void *);
+# endif
+
 #endif
 
 #ifdef  __cplusplus
