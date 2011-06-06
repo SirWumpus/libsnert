@@ -30,21 +30,11 @@ typedef void (*EventHook)(Events *loop, Event *event);
 # include <sys/event.h>
 # include <sys/time.h>
 
-# define KQUEUE_READ		EVFILT_READ
-# define KQUEUE_WRITE		EVFILT_WRITE
-
-//typedef struct kevent os_event;
-
 extern int events_wait_kqueue(Events *loop, long ms);
 
 #endif
 #if defined(HAVE_EPOLL_CREATE)
 # include <sys/epoll.h>
-
-# define EPOLL_READ		(EPOLLIN | EPOLLHUP | EPOLLERR)
-# define EPOLL_WRITE		(EPOLLOUT | EPOLLHUP | EPOLLERR)
-
-//typedef struct epoll_event os_event;
 
 extern int events_wait_epoll(Events *loop, long ms);
 
@@ -55,11 +45,6 @@ extern int events_wait_epoll(Events *loop, long ms);
 # elif defined(HAVE_SYS_POLL_H)
 #  include <sys/poll.h>
 # endif
-
-# define POLL_READ		(POLLIN | POLLHUP | POLLERR | POLLNVAL)
-# define POLL_WRITE		(POLLOUT | POLLHUP | POLLERR | POLLNVAL)
-
-//typedef struct pollfd os_event;
 
 extern int events_wait_poll(Events *loop, long ms);
 
@@ -143,6 +128,7 @@ extern long eventsTimeout(Events *loop, const time_t *now);
 extern void eventsExpire(Events *loop, const time_t *expire);
 
 extern int (*events_wait_fn)(Events *loop, long ms);
+extern void eventsWaitFnSet(const char *name);
 
 /***********************************************************************
  ***

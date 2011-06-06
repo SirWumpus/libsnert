@@ -30,6 +30,20 @@
 #include <com/snert/lib/io/events.h>
 #include <com/snert/lib/type/Vector.h>
 #include <com/snert/lib/util/timer.h>
+#include <com/snert/lib/util/Text.h>
+
+#if defined(HAVE_KQUEUE)
+# define KQUEUE_READ		EVFILT_READ
+# define KQUEUE_WRITE		EVFILT_WRITE
+#endif
+#if defined(HAVE_EPOLL_CREATE)
+# define EPOLL_READ		(EPOLLIN | EPOLLHUP | EPOLLERR)
+# define EPOLL_WRITE		(EPOLLOUT | EPOLLHUP | EPOLLERR)
+#endif
+#if defined(HAVE_POLL)
+# define POLL_READ		(POLLIN | POLLHUP | POLLERR | POLLNVAL)
+# define POLL_WRITE		(POLLOUT | POLLHUP | POLLERR | POLLNVAL)
+#endif
 
 int
 eventGetEnabled(Event *event)
@@ -70,21 +84,17 @@ events_wait_kqueue(Events *loop, long ms)
 {
 	time_t now;
 	Event *event;
+	struct timespec ts;
 	struct kevent *k_ev;
-	int io_want, io_seen;
-	int i, fd_length, fd_active, fd_ready, saved_errno;
+	int i, fd_length, fd_active, fd_ready;
+	int kq, saved_errno, io_want, io_seen;
 
-	int kq;
-	struct timespec ts, *to = NULL;
-
-	errno = 0;
 	fd_length = VectorLength(loop->events);
+	if (fd_length <= 0)
+		return EINVAL;
 
-	if (fd_length <= 0 || (kq = kqueue()) < 0)
-		goto error0;
-
-	to = ms < 0 ? NULL : &ts;
-	TIMER_SET_MS(&ts, ms);
+	if ((kq = kqueue()) < 0)
+		return errno;
 
 	/* Create file descriptors list. */
 	fd_active = 0;
@@ -94,16 +104,18 @@ events_wait_kqueue(Events *loop, long ms)
 			io_want = (event->io_type & EVENT_READ) ? EVFILT_READ : EVFILT_WRITE;
 			EV_SET(
 				&((struct kevent *)loop->set)[fd_active], event->fd,
-				io_want, EV_ADD|EV_ENABLE, 0, 0, event
+				io_want, EV_ADD|EV_ENABLE, 0, 0, (intptr_t) event
 			);
 			fd_active++;
 		}
 	}
 
+	TIMER_SET_MS(&ts, ms);
+
 	errno = 0;
 
 	/* Wait for some I/O or timeout. */
-	switch (fd_ready = kevent(kq, (struct kevent *)loop->set, fd_active, (struct kevent *)loop->set, fd_active, to)) {
+	switch (fd_ready = kevent(kq, (struct kevent *)loop->set, fd_active, (struct kevent *)loop->set, fd_active, ms < 0 ? NULL : &ts)) {
 	case 0:
 		if (errno != EINTR)
 			errno = ETIMEDOUT;
@@ -120,9 +132,10 @@ events_wait_kqueue(Events *loop, long ms)
 	for (i = 0; i < fd_ready; i++) {
 		k_ev = &((struct kevent *) loop->set)[i];
 
-		if ((event = k_ev->udata) == NULL || !event->enabled)
+		if ((event = (Event *)k_ev->udata) == NULL || !event->enabled)
 			continue;
 
+		errno = 0;
 		io_seen = 0;
 		io_want = event->io_type;
 
@@ -131,14 +144,10 @@ events_wait_kqueue(Events *loop, long ms)
 		} else if(k_ev->filter == EVFILT_READ) {
 			if ((k_ev->flags & EV_EOF) && k_ev->data == 0)
 				errno = k_ev->flags == 0 ? EPIPE : k_ev->flags;
-			else
-				errno = 0;
 			io_seen = EVENT_READ;
 		} else if(k_ev->filter == EVFILT_WRITE) {
 			if (k_ev->flags & EV_EOF)
 				errno = k_ev->flags == 0 ? EPIPE : k_ev->flags;
-			else
-				errno = 0;
 			io_seen = EVENT_WRITE;
 		} else {
 			/* errno might be changed by the event hook, so
@@ -162,9 +171,10 @@ next_event:
 		;
 	}
 error1:
+	saved_errno = errno;
 	(void) close(kq);
-error0:
-	return errno;
+
+	return saved_errno;
 }
 #endif
 #if defined(HAVE_EPOLL_CREATE)
@@ -181,11 +191,12 @@ events_wait_epoll(Events *loop, long ms)
 
 	int ev_fd;
 
-	errno = 0;
 	fd_length = VectorLength(loop->events);
+	if (fd_length <= 0)
+		return EINVAL;
 
-	if (fd_length <= 0 || (ev_fd = epoll_create(fd_length)) < 0)
-		goto error0;
+	if ((ev_fd = epoll_create(fd_length)) < 0)
+		return errno;
 
 	if (ms < 0)
 		ms = INFTIM;
@@ -234,10 +245,8 @@ events_wait_epoll(Events *loop, long ms)
 		if ((e_ev->events & (EPOLLHUP|EPOLLIN)) == EPOLLHUP)
 			errno = EPIPE;
 		else if (e_ev->events & EPOLLERR)
-			errno = socket_get_error(event->fd);
-		else if (e_ev->events & (EPOLLIN|EPOLLOUT))
-			errno = 0;
-		else
+			errno = socket3_get_error(event->fd);
+		else if (!(e_ev->events & (EPOLLIN|EPOLLOUT)))
 			errno = saved_errno;
 
 		io_want = 0;
@@ -256,9 +265,10 @@ next_event:
 		;
 	}
 error1:
+	saved_errno = errno;
 	(void) close(ev_fd);
-error0:
-	return errno;
+
+	return saved_errno;
 }
 #endif
 #if defined(HAVE_POLL)
@@ -289,7 +299,8 @@ events_wait_poll(Events *loop, long ms)
 			if (event->io_type & EVENT_WRITE)
 				io_want |= POLL_WRITE;
 			p_ev = &((struct pollfd *) loop->set)[fd_active];
-			p_ev->events = event->enabled ? io_want : 0;
+			p_ev->events = io_want;
+			p_ev->revents = 0;
 			p_ev->fd = event->fd;
 			fd_active++;
 		}
@@ -312,20 +323,20 @@ events_wait_poll(Events *loop, long ms)
 	(void) time(&now);
 	if (SIGSETJMP(loop->on_error, 1) != 0)
 		goto next_event;
-	for (i = 0; i < fd_active; i++) {
+
+	fd_active = 0;
+	for (i = 0; i < fd_length; i++) {
 		if ((event = VectorGet(loop->events, i)) == NULL || !event->enabled)
 			continue;
 
-		p_ev = &((struct pollfd *) loop->set)[i];
+		p_ev = &((struct pollfd *) loop->set)[fd_active++];
 
 		if (p_ev->fd == event->fd) {
-			if ((p_ev->events & (POLLHUP|POLLIN)) == POLLHUP)
+			if ((p_ev->revents & (POLLHUP|POLLIN)) == POLLHUP)
 				errno = EPIPE;
-			else if (p_ev->events & POLLERR)
+			else if (p_ev->revents & POLLERR)
 				errno = EIO;
-			else if (p_ev->events & (POLLIN|POLLOUT))
-				errno = 0;
-			else
+			else if (!(p_ev->revents & (POLLIN|POLLOUT)))
 				errno = saved_errno;
 
 			io_want = 0;
@@ -556,3 +567,33 @@ eventsFree(Events *loop)
 	}
 }
 
+typedef struct {
+	const char *name;
+	int (*wait_fn)(Events *loop, long ms);
+} eventsWaitMapping;
+
+static eventsWaitMapping wait_mapping[] = {
+#if defined(HAVE_KQUEUE)
+	{ "kqueue", events_wait_kqueue },
+#endif
+#if defined(HAVE_EPOLL_CREATE)
+	{ "epoll", events_wait_epoll },
+#endif
+#if defined(HAVE_POLL)
+	{ "poll", events_wait_poll },
+#endif
+	{ NULL, NULL }
+};
+
+void
+eventsWaitFnSet(const char *name)
+{
+	eventsWaitMapping *mapping;
+
+	for (mapping = wait_mapping; mapping->name != NULL; mapping++) {
+		if (TextInsensitiveCompare(mapping->name, name) == 0) {
+			events_wait_fn = mapping->wait_fn;
+			break;
+		}
+	}
+}
