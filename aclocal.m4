@@ -283,37 +283,24 @@ else
 	bdb_save_CFLAGS=$CFLAGS
 	bdb_save_LDFLAGS=$LDFLAGS
 
-	count=1
-	while test $count -gt 0 ; do
-		unset ac_cv_header_db_h
-		unset ac_cv_search_dbopen
+	# Find short list of system directories to try.
+	BDB_BASE_DIRS="$with_db /opt/csw/bdb4 /opt /usr/pkg /usr/local /usr"
 
-		BDB_BASE_DIRS="$with_db /opt/csw/bdb4 /opt /usr/local /usr"
-		BDB_VERSIONS='4.7 4.6 4.5 4.4 4.3 4.2 4.1 4.0 3.3 3.2'
-		BDB_NAMES='db-4.7 db4.7 db47 db-4.6 db4.6 db46 db-4.5 db4.5 db45 db-4.4 db4.4 db44 db-4.3 db4.3 db43 db-4.2 db4.2 db42 db-4.1 db4.1 db41 db-4 db4 db-3.3 db3.3 db33 db-3.2 db3.2 db32 db-3 db3 db'
+	bdb_found='no'
+	for d in $BDB_BASE_DIRS ; do
+		if test -d "$d/include" ; then
+			bdb_dir_list="$bdb_dir_list $d"
+			bdb_i_dirs=`ls -d $d/include/db[[0-9]] $d/include/db $d/include 2>/dev/null | sort -r`
 
-		# Find short list of directories to try.
-		for d in $BDB_BASE_DIRS ; do
-			if test -r $d/include -a -d $d/lib ; then
-				bdb_dir_list="$bdb_dir_list $d"
-			fi
+			for BDB_I_DIR in $bdb_i_dirs ; do
+				AC_MSG_CHECKING([for db.h in $BDB_I_DIR])
 
-			for v in $BDB_VERSIONS ; do
-				if test -r $d/BerkeleyDB.$v ; then
-					bdb_dir_list="$bdb_dir_list $d/BerkeleyDB.$v"
-				fi
-			done
-		done
-
-		bdb_found='no'
-		for d in $bdb_dir_list ; do
-			for v in $BDB_NAMES . ; do
-				AC_MSG_CHECKING([for db.h in $d/include/$v])
-
-				if test -r $d/include/$v/db.h ; then
+				if test -r $BDB_I_DIR/db.h ; then
 					AC_MSG_RESULT(yes)
-
-					BDB_I_DIR="$d/include/$v"
+					v=`basename $BDB_I_DIR`
+					if test $v = 'include' ; then
+						 v=''
+					fi
 
 					if test -d $d/lib64/$v -a $v != '.' ; then
 						BDB_L_DIR="$d/lib64/$v"
@@ -342,7 +329,7 @@ else
 						bdb_create='dbopen'
 					fi
 
-					for l in db-$bdb_major.$bdb_minor db$bdb_major.$bdb_minor db$bdb_major$bdb_minor db$bdb_major db ''; do
+					for l in $v db ''; do
 						if test -n "$l" ; then
 							LIBS="-l$l $LIBS"
 							bdb_name=$l
@@ -400,24 +387,9 @@ main(int argc, char **argv)
 				fi
 			done
 			test ${bdb_found:-no} = 'yes' && break
-		done
-
-		bdb_version="$bdb_major.$bdb_minor"
-
-		if test ${isDebian:-no} = 'yes' -a ${bdb_found:-no} = 'no'; then
-			# Fetch headers matching library.
-			AC_MSG_NOTICE([getting package libdb${bdb_version}-dev...])
-			AS_IF([apt-get install -y libdb${bdb_version}-dev],[
-				AC_MSG_NOTICE([getting package libdb${bdb_version}-dev... done])
-				count=`expr $count + 1`
-				AC_MSG_NOTICE([retrying after development package install...])
-			],[
-				AC_MSG_NOTICE([getting package libdb${bdb_version}-dev... FAILED])
-			])
 		fi
-
-		count=`expr $count - 1`
 	done
+	bdb_version="$bdb_major.$bdb_minor"
 
 	if test ${bdb_found:-no} = 'yes' -a ${bdb_version} != '1.85' ; then
 		AC_MSG_CHECKING([for dbopen in library libc])
@@ -614,73 +586,47 @@ dnl SNERT_LIBMILTER
 dnl
 dnl Depends on SNERT_PTHREAD
 dnl
+AC_DEFUN(SNERT_OPTION_WITH_MILTER,[
+	AC_ARG_WITH(lua, [[  --with-milter[=DIR]     include milter support]])
+])
 AC_DEFUN(SNERT_LIBMILTER,[
 	echo
 	echo "Check for sendmail's libmilter library & header support..."
 	echo
-	dnl Always add these paths, since its common practice to override
-	dnl system defaults in a /usr/local hierarchy. Why this is not the
-	dnl default for gcc is beyond me.
-	saved_libs=$LIBS
-	saved_cflags=$CFLAGS
-	save_ldflags=$LDFLAGS
 
-	AC_CHECK_LIB(milter, smfi_main, [LIBS="-lmilter ${HAVE_LIB_PTHREAD} $LIBS"], [], [${HAVE_LIB_PTHREAD}])
-	if test "$ac_cv_lib_milter_smfi_main" = 'no'; then
-		LDFLAGS="-L/usr/local/lib ${LDFLAGS} ${LDFLAGS_PTHREAD}"
-		unset ac_cv_lib_milter_smfi_main
-		echo 'retrying with -L/usr/local/lib ...'
-		AC_CHECK_LIB(milter, smfi_main, [LIBS="-lmilter ${HAVE_LIB_PTHREAD} $LIBS"], [], [${HAVE_LIB_PTHREAD}])
-		if test "$ac_cv_lib_milter_smfi_main" = 'no'; then
-			LDFLAGS=$save_ldflags
-		fi
-	fi
-	if test ${isDebian:-no} = 'yes' -a "$ac_cv_lib_milter_smfi_main" = 'no'; then
-		apt-get install -y libmilter-dev
-		unset ac_cv_lib_milter_smfi_main
-		echo 'retrying after development package update...'
-		AC_CHECK_LIB(milter, smfi_main, [LIBS="-lmilter ${HAVE_LIB_PTHREAD} $LIBS"], [], [${HAVE_LIB_PTHREAD}])
-	fi
-	if test "$ac_cv_lib_milter_smfi_main" = 'no'; then
-		ac_cv_lib_milter_smfi_main='required'
-	else
-		AC_SUBST(HAVE_LIB_MILTER, '-lmilter')
-	fi
+	saved_libs="$LIBS"
+	saved_cflags="$CFLAGS"
+	saved_ldflags="$LDFLAGS"
 
-	AC_CHECK_HEADERS([libmilter/mfapi.h],[],[],[/* */])
-	if test "$ac_cv_header_libmilter_mfapi_h" = 'no'; then
-		CFLAGS="-I/usr/local/include ${CFLAGS} ${CFLAGS_PTHREAD}"
+if test ${with_milter:-default} != 'no' ; then
+	for d in $with_milter /usr/local /usr/pkg ; do
+		unset ac_cv_search_smfi_main
 		unset ac_cv_header_libmilter_mfapi_h
-		echo 'retrying with -I/usr/local/include ...'
+
+		CFLAGS_MILTER="-I$d/include"
+		LDFLAGS_MILTER="-L$d/lib"
+		echo "trying with $LDFLAGS_MILTER ..."
+
+		CFLAGS="$CFLAGS_MILTER $saved_cflags"
+		LDFLAGS="$LDFLAGS_MILTER $saved_ldflags"
+
+		AC_SEARCH_LIBS([smfi_main], [milter], [LIBS="-lmilter ${HAVE_LIB_PTHREAD} $LIBS"], [], [${HAVE_LIB_PTHREAD}])
 		AC_CHECK_HEADERS([libmilter/mfapi.h],[],[],[/* */])
-		if test "$ac_cv_header_libmilter_mfapi_h" = 'no'; then
-			CFLAGS=$saved_cflags
+
+		if test "$ac_cv_search_smfi_main" != 'no' -a "$ac_cv_header_libmilter_mfapi_h" != 'no' ; then
+			AC_CHECK_FUNCS([smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval smfi_insheader smfi_main smfi_opensocket smfi_progress smfi_quarantine smfi_register smfi_replacebody smfi_setbacklog smfi_setconn smfi_setdbg smfi_setmaxdatasize smfi_setmlreply smfi_setpriv smfi_setreply smfi_setsymlist smfi_settimeout smfi_stop smfi_version])
+			AC_SUBST(HAVE_LIB_MILTER, "-lmilter")
+			AC_SUBST(LDFLAGS_MILTER)
+			AC_SUBST(CFLAGS_MILTER)
+			with_milter="$d"
+			break
 		fi
-	fi
-	if test ${isDebian:-no} = 'yes' -a "$ac_cv_header_libmilter_mfapi_h" = 'no'; then
-		apt-get install -y libmilter-dev
-		unset ac_cv_header_libmilter_mfapi_h
-		echo 'retrying after development package update...'
-		AC_CHECK_HEADERS([libmilter/mfapi.h],[],[],[/* */])
-	fi
+	done
 
-	if test $ac_cv_header_libmilter_mfapi_h = 'yes' ; then
-		AC_CHECK_FUNCS([smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval smfi_insheader smfi_main smfi_opensocket smfi_progress smfi_quarantine smfi_register smfi_replacebody smfi_setbacklog smfi_setconn smfi_setdbg smfi_setmaxdatasize smfi_setmlreply smfi_setpriv smfi_setreply smfi_setsymlist smfi_settimeout smfi_stop smfi_version])
-	fi
-dnl TO BE REMOVED
-dnl
-dnl 	AC_CHECK_MEMBERS([struct smfiDesc.xxfi_unknown, struct smfiDesc.xxfi_data],[],[],[
-dnl #ifdef HAVE_LIBMILTER_MFAPI_H
-dnl # define SMFI_VERSION	999		/* Look for all enhancements */
-dnl # include <libmilter/mfapi.h>
-dnl #endif
-dnl 	])
-
-	LIBS=$saved_libs
-	CFLAGS=$saved_cflags
-	LDFLAGS=$save_ldflags
-
-	snert_libmilter=$ac_cv_lib_milter_smfi_main
+	LIBS="$saved_libs"
+	CFLAGS="$saved_cflags"
+	LDFLAGS="$save_ldflags"
+fi
 ])
 
 dnl
@@ -1485,6 +1431,47 @@ AC_DEFUN(SNERT_TERMIOS,[
 	])
 ])
 
+AC_DEFUN(SNERT_OPTION_WITH_LUA,[
+	AC_ARG_WITH(lua, [[  --with-lua[=DIR]        include Lua support]])
+])
+AC_DEFUN(SNERT_LUA,[
+	echo
+	echo "Check for Lua..."
+	echo
+
+if test ${with_lua:-default} != 'no' ; then
+	saved_libs="$LIBS"
+	saved_cflags="$CFLAGS"
+	saved_ldflags="$LDFLAGS"
+
+	for d in $with_lua /usr/local /usr/pkg ; do
+		unset ac_cv_search_luaL_newstate
+		unset ac_cv_header_lua_h
+
+		CFLAGS_LUA="-I$d/include"
+		LDFLAGS_LUA="-L$d/lib -Wl,-E"
+		echo "trying with $LDFLAGS_LUA ..."
+
+		CFLAGS="$CFLAGS_LUA $saved_cflags"
+		LDFLAGS="$LDFLAGS_LUA $saved_ldflags"
+
+		AC_SEARCH_LIBS([luaL_newstate], [lua], [LIBS="-llua -lm $LIBS"], [], [-lm])
+		AC_CHECK_HEADERS([lua.h],[],[],[/* */])
+
+		if test "$ac_cv_search_luaL_newstate" != 'no' -a "$ac_cv_header_lua_h" != 'no' ; then
+			AC_SUBST(HAVE_LIB_LUA, "-llua -lm")
+			AC_SUBST(LDFLAGS_LUA)
+			AC_SUBST(CFLAGS_LUA)
+			with_lua="$d"
+			break
+		fi
+	done
+
+	LIBS="$saved_libs"
+	CFLAGS="$saved_cflags"
+	LDFLAGS="$save_ldflags"
+fi
+])
 
 dnl
 dnl SNERT_OPTION_WITH_SQLITE3
