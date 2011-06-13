@@ -91,7 +91,7 @@ LogPrintV(int level, const char *msg, va_list args)
 	(void) strftime(stamp, sizeof (stamp), "%Y-%m-%d %H:%M:%S", &local);
 
 	length = snprintf(
-		buffer, sizeof (buffer), "%s %s:%04lu %s ",
+		buffer, sizeof (buffer), "%s %s:%lu %s ",
 		stamp, programName, (unsigned long) getpid(), logLevels[level]
 	);
 
