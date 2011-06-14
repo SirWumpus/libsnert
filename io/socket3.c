@@ -620,8 +620,14 @@ socket3_write(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
 	if (buffer == NULL || size <= 0)
 		return 0;
 
+	errno = 0;
 	socklen = socketAddressLength(to);
 
+#if defined(HAVE_ISATTY)
+	if (isatty(fd))
+		sent = write(fd, buffer, size);
+	else
+#endif
 	if (to == NULL)
 		sent = send(fd, buffer, size, 0);
 	else
@@ -657,6 +663,7 @@ socket3_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 	if (buffer == NULL || size <= 0)
 		return 0;
 
+	errno = 0;
 	socklen = from == NULL ? 0 : sizeof (*from);
 
 /* On Windows, a portable program has to use recv()/send() to
@@ -678,6 +685,11 @@ socket3_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 	else
 		nbytes = read(fd, buffer, size, 0, (struct sockaddr *) from, &socklen);
 #else
+#if defined(HAVE_ISATTY)
+	if (isatty(fd))
+		nbytes = read(fd, buffer, size);
+	else
+#endif
 	if (from == NULL)
 		nbytes = recv(fd, buffer, size, 0);
 	else
@@ -997,15 +1009,12 @@ int (*socket3_wait_fn)(SOCKET, long, unsigned) = socket3_wait_select;
 int
 socket3_wait(SOCKET fd, long ms, unsigned rw_flags)
 {
-int rc;
 	if (socket3_wait_fn == NULL) {
 		errno = EIO;
 		return 0;
 	}
 
-	rc = (*socket3_wait_fn)(fd, ms, rw_flags);
-syslog(LOG_DEBUG, "socket3_wait(%d, %ld, %u) rc=%d", fd, ms, rw_flags, rc);
-return rc;
+	return (*socket3_wait_fn)(fd, ms, rw_flags);
 }
 
 
