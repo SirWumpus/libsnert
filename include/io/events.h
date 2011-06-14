@@ -115,6 +115,8 @@ extern void eventSetTimeout(Event *event, long seconds);
 extern long eventGetTimeout(Event *event);
 extern void eventSetEnabled(Event *event, int flag);
 extern  int eventGetEnabled(Event *event);
+extern void eventSetType(Event *event, int type);
+extern  int eventGetType(Event *event);
 
 extern  int eventAdd(Events *loop, Event *event);
 extern void eventRemove(Events *loop, Event *event);

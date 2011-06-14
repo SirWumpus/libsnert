@@ -65,6 +65,18 @@ eventSetEnabled(Event *event, int flag)
 	event->enabled = flag;
 }
 
+int
+eventGetType(Event *event)
+{
+	return event->io_type;
+}
+
+void
+eventSetType(Event *event, int type)
+{
+	event->io_type = type;
+}
+
 long
 eventGetTimeout(Event *event)
 {
