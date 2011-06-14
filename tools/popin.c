@@ -3,7 +3,7 @@
  *
  * RFC 1939
  *
- * Copyright 2004, 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2004, 2011 by Anthony Howe.  All rights reserved.
  *
  *
  * Description
@@ -86,6 +86,7 @@
 #define CMD_UIDL		0x0004
 #define CMD_READ		0x0008
 #define CMD_DELETE		0x0010
+#define CMD_MBOX		0x0020
 
 static int debug;
 static int cmdFlags;
@@ -96,11 +97,12 @@ static long socketTimeout = DEFAULT_SOCKET_TIMEOUT;
 static char line[INPUT_LINE_SIZE+1];
 
 static char usage[] =
-"usage: " _NAME " [-dlrsuv][-h host][-p port] user pass [msgnum ...] >output\n"
+"usage: " _NAME " [-dlmrsuv][-h host][-p port] user pass [msgnum ...] >output\n"
 "\n"
 "-d\t\tdelete specified messages; default is leave on server\n"
 "-l\t\tlist specified message sizes; default is all\n"
 "-h host\t\tPOP host to contact, default localhost\n"
+"-m\t\toutput in pseudo mbox format\n"
 "-p port\t\tPOP port to connect to, default 110\n"
 "-r\t\tread specified messages or all messages if none specified\n"
 "-s\t\treturn total number of messages and size\n"
@@ -114,7 +116,7 @@ static char usage[] =
 "\t\ttotal number of messages for the account\n"
 "output\t\tread messages are written to standard output. \n"
 "\n"
-_NAME "/1.2 Copyright 2004, 2007 by Anthony Howe.  All rights reserved.\n"
+_NAME "/1.3 Copyright 2004, 2011 by Anthony Howe.  All rights reserved.\n"
 ;
 
 /***********************************************************************
@@ -140,9 +142,10 @@ int
 printline(Socket2 *s, char *line)
 {
 	int rc = 0;
+	long length = (long) strlen(line);
 
 	if (debug)
-		syslog(LOG_DEBUG, "> %s", line);
+		syslog(LOG_DEBUG, "> %ld:%s", length, line);
 
 #if defined(NON_BLOCKING_WRITE)
 # if ! defined(NON_BLOCKING_READ)
@@ -150,7 +153,7 @@ printline(Socket2 *s, char *line)
 	(void) socketSetNonBlocking(s, 1);
 # endif
 
-	if (socketWrite(s, (unsigned char *) line, (long) strlen(line)) == SOCKET_ERROR) {
+	if (socketWrite(s, (unsigned char *) line, length) == SOCKET_ERROR) {
 		syslog(LOG_ERR, "SocketPrint() error: %s (%d)", strerror(errno), errno);
 		goto error0;
 	}
@@ -210,7 +213,7 @@ getSocketLine(Socket2 *s, char *line, long size)
 	}
 
 	if (debug)
-		syslog(LOG_DEBUG, "< %s", line);
+		syslog(LOG_DEBUG, "< %ld:%s", length, line);
 error0:
 
 #if defined(NON_BLOCKING_READ) && ! defined(NON_BLOCKING_WRITE)
@@ -247,6 +250,9 @@ popStatus(Socket2 *pop, long *count, long *bytes)
 		syslog(LOG_ERR, "STAT syntax error");
 		return -1;
 	}
+
+	if (0 < debug)
+		syslog(LOG_DEBUG, "messages=%ld, bytes=%ld", *count, *bytes);
 
 	return 0;
 }
@@ -308,16 +314,32 @@ popRead(Socket2 *pop, long message)
 		return -1;
 	}
 
+	if (cmdFlags & CMD_MBOX) {
+		time_t now;
+		(void) time(&now);
+		printf("From - %s", ctime(&now));
+	}
+
 	while (0 <= (length = getSocketLine(pop, line, sizeof (line)))) {
 		if ((long) sizeof (line) <= length)
 			syslog(LOG_WARN, "message input line truncated");
 
-		printf("%s\r\n", line);
+		if ((cmdFlags & CMD_MBOX) != CMD_MBOX)
+			printf("%s\r\n", line);
 
 		if (line[0] == '.' && line[1] == '\0') {
 			break;
 		}
+
+		if ((cmdFlags & CMD_MBOX) == CMD_MBOX) {
+			if (strncmp(line, "From ", sizeof ("From ")-1) == 0)
+				fputc('>', stdout);
+			printf("%s\r\n", line);
+		}
 	}
+
+	if (cmdFlags & CMD_MBOX)
+		fputs("\r\n", stdout);
 
 	return 0;
 }
@@ -340,8 +362,6 @@ forEach(Socket2 *pop, long start, long stop, int (*function)(Socket2 *pop, long 
 {
 	if (start < 1)
 		start = 1;
-	if (stop < 1)
-		stop = 1;
 
 	for ( ; start <= stop; start++) {
 		if ((*function)(pop, start))
@@ -392,6 +412,9 @@ main(int argc, char **argv)
 		case 'r':
 			cmdFlags |= CMD_READ;
 			break;
+		case 'm':
+			cmdFlags |= CMD_MBOX;
+			break;
 		case 's':
 			cmdFlags |= CMD_STATUS;
 			break;
@@ -417,7 +440,6 @@ main(int argc, char **argv)
 			break;
 		case 'v':
 			LogSetProgramName(_NAME);
-			socketSetDebug(1);
 			debug++;
 			break;
 		default:
