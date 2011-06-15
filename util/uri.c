@@ -1168,7 +1168,7 @@ uri_mime_header(Mime *m, void *_data)
 	UriMime *hold = _data;
 
 	if (hold->headers_and_body) {
-		char *s;
+		unsigned char *s;
 		for (s = m->source.buffer; *s != '\0'; s++)
 			uri_mime_decoded_octet(m, *s, _data);
 		uri_mime_decoded_octet(m, '\r', _data);
