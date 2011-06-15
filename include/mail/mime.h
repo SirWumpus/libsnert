@@ -151,6 +151,15 @@ extern void mimeDecodeFlush(Mime *m);
 extern void mimeHeadersFirst(Mime *m, int flag);
 
 /**
+ * @param m
+ *	Pointer to a Mime context structure.
+ *
+ * @return
+ *	True if the parsing is still in the message headers.
+ */
+extern int mimeIsHeaders(Mime *m);
+
+/**
  * @param octet
  *	A quoted-printable hexadecimal digit character, which are
  *	defined to be upper case only.

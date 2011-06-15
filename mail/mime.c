@@ -702,6 +702,19 @@ mimeHeadersFirst(Mime *m, int flag)
  * @param m
  *	Pointer to a Mime context structure.
  *
+ * @return
+ *	True if the parsing is still in the message headers.
+ */
+int
+mimeIsHeaders(Mime *m)
+{
+	return m->mime_part_number == 0 && m->state.source_state == mimeStateHdr;
+}
+
+/**
+ * @param m
+ *	Pointer to a Mime context structure.
+ *
  * @param ch
  *	Next input octet to parse or EOF.
  *
