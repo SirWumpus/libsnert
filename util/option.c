@@ -267,6 +267,9 @@ optionSet(Option *opt, char *value)
 	char *list;
 	size_t length;
 
+	if (opt == NULL || value == NULL)
+		return 0;
+
 	opt->value = strtol(value, NULL, 0);
 
 	switch (*value) {
@@ -278,7 +281,7 @@ optionSet(Option *opt, char *value)
 		if ((list = malloc(length + 1)) == NULL)
 			return 0;
 
-		snprintf(list, length+1, "%s%s", opt->string, value + (*opt->string == '\0'));
+		(void) snprintf(list, length+1, "%s%s", opt->string, value + (*opt->string == '\0'));
 
 		free(value);
 		value = list;
@@ -325,6 +328,31 @@ optionSetInteger(Option *opt, long value)
  * @param name
  *	An option name to lookup.
  *
+ * @return
+ *	A pointer to an Option or NULL if option was not found.
+ */
+Option *
+optionFind(Option *table[], const char *name)
+{
+	Option **opt;
+
+	if (table != NULL && name != NULL) {
+		for (opt = table; *opt != NULL; opt++) {
+			if (TextInsensitiveCompare(name, (*opt)->name) == 0)
+				return *opt;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * @param table
+ *	A table of options.
+ *
+ * @param name
+ *	An option name to lookup.
+ *
  * @param value
  *	An option's runtime value to set in the option table. If the
  *	value starts with a semi-colin (;), then value is a list item
@@ -337,12 +365,10 @@ optionSetInteger(Option *opt, long value)
 static int
 optionFindAndSet(Option *table[], const char *name, char *value)
 {
-	Option **opt;
+	Option *option;
 
-	for (opt = table; *opt != NULL; opt++) {
-		if (TextInsensitiveCompare(name, (*opt)->name) == 0)
-			return optionSet(*opt, value);
-	}
+	if ((option = optionFind(table, name)) != NULL)
+		return optionSet(option, value);
 
 	return 0;
 }

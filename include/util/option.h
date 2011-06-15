@@ -50,6 +50,18 @@ extern void optionInitOption(Option *o);
 extern void optionFree(Option *table[], ...);
 
 /**
+ * @param table
+ *	A table of options.
+ *
+ * @param name
+ *	An option name to lookup.
+ *
+ * @return
+ *	A pointer to an Option or NULL if option was not found.
+ */
+extern Option *optionFind(Option *table[], const char *name);
+
+/**
  * @param option
  *	A pointer to C option string to parse.
  *
