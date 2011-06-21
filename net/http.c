@@ -92,6 +92,7 @@ httpResponseFree(HttpResponse *response)
 {
 	if (response != NULL) {
 		BufDestroy(response->content);
+		free(response->url);
 	}
 }
 
@@ -326,18 +327,29 @@ PT_THREAD(http_read(pt_t *pt, SOCKET socket, long ms, Buf *buf))
 
 	PT_BEGIN(pt);
 
-	PT_YIELD_UNTIL(pt, (rc = socket3_has_input(socket, ms)) == 0 || rc != EINTR);
+	PT_WAIT_UNTIL(pt, (rc = socket3_has_input(socket, ms)) == 0 || rc != EINTR);
 
-	if (rc != 0)
+	if (rc != 0) {
+		if (0 < httpDebug)
+			syslog(LOG_DEBUG, "%s.%d rc=%d %s", __FUNCTION__, __LINE__, rc, strerror(rc));
 		PT_EXIT(pt);
+	}
 
 	length = socket3_read(socket, line, sizeof (line), NULL);
-	if (length <= 0)
+	if (length == 0)
 		PT_EXIT(pt);
+	if (length < 0) {
+		if (0 < httpDebug)
+			syslog(LOG_DEBUG, "%s.%d errno=%d %s", __FUNCTION__, __LINE__, errno, strerror(errno));
+		PT_EXIT(pt);
+	}
 	line[length] = '\0';
 
-	if (BufAddBytes(buf, line, length))
+	if (BufAddBytes(buf, line, length)) {
+		if (0 < httpDebug)
+			syslog(LOG_DEBUG, "%s.%d errno=%d %s", __FUNCTION__, __LINE__, errno, strerror(errno));
 		PT_EXIT(pt);
+	}
 
 	PT_END(pt);
 }
@@ -360,11 +372,6 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 
 	/* Read HTTP response line. */
 	PT_SPAWN(&response->pt, &response->pt_read, http_read(&response->pt_read, response->socket, response->timeout, buf));
-	if (errno != 0) {
-		if (0 < response->debug)
-			syslog(LOG_DEBUG, "%s errno=%d %s", response->id_log, errno, strerror(errno));
-		goto error1;
-	}
 
 	span = 0;
 	response->result = HTTP_INTERNAL;
@@ -384,7 +391,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 			PT_WAIT_THREAD(&response->pt, http_read(&response->pt_read, response->socket, response->timeout, buf));
 			if (errno != 0) {
 				if (0 < response->debug)
-					syslog(LOG_DEBUG, "%s errno=%d %s", response->id_log, errno, strerror(errno));
+					syslog(LOG_DEBUG, "%s %s.%d errno=%d %s", response->id_log, __FUNCTION__, __LINE__, errno, strerror(errno));
 				goto error1;
 			}
 			/* EOF? */
@@ -402,12 +409,13 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 		}
 
 		/* Stopped on a LF and not a NUL? */
-		is_crlf  = (buf->bytes[buf->offset+span] == '\n');
+		if ((is_crlf  = (buf->bytes[buf->offset+span] == '\n'))) {
+			/* Is it a CRLF pair? */
+			is_crlf += (0 < span && buf->bytes[buf->offset+span-1] == '\r');
 
-		/* Is it a CRLF pair? */
-		is_crlf += (0 < span && buf->bytes[buf->offset+span-1] == '\r');
-
-		span += is_crlf;
+			/* Add the LF to the span. */
+			span++;
+		}
 
 		if (1 < response->debug)
 			syslog(LOG_DEBUG, "%s < %d:%.*s", response->id_log, span, span, buf->bytes+buf->offset);
@@ -424,6 +432,8 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 	}
 
 	response->eoh = buf->offset;
+	if (0 < response->debug)
+		syslog(LOG_DEBUG, "%s eoh=%d", response->id_log, response->eoh);
 
 	if (response->hook.header_end != NULL
 	&& (*response->hook.header_end)(response, buf->bytes, response->eoh) != HTTP_CONTINUE)
@@ -433,11 +443,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 	for ( ; ; buf->offset += span) {
 		if (buf->length <= buf->offset) {
 			PT_WAIT_THREAD(&response->pt, http_read(&response->pt_read, response->socket, response->timeout, buf));
-			if (errno != 0) {
-				if (0 < response->debug)
-					syslog(LOG_DEBUG, "%s errno=%d %s", response->id_log, errno, strerror(errno));
-				goto error1;
-			}
+
 			/* EOF? */
 			if (buf->length <= buf->offset)
 				break;
@@ -447,12 +453,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 		span = strcspn((char *)buf->bytes+buf->offset, "\n");
 
 		/* Stopped on a LF and not a NUL? */
-		is_crlf  = (buf->bytes[buf->offset+span] == '\n');
-
-		/* Is it a CRLF pair? */
-		is_crlf += (0 < span && buf->bytes[buf->offset+span-1] == '\r');
-
-		span += is_crlf;
+		span += (buf->bytes[buf->offset+span] == '\n');
 
 		if (1 < response->debug)
 			syslog(LOG_DEBUG, "%s < %d:%.*s", response->id_log, span, span, buf->bytes+buf->offset);
@@ -461,6 +462,9 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 		&& (*response->hook.body)(response, buf->bytes+buf->offset, span) != HTTP_CONTINUE)
 			goto error1;
 	}
+
+	if (0 < response->debug)
+		syslog(LOG_DEBUG, "%s content-length=%lu", response->id_log, (unsigned long) buf->length-response->eoh);
 
 	if (response->hook.body_end != NULL
 	&& (*response->hook.body_end)(response, buf->bytes+response->eoh, buf->length-response->eoh) != HTTP_CONTINUE)
@@ -500,6 +504,7 @@ httpDo(const char *method, const char *url, time_t modified_since, unsigned char
 
 	response->socket = httpSend(&request);
 	response->timeout = HTTP_TIMEOUT_MS;
+	response->url = strdup(url);
 	free(request.url);
 
 	return httpRead(response);
@@ -567,17 +572,6 @@ syslog(int level, const char *fmt, ...)
 
 typedef void (*get_url_fn)(const char *);
 
-HttpCode
-response_header_end(HttpResponse *response, unsigned char *input, size_t length)
-{
-	Buf *buf = response->content;
-	memmove(buf->bytes, buf->bytes+response->eoh, buf->length-response->eoh);
-	BufSetLength(buf, buf->length-response->eoh);
-	response->eoh = 0;
-
-	return HTTP_CONTINUE;
-}
-
 void
 get_url(const char *url)
 {
@@ -585,21 +579,18 @@ get_url(const char *url)
 
 	httpContentInit(&content);
 
-	if (body_only)
-		content.response.hook.header_end = response_header_end;
-
 	if (httpDo(http_method, url, if_modified_since, NULL, 0, &content.response) == HTTP_INTERNAL) {
 		fprintf(stderr, "%s: %d internal error\n", url, HTTP_INTERNAL);
 		return;
 	}
 
-	fputs((char *) BufBytes(content.response.content), stdout);
+	fputs((char *) BufBytes(content.response.content)+(body_only ? content.response.eoh : 0), stdout);
 
 	httpContentFree(&content);
 }
 
 HttpCode
-response_body(HttpResponse *response, unsigned char *input, size_t length)
+response_body_end(HttpResponse *response, unsigned char *input, size_t length)
 {
 	md5_append((md5_state_t *) response->data, input, length);
 
@@ -618,9 +609,7 @@ get_url_md5(const char *url)
 
 	md5_init(&md5);
 	response.data = &md5;
-	response.hook.header_end = response_header_end;
-//	response.hook.body = response_body;
-	response.hook.body_end = response_body;
+	response.hook.body_end = response_body_end;
 
 	if (httpDo(http_method, url, if_modified_since, NULL, 0, &response) == HTTP_INTERNAL) {
 		fprintf(stderr, "%s: %d internal error\n", url, HTTP_INTERNAL);
@@ -629,7 +618,7 @@ get_url_md5(const char *url)
 
 	md5_finish(&md5, digest);
 	md5_digest_to_string(digest, digest_string);
-	printf("%s %lu %s\n", digest_string, (unsigned long) response.content->length, url);
+	printf("%s %lu %s\n", digest_string, (unsigned long) response.content->length-response.eoh, url);
 
 	httpResponseFree(&response);
 }

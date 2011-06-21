@@ -123,6 +123,7 @@ struct http_response {
 	HttpHooks hook;
 	HttpCode result;
 	char id_log[20];
+	char *url;			/* Copy of original request URL */
 };
 
 typedef struct {
