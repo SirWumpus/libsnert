@@ -114,7 +114,7 @@ hook.body(body_line)
 	hook.forward() may override the reply with its own positive or
 	negative reply.
 
-[drop_flag,] reply = hook.forward(spool_file_path)
+[drop_flag,] reply = hook.forward(spool_file_path, sender, accepted_recipients[])
 
 	If no reply or a Lua error, then the smtp-smart-host option, if
 	defined is used to forward the message. A positive or negative
@@ -148,6 +148,9 @@ hook.reset()
 hook.error(errno, errno_text)
 
 
+hook.reply(reply_line)
+
+
 hook.close(was_dropped)
 
 	End of SMTP connection and clean-up.
@@ -156,34 +159,36 @@ hook.close(was_dropped)
 DNS Support Functions
 ---------------------
 
-	Constants
+dns.class.*
 
-		dns.class.IN
-		dns.class.CS
-		dns.class.CH
-		dns.class.HS
+	IN
+	CS
+	CH
+	HS
 
-		dns.type.A
-		dns.type.AAAA
-		dns.type.CNAME
-		dns.type.DNAME
-		dns.type.MX
-		dns.type.NS
-		dns.type.PTR
-		dns.type.SOA
-		dns.type.TXT
+dns.type.*
 
-		dns.rcode.OK
-		dns.rcode.NOERROR
-		dns.rcode.FORMAT
-		dns.rcode.SERVFAIL
-		dns.rcode.NXDOMAIN
-		dns.rcode.NOT_IMPLEMENTED
-		dns.rcode.REFUSED
-		dns.rcode.ERRNO
-		dns.rcode.TIMEOUT
+	A
+	AAAA
+	CNAME
+	DNAME
+	MX
+	NS
+	PTR
+	SOA
+	TXT
 
-	Functions
+dns.rcode.*
+
+	OK
+	NOERROR
+	FORMAT
+	SERVFAIL
+	NXDOMAIN
+	NOT_IMPLEMENTED
+	REFUSED
+	ERRNO
+	TIMEOUT
 
 dns.open()
 
@@ -218,25 +223,21 @@ answers = dns.wait(for_all_flag)
 
 	answers[i] = { query }
 
-	answers[query_key] = { query }
-
-	query_key = dns.class..","..dns.type..","..name
-
 	query = { rcode, name, class, type, ttl, answer = [ RR ], extra = [ RR ], authority = [ RR ] }
 
 
 	Resource Recode formats for dns.type
 	------------------------------------
 
-	A	= { name, class, type, ttl, address }
-	AAAA	= { name, class, type, ttl, address }
-	PTR	= { address, class, type, ttl, name }
-	CNAME	= { name, class, type, ttl, host }
-	DNAME	= { name, class, type, ttl, host }
-	MX	= { name, class, type, ttl, host, preference }
-	NS	= { name, class, type, ttl, host }
+	A	= { name, class, type, ttl, value }
+	AAAA	= { name, class, type, ttl, value }
+	PTR	= { name, class, type, ttl, value }
+	CNAME	= { name, class, type, ttl, value }
+	DNAME	= { name, class, type, ttl, value }
+	MX	= { name, class, type, ttl, value, preference }
+	NS	= { name, class, type, ttl, value }
 	SOA	= { name, class, type, ttl, mname, rname, serial, refresh, retry, expire, minimum, }
-	TXT	= { name, class, type, ttl, text }
+	TXT	= { name, class, type, ttl, value }
 
 string = dns.classname(dns.class)
 
@@ -247,84 +248,39 @@ string = dns.typename(dns.type)
 string = dns.rcodename(dns.rcode)
 
 
-HTTP API
---------
+Header Functions
+----------------
 
-	Constants
-
-		http.code.CONTINUE
-		http.code.DROP
-
-		http.code.OK
-		http.code.CREATED
-		http.code.ACCEPTED
-		http.code.NON_AUTH_INFO
-		http.code.NO_CONTENT
-		http.code.RESET_CONTENT
-		http.code.PARTIAL_CONTENT
-
-		http.code.MULTIPLE_CHOICES
-		http.code.MOVED_PERMANENTLY
-		http.code.FOUND
-		http.code.SEE_OTHER
-		http.code.NOT_MODIFIED
-		http.code.USE_PROXY
-		http.code.TEMPORARY_REDIRECT
-
-		http.code.BAD_REQUEST
-		http.code.UNAUTHORIZED
-		http.code.PAYMENT_REQUIRED
-		http.code.FORBIDDEN
-		http.code.NOT_FOUND
-		http.code.METHOD_NOT_ALLOWED
-		http.code.NOT_ACCEPTABLE
-		http.code.PROXY_AUTH_REQUIRED
-		http.code.REQUEST_TIMEOUT
-		http.code.CONFLICT
-		http.code.GONE
-		http.code.LENGTH_REQUIRED
-		http.code.PRECOND_FAILED
-		http.code.REQUEST_TOO_LARGE
-		http.code.URI_TOO_LONG
-		http.code.UNSUPPORTED_MEDIA
-		http.code.RANGE_NOT_POSSIBLE
-		http.code.EXPECTATION_FAILED
-
-		http.code.INTERNAL
-		http.code.NOT_IMPLEMENTED
-		http.code.BAD_GATEWAY
-		http.code.SERVICE_UNAVAILABLE
-		http.code.GATEWAY_TIMEOUT
-		http.code.VERSION_NOT_SUPPORTED
-
-	Functions
-
-table = http.action(method, url, modified_since, post)
-
-	Perform an HTTP request as denoted by a method string ("GET",
-	"HEAD", "POST") to the given url string. The post argument can
-	be nil or a string of data to submit using "POST" method.
-
-	The modified_since argument can be either a number or a string.
-	As a number it represent the GMT seconds since the epoch. As a
-	string it is an RFC 2822 Date & Time or ctime(). The argument
-	is used to make a conditional request based on how recently
-	any changes to the url were made. Specify zero (0) to always
-	do the request.
-
-		table.id
-		table.rcode
-		table.headers
-		table.content
+These functions can only be applied during hook.header, hook.eoh,
+hook.body, and hook.dot. The original message spool file will be updated
+with the header changes between hook.dot and hook.forward.
 
 
-table = http.get(url, modified_since)
+header.add(header_line)
 
+	Append the given header to the end of the array of headers.
 
-table = http.head(url, modified_since)
+header.insert(header_line, index)
 
+	Insert the header at the given (1-based) index in the array of
+	headers.
 
-table = http.post(url, modified_since, post)
+header.delete(header_name, instance)
+
+	Delete the Nth (1-based) instance of a header.
+
+header.modify(header_name, instance, new_value)
+
+	Insert, modify, or append the Nth instance of a header. If the
+	instance is zero (0) insert the header at the front of the
+	group. If the Nth instance does not exist, then append the
+	header to the end of that group.
+
+index, value = header.find(header_name, instance)
+
+	Find the Nth (1-based) instance of a header. Return the index
+	in the array of headers and the header string found; otherwise
+	nil, nil if not found.
 
 
 MD5 Functions
@@ -417,7 +373,7 @@ boolean = net.contains_ip(net_cidr_string, ip_string)
 
 boolean = net.has_valid_tld(string)
 
-	Return true the string ends with a valid two or one level TLD.
+	Return true if the string ends with a valid two or one level TLD.
 
 boolean = net.has_valid_nth_tld(string, level)
 
@@ -433,7 +389,7 @@ offset = net.index_valid_tld(string)
 offset = net.index_valid_nth_tld(string, level)
 
 	Find the Nth level from the right end of the domain string.
-	Valid levels are 1 or 2. The index (1 based) in the string;
+	Valid levels are 1 or 2. The offset (1 based) in the string;
 	otherwise 0 if not found.
 
 string = net.reverse_ip(address, arpa_suffix_flag)
@@ -499,62 +455,187 @@ boolean = net.is_ip_reserved(address, is_ip_bits)
 					+ net.is_ip.RESERVED
 
 
+Services Framework
+------------------
+
+boolean = service.clamd(filepath[, host_list[, timeout]])
+
+	Submit a file for virus scanning by clamd. Return true on
+	succesful connection.
+
+
+boolean = service.spamd(filepath[, host_list[, method[, user[, timeout]]]])
+
+	Submit a file for spam content scanning by Spam Assassin. The
+	method can be "CHECK", "SYMBOLS", "REPORT", "REPORT_IFSPAM", or
+	"PROCESS". At this time method "HEADERS" is not yet supported.
+	Return true on succesful connection.
+
+
+boolean = service.http.request(url[, method[, modified_since[, post]]])
+
+	Perform an HTTP request as denoted by a method string ("GET",
+	"HEAD", "POST") to the given url string. The post argument can
+	be nil or a string of data to submit using "POST" method.
+
+	The modified_since argument can be either a number or a string.
+	As a number it represent the GMT seconds since the epoch. As a
+	string it is an RFC 2822 Date & Time or ctime(). The argument
+	is used to make a conditional request based on how recently
+	any changes to the url were made. Specify zero (0) to always
+	do the request.
+
+	Return true on succesful connection.
+
+
+service.http.code.*
+
+	CONTINUE
+	DROP
+
+	OK
+	CREATED
+	ACCEPTED
+	NON_AUTH_INFO
+	NO_CONTENT
+	RESET_CONTENT
+	PARTIAL_CONTENT
+
+	MULTIPLE_CHOICES
+	MOVED_PERMANENTLY
+	FOUND
+	SEE_OTHER
+	NOT_MODIFIED
+	USE_PROXY
+	TEMPORARY_REDIRECT
+
+	BAD_REQUEST
+	UNAUTHORIZED
+	PAYMENT_REQUIRED
+	FORBIDDEN
+	NOT_FOUND
+	METHOD_NOT_ALLOWED
+	NOT_ACCEPTABLE
+	PROXY_AUTH_REQUIRED
+	REQUEST_TIMEOUT
+	CONFLICT
+	GONE
+	LENGTH_REQUIRED
+	PRECOND_FAILED
+	REQUEST_TOO_LARGE
+	URI_TOO_LONG
+	UNSUPPORTED_MEDIA
+	RANGE_NOT_POSSIBLE
+	EXPECTATION_FAILED
+
+	INTERNAL
+	NOT_IMPLEMENTED
+	BAD_GATEWAY
+	SERVICE_UNAVAILABLE
+	GATEWAY_TIMEOUT
+	VERSION_NOT_SUPPORTED
+
+
+table = service.wait(for_all_flag)
+
+	Wait for one or more pending services to complete. If for_all_flag
+	is true, then wait for all pending services; otherwise return as soon
+	as any service has completed.
+
+		table.clamd.file
+		table.clamd.is_infected
+		table.clamd.reply
+		table.clamd.elapsed_time
+		table.clamd.service_host
+		table.clamd.service_name
+
+		table.spamd.file
+		table.spamd.is_spam
+		table.spamd.reply
+		table.spamd.elapsed_time
+		table.spamd.service_host
+		table.spamd.service_name
+
+		table.http.service_name
+
+		table.http[i].id		-- string
+		table.http[i].url		-- original request
+		table.http[i].rcode		-- service.http.code
+		table.http[i].headers		-- multi-line string
+		table.http[i].content		-- multi-line string
+		table.http[i].content_type	-- string
+		table.http[i].content_encoding	-- string
+		table.http[i].date		-- seconds since Epoch
+		table.http[i].expires		-- seconds since Epoch
+		table.http[i].last_modified	-- seconds since Epoch
+		table.http[i].elapsed_time	-- decimal
+		table.http[i].service_host	-- string
+		table.http[i].service_name
+
+	The resolution of the elapsed_time varies depending on OS and
+	that the elapsed time is a formatted string "seconds.nanosecond"
+	based on the integer values from the timespec or timeval
+	structures.
+
+service.reset()
+
+	Clear all pending service requests.
+
+
 SMTP Client
 -----------
 
-	Constants
+smtp.code.*
 
-		--
-		-- RFC 821, 2821, 5321 codes.
-		--
-		smtp.code.STATUS
-		smtp.code.HELP
-		smtp.code.WELCOME
-		smtp.code.GOODBYE
-		smtp.code.AUTH_OK		-- RFC 4954 section 6
-		smtp.code.OK
-		smtp.code.USER_NOT_LOCAL
+	--
+	-- RFC 821, 2821, 5321 codes.
+	--
+	STATUS
+	HELP
+	WELCOME
+	GOODBYE
+	AUTH_OK			-- RFC 4954 section 6
+	OK
+	USER_NOT_LOCAL
 
-		smtp.code.WAITING
+	WAITING
 
-		smtp.code.CLOSING
-		smtp.code.AUTH_MECHANISM	-- RFC 4954 section 6
-		smtp.code.BUSY
-		smtp.code.TRY_AGAIN_LATER
-		smtp.code.NO_STORAGE
-		smtp.code.AUTH_TEMP		-- RFC 4954 section 6
+	CLOSING
+	AUTH_MECHANISM		-- RFC 4954 section 6
+	BUSY
+	TRY_AGAIN_LATER
+	NO_STORAGE
+	AUTH_TEMP		-- RFC 4954 section 6
 
-		smtp.code.BAD_SYNTAX
-		smtp.code.BAD_ARGUMENTS
-		smtp.code.UNKNOWN_COMMAND
-		smtp.code.BAD_SEQUENCE
-		smtp.code.UNKNOWN_PARAM
-		smtp.code.AUTH_REQUIRED		-- RFC 4954 section 6
-		smtp.code.AUTH_WEAK		-- RFC 4954 section 6
-		smtp.code.AUTH_FAIL		-- RFC 4954 section 6
-		smtp.code.AUTH_ENCRYPT		-- RFC 4954 section 6
-		smtp.code.REJECT
-		smtp.code.UNKNOWN_USER
-		smtp.code.OVER_QUOTA
-		smtp.code.BAD_ADDRESS
-		smtp.code.TRANSACTION_FAILED
+	BAD_SYNTAX
+	BAD_ARGUMENTS
+	UNKNOWN_COMMAND
+	BAD_SEQUENCE
+	UNKNOWN_PARAM
+	AUTH_REQUIRED		-- RFC 4954 section 6
+	AUTH_WEAK		-- RFC 4954 section 6
+	AUTH_FAIL		-- RFC 4954 section 6
+	AUTH_ENCRYPT		-- RFC 4954 section 6
+	REJECT
+	UNKNOWN_USER
+	OVER_QUOTA
+	BAD_ADDRESS
+	TRANSACTION_FAILED
 
-		--
-		-- Error conditions indicated SMTP like codes.
-		--
-		smtp.code.ERROR
-		smtp.code.ERROR_CONNECT
-		smtp.code.ERROR_TIMEOUT
-		smtp.code.ERROR_EOF
-		smtp.code.ERROR_IO
+	--
+	-- Error conditions indicated SMTP like codes.
+	--
+	ERROR
+	ERROR_CONNECT
+	ERROR_TIMEOUT
+	ERROR_EOF
+	ERROR_IO
 
 
-	Functions
+boolean, n_rcpt_ok, rcpt_result[] = smtp.sendfile(hosts[], mail, rcpts[], spool)
 
-smtp.code, n_rcpt_ok = smtp.sendfile(hosts[], mail, rcpts[], spool)
-
-	Send the spool file to host, which can be a host name, ipv4, or
-	ipv6 address with optional colon port suffix, eg.
+	Send the spool file to host, which can be a host name, IPv4, or
+	IPv6 address with optional colon port suffix,
 	[2001:0Db8::1]:2525. Specify the mail address and an array of
 	one or more recipents. The smtp.code return is the last read.
 	The number of successful recipients accepted is returned. The
@@ -562,10 +643,10 @@ smtp.code, n_rcpt_ok = smtp.sendfile(hosts[], mail, rcpts[], spool)
 	last RCPT command and before DATA.
 
 
-smtp.code, n_rcpt_ok = smtp.sendstring(hosts[], mail, rcpts[], message)
+boolean, n_rcpt_ok, rcpt_result[] = smtp.sendstring(hosts[], mail, rcpts[], message)
 
 
-SMTP Engine Global Variables
+SMTP Engine
 ----------------------------
 
 smtpe.bin_version
@@ -578,6 +659,12 @@ smtpe.copyright
 
 
 smtpe.host
+
+
+string = smtpe.getoption(option_name)
+
+
+smtpe.setoption(option_name, value)
 
 
 Syslog Functions
@@ -758,7 +845,7 @@ table = uri.parse(string)
 uri.found
 
 	This array is created when a transaction starts with MAIL and is
-	discard by RSET, HELO, EHLO, or at the end of message when the
+	discarded by RSET, HELO, EHLO, or at the end of message when the
 	transaction completes. An array of unique uri entries. The
 	number of entries given by "# uri.found".
 
@@ -779,6 +866,7 @@ uri.found[i] = md5_key
 		uri.found[md5_key].port
 		uri.found[md5_key].query
 		uri.found[md5_key].fragment
+		uri.found[md5_key].mime_part	-- 0 for message headers
 
 	To walk through the table:
 
@@ -791,6 +879,17 @@ uri.found[i] = md5_key
 
 Utility Support
 ---------------
+
+integer = util.cpucount()
+
+
+array[3] = util.getloadavg()
+
+	The array can also be accessed by field name, instead of index:
+
+		array.1m_avg
+		array.5m_avg
+		array.15m_avg
 
 boolean = util.mkpath(string)
 
