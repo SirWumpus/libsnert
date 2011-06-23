@@ -84,6 +84,8 @@ extern void timeSubtract(time_t *acc, time_t *b);
 /* 10^-9 (nano-second) resolution */
 
 # define CLOCK				struct timespec
+# define CLOCK_TO_DOUBLE(a)		((a)->tv_sec + (a)->tv_nsec / CLOCK_RESOLUTION)
+# define CLOCK_RESOLUTION		1.0e9
 # define CLOCK_ADD(a, b)		timespecAdd(a, b)
 # define CLOCK_SUB(a, b)		timespecSubtract(a, b)
 # define CLOCK_GET(a)			clock_gettime(CLOCK_REALTIME, a)
@@ -107,6 +109,8 @@ extern void timeSubtract(time_t *acc, time_t *b);
 /* 10^-6 (micro-second) resolution */
 
 # define CLOCK				struct timeval
+# define CLOCK_TO_DOUBLE(a)		((a)->tv_sec + (a)->tv_usec / CLOCK_RESOLUTION)
+# define CLOCK_RESOLUTION		1.0e6
 # define CLOCK_ADD(a, b)		timevalAdd(a, b)
 # define CLOCK_SUB(a, b)		timevalSubtract(a, b)
 # define CLOCK_GET(a)			gettimeofday(a, NULL)
@@ -130,12 +134,14 @@ extern void timeSubtract(time_t *acc, time_t *b);
 /* 1 second resolution */
 
 # define CLOCK				time_t
+# define CLOCK_TO_DOUBLE(a)		((double)(a)->tv_sec)
+# define CLOCK_RESOLUTION		1.0
 # define CLOCK_ADD(a, b)		timeAdd(a, b)
 # define CLOCK_SUB(a, b)		timeSub(a, b)
 # define CLOCK_GET(a)			(void) time(a)
-# define CLOCK_FMT			"%ld"
-# define CLOCK_FMT_DOT(a)		(long)*(a)
-# define CLOCK_FMT_PTR(a)		(long)*(a)
+# define CLOCK_FMT			"%ld.%d"
+# define CLOCK_FMT_DOT(a)		(long)(a),0
+# define CLOCK_FMT_PTR(a)		(long)*(a),0
 # define CLOCK_SET_TIMESPEC(a,b)	timeToTimespec(b,a)
 # define CLOCK_SET_TIMEVAL(a,b)		timeToTimeval(b,a)
 
