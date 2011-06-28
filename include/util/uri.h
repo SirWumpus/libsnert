@@ -143,6 +143,16 @@ extern char *uriDecode(const char *s);
 extern void uriDecodeSelf(char *s);
 
 /**
+ * @param s
+ *	A pointer to a URI decoded C string.
+ *
+ * @return
+ *	A pointer to an allocated C string containing the encoded URI.
+ *	Its the caller's responsibility to free() this pointer.
+ */
+extern char *uriEncode(const char *string);
+
+/**
  * @param url
  *	Find the HTTP origin server by following all redirections.
  *

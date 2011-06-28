@@ -669,6 +669,40 @@ uriDecode(const char *s)
 	return decoded;
 }
 
+/**
+ * @param s
+ *	A pointer to a URI decoded C string.
+ *
+ * @return
+ *	A pointer to an allocated C string containing the encoded URI.
+ *	Its the caller's responsibility to free() this pointer.
+ */
+char *
+uriEncode(const char *string)
+{
+	size_t length;
+	char *out, *op;
+	static char uri_unreserved[] = "-_.~";
+	static const char hex_digit[] = "0123456789ABCDEF";
+
+	length = strlen(string);
+	if ((out = malloc(length * 3 + 1)) == NULL)
+		return NULL;
+
+	for (op = out ; *string != '\0'; string++) {
+		if (isalnum(*string) || strchr(uri_unreserved, *string) != NULL) {
+			*op++ = *string;
+		} else {
+			*op++ = '%';
+			*op++ = hex_digit[(*string >> 4) & 0x0F];
+			*op++ = hex_digit[*string & 0x0F];
+		}
+	}
+	*op = '\0';
+
+	return out;
+}
+
 static const char *
 uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI **origin);
 
