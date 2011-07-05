@@ -44,7 +44,6 @@ com/snert/src/lib/io/mkpath.c
 com/snert/src/lib/io/socket2.c
 com/snert/src/lib/io/socket3.c
 com/snert/src/lib/io/events.c
-com/snert/src/lib/io/socketEvent.c
 com/snert/src/lib/io/socketAddress.c
 com/snert/src/lib/io/socketAddressIsLocal.c
 com/snert/src/lib/io/socketTimeoutIO.c
