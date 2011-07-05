@@ -6,6 +6,14 @@
  * Copyright 2010 by Anthony Howe.  All rights reserved.
  */
 
+/* AlexB wish list...
+ *
+ * 1. Flat file support, using rbldnsd format.
+ *    http://www.corpit.ru/mjt/rbldnsd/rbldnsd.8.html
+ *
+ * 2. Add record directly to memory via listener port.
+ */
+
 #ifndef DATABASE_PATH
 #define DATABASE_PATH		"./dnsd.sq3"
 #endif
