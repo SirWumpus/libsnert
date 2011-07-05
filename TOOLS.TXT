@@ -25,6 +25,10 @@ clamstream	Yet another tool to stream a message to clamd server.
 convertDate	Converts textual date string into seconds; the reverse
 		of date(1) and strftime(3)
 
+dnsd		A simple UDP only DNS server intended for implementing
+		black & white lists. Supports A, AAAA, and TXT records.
+		This is still pretty raw "work in progress".
+
 flip		Yet another newline flipper for DOS, old Mac, and Unix.
 
 geturl		A simple HTTP retrieval program similar to wget(1).
@@ -87,7 +91,7 @@ siq		CLI version of milter-siq.
 
 smtp2		An SMTP mail engine.
 
-spf		SPF Classic, essentially CLI version of milter-spff.
+spf		SPF Classic, essentially CLI version of milter-spiff.
 
 TextFind	General pattern matching similar to glob(3). See the
 		function description of TextFind for an overview of the
@@ -101,6 +105,13 @@ victor		An implementation of the paper & pencil VIC cipher as
 		described by http://en.wikipedia.org/wiki/VIC_cipher
 		The output can be feed into a second stage transposition
 		or substituion cipher.
+
+cmp, cksum, comm, echo, kat, tee, strings
+		Unix tool clones intended for use with Windows CLI when
+		you don't have Cygwin or similar Unix tool set.
+
+ziplist, rarlist
+		ZIP & RAR file format test tools.
 
 
 There are other tools lying about the LibSnert source tree, but those
