@@ -106,6 +106,14 @@ is no set schedule for releases.
 
    !	Fixed configure scripts to work better with NetBSD.
 
+   !	Converted HTTP API to use socket3 and protothread APIs.
+
+   +	Renamed networkContainsIp() to networkContainsIPv6() to better
+	indicate it is an IPv6 specific function. Added
+	networkContainsIP() to take IPV4 and/or IPv6 string arguments.
+	Also added a netcontainsip CLI test tool.
+
+
 --1.74.22--
 
   !!	Fix smtp2Read() when it grows the multi-line input beyond the initial
