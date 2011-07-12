@@ -242,7 +242,7 @@ typedef struct {
 	size_t length;
 } MxSend;
 
-                                                typedef struct {
+typedef struct {
 	PDQ *pdq;
 	int wait_all;
 	PDQ_rr *answer;
@@ -559,6 +559,11 @@ static const char usage_smtp_dot_timeout[] =
 "# to the forward hosts.\n"
 "#"
 ;
+static const char usage_smtp_reply_timeout[] =
+  "Timeout in seconds to wait after a SMTP reply is returned to the\n"
+"# client.\n"
+"#"
+;
 static const char usage_smtp_error_url[] =
   "Specify the base URL to include in SMTP error replies. Used to\n"
 "# direct the sender to a more complete description of the error.\n"
@@ -599,6 +604,7 @@ Option opt_smtp_accept_timeout	= { "smtp-accept-timeout",	"60",				usage_smtp_ac
 Option opt_smtp_command_timeout	= { "smtp-command-timeout",	QUOTE(SMTP_COMMAND_TO),		usage_smtp_command_timeout };
 Option opt_smtp_data_timeout 	= { "smtp-data-timeout",	QUOTE(SMTP_DATA_BLOCK_TO),	usage_smtp_data_line_timeout };
 Option opt_smtp_dot_timeout	= { "smtp-dot-timeout",		QUOTE(SMTP_DOT_TO), 		usage_smtp_dot_timeout };
+Option opt_smtp_reply_timeout	= { "smtp-reply-timeout",	QUOTE(SMTP_COMMAND_TO),		usage_smtp_reply_timeout };
 Option opt_smtp_error_url	= { "smtp-error-url",		"",				usage_smtp_error_url };
 Option opt_smtp_max_size	= { "smtp-max-size",		"0",				usage_smtp_max_size };
 Option opt_smtp_server_port	= { "smtp-server-port",		QUOTE(SMTP_PORT), 		usage_smtp_server_port };
@@ -745,6 +751,7 @@ Option *opt_table[] = {
 	&opt_smtp_dot_timeout,
 	&opt_smtp_error_url,
 	&opt_smtp_max_size,
+	&opt_smtp_reply_timeout,
 	&opt_smtp_server_port,
 	&opt_smtp_server_queue,
 	&opt_smtp_smart_host,
@@ -793,6 +800,8 @@ static int parse_path_flags;
 static Events main_loop;
 static const char *smtp_default_at_dot;
 static char my_host_name[SMTP_DOMAIN_LENGTH+1];
+
+void client_write(SmtpCtx *ctx, Buffer *);
 void client_send(SmtpCtx *ctx, const char *fmt, ...);
 
 /***********************************************************************
@@ -817,6 +826,26 @@ syslog(int level, const char *fmt, ...)
 /***********************************************************************
  *** Lua support functions
  ***********************************************************************/
+
+static void
+lua_table_getglobal(lua_State *L, const char *name)
+{
+	lua_getglobal(L, name);				/* __svc */
+	if (lua_isnil(L, -1)) {
+		lua_pop(L, 1);				/* -- */
+		lua_newtable(L);			/* __svc */
+	}
+}
+
+static void
+lua_table_getfield(lua_State *L, int table_index, const char *name)
+{
+	lua_getfield(L, table_index, name);				/* __svc */
+	if (lua_isnil(L, -1)) {
+		lua_pop(L, 1);				/* -- */
+		lua_newtable(L);			/* __svc */
+	}
+}
 
 static void
 lua_table_set_integer(lua_State *L, int table_index, const char *name, lua_Integer value)
@@ -995,9 +1024,9 @@ sigsetjmp_action(SmtpCtx *ctx, JmpCode jc)
 		ctx->client.dropped = DROP_ERROR;
 		/*@fallthrough@*/
 	case JMP_DROP:
-		if (verb_smtp.value)
-			syslog(LOG_DEBUG, LOG_FMT "close %s cc=%ld", LOG_ID(ctx), ctx->addr.data, VectorLength(ctx->client.loop->events)-1);
 		eventRemove(ctx->client.loop, &ctx->client.event);
+		if (verb_smtp.value)
+			syslog(LOG_DEBUG, LOG_FMT "close %s cc=%lu", LOG_ID(ctx), ctx->addr.data, (unsigned long)ctx->client.loop->events.length);
 		/*@fallthrough@*/
 	case JMP_SET:
 		break;
@@ -1250,7 +1279,120 @@ service_reset(lua_State *L)
 	}
 
 	return 0;
+}
 
+/***********************************************************************
+ *** Client.Send Service
+ ***********************************************************************/
+
+typedef struct {
+	Buffer buffer;
+} ClientData;
+
+static
+PT_THREAD(client_yielduntil(Service *svc, SmtpCtx *ctx))
+{
+	ClientData *cd;
+
+	PT_BEGIN(&svc->pt);
+
+	cd = svc->data;
+
+	if (0 < verb_smtp.value)
+		syslog(LOG_DEBUG, LOG_FMT "< %lu:%s", LOG_TRAN(ctx), cd->buffer.length, cd->buffer.data);
+
+	if (socket3_write(svc->socket, (unsigned char *) cd->buffer.data, cd->buffer.length, NULL) != cd->buffer.length) {
+		syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
+		PT_EXIT(&svc->pt);
+	}
+
+	PT_YIELD(&svc->pt);
+
+	PT_END(&svc->pt);
+}
+
+static void
+client_free(void *data)
+{
+	ClientData *cd = data;
+
+	if (cd != NULL) {
+		free(cd->buffer.data);
+		free(cd);
+	}
+}
+
+/**
+ * boolean = service.client.write(string)
+ */
+static int
+service_client_write(lua_State *L)
+{
+	Service *svc;
+	ClientData *cd;
+	const char *string;
+	SmtpCtx *ctx = lua_smtp_ctx(L);
+
+	if ((cd = calloc(1, sizeof (*cd))) == NULL)
+		goto error0;
+
+	string = luaL_optlstring(L, 1, NULL, (size_t *)&cd->buffer.length);
+	if (string == NULL)
+		goto error1;
+
+	cd->buffer.size = cd->buffer.length+1;
+	cd->buffer.data = strdup(string);
+
+	if ((svc = service_new(ctx)) == NULL)
+		goto error1;
+
+	svc->data = cd;
+	svc->free = client_free;
+	svc->service = client_yielduntil;
+	svc->socket = ctx->client.socket;
+	svc->host = strdup(ctx->host.data);
+
+	if (service_add(ctx, svc, luaL_optint(L, 2, opt_smtp_reply_timeout.value)))
+		goto error2;
+
+	lua_pushboolean(L, 1);
+
+	return 1;
+error2:
+	free(svc);
+error1:
+	client_free(svc);
+error0:
+	lua_pushboolean(L, 0);
+
+	return 1;
+}
+
+static int
+lua_client_write(lua_State *L)
+{
+	int is_ready;
+
+	(void) service_client_write(L);
+	is_ready = lua_toboolean(L, -1);
+	lua_pop(L, lua_gettop(L));
+
+	if (is_ready)
+		return service_wait(L);
+
+	return -1;
+}
+
+static const luaL_Reg lua_client_pkg[] = {
+	{ "write", 			lua_client_write },
+	{ NULL, NULL },
+};
+
+static void
+lua_define_client(lua_State *L)
+{
+	luaL_register(L, "client", lua_client_pkg);		/* pkg */
+	lua_pop(L, 1);					/* -- */
 }
 
 /***********************************************************************
@@ -1351,13 +1493,8 @@ PT_THREAD(clamd_yielduntil(Service *svc, SmtpCtx *ctx))
 	socket3_close(svc->socket);
 
 	if ((L1 = lua_getthread(ctx->script, ctx)) != NULL) {
-		lua_getglobal(L1, "__service");				/* __svc */
-		if (lua_isnil(L1, -1)) {
-			lua_pop(L1, 1);					/* -- */
-			lua_newtable(L1);				/* __svc */
-		}
-
-		lua_newtable(L1);					/* __svc clamd */
+		lua_table_getglobal(L1, "__service");	/* __svc */
+		lua_newtable(L1);			/* __svc clamd */
 
 		lua_pushliteral(L1, "clamd");
 		lua_setfield(L1, -2, "service_name");
@@ -1486,6 +1623,7 @@ error0:
 
 typedef struct {
 	FILE *fp;
+	char **hdr;
 	int replace_msg;
 	char *filepath;
 	Buffer buffer;
@@ -1498,7 +1636,6 @@ PT_THREAD(spamd_yielduntil(Service *svc, SmtpCtx *ctx))
 	long offset;
 	lua_State *L1;
 	size_t length;
-	unsigned char **hdr;
 
 	PT_BEGIN(&svc->pt);
 
@@ -1510,14 +1647,13 @@ PT_THREAD(spamd_yielduntil(Service *svc, SmtpCtx *ctx))
 		PT_EXIT(&svc->pt);
 	}
 
-	for (hdr = (unsigned char **) VectorBase(ctx->headers); *hdr != NULL; hdr++) {
-		sd = svc->data;
-		length = strlen((char *) *hdr);
+	for (sd->hdr = (char **) VectorBase(ctx->headers); *sd->hdr != NULL; sd->hdr++) {
+		length = strlen(*sd->hdr);
 
 		if (1 < verb_spamd.value)
-			syslog(LOG_DEBUG, LOG_FMT "spamd >> %lu:%s", LOG_TRAN(ctx), (unsigned long)length+STRLEN(CRLF), *hdr);
+			syslog(LOG_DEBUG, LOG_FMT "spamd >> %lu:%s", LOG_TRAN(ctx), (unsigned long)length+STRLEN(CRLF), *sd->hdr);
 
-		if (socket3_write(svc->socket, *hdr, length, NULL) != length) {
+		if (socket3_write(svc->socket, (unsigned char *)*sd->hdr, length, NULL) != length) {
 			syslog(LOG_ERR, log_error, LOG_INT(ctx), strerror(errno), errno);
 			PT_EXIT(&svc->pt);
 		}
@@ -1527,6 +1663,12 @@ PT_THREAD(spamd_yielduntil(Service *svc, SmtpCtx *ctx))
 		}
 
 		PT_YIELD(&svc->pt);
+
+		/* Make sure to restore the spamd structure pointer
+		 * each iteration as a PT_YIELD() means the state
+		 * of local variables will be undefined.
+		 */
+		sd = svc->data;
 	}
 
 	if (socket3_write(svc->socket, (unsigned char *)CRLF, STRLEN(CRLF), NULL) != STRLEN(CRLF)) {
@@ -1596,12 +1738,7 @@ PT_THREAD(spamd_yielduntil(Service *svc, SmtpCtx *ctx))
 	}
 
 	if ((L1 = lua_getthread(ctx->script, ctx)) != NULL) {
-		lua_getglobal(L1, "__service");				/* __svc */
-		if (lua_isnil(L1, -1)) {
-			lua_pop(L1, 1);					/* -- */
-			lua_newtable(L1);				/* __svc */
-		}
-
+		lua_table_getglobal(L1, "__service");	/* __svc */
 		lua_newtable(L1);					/* __svc spamd */
 
 		lua_pushliteral(L1, "spamd");
@@ -2254,6 +2391,10 @@ lua_define_smtp(lua_State *L)
 	lua_newtable(L);				/* smtp code */
 	for (map = smtp_code_constants; map->name != NULL; map++) {
 		lua_table_set_integer(L, -1, map->name, map->value);
+
+		lua_pushinteger(L, map->value);
+		lua_pushstring(L, map->name);
+		lua_settable(L, -3);
 	}
 	lua_setfield(L, -2, "code");			/* smtp */
 
@@ -2512,7 +2653,7 @@ header_modify(lua_State *L)
 	const char *name = luaL_optstring(L, 1, NULL);
 	const char *value = luaL_optstring(L, 3, NULL);
 
-	if (hdr == NULL || value == NULL || instance < 0)
+	if (name == NULL || value == NULL || instance < 0)
 		return 0;
 
  	size = (length = strlen(name)) + strlen(value) + 3;
@@ -2645,6 +2786,7 @@ dns_io_cb(Events *loop, Event *event)
 	sigsetjmp_action(ctx, jc);
 }
 
+#ifdef DNS_MX_5A_HELP
 static int
 dns_check_answer(PDQ *pdq, PDQ_rr *head, int wait_all)
 {
@@ -2704,6 +2846,7 @@ dns_check_answer(PDQ *pdq, PDQ_rr *head, int wait_all)
 
 	return wait_all;
 }
+#endif
 
 int
 dns_wait(SmtpCtx *ctx, int wait_all)
@@ -2721,7 +2864,9 @@ dns_wait(SmtpCtx *ctx, int wait_all)
 					pdqListLog(head);
 				pdqListFree(head);
 			} else {
+#ifdef DNS_MX_5A_HELP
 				ctx->pdq.wait_all = dns_check_answer(ctx->pdq.pdq, head, wait_all);
+#endif
 				ctx->pdq.answer = pdqListAppend(ctx->pdq.answer, head);
 			}
 		}
@@ -2879,6 +3024,242 @@ lua_dns_ispending(lua_State *L)
 	return 0;
 }
 
+static long
+lua_string_to_buffer(lua_State *L, int index, const char *field, char *buffer, size_t size)
+{
+	size_t length;
+	const char *value;
+
+	lua_getfield(L, index, field);
+	value = lua_tolstring(L, -1, &length);
+	lua_pop(L, 1);
+
+	if (value == NULL || size <= length)
+		return -1;
+
+	(void) TextCopy(buffer, size, value);
+
+	return (long) length;
+}
+
+static PDQ_rr *
+lua_rr_to_pdq(lua_State *L, int table_index)
+{
+	PDQ_rr *rr;
+	PDQ_type type;
+
+	lua_getfield(L, table_index, "type");
+	type = lua_tointeger(L, -1);
+	lua_pop(L, 1);
+
+	if ((rr = pdqCreate(type)) == NULL)
+		goto error0;
+
+	lua_getfield(L, table_index, "section");	/* s */
+	rr->section = lua_tointeger(L, -1);
+	lua_getfield(L, table_index, "class");		/* s c */
+	rr->class = lua_tointeger(L, -1);
+	lua_getfield(L, table_index, "ttl");		/* s c t */
+	rr->ttl = lua_tointeger(L, -1);
+	lua_pop(L, 3);					/* -- */
+
+	rr->name.string.length = (unsigned short) lua_string_to_buffer(L, -1, "name", rr->name.string.value, sizeof (rr->name.string.value));
+	if (rr->name.string.length == 0 || sizeof (rr->name.string.value) <= rr->name.string.length)
+		goto error1;
+
+	switch (type) {
+	case PDQ_TYPE_A:
+		((PDQ_A *) rr)->address.ip.offset = IPV6_OFFSET_IPV4;
+		/*@fallthrough@*/
+
+	case PDQ_TYPE_AAAA:
+		((PDQ_A *)rr)->address.string.length = lua_string_to_buffer(L, -1, "value", ((PDQ_A *)rr)->address.string.value, sizeof (((PDQ_A *)rr)->address.string.value));
+		if (((PDQ_A *)rr)->address.string.length == 0 || sizeof (((PDQ_A *)rr)->address.string.value) <= ((PDQ_A *)rr)->address.string.length)
+			goto error1;
+
+		if (parseIPv6(((PDQ_A *)rr)->address.string.value, ((PDQ_A *) rr)->address.ip.value) <= 0)
+			goto error1;
+		break;
+
+	case PDQ_TYPE_MX:
+		lua_getfield(L, table_index, "preference");	/* p */
+		((PDQ_MX *)rr)->preference = lua_tointeger(L, -1);
+		lua_pop(L, 1);
+		/*@fallthrough@*/
+
+	case PDQ_TYPE_NS:
+	case PDQ_TYPE_PTR:
+	case PDQ_TYPE_CNAME:
+	case PDQ_TYPE_DNAME:
+		((PDQ_NS *)rr)->host.string.length = lua_string_to_buffer(L, -1, "value", ((PDQ_NS *)rr)->host.string.value, sizeof (((PDQ_NS *)rr)->host.string.value));
+		if (((PDQ_NS *)rr)->host.string.length == 0 || sizeof (((PDQ_NS *)rr)->host.string.value) <= ((PDQ_NS *)rr)->host.string.length)
+			goto error1;
+		break;
+
+	case PDQ_TYPE_TXT:
+	case PDQ_TYPE_NULL:
+		((PDQ_TXT *)rr)->text.length = lua_string_to_buffer(L, -1, "value", (char *)((PDQ_TXT *)rr)->text.value, sizeof (((PDQ_TXT *)rr)->text.value));
+		if (((PDQ_TXT *)rr)->text.length == 0 || sizeof (((PDQ_TXT *)rr)->text.value) <= ((PDQ_TXT *)rr)->text.length)
+			goto error1;
+		break;
+
+	case PDQ_TYPE_SOA:
+		((PDQ_SOA *)rr)->mname.string.length = lua_string_to_buffer(L, -1, "value", ((PDQ_SOA *)rr)->mname.string.value, sizeof (((PDQ_SOA *)rr)->mname.string.value));
+		if (((PDQ_SOA *)rr)->mname.string.length == 0 || sizeof (((PDQ_SOA *)rr)->mname.string.value) <= ((PDQ_SOA *)rr)->mname.string.length)
+			goto error1;
+
+		((PDQ_SOA *)rr)->rname.string.length = lua_string_to_buffer(L, -1, "value", ((PDQ_SOA *)rr)->rname.string.value, sizeof (((PDQ_SOA *)rr)->rname.string.value));
+		if (((PDQ_SOA *)rr)->rname.string.length == 0 || sizeof (((PDQ_SOA *)rr)->rname.string.value) <= ((PDQ_SOA *)rr)->rname.string.length)
+			goto error1;
+
+		lua_getfield(L, table_index, "serial");
+		((PDQ_SOA *)rr)->serial = lua_tointeger(L, -1);
+		lua_getfield(L, table_index, "refresh");
+		((PDQ_SOA *)rr)->refresh = lua_tointeger(L, -1);
+		lua_getfield(L, table_index, "retry");
+		((PDQ_SOA *)rr)->retry = lua_tointeger(L, -1);
+		lua_getfield(L, table_index, "expire");
+		((PDQ_SOA *)rr)->expire = lua_tointeger(L, -1);
+		lua_getfield(L, table_index, "minimum");
+		((PDQ_SOA *)rr)->minimum = lua_tointeger(L, -1);
+		lua_pop(L, 5);
+		break;
+	default:
+		goto error1;
+	}
+
+	return rr;
+error1:
+	free(rr);
+error0:
+	return NULL;
+}
+
+static int
+lua_pdq_to_rr(lua_State *L, PDQ_rr *rr)
+{
+	lua_newtable(L);			/* rr */
+
+	/* Common RR fields. */
+	lua_pushlstring(L, rr->name.string.value, rr->name.string.length);
+	lua_setfield(L, -2, "name");
+	lua_pushinteger(L, rr->class);
+	lua_setfield(L, -2, "class");
+	lua_pushinteger(L, rr->type);
+	lua_setfield(L, -2, "type");
+
+	if (rr->section == PDQ_SECTION_QUERY) {
+		lua_pushinteger(L, ((PDQ_QUERY *)rr)->rcode);
+		lua_setfield(L, -2, "rcode");
+
+		/* Index queries. */
+		lua_pushvalue(L, -1);		/* qy qy */
+		lua_array_push(L, -3);		/* qy */
+
+		/* Also save queries by key in same table. */
+		(void) lua_pushfstring(
+			L, "%s,%s,%s",
+			pdqClassName(rr->class),
+			pdqTypeName(rr->type),
+			rr->name.string.value
+		);				/* qy key */
+		lua_pushvalue(L, -2);		/* qy key qy */
+		lua_settable(L, -4);		/* qy */
+
+		if (rr->next != NULL && rr->next->section != PDQ_SECTION_QUERY) {
+			lua_newtable(L);	/* qy extra */
+			lua_newtable(L);	/* qy extra authority */
+			lua_newtable(L);	/* qy extra authority answer */
+			return 4;
+		}
+
+		lua_pop(L, 1);			/* */
+		return 0;
+	}
+
+	lua_pushinteger(L, rr->ttl);
+	lua_setfield(L, -2, "ttl");
+
+	switch (rr->type) {			/* qy extra authority answer rr */
+	case PDQ_TYPE_A:
+	case PDQ_TYPE_AAAA:
+		lua_pushlstring(L, ((PDQ_A *) rr)->address.string.value, ((PDQ_A *) rr)->address.string.length);
+		lua_setfield(L, -2, "value");
+		break;
+
+	case PDQ_TYPE_MX:
+		lua_pushinteger(L, ((PDQ_MX *) rr)->preference);
+		lua_setfield(L, -2, "preference");
+		/*@fallthrough@*/
+
+	case PDQ_TYPE_CNAME:
+	case PDQ_TYPE_DNAME:
+	case PDQ_TYPE_PTR:
+	case PDQ_TYPE_NS:
+		lua_pushlstring(L, ((PDQ_NS *) rr)->host.string.value, ((PDQ_NS *) rr)->host.string.length);
+		lua_setfield(L, -2, "value");
+		break;
+
+	case PDQ_TYPE_TXT:
+	case PDQ_TYPE_NULL:
+		lua_pushlstring(L, (char *)((PDQ_TXT *) rr)->text.value, ((PDQ_TXT *) rr)->text.length);
+		lua_setfield(L, -2, "value");
+		break;
+
+	case PDQ_TYPE_SOA:
+		lua_pushlstring(L, ((PDQ_SOA *) rr)->mname.string.value, ((PDQ_SOA *) rr)->mname.string.length);
+		lua_setfield(L, -2, "mname");
+		lua_pushlstring(L, ((PDQ_SOA *) rr)->rname.string.value, ((PDQ_SOA *) rr)->rname.string.length);
+		lua_setfield(L, -2, "rname");
+		lua_pushinteger(L, ((PDQ_SOA *) rr)->serial);
+		lua_setfield(L, -2, "serial");
+		lua_pushinteger(L, ((PDQ_SOA *) rr)->refresh);
+		lua_setfield(L, -2, "refresh");
+		lua_pushinteger(L, ((PDQ_SOA *) rr)->retry);
+		lua_setfield(L, -2, "retry");
+		lua_pushinteger(L, ((PDQ_SOA *) rr)->expire);
+		lua_setfield(L, -2, "expire");
+		lua_pushinteger(L, ((PDQ_SOA *) rr)->minimum);
+		lua_setfield(L, -2, "minimum");
+		break;
+	}
+
+	return 1;
+}
+
+/**
+ * boolean = dns.isequal(rr1, rr2)
+ */
+static int
+lua_dns_isequal(lua_State *L)
+{
+	SmtpCtx *ctx;
+	PDQ_rr *r1, *r2;
+
+	if ((ctx = lua_smtp_ctx(L)) == NULL)
+		return 0;
+
+	if (lua_gettop(L) != 2) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+
+	if (lua_equal(L, 1, 2)) {
+		lua_pushboolean(L, 1);
+		return 1;
+	}
+
+	r1 = lua_rr_to_pdq(L, 1);
+	r2 = lua_rr_to_pdq(L, 2);
+
+	lua_pushboolean(L, r1 != NULL && r2 != NULL && pdqEqual(r1, r2));
+
+	free(r2);
+	free(r1);
+
+	return 1;
+}
+
 /**
  * dns.open()
  */
@@ -2959,90 +3340,8 @@ lua_dns_getresult(lua_State *L, PDQ_rr *rr)
 		return 1;
 
 	for ( ; rr != NULL; rr = rr->next) {
-		lua_newtable(L);			/* answers rr */
-
-		/* Common RR fields. */
-		lua_pushlstring(L, rr->name.string.value, rr->name.string.length);
-		lua_setfield(L, -2, "name");
-		lua_pushinteger(L, rr->class);
-		lua_setfield(L, -2, "class");
-		lua_pushinteger(L, rr->type);
-		lua_setfield(L, -2, "type");
-
-		if (rr->section == PDQ_SECTION_QUERY) {
-			lua_pushinteger(L, ((PDQ_QUERY *)rr)->rcode);
-			lua_setfield(L, -2, "rcode");
-
-			/* Index queries. */
-			lua_pushvalue(L, -1);		/* answers qy qy */
-			lua_array_push(L, -3);		/* answers qy */
-
-			/* Also save queries by key in same table. */
-			(void) lua_pushfstring(
-				L, "%s,%s,%s",
-				pdqClassName(rr->class),
-				pdqTypeName(rr->type),
-				rr->name.string.value
-			);				/* answers qy key */
-			lua_pushvalue(L, -2);		/* answers qy key qy */
-			lua_settable(L, -4);		/* answers qy */
-
-			if (rr->next != NULL && rr->next->section != PDQ_SECTION_QUERY) {
-				lua_newtable(L);	/* answers qy extra */
-				lua_newtable(L);	/* answers qy extra authority */
-				lua_newtable(L);	/* answers qy extra authority answer */
-			} else {
-				lua_pop(L, 1);		/* answers */
-			}
+		if (lua_pdq_to_rr(L, rr) != 1)
 			continue;
-		}
-
-		lua_pushinteger(L, rr->ttl);
-		lua_setfield(L, -2, "ttl");
-
-		switch (rr->type) {			/* answers qy extra authority answer rr */
-		case PDQ_TYPE_A:
-		case PDQ_TYPE_AAAA:
-			lua_pushlstring(L, ((PDQ_A *) rr)->address.string.value, ((PDQ_A *) rr)->address.string.length);
-			lua_setfield(L, -2, "value");
-			break;
-
-		case PDQ_TYPE_MX:
-			lua_pushinteger(L, ((PDQ_MX *) rr)->preference);
-			lua_setfield(L, -2, "preference");
-			/*@fallthrough@*/
-
-		case PDQ_TYPE_CNAME:
-		case PDQ_TYPE_DNAME:
-		case PDQ_TYPE_PTR:
-		case PDQ_TYPE_NS:
-			lua_pushlstring(L, ((PDQ_NS *) rr)->host.string.value, ((PDQ_NS *) rr)->host.string.length);
-			lua_setfield(L, -2, "value");
-			break;
-
-		case PDQ_TYPE_TXT:
-			lua_pushlstring(L, (char *)((PDQ_TXT *) rr)->text.value, ((PDQ_TXT *) rr)->text.length);
-			lua_setfield(L, -2, "value");
-			break;
-
-		case PDQ_TYPE_SOA:
-			lua_pushlstring(L, ((PDQ_SOA *) rr)->mname.string.value, ((PDQ_SOA *) rr)->mname.string.length);
-			lua_setfield(L, -2, "mname");
-			lua_pushlstring(L, ((PDQ_SOA *) rr)->rname.string.value, ((PDQ_SOA *) rr)->rname.string.length);
-			lua_setfield(L, -2, "rname");
-			lua_pushinteger(L, ((PDQ_SOA *) rr)->serial);
-			lua_setfield(L, -2, "serial");
-			lua_pushinteger(L, ((PDQ_SOA *) rr)->refresh);
-			lua_setfield(L, -2, "refresh");
-			lua_pushinteger(L, ((PDQ_SOA *) rr)->retry);
-			lua_setfield(L, -2, "retry");
-			lua_pushinteger(L, ((PDQ_SOA *) rr)->expire);
-			lua_setfield(L, -2, "expire");
-			lua_pushinteger(L, ((PDQ_SOA *) rr)->minimum);
-			lua_setfield(L, -2, "minimum");
-			break;
-		}
-
 								/* answers qy extra authority answer rr */
 		/* See PDQ_SECTION_ indices for why this works. */
 		lua_array_push(L, -1 -rr->section); 		/* answers qy extra authority answer */
@@ -3111,6 +3410,7 @@ static const luaL_Reg lua_dns_package[] = {
 	{ "typename",	lua_dns_typename },
 	{ "rcodename",	lua_dns_rcodename },
 	{ "ispending",	lua_dns_ispending },
+	{ "isequal",	lua_dns_isequal },
 	{ NULL, NULL },
 };
 
@@ -3204,23 +3504,12 @@ lua_net_reverse_ip(lua_State *L)
 static int
 lua_net_contains_ip(lua_State *L)
 {
-	unsigned long cidr;
-	const char *net, *slash;
-	unsigned char network[IPV6_BYTE_LENGTH], ip[IPV6_BYTE_LENGTH];
-
-	net = luaL_optstring(L, 1, "::0/0");
-	if ((slash = strchr(net, '/')) != NULL) {
-		slash++;
-		cidr = strtol(slash, NULL, 10);
-		if (parseIPv6(slash, network) <= 0)
-			goto error1;
-		if (parseIPv6(luaL_optstring(L, 2, "::0"), ip) <= 0)
-			goto error1;
-		lua_pushboolean(L, networkContainsIp(network, cidr, ip));
-	} else {
-error1:
-		lua_pushboolean(L, 0);
-	}
+	lua_pushboolean(
+		L, networkContainsIP(
+			luaL_optstring(L, 1, "::0/0"),
+			luaL_optstring(L, 2, "::0")
+		)
+	);
 
 	return 1;
 }
@@ -3306,6 +3595,30 @@ lua_net_find_ip(lua_State *L)
 	return 0;
 }
 
+/**
+ * string = net.format_ip(string, compact)
+ */
+static int
+lua_net_format_ip(lua_State *L)
+{
+	const char *string;
+	int compact, length;
+	char address[IPV6_STRING_LENGTH];
+	unsigned char ipv6[IPV6_BYTE_LENGTH];
+
+ 	if ((string = luaL_optstring(L, 1, NULL)) == NULL || parseIPv6(string, ipv6) <= 0) {
+ 		lua_pushstring(L, "");
+		return 1;
+	}
+
+	compact = luaL_optint(L, 2, 0);
+	length = (isReservedIPv6(ipv6, IS_IP_V4) ? IPV4_BYTE_LENGTH : IPV6_BYTE_LENGTH);
+	length = formatIP(ipv6, length, compact, address, sizeof (address));
+	lua_pushlstring(L, address, length);
+
+	return 1;
+}
+
 static const luaL_Reg lua_net_package[] = {
 	{ "reverse_ip",			lua_net_reverse_ip },
 	{ "contains_ip", 		lua_net_contains_ip },
@@ -3316,6 +3629,7 @@ static const luaL_Reg lua_net_package[] = {
 	{ "index_valid_nth_tld",	lua_net_index_valid_nth_tld },
 	{ "is_ipv4_in_name",		lua_net_is_ipv4_in_name },
 	{ "is_ip_reserved",		lua_net_is_ip_reserved },
+	{ "format_ip",			lua_net_format_ip },
 	{ NULL, NULL },
 };
 
@@ -3491,6 +3805,7 @@ lua_pushuri(lua_State *L, URI *uri)
 	lua_table_set_string(L, -1, "user_info", 	uri->userInfo);
 	lua_table_set_string(L, -1, "host", 		uri->host);
 	lua_table_set_integer(L, -1, "port", 		uriGetSchemePort(uri));
+	lua_table_set_string(L, -1, "path", 		uri->path);
 	lua_table_set_string(L, -1, "query", 		uri->query);
 	lua_table_set_string(L, -1, "fragment",		uri->fragment);
 
@@ -3498,7 +3813,7 @@ lua_pushuri(lua_State *L, URI *uri)
 		SmtpCtx *ctx = lua_smtp_ctx(L);
 		syslog(
 			LOG_DEBUG,
-			LOG_FMT "uri_raw=%s uri_decoded=%s scheme=%s scheme_info=%s user_info=%s host=%s port=%d query=%s fragment=%s",
+			LOG_FMT "uri_raw=%s uri_decoded=%s scheme=%s scheme_info=%s user_info=%s host=%s port=%d path=%s query=%s fragment=%s",
 			LOG_ID(ctx),
 			uri->uri,
 			uri->uriDecoded,
@@ -3507,6 +3822,7 @@ lua_pushuri(lua_State *L, URI *uri)
 			uri->userInfo,
 			uri->host,
 			uriGetSchemePort(uri),
+			uri->path,
 			uri->query,
 			uri->fragment
 		);
@@ -3517,7 +3833,7 @@ lua_pushuri(lua_State *L, URI *uri)
  * table = uri.parse(string)
  */
 static int
-lua_uri_parse(lua_State *L)
+uri_parse(lua_State *L)
 {
 	URI *uri;
 	size_t length;
@@ -3540,8 +3856,52 @@ lua_uri_parse(lua_State *L)
 	return 1;
 }
 
+/**
+ * string = uri.encode(string)
+ */
+static int
+uri_encode(lua_State *L)
+{
+	char *string;
+	size_t length;
+
+	string = (char*)luaL_optlstring(L, 1, NULL, &length);
+
+	if ((string = uriEncode(string)) == NULL) {
+		lua_pushnil(L);
+	} else {
+		lua_pushstring(L, string);
+		free(string);
+	}
+
+	return 1;
+}
+
+/**
+ * string = uri.decode(string)
+ */
+static int
+uri_decode(lua_State *L)
+{
+	char *string;
+	size_t length;
+
+	string = (char*)luaL_optlstring(L, 1, NULL, &length);
+
+	if ((string = uriDecode(string)) == NULL) {
+		lua_pushnil(L);
+	} else {
+		lua_pushstring(L, string);
+		free(string);
+	}
+
+	return 1;
+}
+
 static const luaL_Reg lua_uri_package[] = {
-	{ "parse", 			lua_uri_parse },
+	{ "parse", 			uri_parse },
+	{ "decode", 			uri_decode },
+	{ "encode", 			uri_encode },
 	{ NULL, NULL },
 };
 
@@ -3796,17 +4156,8 @@ http_yieldafter(Service *svc, SmtpCtx *ctx)
 	HttpResponse *response = &content->response;
 
 	if ((L1 = lua_getthread(ctx->script, ctx)) != NULL) {
-		lua_getglobal(L1, "__service");		/* __svc */
-		if (lua_isnil(L1, -1)) {
-			lua_pop(L1, 1);			/* -- */
-			lua_newtable(L1);		/* __svc */
-		}
-
-		lua_getfield(L1, -1, "http");		/* __svc http */
-		if (lua_isnil(L1, -1)) {
-			lua_pop(L1, 1);			/* __svc */
-			lua_newtable(L1);		/* __svc http */
-		}
+		lua_table_getglobal(L1, "__service");	/* __svc */
+		lua_table_getfield(L1, -1, "http");	/* __svc http */
 
 		lua_pushliteral(L1, "http");
 		lua_setfield(L1, -2, "service_name");
@@ -4012,15 +4363,20 @@ lua_define_http(lua_State *L)
  ***********************************************************************/
 
 static const luaL_Reg lua_service_pkg[] = {
-	{ "wait", 			service_wait },
-	{ "reset",			service_reset },
-	{ "clamd", 			service_clamd },
-	{ "spamd", 			service_spamd },
+	{ "wait", 		service_wait },
+	{ "reset",		service_reset },
+	{ "clamd", 		service_clamd },
+	{ "spamd", 		service_spamd },
 	{ NULL, NULL },
 };
 
 static const luaL_Reg lua_service_http[] = {
-	{ "request", service_http_request },
+	{ "request", 		service_http_request },
+	{ NULL, NULL },
+};
+
+static const luaL_Reg lua_service_client[] = {
+	{ "write", 		service_client_write },
 	{ NULL, NULL },
 };
 
@@ -4044,10 +4400,22 @@ lua_define_service(lua_State *L)
 	lua_newtable(L);				/* pkg http code */
 	for (map = http_code_constants; map->name != NULL; map++) {
 		lua_table_set_integer(L, -1, map->name, map->value);
+
+		lua_pushinteger(L, map->value);
+		lua_pushstring(L, map->name);
+		lua_settable(L, -3);
 	}
 	lua_setfield(L, -2, "code");			/* pkg http */
-
 	lua_setfield(L, -2, "http");			/* pkg */
+
+	/* service.client.* functions */
+	lua_newtable(L);				/* pkg client */
+	for (reg = lua_service_client; reg->name != NULL; reg++) {
+		lua_pushcfunction(L, reg->func);	/* pkg client fn */
+		lua_setfield(L, -2, reg->name);		/* pkg client */
+	}
+	lua_setfield(L, -2, "client");			/* pkg */
+
 	lua_pop(L, 1);					/* -- */
 }
 
@@ -4290,10 +4658,21 @@ PT_THREAD(hook_do(lua_State *L, SmtpCtx *ctx, const char *hook, LuaHookInit init
 
 LUA_CMD_DEF(accept)
 {
+	socklen_t socklen;
+	SocketAddress address;
+
 	/* Create client connection table. */
-	lua_newtable(L1);					/* fn client */
+	lua_table_getglobal(L1, "client");			/* fn client */
 	lua_pushvalue(L1, -1);					/* fn client client */
 	lua_setglobal(L1, "client");				/* fn client */
+
+	*ctx->work.data = '\0';
+	socklen = sizeof (address);
+	if (getsockname(ctx->client.socket, &address.sa, &socklen) == 0) {
+		ctx->work.length = socketAddressFormatIp(&address.sa, SOCKET_ADDRESS_AS_IPV4, ctx->work.data, ctx->work.size);
+		lua_pushlstring(L1, ctx->work.data, ctx->work.length);	/* fn client our_ip */
+		lua_setfield(L1, -2, "local_address");		/* fn client */
+	}
 
 	lua_pushstring(L1, ctx->id_sess);			/* fn client id */
 	lua_setfield(L1, -2, "id_sess");			/* fn client */
@@ -4347,13 +4726,25 @@ LUA_CMD_DEF(mail)
 	lua_pop(L1, 1);
 
 	lua_pushlstring(L1, ctx->sender->address.string, ctx->sender->address.length);	/* fn arg */
-	return 1;
+	lua_pushlstring(L1, ctx->sender->domain.string, ctx->sender->domain.length);	/* fn arg */
+
+	return 2;
 }
 
 LUA_CMD_DEF(rcpt)
 {
+	char *at_sign;
+
 	lua_pushstring(L1, *ctx->rcpt);		/* fn arg */
-	return 1;
+
+	if ((at_sign = strchr(*ctx->rcpt, '@')) != NULL) {
+		TextLower(at_sign+1, -1);
+		lua_pushstring(L1, at_sign+1);		/* fn arg */
+	} else {
+		lua_pushstring(L1, "");
+	}
+
+	return 2;
 }
 
 LUA_CMD_DEF(data)
@@ -4528,6 +4919,7 @@ hook_init(SmtpCtx *ctx)
 	lua_newtable(L);
 	lua_setglobal(L, "hook");
 
+	lua_define_client(L);
 	lua_define_smtpe(L);
 	lua_define_dns(L);
 	lua_define_header(L);
@@ -5053,7 +5445,7 @@ printInfo(void)
  *
  * The session-id is composed of
  *
- *	ymd HMS ppppp nnnnn 00
+ *	ymd HMS ppppp 00
  */
 static void
 next_session(char buffer[ID_SIZE])
@@ -5078,9 +5470,9 @@ next_session(char buffer[ID_SIZE])
  *
  * The message-id is composed of
  *
- *	ymd HMS ppppp nnnnn cc
- *ymdHMSpppppnnnnncc
- * cc is Base63 number excluding 00.
+ *	ymd HMS ppppp cc
+ *
+ * cc is Base62 number excluding 00.
  */
 static void
 next_transaction(SmtpCtx *ctx)

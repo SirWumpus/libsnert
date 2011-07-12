@@ -26,6 +26,10 @@ client.host
 
 	Available from hook.accept to hook.close
 
+client.local_address
+
+	Available from hook.accept to hook.close
+
 client.id_sess
 
 	Session ID available from hook.accept to hook.close
@@ -49,6 +53,26 @@ client.is_pipelining
 
 	True when the client has been detected pipelining SMTP commands.
 
+client.write(smtp_reply_string)
+
+	Send a correctly formated SMTP reply to the client. Intended as
+	an alternative means to send multi-line replies. For example
+
+		for _, value in ipairs(output) do
+			client.write("214-" .. value .. "\r\n")
+		end
+
+		return "214 end"
+
+	Note that this function is equivalent to:
+
+		function client.write(msg)
+			if service.client.write(msg, timeout) do
+				service.wait(1)
+				service.reset()
+			end
+		end
+
 
 Client SMTP Input Hooks
 -----------------------
@@ -66,6 +90,7 @@ back to the client.
 
 	ip = client.address; ptr = client.host
 
+
 [drop_flag,] reply = hook.helo(helo_arg)
 
 
@@ -76,23 +101,37 @@ back to the client.
 
 	Should return 235 for successful authentication.
 
+
 [drop_flag,] reply = hook.out_seq(smtp_input)
 
 	Should always return 501 out of sequence.
+
 
 [drop_flag,] reply = hook.unknown(smtp_input)
 
 	Should always return 502 command unknown.
 
-[drop_flag,] reply = hook.mail(sender)
+
+[drop_flag,] reply = hook.mail(sender, domain)
+
+	Sender will be the original unmodified MAIL FROM: argument. The
+	sender and domain may be an empty string in the case of a null
+	sender. Domain will always be in lower case and should only
+	appear as an empty string for the null sender; ie. unqualified
+	senders should not be accepted.
 
 
-[drop_flag,] reply = hook.rcpt(recipient)
+[drop_flag,] reply = hook.rcpt(recipient, domain)
+
+	Recipient will be the original unmodified RCPT TO: argument.
+	Domain will always be in lower case and may be an empty string
+	in the case of unqualified recipient.
 
 
 [drop_flag,] reply = hook.data()
 
 	Should return "354 text" to continue, "4xy text", or "5xy text".
+
 
 hook.content(chunk_of_lines_as_a_string)
 
@@ -196,6 +235,7 @@ dns.open()
 	no dns.close(). When a Lua hook completes the DNS socket and
 	related data will be recovered.
 
+
 dns.close()
 
 
@@ -203,10 +243,18 @@ dns.reset()
 
 	Reset socket timeout and clears any previous collected answers.
 
+
 dns.query(dns.class, dns.type, name)
 
 	Send a DNS query. This can be done multiple times before collecting
 	the results with dns.wait().
+
+
+boolean = dns.isequal(RR1, RR2)
+
+	Return true if RR1 and RR2 are equal by-reference or by-value; false
+	otherwise. Note that in Lua "RR1 == RR2" for tables is done by reference.
+
 
 boolean = dns.ispending()
 
@@ -411,6 +459,9 @@ offset, span = net.find_ip(string)
 	IPv6 addres in string; otherwise nil if not found.
 
 
+string = net.format_ip(string, compact)
+
+
 boolean = net.is_ip_reserved(address, is_ip_bits)
 
 		net.is_ip.BENCHMARK
@@ -462,6 +513,17 @@ boolean = service.clamd(filepath[, host_list[, timeout]])
 
 	Submit a file for virus scanning by clamd. Return true on
 	succesful connection.
+
+
+boolean = service.client.write(smtp_reply_string[, timeout])
+
+	Prepare to send a correctly formated SMTP reply to the client.
+	Intended as an an alternative means to send multi-line replies.
+
+		service.client.write(part1, 5)
+		service.wait(0)
+		service.client.write(part2.. "\r\n", 5)
+		service.wait(1)
 
 
 boolean = service.spamd(filepath[, host_list[, method[, user[, timeout]]]])
@@ -841,6 +903,12 @@ table = uri.parse(string)
 		table.port
 		table.query
 		table.fragment
+
+string = uri.encode(string)
+
+
+string = uri.decode(string)
+
 
 uri.found
 
