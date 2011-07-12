@@ -92,10 +92,8 @@ typedef struct {
 } PDQ_name;
 
 typedef struct {
-	struct {
-		unsigned short length;
-		unsigned char *value;
-	} data;
+	unsigned long length;
+	unsigned char *value;
 } PDQ_data;
 
 typedef enum {
@@ -243,10 +241,7 @@ typedef struct {
 
 typedef struct {
 	PDQ_rr rr;
-	struct {
-		unsigned long length;
-		unsigned char *value;
-	} text;
+	PDQ_data text;
 } PDQ_TXT, PDQ_NULL;
 
 typedef struct {
