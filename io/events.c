@@ -36,7 +36,6 @@
 #endif
 
 #include <com/snert/lib/io/events.h>
-#include <com/snert/lib/type/Vector.h>
 #include <com/snert/lib/util/timer.h>
 #include <com/snert/lib/util/Text.h>
 
@@ -104,12 +103,13 @@ events_wait_kqueue(Events *loop, long ms)
 {
 	time_t now;
 	Event *event;
+	ListItem *node;
 	struct timespec ts;
 	struct kevent *k_ev;
 	int i, fd_length, fd_active, fd_ready;
 	int kq, saved_errno, io_want, io_seen;
 
-	fd_length = VectorLength(loop->events);
+	fd_length = loop->events.length;
 	if (fd_length <= 0)
 		return EINVAL;
 
@@ -118,8 +118,8 @@ events_wait_kqueue(Events *loop, long ms)
 
 	/* Create file descriptors list. */
 	fd_active = 0;
-	for (i = 0; i < fd_length; i++) {
-		event = VectorGet(loop->events, i);
+	for (node = loop->events.head; node != NULL; node = node->next) {
+		event = node->data;
 		if (event->enabled) {
 			io_want = (event->io_type & EVENT_READ) ? EVFILT_READ : EVFILT_WRITE;
 			EV_SET(
@@ -206,12 +206,13 @@ events_wait_epoll(Events *loop, long ms)
 	time_t now;
 	int io_want;
 	Event *event;
+	ListItem *node;
 	struct epoll_event *e_ev;
 	int i, fd_length, fd_active, fd_ready, saved_errno;
 
 	int ev_fd;
 
-	fd_length = VectorLength(loop->events);
+	fd_length = loop->events.length;
 	if (fd_length <= 0)
 		return EINVAL;
 
@@ -222,8 +223,8 @@ events_wait_epoll(Events *loop, long ms)
 		ms = INFTIM;
 
 	fd_active = 0;
-	for (i = 0; i < fd_length; i++) {
-		event = VectorGet(loop->events, i);
+	for (node = loop->events.head; node != NULL; node = node->next) {
+		event = node->data;
 		if (event->enabled) {
 			io_want = 0;
 			if (event->io_type & EVENT_READ)
@@ -298,20 +299,21 @@ events_wait_poll(Events *loop, long ms)
 	time_t now;
 	int io_want;
 	Event *event;
+	ListItem *node;
 	struct pollfd *p_ev;
-	int i, fd_length, fd_active, fd_ready, saved_errno;
+	int fd_length, fd_active, fd_ready, saved_errno;
 
 	if (ms < 0)
 		ms = INFTIM;
 
 	errno = 0;
-	fd_length = VectorLength(loop->events);
+	fd_length = loop->events.length;
 	if (fd_length <= 0)
 		goto error0;
 
 	fd_active = 0;
-	for (i = 0; i < fd_length; i++) {
-		event = VectorGet(loop->events, i);
+	for (node = loop->events.head; node != NULL; node = node->next) {
+		event = node->data;
 		if (event->enabled) {
 			io_want = 0;
 			if (event->io_type & EVENT_READ)
@@ -345,8 +347,10 @@ events_wait_poll(Events *loop, long ms)
 		goto next_event;
 
 	fd_active = 0;
-	for (i = 0; i < fd_length; i++) {
-		if ((event = VectorGet(loop->events, i)) == NULL || !event->enabled)
+	for (node = loop->events.head; node != NULL; node = node->next) {
+		event = node->data;
+
+		if (!event->enabled)
 			continue;
 
 		p_ev = &((struct pollfd *) loop->set)[fd_active++];
@@ -398,6 +402,8 @@ eventInit(Event *event, int fd, int io_type)
 {
 	if (event != NULL) {
 		memset(event, 0, sizeof (*event));
+		event->node.free = eventFree;
+		event->node.data = event;
 		event->io_type = io_type;
 		event->timeout = -1;
 		event->enabled = 1;
@@ -435,10 +441,9 @@ eventAdd(Events *loop, Event *event)
 	if (loop == NULL || event == NULL)
 		return -1;
 
-	if (VectorAdd(loop->events, event))
-		return -1;
+	listInsertAfter(&loop->events, loop->events.tail, &event->node);
 
-	length = VectorLength(loop->events);
+	length = loop->events.length;
 	if (loop->set_size < length) {
 		free(loop->set);
 		if ((loop->set = malloc((length + EVENT_GROWTH) * sizeof (*loop->set))) == NULL)
@@ -455,17 +460,9 @@ eventAdd(Events *loop, Event *event)
 void
 eventRemove(Events *loop, Event *event)
 {
-	long i, length;
-
 	if (loop != NULL) {
-		length = VectorLength(loop->events);
-
-		for (i = 0; i < length; i++) {
-			if (VectorGet(loop->events, i) == event) {
-				VectorRemove(loop->events, i--);
-				break;
-			}
-		}
+		listDelete(&loop->events, &event->node);
+		eventFree(event);
 	}
 }
 
@@ -483,8 +480,9 @@ long
 eventsTimeout(Events *loop, const time_t *start)
 {
 	long seconds;
+	Event *event;
+	ListItem *node;
 	time_t now, expire;
-	Event **item;
 
 	if (loop == NULL || start == NULL)
 		return -1;
@@ -493,9 +491,10 @@ eventsTimeout(Events *loop, const time_t *start)
 	seconds = LONG_MAX / UNIT_MILLI - 1;
 	expire = now + seconds;
 
-	for (item = (Event **) VectorBase(loop->events); *item != NULL; item++) {
-		if ((*item)->enabled && now <= (*item)->expire && (*item)->expire < expire) {
-			expire = (*item)->expire;
+	for (node = loop->events.head; node != NULL; node = node->next) {
+		event = node->data;
+		if (event->enabled && now <= event->expire && event->expire < expire) {
+			expire = event->expire;
 			seconds = expire - now;
 		}
 	}
@@ -508,13 +507,13 @@ eventsExpire(Events *loop, const time_t *expire)
 {
 	time_t when;
 	Event *event;
-	long i, length;
+	ListItem *node, *next;
 
 	when = *expire;
 
-	length = VectorLength(loop->events);
-	for (i = 0; i < length; i++) {
-		event = VectorGet(loop->events, i);
+	for (node = loop->events.head; node != NULL; node = next) {
+		next = node->next;
+		event = node->data;
 		if (event->enabled && event->expire <= when) {
 			errno = ETIMEDOUT;
 			if (event->on.timeout != NULL)
@@ -529,7 +528,7 @@ eventsRun(Events *loop)
 	long seconds;
 	time_t now, expire;
 
-	if (loop == NULL || loop->events == NULL || VectorLength(loop->events) == 0)
+	if (loop == NULL || loop->events.length == 0)
 		return;
 
 	for (loop->running = 1; loop->running; ) {
@@ -554,14 +553,10 @@ eventsInit(Events *loop)
 {
 	memset(loop, 0, sizeof (*loop));
 
+	listInit(&loop->events);
 	loop->set_size = EVENT_GROWTH;
 
-	if ((loop->events = VectorCreate(loop->set_size)) == NULL)
-		return -1;
-	VectorSetDestroyEntry(loop->events, eventFree);
-
 	if ((loop->set = calloc(loop->set_size, sizeof (*loop->set))) == NULL) {
-		VectorDestroy(loop->events);
 		return -1;
 	}
 
@@ -582,7 +577,7 @@ void
 eventsFree(Events *loop)
 {
 	if (loop != NULL) {
-		VectorDestroy(loop->events);
+		listFini(&loop->events);
 		free(loop->set);
 	}
 }

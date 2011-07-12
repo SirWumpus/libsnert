@@ -75,7 +75,7 @@ typedef union {
 # include <setjmp.h>
 #endif
 
-#include <com/snert/lib/type/Vector.h>
+#include <com/snert/lib/type/list.h>
 
 typedef struct {
 	EventHook io;			/* input ready or output buffer available */
@@ -88,6 +88,7 @@ struct event {
 	time_t expire;
 	int io_type;
 	int enabled;
+	ListItem node;
 
 	/* Public */
 	int fd;
@@ -102,7 +103,7 @@ struct events {
 
 	/* Private */
 	int running;
-	Vector events;
+	List events;
 	os_event *set;
 	unsigned set_size;
 };
