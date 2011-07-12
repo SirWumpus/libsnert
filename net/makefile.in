@@ -84,13 +84,13 @@ OBJS =  getRFC2821DateTime$O formatIP$O isRFC2606$O network$O networkGetMyDetail
 	reverse$O pdq$O spanIP$O spanHost$O spanLocalPart$O findIP$O dnsList$O \
 	server$O http$O
 
-PROGRAMS = ipinclient$E pdq$E findIP$E formatIP$E server$E geturl$E
+PROGRAMS = ipinclient$E pdq$E findIP$E formatIP$E server$E geturl$E netcontainsip$E
 
 .MAIN : build
 
 all: build
 
-build: title add-lib ipinclient$E findIP$E formatIP$E
+build: title add-lib ipinclient$E findIP$E formatIP$E netcontainsip$E
 
 add-lib: ${OBJS}
 	@echo
@@ -156,3 +156,6 @@ http.c : ${IDIR}/util/convertDate.h ${IDIR}/util/time62.h ${IDIR}/util/Text.h \
 
 geturl$E : ${LIB} http.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}geturl$E http.c $(LIBSNERT) ${LIBS} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+
+netcontainsip$E : network$O
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}netcontainsip$E network.c $(LIBSNERT) ${LIBS}

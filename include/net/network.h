@@ -261,7 +261,20 @@ extern int isRFC2606(const char *path);
  * @return
  *	True if network/cidr contains the given IPv6 address.
  */
-extern int networkContainsIp(unsigned char net[IPV6_BYTE_LENGTH], unsigned long cidr, unsigned char ipv6[IPV6_BYTE_LENGTH]);
+extern int networkContainsIPv6(unsigned char net[IPV6_BYTE_LENGTH], unsigned long cidr, unsigned char ipv6[IPV6_BYTE_LENGTH]);
+#define networkContainsIp	networkContainsIPv6
+
+/**
+ * @param net
+ *	An IPv6 or IPv4 network address and CIDR string.
+ *
+ * @param ip
+ *	An IPv6 or IPv4 address string.
+ *
+ * @return
+ *	True if network/cidr contains the given IP address.
+ */
+extern int networkContainsIP(const char *net_cidr, const char *address);
 
 /**
  * @param host
