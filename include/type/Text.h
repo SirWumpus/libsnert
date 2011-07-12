@@ -11,6 +11,8 @@
 extern "C" {
 #endif
 
+#include <com/snert/lib/type/Object.h>
+
 #ifndef __com_snert_lib_type_Vector_h__
 #include <com/snert/lib/type/Vector.h>
 #endif

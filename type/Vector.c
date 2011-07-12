@@ -1,8 +1,10 @@
 /*
  * Vector.c
  *
- * Copyright 2001, 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2001, 2011 by Anthony Howe.  All rights reserved.
  */
+
+#include <com/snert/lib/version.h>
 
 #include <ctype.h>
 #include <errno.h>
@@ -10,6 +12,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <com/snert/lib/type/Object.h>
 #include <com/snert/lib/type/Vector.h>
 
 #ifndef VECTOR_GROWTH
@@ -35,7 +38,7 @@ VectorBase(Vector self)
 		return (void **) empty;
 	}
 
-	return (void **) self->_base;
+	return self->_base;
 }
 
 long
@@ -46,7 +49,7 @@ VectorCapacity(Vector self)
 		return 0;
 	}
 
-	return self->_capacity;
+	return self->_size;
 }
 
 long
@@ -78,12 +81,12 @@ FreeStub(void *entry)
 }
 
 void
-VectorSetDestroyEntry(Vector self, void (*destroy)(void *entry))
+VectorSetDestroyEntry(Vector self, void (*fn)(void *))
 {
 	if (self == NULL)
 		errno = EFAULT;
 	else
-		self->_destroyEntry = destroy;
+		self->_free = fn;
 }
 
 /*
@@ -92,7 +95,7 @@ VectorSetDestroyEntry(Vector self, void (*destroy)(void *entry))
 int
 VectorReverseRange(Vector self, long x, long y)
 {
-	Object temp, *xp, *yp;
+	void *temp, **xp, **yp;
 
 	if (self == NULL) {
 		errno = EFAULT;
@@ -172,10 +175,10 @@ VectorRemoveSome(Vector self, long index, long length)
 	for (i = index, j = index + length; i < j; i++) {
 		if ((obj = self->_base[i]) != NULL) {
 			/* Are we destroying objects or unknow types? */
-			if (self->_destroyEntry == NULL)
+			if (self->_free == NULL)
 				obj->destroy(obj);
 			else
-				(*self->_destroyEntry)(obj);
+				(*self->_free)(obj);
 		}
 	}
 
@@ -210,9 +213,9 @@ VectorDestroy(void *selfless)
 
 int
 VectorAdd(Vector self, void *data)
-/*@modifies self->_base, self->_length, self->_capacity @*/
+/*@modifies self->_base, self->_length, self->_size @*/
 {
-	Object *bigger;
+	void **bigger;
 
 	if (self == NULL) {
 		errno = EFAULT;
@@ -220,14 +223,14 @@ VectorAdd(Vector self, void *data)
 	}
 
 	/*@-branchstate@*/
-	if (self->_capacity <= self->_length) {
+	if (self->_size <= self->_length) {
 		/*@-usereleased -compdef -mustfreeonly@*/
-		bigger = realloc(self->_base, sizeof (void *) * (self->_capacity + VECTOR_GROWTH + 1));
+		bigger = realloc(self->_base, sizeof (void *) * (self->_size + VECTOR_GROWTH + 1));
 		if (bigger == NULL)
 			return -1;
 		/*@-usereleased =compdef =mustfreeonly*/
 
-		self->_capacity += VECTOR_GROWTH;
+		self->_size += VECTOR_GROWTH;
 		self->_base = bigger;
 	}
 	/*@=branchstate@*/
@@ -307,10 +310,10 @@ VectorSet(Vector self, long index, void *data)
 
 	if (value != NULL && value != data) {
 		/*@-branchstate@*/
-		if (self->_destroyEntry == NULL)
+		if (self->_free == NULL)
 			value->destroy(value);
 		else
-			(*self->_destroyEntry)(value);
+			(*self->_free)(value);
 		/*@=branchstate@*/
 	}
 }
@@ -463,7 +466,6 @@ Vector
 VectorCreate(long capacity)
 {
 	Vector self;
-	static struct vector model;
 
 	if (capacity < 1)
 		capacity = 1;
@@ -471,59 +473,20 @@ VectorCreate(long capacity)
 	if ((self = malloc(sizeof (*self))) == NULL)
 		return NULL;
 
-	if (model.objectName == NULL) {
-		/* Setup the super class. */
-		ObjectInit(&model);
-
-		/* Overrides. */
-		model.objectSize = sizeof (struct vector);
-		model.objectName = "Vector";
-		model.destroy = VectorDestroy;
-
-		/* Methods */
-		model.add = VectorAdd;
-		model.base = VectorBase;
-		model.capacity = VectorCapacity;
-		model.get = VectorGet;
-		model.insert = VectorInsert;
-		model.isEmpty = VectorIsEmpty;
-		model.moveRange = VectorMoveRange;
-		model.remove = VectorRemove;
-		model.removeAll = VectorRemoveAll;
-		model.removeSome = VectorRemoveSome;
-		model.replace = VectorReplace;
-		model.reverseRange = VectorReverseRange;
-		model.set = VectorSet;
-		model.setDestroyEntry = VectorSetDestroyEntry;
-		model.size = VectorLength;
-		model.sort = VectorSort;
-		model.uniq = VectorUniq;
-		model.walk = VectorWalk;
-		model.all = VectorAll;
-		model.some = VectorSome;
-		model.objectMethodCount += 18;
-
-		/* Instance variables. */
-		model.setDestroyEntry(&model, FreeStub);
-	}
-
-	*self = model;
-
 	/* Allocate an extra element so that the vector can
-	 * maintain a null object at the end. The vector is
+	 * maintain a null pointer at the end. The vector is
 	 * an array of pointers, so a null pointer at the end
 	 * can be used for an end condition when the vector
 	 * is iterated over.
 	 */
-	/*@-mustfreeonly@*/
 	self->_base = calloc((size_t)(capacity + 1), sizeof (void *));
-	/*@=mustfreeonly@*/
 	if (self->_base == NULL) {
 		free(self);
 		return NULL;
 	}
 
-	self->_capacity = capacity;
+	self->_free = FreeStub;
+	self->_size = capacity;
 	self->_length = 0;
 
 	return self;
@@ -562,8 +525,8 @@ dump(Vector a)
 	int i;
 	Integer x;
 
-	for (i = 0; i < a->size(a); i++) {
-		x = a->get(a, i);
+	for (i = 0; i < VectorLength(a); i++) {
+		x = VectorGet(a, i);
 		printf("get(%d) = %ld\n", i, x->value);
 	}
 }
@@ -580,111 +543,111 @@ main(int argc, char **argv)
 	isNotNull((a = VectorCreate(0)));
 
 	printf("destroy dynamic object\n");
-	a->destroy(a);
+	VectorDestroy(a);
 
 	printf("\ncreate vector a, capacity 10");
 	isNotNull((a = VectorCreate(10)));
 
-	printf("isEmpty=%d...%s\n", a->isEmpty(a), a->isEmpty(a) ? "OK" : "FAIL");
-	printf("size=%ld...%s\n", a->size(a), a->size(a) == 0 ? "OK" : "FAIL");
-	printf("capacity=%ld...%s\n", a->capacity(a), a->capacity(a) == 10 ? "OK" : "FAIL");
+	printf("isEmpty=%d...%s\n", VectorIsEmpty(a), VectorIsEmpty(a) ? "OK" : "FAIL");
+	printf("size=%ld...%s\n", VectorLength(a), VectorLength(a) == 0 ? "OK" : "FAIL");
+	printf("capacity=%ld...%s\n", VectorCapacity(a), VectorCapacity(a) == 10 ? "OK" : "FAIL");
 
 	printf("--add 5 Integers\n");
-	a->add(a, IntegerCreate(0));
-	a->add(a, IntegerCreate(1));
-	a->add(a, IntegerCreate(2));
-	a->add(a, IntegerCreate(3));
-	a->add(a, IntegerCreate(4));
+	VectorAdd(a, IntegerCreate(0));
+	VectorAdd(a, IntegerCreate(1));
+	VectorAdd(a, IntegerCreate(2));
+	VectorAdd(a, IntegerCreate(3));
+	VectorAdd(a, IntegerCreate(4));
 
-	printf("size=%ld...%s\n", a->size(a), a->size(a) == 5 ? "OK" : "FAIL");
-	printf("capacity=%ld ...%s\n", a->capacity(a), a->capacity(a) == 10 ? "OK" : "FAIL");
+	printf("size=%ld...%s\n", VectorLength(a), VectorLength(a) == 5 ? "OK" : "FAIL");
+	printf("capacity=%ld ...%s\n", VectorCapacity(a), VectorCapacity(a) == 10 ? "OK" : "FAIL");
 
 	printf("--add Integers just beyond capacity\n");
-	a->add(a, IntegerCreate(5));
-	a->add(a, IntegerCreate(6));
-	a->add(a, IntegerCreate(7));
-	a->add(a, IntegerCreate(8));
-	a->add(a, IntegerCreate(9));
-	a->add(a, IntegerCreate(10));
+	VectorAdd(a, IntegerCreate(5));
+	VectorAdd(a, IntegerCreate(6));
+	VectorAdd(a, IntegerCreate(7));
+	VectorAdd(a, IntegerCreate(8));
+	VectorAdd(a, IntegerCreate(9));
+	VectorAdd(a, IntegerCreate(10));
 
-	printf("size=%ld...%s\n", a->size(a), a->size(a) == 11 ? "OK" : "FAIL");
-	printf("capacity=%ld ...%s\n", a->capacity(a), a->capacity(a) == VECTOR_GROWTH + 10 ? "OK" : "FAIL");
+	printf("size=%ld...%s\n", VectorLength(a), VectorLength(a) == 11 ? "OK" : "FAIL");
+	printf("capacity=%ld ...%s\n", VectorCapacity(a), VectorCapacity(a) == VECTOR_GROWTH + 10 ? "OK" : "FAIL");
 
 	printf("--get/set replace same object\n");
-	x = a->get(a, 5);
+	x = VectorGet(a, 5);
 	printf("get(5) == 5...%s\n", x->value == 5  ? "OK" : "FAIL");
 
 	x->value = 555;
-	a->set(a, 5, x);
+	VectorSet(a, 5, x);
 	printf("set(5, 555)...OK\n");
-	y = a->get(a, 5);
+	y = VectorGet(a, 5);
 
 	printf("get(5) == 555...%s\n", y->value == 555  ? "OK" : "FAIL");
 	printf("x and y refer to same object...%s\n", x == y ?  "OK" : "FAIL");
 
 	x->value = 5;
-	x = a->get(a, 5);
+	x = VectorGet(a, 5);
 	printf("get(5) == 5...%s\n", x->value == 5  ? "OK" : "FAIL");
 
 	printf("--get/set replace different object\n");
-	a->set(a, 5, IntegerCreate(5));
+	VectorSet(a, 5, IntegerCreate(5));
 	printf("set(5, 5)...OK\n");
-	y = a->get(a, 5);
+	y = VectorGet(a, 5);
 	printf("get(5) == 5...%s\n", y->value == 5  ? "OK" : "FAIL");
 	printf("x and y refer to different object...%s\n", x != y ?  "OK" : "FAIL");
 
 	printf("--reverse all\n");
-	a->reverseRange(a, 0, a->size(a)-1);
+	VectorReverseRange(a, 0, VectorLength(a)-1);
 	dump(a);
 
 	printf("--reverse all\n");
-	a->reverseRange(a, 0, a->size(a)-1);
+	VectorReverseRange(a, 0, VectorLength(a)-1);
 	dump(a);
 
-	x = a->get(a, 2);
+	x = VectorGet(a, 2);
 	printf("get(2) == 2...%s\n", x->value == 2  ? "OK" : "FAIL");
 
 	printf("--removeSome\n");
-	a->removeSome(a, 1, 3);
-	printf("size=%ld...%s\n", a->size(a), a->size(a) == 8 ? "OK" : "FAIL");
-	printf("capacity=%ld ...%s\n", a->capacity(a), a->capacity(a) == VECTOR_GROWTH + 10 ? "OK" : "FAIL");
+	VectorRemoveSome(a, 1, 3);
+	printf("size=%ld...%s\n", VectorLength(a), VectorLength(a) == 8 ? "OK" : "FAIL");
+	printf("capacity=%ld ...%s\n", VectorCapacity(a), VectorCapacity(a) == VECTOR_GROWTH + 10 ? "OK" : "FAIL");
 	dump(a);
 
 	printf("--get & moveRange\n");
-	x = a->get(a, 1);
+	x = VectorGet(a, 1);
 	printf("get(1) == 4...%s\n", x->value == 4  ? "OK" : "FAIL");
 
-	a->moveRange(a, 2, 6, 0);
+	VectorMoveRange(a, 2, 6, 0);
 	dump(a);
 
-	x = a->get(a, 4);
+	x = VectorGet(a, 4);
 	printf("get(4) == 9...%s\n", x->value == 9  ? "OK" : "FAIL");
 
-	a->moveRange(a, 0, 4, 8);
+	VectorMoveRange(a, 0, 4, 8);
 	dump(a);
 
-	x = a->get(a, 2);
+	x = VectorGet(a, 2);
 	printf("get(2) == 2...%s\n", x->value == 10  ? "OK" : "FAIL");
 
-	a->moveRange(a, 6, 7, 2);
+	VectorMoveRange(a, 6, 7, 2);
 	dump(a);
 
-	x = a->get(a, 3);
+	x = VectorGet(a, 3);
 	printf("get(3) == 9...%s\n", x->value == 9  ? "OK" : "FAIL");
 
 	printf("--reverse all\n");
-	a->reverseRange(a, 0, a->size(a)-1);
-	x = a->get(a, 2);
+	VectorReverseRange(a, 0, VectorLength(a)-1);
+	x = VectorGet(a, 2);
 	dump(a);
 	printf("get(2) == 5...%s\n", x->value == 5  ? "OK" : "FAIL");
 
 	printf("--removeAll\n");
-	a->removeAll(a);
-	printf("isEmpty=%d...%s\n", a->isEmpty(a), a->isEmpty(a) ? "OK" : "FAIL");
-	printf("size=%ld...%s\n", a->size(a), a->size(a) == 0 ? "OK" : "FAIL");
+	VectorRemoveAll(a);
+	printf("isEmpty=%d...%s\n", VectorIsEmpty(a), VectorIsEmpty(a) ? "OK" : "FAIL");
+	printf("size=%ld...%s\n", VectorLength(a), VectorLength(a) == 0 ? "OK" : "FAIL");
 
 	printf("destroy a\n");
-	a->destroy(a);
+	VectorDestroy(a);
 
 	printf("\n--DONE--\n");
 
