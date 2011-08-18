@@ -243,6 +243,91 @@ spanFragment(const char *fragment)
 	return spanQuery(fragment);
 }
 
+/*
+ * RFC 2821 domain syntax excluding address-literal.
+ *
+ * Note that RFC 1035 section 2.3.1 indicates that domain labels
+ * should begin with an alpha character and end with an alpha-
+ * numeric character. However, all numeric domains do exist, such
+ * as 123.com, so are permitted.
+ */
+static int
+alt_spanDomain(const char *domain, int minDots)
+{
+	const char *start;
+	int dots, previous, label_is_alpha;
+
+	if (domain == NULL)
+		return 0;
+
+	dots = 0;
+	previous = '.';
+	label_is_alpha = 1;
+
+	for (start = domain; *domain != '\0'; domain++) {
+		switch (*domain) {
+		case '.':
+#ifdef RFC_1035_DISALLOW_TRAILING_HYPHEN
+/* Spam sample:
+ * http://www.creditcard.com.---------phpsessionoscommerce23452.st-partners.ru/priv/cc/verification.html
+ */
+			/* A domain segment must end with an alpha-numeric. */
+			if (!isalnum(previous))
+				return 0;
+#endif
+			/* Double dots are illegal. */
+			if (domain[1] == '.')
+				return 0;
+
+			/* Count only internal dots, not the trailing root dot. */
+			if (domain[1] != '\0') {
+				label_is_alpha = 1;
+				dots++;
+			}
+			break;
+		case '-':
+#ifdef RFC_1035_DISALLOW_LEADING_HYPHEN
+/* Spam sample:
+ * http://www.creditcard.com.---------phpsessionoscommerce23452.st-partners.ru/priv/cc/verification.html
+ */
+			/* A domain segment cannot start with a hyphen. */
+			if (previous == '.')
+				return 0;
+#endif
+			break;
+		default:
+			if (!isalnum(*domain))
+				goto stop;
+
+			label_is_alpha = label_is_alpha && isalpha(*domain);
+			break;
+		}
+
+		previous = *domain;
+	}
+
+	/* Top level domain must end with dot or alpha character. */
+	if (0 < dots && !label_is_alpha)
+		return 0;
+stop:
+	if (dots < minDots)
+		return 0;
+
+	return domain - start;
+}
+
+
+static int
+alt_spanHost(const char *host, int minDots)
+{
+	int span;
+
+	if (0 < (span = spanIP(host)))
+		return span;
+
+	return alt_spanDomain(host, minDots);
+}
+
 /***********************************************************************
  ***
  ***********************************************************************/
@@ -517,7 +602,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 
 		uriDecodeSelf(uri->host);
 
-		if (0 < (span = spanHost(uri->host, 0))) {
+		if (0 < (span = alt_spanHost(uri->host, 0))) {
 			if ((uri->path = strchr(uri->host + span, '/')) != NULL) {
 				/* Shift the scheme & authority left one byte to retain
 				 * the leading slash in path and to make room for a null
@@ -558,7 +643,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		for (uri->userInfo = value; *uri->userInfo != '\0' && spanLocalPart(uri->userInfo) <= 0; uri->userInfo++)
 			;
 
-		if (*uri->userInfo == '\0' || (span = spanDomain(uri->host, 1)) <= 0)
+		if (*uri->userInfo == '\0' || (span = alt_spanDomain(uri->host, 1)) <= 0)
 			goto error1;
 
 		uri->host[span] = '\0';
@@ -574,7 +659,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		if (0 < (span = spanIP(value))) {
 			uri->scheme = "ip";
 			uri->host = value;
-		} else if (0 < (span = spanDomain(value, implicit_domain_min_dots))) {
+		} else if (0 < (span = alt_spanDomain(value, implicit_domain_min_dots))) {
 			if (value[span] == '/') {
 				/* Shift the host left one byte to retain the
 				 * leading slash in path and to make room for
