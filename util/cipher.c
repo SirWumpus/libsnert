@@ -388,7 +388,7 @@ cipher_code_to_char(cipher_ct table, char *out)
 	size_t length;
 
 	if (debug) {
-		fprintf(stderr, "Convert numeric form to string.\n\n");
+		fprintf(stderr, "Using conversion table reverse the numeric form into a string.\n\n");
 	}
 
 	length = strlen(table[0]);
@@ -438,7 +438,7 @@ cipher_decode(Cipher *ctx, const char *message)
 		*out = (10 - *out + '0') % 10 + '0';
 
 	if (debug) {
-		fprintf(stderr, "Inverted Chain Addition Table\n");
+		fprintf(stderr, "Inverted Chain Addition Table\n\n");
 		cipher_dump_chain(stderr, ctx->chain);
 		fputc('\n', stderr);
 	}
