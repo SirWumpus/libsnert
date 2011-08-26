@@ -46,8 +46,9 @@ typedef struct {
 	/* Public */
 
 	/* Private */
-	int ct_size;		/* Conversion alphabet size to use 28 or 37. */
-	char chain[101];	/* Chain addition table based on seed; 10x10 + NUL */
+	size_t ct_size;		/* Conversion alphabet size to use 28 or 37. */
+	size_t chain_size;
+	char *chain;		/* Chain addition table based on seed; 10x10 + NUL */
 	char order[11];		/* Digit order based on last row of chain table, plus NUL. */
 	cipher_ct table;	/* 1st row is the alphabet seeded with key.
 				 * 2nd and 3rd rows are the ASCII digit codes
@@ -190,7 +191,7 @@ cipher_chain_add(const char *seed_number, char *buffer, size_t size)
 	*ep = '\0';
 
 	if (debug) {
-		fprintf(stderr, "Chain Addition MOD 10 (seed=%s length=%lu)\n\n", seed_number, size-1);
+		fprintf(stderr, "Chain Addition MOD 10 (seed=%s length=%lu)\n\n", seed_number, (unsigned long) size-1);
 		cipher_dump_chain(stderr, buffer);
 		fputc('\n', stderr);
 	}
@@ -204,7 +205,7 @@ cipher_digit_order(const char source[10], char out[11])
 	const char *sp;
 	int digit, count;
 
-	for (count = digit = '0'; digit <= '9' && count <= '9'; digit++) {
+	for (count = digit = '0'; digit <= '9'; digit++) {
 		for (sp = source; *sp != '\0'; sp++) {
 			if (*sp == digit) {
 				out[sp - source] = count;
@@ -215,7 +216,7 @@ cipher_digit_order(const char source[10], char out[11])
 	out[10] = '\0';
 
 	if (debug) {
-		fprintf(stderr, "Digit Order\n\n");
+		fprintf(stderr, "Digit Order 0..9\n\n");
 		fprintf(stderr, "\t%s\n\n", out);
 	}
 }
@@ -243,10 +244,10 @@ cipher_init(Cipher *ctx, int ct_size, const char *key, const char *seed)
 		strcpy(alphabet, ALPHABET28);
 	}
 
-	if (cipher_chain_add(seed, ctx->chain, sizeof (ctx->chain)))
+	if (cipher_chain_add(seed, ctx->chain, ctx->chain_size))
 		return 1;
 
-	cipher_digit_order(ctx->chain+sizeof (ctx->chain)-11, ctx->order);
+	cipher_digit_order(ctx->chain+ctx->chain_size-11, ctx->order);
 
 	ctx->ct_size = ct_size;
 	memset(ctx->table, ' ', sizeof (ctx->table));
@@ -324,6 +325,25 @@ cipher_init(Cipher *ctx, int ct_size, const char *key, const char *seed)
 	}
 
 	return 0;
+}
+
+Cipher *
+cipher_new(int ct_size, const char *key, const char *seed, int chain_length)
+{
+	Cipher *ctx;
+
+	if (chain_length < 10)
+		chain_length = 100;
+
+	if ((ctx = malloc(sizeof (*ctx) + chain_length + 1)) == NULL)
+		return NULL;
+
+	ctx->chain = (char *) &ctx[1];
+	ctx->chain_size = chain_length+1;
+
+	cipher_init(ctx, ct_size, key, seed);
+
+	return ctx;
 }
 
 void
@@ -450,16 +470,19 @@ cipher_decode(Cipher *ctx, const char *message)
 
 #ifdef TEST
 static char usage[] =
-"usage: cipher [-cdv] key number [message]\n"
+"usage: cipher [-cdv][-l length] key number [message]\n"
 "\n"
 "-c\t\tuse a conversion table 37, instead of 28\n"
 "-d\t\tdecode message\n"
+"-l length\tchain addition table length; default 100\n"
 "-v\t\tverbose debug\n"
 "\n"
-"If message is omitted from the command line, then read the message\n"
-"from standard input.\n"
+"Key is a case insensitive string written in the conversion table alphabet.\n"
+"Number is numeric string used as the seed for the chain addition table.\n"
+"If message is omitted from the command line, then read the message from\n"
+"standard input.\n"
 "\n"
-"Copyright 2010 by Anthony Howe.  All rights reserved.\n"
+"Copyright 2010, 2011 by Anthony Howe.  All rights reserved.\n"
 ;
 
 typedef char *(*cipher_fn)(Cipher *, const char *);
@@ -469,10 +492,10 @@ static char input[256];
 int
 main(int argc, char **argv)
 {
-	char *out;
-	Cipher ctx;
+	Cipher *ctx;
 	cipher_fn fn;
-	int argi, ct_size;
+	char *out, *arg, *stop;
+	int argi, ct_size, chain_length = 0;
 
 	ct_size = 28;
 	fn = cipher_encode;
@@ -488,6 +511,11 @@ main(int argc, char **argv)
 		case 'd':
 			fn = cipher_decode;
 			break;
+		case 'l':
+			arg = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			if ((chain_length = strtol(arg, &stop, 10)) <= 0 || *stop != '\0')
+				chain_length = 100;
+			break;
 		case 'v':
 			debug++;
 			break;
@@ -502,14 +530,15 @@ main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	if (cipher_init(&ctx, ct_size, argv[argi], argv[argi+1])) {
+	if ((ctx = cipher_new(ct_size, argv[argi], argv[argi+1], chain_length)) == NULL) {
 		fprintf(stderr, "error initialising Cipher structure\n");
 		return EXIT_FAILURE;
 	}
 
 	if (argv[argi+2] != NULL) {
-		if ((out = (*fn)(&ctx, argv[argi+2])) == NULL) {
+		if ((out = (*fn)(ctx, argv[argi+2])) == NULL) {
 			fprintf(stderr, "out of memory\n");
+			free(ctx);
 			return EXIT_FAILURE;
 		}
 
@@ -517,14 +546,17 @@ main(int argc, char **argv)
 		free(out);
 	} else {
 		while (fgets(input, sizeof (input), stdin) != NULL) {
-			if ((out = (*fn)(&ctx, input)) == NULL) {
+			if ((out = (*fn)(ctx, input)) == NULL) {
 				fprintf(stderr, "out of memory\n");
+				free(ctx);
 				return EXIT_FAILURE;
 			}
 			fprintf(stdout, "\t%s\n", out);
 			free(out);
 		}
 	}
+
+	free(ctx);
 
 	return EXIT_SUCCESS;
 }
