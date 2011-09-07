@@ -70,7 +70,7 @@
 #include <com/snert/lib/util/setBitWord.h>
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/mail/smdb.h>
-#include <com/snert/lib/mail/smtp.h>
+#include <com/snert/lib/mail/smtp2.h>
 #include <com/snert/lib/mail/smf.h>
 #include <com/snert/lib/mail/tlds.h>
 

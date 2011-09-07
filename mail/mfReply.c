@@ -31,7 +31,7 @@
 #include <com/snert/lib/mail/limits.h>
 #include <com/snert/lib/mail/mf.h>
 #include <com/snert/lib/mail/smf.h>
-#include <com/snert/lib/mail/smtp.h>
+#include <com/snert/lib/mail/smtp2.h>
 #include <com/snert/lib/util/Text.h>
 
 #include <syslog.h>
