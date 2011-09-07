@@ -120,6 +120,7 @@ socketTimeouts(SOCKET *fd_table, SOCKET *fd_ready, int fd_length, long timeout, 
 
 	/* Add file desriptors to list. */
 	for (i = 0; i < fd_length; i++) {
+		/* Ignore "warning: assignment makes integer from pointer without a cast" warning. */
 		EV_SET(&set[i], fd_table[i], is_input, EV_ADD|EV_ENABLE, 0, 0, &fd_ready[i]);
 		fd_ready[i] = INVALID_SOCKET;
 	}

@@ -1334,6 +1334,7 @@ kvm_get_db(kvm *self, kvm_data *key, kvm_data *value)
 		kdb = (kvm_db *) self->_kvm;
 
 #if defined(HAVE_DBOPEN) && defined(HAVE_DB_CREATE)
+		/* Ignore "dereferencing type-punned pointer will break strict-aliasing rules" warning. */
 		if ((kdb->is_185 && (rc = ((DB185 *) kdb->db)->get((DB185 *) kdb->db, (DBT185 *) &k, (DBT185 *) &v, 0)) == 1)
 		||  (!kdb->is_185 && (rc = kdb->db->get(kdb->db, DBTXN &k, &v, 0)) == DB_NOTFOUND)) {
 #elif defined(HAVE_DB_CREATE)
@@ -1415,6 +1416,7 @@ kvm_put_db(kvm *self, kvm_data *key, kvm_data *value)
 		if (kdb->is_185) {
 #endif
 #if defined(HAVE_DBOPEN)
+			/* Ignore "dereferencing type-punned pointer will break strict-aliasing rules" warning. */
 			if ((rc = ((DB185 *) kdb->db)->put((DB185 *) kdb->db, (DBT185 *) &k, (DBT185 *) &v, 0)) != 0)
 				syslog(LOG_ERR, "kvm_put_db \"%s\" failed: %s (%d)", kdb->file, strerror(errno), errno);
 #endif
@@ -1458,6 +1460,7 @@ kvm_remove_db(kvm *self, kvm_data *key)
 		if (kdb->is_185) {
 #endif
 #if defined(HAVE_DBOPEN)
+			/* Ignore "dereferencing type-punned pointer will break strict-aliasing rules" warning. */
 			switch (((DB185 *) kdb->db)->del((DB185 *) kdb->db, (DBT185 *) &k, 0)) {
 			case 1: rc = KVM_NOT_FOUND; break;
 			case 0: rc = KVM_OK; break;
@@ -1567,6 +1570,7 @@ kvm_walk_db(kvm *self, int (*func)(kvm_data *, kvm_data *, void *), void *data)
 #endif
 #if defined(HAVE_DBOPEN)
 			next = R_FIRST;
+			/* Ignore "dereferencing type-punned pointer will break strict-aliasing rules" warning. */
 			while (((DB185 *) kdb->db)->seq((DB185 *) kdb->db, (DBT185 *) &k, (DBT185 *) &v, next) == 0) {
 				next = R_NEXT;
 
@@ -1922,6 +1926,7 @@ kvm_check_socket(kvm *self)
 	if (0 < debug)
 		syslog(LOG_WARN, "re-opening socketmap \"%s\"", self->_location);
 
+	/* Ignore "dereferencing type-punned pointer will break strict-aliasing rules" warning. */
 	return socketOpenClient(self->_location + sizeof ("socketmap" KVM_DELIM_S)-1, KVM_PORT, SOCKET_CONNECT_TIMEOUT, NULL, (Socket2 **) &self->_kvm);
 }
 
@@ -1952,7 +1957,7 @@ kvm_fetch_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 	PTHREAD_FREE_PUSH(out);
 
 	/* Assumes null terminated C strings for the table name and key. */
-	length = snprintf(out, out_length, "%u:%s %s,", (unsigned) data_length, self->_table, key->data);
+	length = snprintf((char *) out, out_length, "%u:%s %s,", (unsigned) data_length, self->_table, key->data);
 	if (out_length <= length) {
 		/* Buffer overflow. key->size != strlen(key->data)
 		 * probably because the key->data is not properly
@@ -2265,6 +2270,7 @@ kvm_open_socket(kvm *self, const char *location, int mode)
 		self->remove = kvm_remove_stub;
 	}
 
+	/* Ignore "dereferencing type-punned pointer will break strict-aliasing rules" warning. */
 	if (socketOpenClient(location, KVM_PORT, SOCKET_CONNECT_TIMEOUT, NULL, (Socket2 **) &self->_kvm))
 		return KVM_ERROR;
 

@@ -686,6 +686,9 @@ mcc_listener_thread(void *data)
 
 	syslog(LOG_INFO, "started %s listener %s", cast_name, listen_addr);
 
+	/* Silience "may be used uninitialized in this function" warning. */
+	nbytes = 0;
+
 	for (listener->is_running = 1; listener->is_running; ) {
 		if (!socketHasInput(listener->socket, MCC_LISTENER_TIMEOUT)) {
 			if (1 < debug)

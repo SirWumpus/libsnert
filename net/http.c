@@ -375,7 +375,23 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 
 	span = 0;
 	response->result = HTTP_INTERNAL;
+
+	/*** Note that response->result is an "enum HttpCode *" and enum
+	 *** types are equivalent to an int (ANSI C89). Therefore we can
+	 *** ignore compiler warning from gcc 3+:
+	 ***
+	 *** warning: dereferencing type-punned pointer will break strict-aliasing rules
+	 ***
+	 *** Removing the cast to fix the warning generates a different
+	 *** compiler warning seen in gcc 2+:
+	 ***
+	 *** warning: format '%d' expects type 'int *', but argument 3 has type 'enum HttpCode *'
+	 ***
+	 *** So either way gcc complains about something that it should
+	 *** be able to understand and ignore.
+	 ***/
 	(void) sscanf((char *) buf->bytes, "HTTP/%*s %d %*[^\r\n] %n", (int *) &response->result, &span);
+
 	if (0 < response->debug)
 		syslog(LOG_DEBUG, "%s http-code=%d", response->id_log, response->result);
 	if (1 < response->debug)
