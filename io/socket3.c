@@ -57,24 +57,40 @@ typedef union {
 #endif
 } SocketMulticast;
 
+static int debug;
+
+void
+socket3_set_debug(int level)
+{
+	debug = level;
+}
+
 /**
  * Initialise the socket subsystem.
  */
 int
 socket3_init(void)
 {
-	int rc;
+	int rc = 0;
 	static int initialised = 0;
 
 	if (!initialised && (rc = pdqInit()) == 0) {
 #if defined(HAVE_KQUEUE)
 		socket3_wait_fn = socket3_wait_kqueue;
+		if (0 < debug)
+			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_kqueue");
 #elif defined(HAVE_EPOLL_CREATE)
 		socket3_wait_fn = socket3_wait_epoll;
+		if (0 < debug)
+			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_epoll");
 #elif defined(HAVE_POLL)
 		socket3_wait_fn = socket3_wait_poll;
+		if (0 < debug)
+			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_poll");
 #elif defined(HAVE_SELECT)
 		socket3_wait_fn = socket3_wait_select;
+		if (0 < debug)
+			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_select");
 #endif
 		initialised = 1;
 	}
@@ -180,6 +196,9 @@ socket3_open(SocketAddress *addr, int isStream)
 	 */
 	fd = socket(addr->sa.sa_family, so_type, 0);
 #endif
+	if (0 < debug)
+		syslog(LOG_DEBUG, "socket3_open(0x%lx, %d) rc=%d", (unsigned long) addr, isStream, (int) fd);
+
 	return fd;
 }
 
@@ -534,12 +553,17 @@ socket3_accept(SOCKET fd, SocketAddress *addrp)
 	if (addrp != NULL)
 		*addrp = addr;
 
+	if (0 < debug)
+		syslog(LOG_DEBUG, "socket3_accept(%d, %lx) client=%d", (int) fd, (unsigned long) addrp, (int) client);
+
 	return client;
 }
 
 void
 socket3_close(SOCKET fd)
 {
+	if (0 < debug)
+		syslog(LOG_DEBUG, "socket3_close(%d)", (int) fd);
 	socket3_shutdown(fd, SHUT_WR);
 	closesocket(fd);
 }
@@ -645,7 +669,7 @@ socket3_write(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
  * @param buffer
  *	A buffer to save input to.
  *
- * @param fdize
+ * @param size
  *	The size of the buffer.
  *
  * @param from
@@ -690,9 +714,6 @@ socket3_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 		nbytes = read(fd, buffer, size);
 	else
 #endif
-	if (from == NULL)
-		nbytes = recv(fd, buffer, size, 0);
-	else
 		nbytes = recvfrom(fd, buffer, size, 0, (struct sockaddr *) from, &socklen);
 #endif
 	UPDATE_ERRNO;
@@ -713,16 +734,33 @@ socket3_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
  *	read buffer, if there is any. Any remaining space in the buffer
  *	is then filled by a peek on the actual socket.
  *
- * @param fdize
+ * @param size
  *	The size of the buffer to fill.
+ *
+ * @param from
+ *	The origin of the input. Can be NULL if not required.
  *
  * @return
  *	Return the number of bytes read or SOCKET_ERROR.
  */
 long
-socket3_peek(SOCKET fd, unsigned char *buffer, long size)
+socket3_peek(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 {
-	return recv(fd, buffer, size, MSG_PEEK);
+	long nbytes;
+	socklen_t socklen;
+
+	if (buffer == NULL || size <= 0)
+		return 0;
+
+	errno = 0;
+	socklen = from == NULL ? 0 : sizeof (*from);
+	nbytes = recvfrom(fd, buffer, size, MSG_PEEK, (struct sockaddr *) from, &socklen);
+
+#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
+	if (0 <= nbytes && from != NULL)
+		from->sa.sa_len = socklen;
+#endif
+	return nbytes;
 }
 
 /**
@@ -1009,12 +1047,19 @@ int (*socket3_wait_fn)(SOCKET, long, unsigned) = socket3_wait_select;
 int
 socket3_wait(SOCKET fd, long ms, unsigned rw_flags)
 {
+	int rc;
+
 	if (socket3_wait_fn == NULL) {
 		errno = EIO;
 		return 0;
 	}
 
-	return (*socket3_wait_fn)(fd, ms, rw_flags);
+	rc = (*socket3_wait_fn)(fd, ms, rw_flags);
+
+	if (0 < debug)
+		syslog(LOG_DEBUG, "socket3_wait(%d, %ld, 0x%X) rc=%d (%s)", (int) fd, ms, rw_flags, rc, strerror(rc));
+
+	return rc;
 }
 
 
@@ -1047,6 +1092,8 @@ socket3_wait_fn_set(const char *name)
 	for (mapping = wait_mapping; mapping->name != NULL; mapping++) {
 		if (TextInsensitiveCompare(mapping->name, name) == 0) {
 			socket3_wait_fn = mapping->wait_fn;
+			if (0 < debug)
+				syslog(LOG_DEBUG, "socket3_wait_fn=%s", mapping->name);
 			break;
 		}
 	}

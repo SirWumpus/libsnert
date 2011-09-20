@@ -348,13 +348,16 @@ extern SOCKET socket3_accept(SOCKET fd, SocketAddress *addr);
  *	read buffer, if there is any. Any remaining space in the buffer
  *	is then filled by a peek on the actual socket.
  *
- * @param fdize
+ * @param size
  *	The size of the buffer to fill.
+ *
+ * @param from
+ *	The origin of the input. May be NULL.
  *
  * @return
  *	Return the number of bytes read or SOCKET_ERROR.
  */
-extern long socket3_peek(SOCKET fd, unsigned char *buffer, long size);
+extern long socket3_peek(SOCKET fd, unsigned char *buf, long size, SocketAddress *from);
 
 /**
  * Read in a chunk of input from a socket.
@@ -365,7 +368,7 @@ extern long socket3_peek(SOCKET fd, unsigned char *buffer, long size);
  * @param buffer
  *	A buffer to save input to.
  *
- * @param fdize
+ * @param size
  *	The size of the buffer.
  *
  * @param from
