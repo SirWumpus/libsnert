@@ -86,6 +86,14 @@ A hook can optionally return a boolean before the reply. When true the
 SMTP client connection will be dropped after the reply has been written
 back to the client.
 
+hook.init()
+
+	Called on smtpe start-up. Note there is no client context and no
+	Lua state is retained. This hook simply allows the engine to
+	initialise the extenal application environment and preload
+	dynamic libraries.
+
+
 [drop_flag,] reply = hook.accept(ip, ptr)
 
 	ip = client.address; ptr = client.host

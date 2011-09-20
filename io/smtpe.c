@@ -11,6 +11,7 @@
 #define _COPYRIGHT			LIBSNERT_COPYRIGHT
 #define API_VERSION			"0.1"
 
+#define HOOK_INIT
 #define STRIP_ROOT_DOT
 
 #if !defined(CF_DIR)
@@ -169,11 +170,18 @@
 #define LUA_CMD_DEF(fn)		static int LUA_CMD_INIT(fn)(lua_State *L1, SmtpCtx *ctx)
 
 typedef struct stmp_ctx SmtpCtx;
-typedef pt_word_t (*SmtpCmdHook)(Events *loop, Event *event);
+
+#define EVENT_NAME(fn)		fn ## _cb
+#define EVENT_DEF(fn)		void EVENT_NAME(fn) EVENT_ARGS
+#define EVENT_DO(fn)		(*EVENT_NAME(fn))(loop, _ev, revents)
+#define EVENT_ARGS		(Events *loop, void *_ev, int revents)
 
 #define SMTP_NAME(fn)		cmd_ ## fn
-#define SMTP_DEF(fn)		PT_THREAD( SMTP_NAME(fn)(Events *loop, Event *event) )
+#define SMTP_DEF(fn)		PT_THREAD( SMTP_NAME(fn) SMTP_ARGS )
 #define SMTP_DO(fn)		(*SMTP_NAME(fn))(loop, event)
+#define SMTP_ARGS		(Events *loop, Event *event)
+
+typedef pt_word_t (*SmtpCmdHook) SMTP_ARGS;
 
 typedef struct {
 	const char *cmd;
@@ -797,7 +805,7 @@ Option *verb_table[] = {
 static Vector smart_hosts;
 static unsigned rand_seed;
 static int parse_path_flags;
-static Events main_loop;
+static Events *main_loop;
 static const char *smtp_default_at_dot;
 static char my_host_name[SMTP_DOMAIN_LENGTH+1];
 
@@ -1025,8 +1033,10 @@ sigsetjmp_action(SmtpCtx *ctx, JmpCode jc)
 		/*@fallthrough@*/
 	case JMP_DROP:
 		eventRemove(ctx->client.loop, &ctx->client.event);
+#ifndef USE_LIBEV
 		if (verb_smtp.value)
 			syslog(LOG_DEBUG, LOG_FMT "close %s cc=%lu", LOG_ID(ctx), ctx->addr.data, (unsigned long)ctx->client.loop->events.length);
+#endif
 		/*@fallthrough@*/
 	case JMP_SET:
 		break;
@@ -1074,18 +1084,17 @@ service_event_free(void *_event)
 	}
 }
 
-void
-service_close_cb(Events *loop, Event *event)
+EVENT_DEF(service_close)
 {
 	/* eventRemove() handles the clean up of a service
 	 * via VectorRemove() -> service_event_free().
 	 */
-	eventRemove(loop, event);
+	eventRemove(loop, eventGetBase(_ev));
 }
 
-void
-service_io_cb(Events *loop, Event *event)
+EVENT_DEF(service_io)
 {
+	Event *event = eventGetBase(_ev);
 	JmpCode jc;
 	Service *svc = event->data;
 	SmtpCtx *ctx = svc->ctx;
@@ -1094,8 +1103,10 @@ service_io_cb(Events *loop, Event *event)
 
 	SETJMP_PUSH(&ctx->on_error);
 	if ((jc = SIGSETJMP(ctx->on_error, 1)) != JMP_SET) {
-		service_close_cb(loop, event);
+		eventDoTimeout(EVENT_NAME(service_close), loop, event, revents);
 	} else {
+		eventResetTimeout(event);
+
 		/* Remember which service to resume. */
 		ctx->services.resume = svc;
 
@@ -1136,10 +1147,9 @@ service_add(SmtpCtx *ctx, Service *svc, long timeout)
 		return -1;
 
 	eventInit(&svc->event, svc->socket, EVENT_READ|EVENT_WRITE);
-
+	eventSetCbTimer(&svc->event, EVENT_NAME(service_close));
 	eventSetTimeout(&svc->event, timeout);
-	svc->event.on.timeout = service_close_cb;
-	svc->event.on.io = service_io_cb;
+	eventSetCbIo(&svc->event, EVENT_NAME(service_io));
 	svc->event.free = service_event_free;
 	svc->event.data = svc;
 
@@ -1231,7 +1241,7 @@ service_until(lua_State *L, SmtpCtx *ctx)
 			nargs = (*svc->results)(svc, ctx);	/* ... */
 			lua_pop(L, nargs);
 		}
-		service_close_cb(ctx->client.loop, &svc->event);
+		eventDoIo(EVENT_NAME(service_close), ctx->client.loop, &svc->event, 0);
 
 		return ctx->services.list.length == 0 || !ctx->services.wait_for_all;
 	}
@@ -1275,7 +1285,7 @@ service_reset(lua_State *L)
 
 	while (0 < ctx->services.list.length) {
 		svc = ctx->services.list.head->data;
-		service_close_cb(ctx->client.loop, &svc->event);
+		eventDoIo(EVENT_NAME(service_close), ctx->client.loop, &svc->event, 0);
 	}
 
 	return 0;
@@ -1594,7 +1604,7 @@ service_clamd(lua_State *L)
 
 	return 1;
 error3:
-	service_close_cb(ctx->client.loop, &svc->event);
+	eventDoIo(EVENT_NAME(service_close), ctx->client.loop, &svc->event, 0);
 error2:
 	VectorDestroy(host_list);
 error1:
@@ -1869,7 +1879,7 @@ service_spamd(lua_State *L)
 
 	return 1;
 error3:
-	service_close_cb(ctx->client.loop, &svc->event);
+	eventDoIo(EVENT_NAME(service_close), ctx->client.loop, &svc->event, 0);
 error2:
 	VectorDestroy(host_list);
 error1:
@@ -1904,7 +1914,6 @@ PT_THREAD(mx_read(SmtpCtx *ctx))
 	ctx->mx.read.smtp_rc = 0;
 	free(ctx->mx.read.lines);
 	ctx->mx.read.lines = NULL;
-	ctx->mx.read.smtp_rc = 0;
 
 	do {
 		do {
@@ -2001,9 +2010,9 @@ mx_close(SmtpCtx *ctx)
 	free(ctx->mx.read.lines);
 }
 
-void
-mx_io_cb(Events *loop, Event *event)
+EVENT_DEF(mx_io)
 {
+	Event *event = eventGetBase(_ev);
 	JmpCode jc;
 	SmtpCtx *ctx = event->data;
 
@@ -2013,6 +2022,7 @@ mx_io_cb(Events *loop, Event *event)
 	if ((jc = SIGSETJMP(ctx->on_error, 1)) != JMP_SET) {
 		mx_close(ctx);
 	} else {
+		eventResetTimeout(event);
 		(*ctx->state)(loop, &ctx->client.event);
 	}
 	SETJMP_POP(&ctx->on_error);
@@ -2038,7 +2048,7 @@ mx_open(SmtpCtx *ctx, const char *host)
 	eventInit(&ctx->mx.event, ctx->mx.socket, EVENT_READ);
 
 	ctx->mx.event.data = ctx;
-	ctx->mx.event.on.io = mx_io_cb;
+	eventSetCbIo(&ctx->mx.event, EVENT_NAME(mx_io));
 	eventSetTimeout(&ctx->mx.event, opt_smtp_command_timeout.value);
 
 	if (eventAdd(ctx->client.loop, &ctx->mx.event)) {
@@ -2241,7 +2251,6 @@ mx_abort:
 //	free(ctx->mx.read.lines);
 	mx_close(ctx);
 mx_tempfail1:
-	ctx->smtp_rc = ctx->mx.read.smtp_rc;
 
 	PT_END(&ctx->mx.pt);
 }
@@ -2757,9 +2766,9 @@ dns_close(Events *loop, Event *event)
 	}
 }
 
-void
-dns_io_cb(Events *loop, Event *event)
+EVENT_DEF(dns_io)
 {
+	Event *event = eventGetBase(_ev);
 	JmpCode jc;
 	Event *client_event = event->data;
 	SmtpCtx *ctx = client_event->data;
@@ -2915,7 +2924,7 @@ dns_open(Events *loop, Event *event)
 	eventSetEnabled(&ctx->pdq.event, 0);
 
 	ctx->pdq.event.data = event;
-	ctx->pdq.event.on.io = dns_io_cb;
+	eventSetCbIo(&ctx->pdq.event, EVENT_NAME(dns_io));
 
 	if (eventAdd(loop, &ctx->pdq.event)) {
 		syslog(LOG_ERR, log_oom, LOG_INT(ctx));
@@ -5616,7 +5625,7 @@ client_send(SmtpCtx *ctx, const char *fmt, ...)
 	ctx->reply.length = 0;
 }
 
-extern void client_io_cb(Events *loop, Event *event);
+static EVENT_DEF(client_io);
 
 SMTP_DEF(quit)
 {
@@ -5726,7 +5735,7 @@ error1:
 	 * from being read until after the banner has been written and the
 	 * initial state completely setup.
 	 */
-	event->on.io = client_io_cb;
+	eventSetCbIo(event, EVENT_NAME(client_io));
 
 	ctx->pipe.length = 0;
 
@@ -6297,9 +6306,14 @@ SMTP_DEF(content)
 			 *** generate a DSN to the sender.
 			 ***/
 
-			if (SMTP_IS_OK(ctx->smtp_rc))
+			/* Update the transaction's result based on
+			 * the result of forwarding the message.
+			 */
+			ctx->smtp_rc = ctx->mx.read.smtp_rc;
+
+			if (SMTP_IS_OK(ctx->mx.read.smtp_rc))
 				fmt = fmt_msg_ok;
-			else if (SMTP_IS_TEMP(ctx->smtp_rc))
+			else if (SMTP_IS_TEMP(ctx->mx.read.smtp_rc))
 				fmt = fmt_msg_try_again;
 			else
 				fmt = fmt_msg_reject;
@@ -6321,7 +6335,7 @@ empty_message:
 	 * before we return and resume the IO event loop.
 	 */
 	if (0 < ctx->pipe.offset && ctx->pipe.offset < ctx->pipe.length)
-		client_io_cb(loop, event);
+		eventDoIo(EVENT_NAME(client_io), loop, event, EVENT_READ);
 
 	PT_END(&ctx->pt);
 }
@@ -6609,17 +6623,17 @@ client_event_free(void *_event)
 	}
 }
 
-void
-client_close_cb(Events *loop, Event *event)
+EVENT_DEF(client_close)
 {
+	Event *event = eventGetBase(_ev);
 	SmtpCtx *ctx = event->data;
 	LUA_CALL_SETJMP(error);
 	eventRemove(loop, event);
 }
 
-void
-client_io_cb(Events *loop, Event *event)
+EVENT_DEF(client_io)
 {
+	Event *event = eventGetBase(_ev);
 	JmpCode jc;
 	long nbytes;
 	lua_State *L;
@@ -6627,6 +6641,7 @@ client_io_cb(Events *loop, Event *event)
 	SmtpCtx *ctx = event->data;
 
 	TRACE_CTX(ctx, 000);
+	eventResetTimeout(event);
 
 	SETJMP_PUSH(&ctx->on_error);
 	if ((jc = SIGSETJMP(ctx->on_error, 1)) != JMP_SET)
@@ -6751,9 +6766,9 @@ setjmp_pop:
 	sigsetjmp_action(ctx, jc);
 }
 
-void
-stdin_bootstrap_cb(Events *loop, Event *event)
+EVENT_DEF(stdin_bootstrap)
 {
+	Event *event = eventGetBase(_ev);
 	SmtpCtx *ctx;
 
 	if ((ctx = client_event_new()) == NULL) {
@@ -6765,7 +6780,7 @@ stdin_bootstrap_cb(Events *loop, Event *event)
 
 	TRACE_CTX(ctx, 000);
 
-	event->on.io = NULL;
+	eventSetCbIo(event, NULL);
 	eventSetTimeout(event, -1);
 
 	ctx->client.loop = loop;
@@ -6778,8 +6793,8 @@ stdin_bootstrap_cb(Events *loop, Event *event)
 
 	eventInit(&ctx->client.event, ctx->client.socket, EVENT_READ);
 	ctx->client.enabled = eventGetEnabled(&ctx->client.event);
-	ctx->client.event.on.timeout = client_close_cb;
-	ctx->client.event.on.io = client_io_cb;
+	eventSetCbTimer(&ctx->client.event, EVENT_NAME(client_close));
+	eventSetCbIo(&ctx->client.event, EVENT_NAME(client_io));
 	ctx->client.event.free = client_event_free;
 	ctx->client.event.data = ctx;
 	ctx->client.loop = loop;
@@ -6792,7 +6807,7 @@ stdin_bootstrap_cb(Events *loop, Event *event)
 	ctx->pipe.length = snprintf(ctx->pipe.data, ctx->pipe.size, " XCLIENT ADDR=127.0.0.1\r\n");
 	ctx->pipe.offset = 1;
 
-	client_io_cb(loop, &ctx->client.event);
+	eventDoIo(EVENT_NAME(client_io), loop, &ctx->client.event, EVENT_READ);
 	return;
 error2:
 	lua_close(ctx->script);
@@ -6800,14 +6815,15 @@ error1:
 	free(ctx);
 }
 
-void
-server_io_cb(Events *loop, Event *event)
+EVENT_DEF(server_io)
 {
+	Event *event = eventGetBase(_ev);
 	SmtpCtx *ctx;
 	SOCKET client;
 	char id_sess[ID_SIZE];
 	SocketAddress caddr;
 
+	eventResetTimeout(event);
 	if (errno == ETIMEDOUT)
 		return;
 
@@ -6846,8 +6862,8 @@ server_io_cb(Events *loop, Event *event)
 	eventInit(&ctx->client.event, client, EVENT_READ);
 	eventSetTimeout(&ctx->client.event, opt_smtp_command_timeout.value);
 	ctx->client.enabled = eventGetEnabled(&ctx->client.event);
-	ctx->client.event.on.timeout = client_close_cb;
-	ctx->client.event.on.io = client_io_cb;
+	eventSetCbTimer(&ctx->client.event, EVENT_NAME(client_close));
+	eventSetCbIo(&ctx->client.event, EVENT_NAME(client_io));
 	ctx->client.event.free = client_event_free;
 	ctx->client.event.data = ctx;
 	ctx->client.loop = loop;
@@ -6869,7 +6885,7 @@ server_io_cb(Events *loop, Event *event)
 	ctx->pipe.length = snprintf(ctx->pipe.data, ctx->pipe.size, " XCLIENT\r\n");
 	ctx->pipe.offset = 1;
 
-	client_io_cb(loop, &ctx->client.event);
+	eventDoIo(EVENT_NAME(client_io), loop, &ctx->client.event, EVENT_READ);
 	return;
 error2:
 	lua_close(ctx->script);
@@ -6956,7 +6972,7 @@ void
 sig_term(int signum)
 {
 	syslog(LOG_INFO, "signal %d received", signum);
-	eventsStop(&main_loop);
+	eventsStop(main_loop);
 }
 
 #ifdef NOT_YET
@@ -6968,6 +6984,61 @@ sig_hup(int signum)
 	lua_live = NULL;
 }
 #endif
+
+static int
+hook_setup(void)
+{
+#ifdef HOOK_INIT
+	int rc = -1;
+	lua_State *L;
+
+	if ((L = luaL_newstate()) == NULL) {
+		syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
+		goto error0;
+	}
+
+	/* Stop collector during initialization. */
+	lua_gc(L, LUA_GCSTOP, 0);
+	luaL_openlibs(L);
+	lua_gc(L, LUA_GCRESTART, 0);
+
+	lua_define_syslog(L);
+
+	lua_getglobal(L, "syslog");			/* syslog */
+	lua_getfield(L, -1, "error");			/* syslog errfn */
+	lua_remove(L, -2);				/* errfn */
+
+	switch (luaL_loadfile(L, opt_script.string)) {	/* errfn file */
+	case LUA_ERRFILE:
+	case LUA_ERRMEM:
+	case LUA_ERRSYNTAX:
+		syslog(LOG_ERR, "%s", lua_tostring(L, -1));
+		goto error1;
+	}
+
+	if (lua_pcall(L, 0, LUA_MULTRET, -2)) {		/* errfn file */
+		syslog(LOG_ERR, "%s init: %s", opt_script.string, TextNull(lua_tostring(L, -1))); /* errfn errmsg */
+		goto error1;
+	}
+
+	lua_getglobal(L, "hook");			/* errfn hook */
+	lua_getfield(L, -1, "init");			/* errfn hook fn */
+	lua_remove(L, -2);				/* errfn fn */
+
+	if (lua_pcall(L, 0, 0, -2)) {			/* errfn fn */
+		syslog(LOG_ERR, "%s init: %s", opt_script.string, TextNull(lua_tostring(L, -1))); /* errfn errmsg */
+		goto error1;
+	}
+
+	rc = 0;
+error1:
+	lua_close(L);
+error0:
+	return rc;
+#else
+	return 0;
+#endif
+}
 
 int
 serverMain(void)
@@ -7005,7 +7076,12 @@ serverMain(void)
 		goto error1;
 	}
 
-	eventsInit(&main_loop);
+	if (hook_setup()) {
+		rc = EX_SOFTWARE;
+		goto error2;
+	}
+
+	main_loop = eventsNew();
 	eventsWaitFnSet(opt_events_wait_fn.string);
 
 	if (opt_test.value) {
@@ -7018,7 +7094,7 @@ serverMain(void)
 		 * to simulate a new connection and bring up the banner.
 		 */
 		eventSetTimeout(&event, 1);
-		event.on.timeout = stdin_bootstrap_cb;
+		eventSetCbTimer(&event, EVENT_NAME(stdin_bootstrap));
 	} else {
 		if ((saddr = socketAddressNew("0.0.0.0", opt_smtp_server_port.value)) == NULL) {
 			syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
@@ -7037,18 +7113,18 @@ serverMain(void)
 		(void) socket3_set_reuse(socket, 1);
 
 		eventInit(&event, socket, EVENT_READ);
-		event.on.io = server_io_cb;
-		eventSetTimeout(&event, -1);
+		eventSetCbIo(&event, EVENT_NAME(server_io));
+//		eventSetTimeout(&event, -1);
 	}
 
-	if (eventAdd(&main_loop, &event)) {
+	if (eventAdd(main_loop, &event)) {
 		syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
 		rc = EX_SOFTWARE;
 		goto error4;
 	}
 
-	eventsRun(&main_loop);
-	eventsFree(&main_loop);
+	eventsRun(main_loop);
+	eventsFree(main_loop);
 	syslog(LOG_INFO, "terminated");
 	rc = EXIT_SUCCESS;
 error4:

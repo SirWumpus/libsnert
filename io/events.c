@@ -52,6 +52,10 @@
 # define POLL_WRITE		(POLLOUT | POLLHUP | POLLERR | POLLNVAL)
 #endif
 
+/***********************************************************************
+ *** Individual Event Functions
+ ***********************************************************************/
+
 int
 eventGetEnabled(Event *event)
 {
@@ -62,18 +66,44 @@ void
 eventSetEnabled(Event *event, int flag)
 {
 	event->enabled = flag;
+
+#ifdef USE_LIBEV
+	if (flag) {
+		if (ev_cb(&event->on.io) != NULL)
+			ev_io_start(event->loop, &event->on.io);
+		if (ev_cb(&event->on.timeout) != NULL)
+			ev_timer_start(event->loop, &event->on.timeout);
+	} else {
+		if (ev_cb(&event->on.timeout) != NULL)
+			ev_timer_stop(event->loop, &event->on.timeout);
+		if (ev_cb(&event->on.io) != NULL)
+			ev_io_stop(event->loop, &event->on.io);
+	}
+#endif
 }
 
 int
 eventGetType(Event *event)
 {
+#ifdef USE_LIBEV
+	return event->on.io.events;
+#else
 	return event->io_type;
+#endif
 }
 
 void
 eventSetType(Event *event, int type)
 {
+#ifdef USE_LIBEV
+	if (ev_cb(&event->on.io) != NULL) {
+		ev_io_stop(event->loop, &event->on.io);
+		ev_io_set(&event->on.io, event->fd, type);
+		ev_io_start(event->loop, &event->on.io);
+	}
+#else
 	event->io_type = type;
+#endif
 }
 
 long
@@ -82,23 +112,220 @@ eventGetTimeout(Event *event)
 	return event->timeout;
 }
 
-void
-eventSetTimeout(Event *event, long seconds)
-{
-	time_t now;
-	(void) time(&now);
-	event->timeout = seconds;
-	eventResetExpire(event, &now);
-}
-
-void
+#ifndef USE_LIBEV
+static void
 eventResetExpire(Event *event, const time_t *now)
 {
 	event->expire = *now + (event->timeout < 0 ? LONG_MAX/UNIT_MILLI : event->timeout);
 }
+#endif
+
+/**
+ * @param event
+ *	A pointer to Event structure.
+ *
+ * @note The original design of the Snert IO Events API was based on
+ * a paper about implementing Haskell Event IO and how IO typically
+ * always needs a timeout, so the Snert version always assumed that
+ * both an IO event and timeout event for the same file descriptor.
+ * The timeout event would automatically reset if there was an IO
+ * event.
+ *
+ * libev design decouples the two and leaves it upto the application
+ * to reset the timeout if necessary.
+ */
+void
+eventResetTimeout(Event *event)
+{
+	if (0 < event->timeout) {
+#ifdef USE_LIBEV
+		if (ev_cb(&event->on.timeout) != NULL) {
+			event->on.timeout.repeat = (ev_tstamp) event->timeout;
+			ev_timer_again(event->loop, &event->on.timeout);
+		}
+#else
+		time_t *now;
+		(void) time(&now);
+		eventResetExpire(event, &now);
+#endif
+	}
+}
+
+void
+eventSetTimeout(Event *event, long seconds)
+{
+	event->timeout = seconds;
+	eventResetTimeout(event);
+}
+
+void
+eventInit(Event *event, int fd, int io_type)
+{
+	if (event != NULL) {
+		memset(event, 0, sizeof (*event));
+		event->timeout = -1;
+		event->enabled = 1;
+		event->fd = fd;
+#ifdef USE_LIBEV
+		ev_io_init(&event->on.io, NULL, fd, io_type);
+		ev_init(&event->on.timeout, NULL);
+#else
+		event->node.free = eventFree;
+		event->node.data = event;
+		event->io_type = io_type;
+#endif
+	}
+}
+
+void
+eventFree(void *_event)
+{
+	Event *event = _event;
+	if (event != NULL && event->free != NULL)
+		(*event->free)(event);
+}
+
+Event *
+eventNew(int fd, int io_type)
+{
+	Event *event;
+
+	if ((event = malloc(sizeof (*event))) != NULL) {
+		eventInit(event, fd, io_type);
+		event->free = free;
+	}
+
+	return event;
+}
+
+int
+eventAdd(Events *loop, Event *event)
+{
+	if (loop == NULL || event == NULL)
+		return -1;
+
+#ifdef USE_LIBEV
+	event->loop = loop;
+	eventSetEnabled(event, 1);
+#else
+{
+	long length;
+
+	listInsertAfter(&loop->events, loop->events.tail, &event->node);
+
+	length = loop->events.length;
+	if (loop->set_size < length) {
+		free(loop->set);
+		if ((loop->set = malloc((length + EVENT_GROWTH) * sizeof (*loop->set))) == NULL)
+			return -1;
+		loop->set_size = length + EVENT_GROWTH;
+	}
+
+	eventResetTimeout(event);
+}
+#endif
+	return 0;
+}
+
+void
+eventRemove(Events *loop, Event *event)
+{
+	if (loop != NULL) {
+#ifdef USE_LIBEV
+		/* Note that ev_TYPE_stop() actually removes an event
+		 * from the event loop's list, rather than set a flag.
+		 */
+		eventSetEnabled(event, 0);
+#else
+		listDelete(&loop->events, &event->node);
+#endif
+		eventFree(event);
+	}
+}
+
+void
+eventSetCbIo(Event *event, void *_fn)
+{
+#ifdef USE_LIBEV
+	ev_set_cb(&event->on.io, _fn);
+	event->on.io.data = event;
+#else
+	event->on.io = (EventHook) _fn;
+#endif
+}
+
+void
+eventSetCbTimer(Event *event, void *_fn)
+{
+#ifdef USE_LIBEV
+	ev_set_cb(&event->on.timeout, _fn);
+	event->on.timeout.data = event;
+#else
+	event->on.timeout = (EventHook) _fn;
+#endif
+}
+
+/***********************************************************************
+ *** Event Loop Functions
+ ***********************************************************************/
+
+#ifdef USE_LIBEV
+
+static unsigned ev_loop_flags;
+
+Events *
+eventsNew(void)
+{
+	return ev_loop_new(ev_loop_flags);
+}
+
+void
+eventsFree(Events *loop)
+{
+	ev_loop_destroy(loop);
+}
+
+void
+eventsRun(Events *loop)
+{
+	ev_run(loop, 0);
+}
+
+void
+eventsStop(Events *loop)
+{
+	ev_break(loop, 0);
+}
+
+typedef struct {
+	const char *name;
+	int value;
+} map_integer;
+
+void
+eventsWaitFnSet(const char *name)
+{
+	map_integer *item;
+	static map_integer backends[] = {
+		{ "kqueue", 	EVBACKEND_KQUEUE },
+		{ "epoll", 	EVBACKEND_EPOLL },
+		{ "poll", 	EVBACKEND_POLL },
+		{ "select", 	EVBACKEND_SELECT },
+		{ NULL, 	0 }
+	};
+
+	for (item = backends; item->name != NULL; item++) {
+		if (TextInsensitiveCompare(name, item->name) == 0) {
+			ev_loop_flags |= item->value;
+			break;
+		}
+	}
+}
+
+#else /* SNERT_EVENTS */
 
 #if defined(HAVE_KQUEUE)
-int
+static int
 events_wait_kqueue(Events *loop, long ms)
 {
 	time_t now;
@@ -185,7 +412,7 @@ events_wait_kqueue(Events *loop, long ms)
 			 * after the caller the handler.
 			 */
 			if (event->on.io != NULL)
-				(*event->on.io)(loop, event);
+				(*event->on.io)(loop, event, 0);
 		}
 next_event:
 		;
@@ -200,7 +427,7 @@ error1:
 #if defined(HAVE_EPOLL_CREATE)
 #include <com/snert/lib/io/socket3.h>
 
-int
+static int
 events_wait_epoll(Events *loop, long ms)
 {
 	time_t now;
@@ -280,7 +507,7 @@ events_wait_epoll(Events *loop, long ms)
 			if (saved_errno == 0 || event->timeout < 0)
 				eventResetExpire(event, &now);
 			if (event->on.io != NULL)
-				(*event->on.io)(loop, event);
+				(*event->on.io)(loop, event, 0);
 		}
 next_event:
 		;
@@ -293,7 +520,7 @@ error1:
 }
 #endif
 #if defined(HAVE_POLL)
-int
+static int
 events_wait_poll(Events *loop, long ms)
 {
 	time_t now;
@@ -373,7 +600,7 @@ events_wait_poll(Events *loop, long ms)
 				if (saved_errno == 0 || event->timeout < 0)
 					eventResetExpire(event, &now);
 				if (event->on.io != NULL)
-					(*event->on.io)(loop, event);
+					(*event->on.io)(loop, event, 0);
 			}
 		}
 next_event:
@@ -384,9 +611,9 @@ error0:
 }
 #endif
 
-int (*events_wait_fn)(Events *loop, long ms);
+static int (*events_wait_fn)(Events *loop, long ms);
 
-int
+static int
 eventsWait(Events *loop, long ms)
 {
 	if (events_wait_fn == NULL) {
@@ -395,191 +622,6 @@ eventsWait(Events *loop, long ms)
 	}
 
 	return (*events_wait_fn)(loop, ms);
-}
-
-void
-eventInit(Event *event, int fd, int io_type)
-{
-	if (event != NULL) {
-		memset(event, 0, sizeof (*event));
-		event->node.free = eventFree;
-		event->node.data = event;
-		event->io_type = io_type;
-		event->timeout = -1;
-		event->enabled = 1;
-		event->fd = fd;
-	}
-}
-
-void
-eventFree(void *_event)
-{
-	Event *event = _event;
-	if (event != NULL && event->free != NULL)
-		(*event->free)(event);
-}
-
-Event *
-eventNew(int fd, int io_type)
-{
-	Event *event;
-
-	if ((event = malloc(sizeof (*event))) != NULL) {
-		eventInit(event, fd, io_type);
-		event->free = free;
-	}
-
-	return event;
-}
-
-int
-eventAdd(Events *loop, Event *event)
-{
-	time_t now;
-	long length;
-
-	if (loop == NULL || event == NULL)
-		return -1;
-
-	listInsertAfter(&loop->events, loop->events.tail, &event->node);
-
-	length = loop->events.length;
-	if (loop->set_size < length) {
-		free(loop->set);
-		if ((loop->set = malloc((length + EVENT_GROWTH) * sizeof (*loop->set))) == NULL)
-			return -1;
-		loop->set_size = length + EVENT_GROWTH;
-	}
-
-	(void) time(&now);
-	eventResetExpire(event, &now);
-
-	return 0;
-}
-
-void
-eventRemove(Events *loop, Event *event)
-{
-	if (loop != NULL) {
-		listDelete(&loop->events, &event->node);
-		eventFree(event);
-	}
-}
-
-/**
- * @param loop
- *	A pointer to a Events loop.
- *
- * @param start
- *	A pointer to a time_t start time.
- *
- * @return
- *	The minimum timeout in seconds or -1 for infinite.
- */
-long
-eventsTimeout(Events *loop, const time_t *start)
-{
-	long seconds;
-	Event *event;
-	ListItem *node;
-	time_t now, expire;
-
-	if (loop == NULL || start == NULL)
-		return -1;
-
-	now = *start;
-	seconds = LONG_MAX / UNIT_MILLI - 1;
-	expire = now + seconds;
-
-	for (node = loop->events.head; node != NULL; node = node->next) {
-		event = node->data;
-		if (event->enabled && now <= event->expire && event->expire < expire) {
-			expire = event->expire;
-			seconds = expire - now;
-		}
-	}
-
-	return seconds;
-}
-
-void
-eventsExpire(Events *loop, const time_t *expire)
-{
-	time_t when;
-	Event *event;
-	ListItem *node, *next;
-
-	when = *expire;
-
-	for (node = loop->events.head; node != NULL; node = next) {
-		next = node->next;
-		event = node->data;
-		if (event->enabled && event->expire <= when) {
-			errno = ETIMEDOUT;
-			if (event->on.timeout != NULL)
-				(*event->on.timeout)(loop, event);
-		}
-	}
-}
-
-void
-eventsRun(Events *loop)
-{
-	long seconds;
-	time_t now, expire;
-
-	if (loop == NULL || loop->events.length == 0)
-		return;
-
-	for (loop->running = 1; loop->running; ) {
-		(void) time(&now);
-		seconds = eventsTimeout(loop, &now);
-		if (eventsWait(loop, seconds * UNIT_MILLI) == ETIMEDOUT && 0 <= seconds) {
-			expire = now + seconds;
-			eventsExpire(loop, &expire);
-		}
-	}
-}
-
-
-void
-eventsStop(Events *loop)
-{
-	loop->running = 0;
-}
-
-int
-eventsInit(Events *loop)
-{
-	memset(loop, 0, sizeof (*loop));
-
-	listInit(&loop->events);
-	loop->set_size = EVENT_GROWTH;
-
-	if ((loop->set = calloc(loop->set_size, sizeof (*loop->set))) == NULL) {
-		return -1;
-	}
-
-	if (events_wait_fn == NULL) {
-#if defined(HAVE_KQUEUE)
-		events_wait_fn = events_wait_kqueue;
-#elif defined(HAVE_EPOLL_CREATE)
-		events_wait_fn = events_wait_epoll;
-#elif defined(HAVE_POLL)
-		events_wait_fn = events_wait_poll;
-#endif
-	}
-
-	return 0;
-}
-
-void
-eventsFree(Events *loop)
-{
-	if (loop != NULL) {
-		listFini(&loop->events);
-		free(loop->set);
-	}
 }
 
 typedef struct {
@@ -612,3 +654,127 @@ eventsWaitFnSet(const char *name)
 		}
 	}
 }
+
+/**
+ * @param loop
+ *	A pointer to a Events loop.
+ *
+ * @param start
+ *	A pointer to a time_t start time.
+ *
+ * @return
+ *	The minimum timeout in seconds or -1 for infinite.
+ */
+static long
+eventsTimeout(Events *loop, const time_t *start)
+{
+	long seconds;
+	Event *event;
+	ListItem *node;
+	time_t now, expire;
+
+	if (loop == NULL || start == NULL)
+		return -1;
+
+	now = *start;
+	seconds = LONG_MAX / UNIT_MILLI - 1;
+	expire = now + seconds;
+
+	for (node = loop->events.head; node != NULL; node = node->next) {
+		event = node->data;
+		if (event->enabled && now <= event->expire && event->expire < expire) {
+			expire = event->expire;
+			seconds = expire - now;
+		}
+	}
+
+	return seconds;
+}
+
+static void
+eventsExpire(Events *loop, const time_t *expire)
+{
+	time_t when;
+	Event *event;
+	ListItem *node, *next;
+
+	when = *expire;
+
+	for (node = loop->events.head; node != NULL; node = next) {
+		next = node->next;
+		event = node->data;
+		if (event->enabled && event->expire <= when) {
+			errno = ETIMEDOUT;
+			if (event->on.timeout != NULL)
+				(*event->on.timeout)(loop, event, 0);
+		}
+	}
+}
+
+Events *
+eventsNew(void)
+{
+	Events *loop;
+
+	if ((loop = calloc(1, sizeof (*loop))) == NULL)
+		return NULL;
+
+	loop->set_size = EVENT_GROWTH;
+	if ((loop->set = calloc(loop->set_size, sizeof (*loop->set))) == NULL) {
+		free(loop);
+		return NULL;
+	}
+
+	if (events_wait_fn == NULL) {
+#if defined(HAVE_KQUEUE)
+		events_wait_fn = events_wait_kqueue;
+#elif defined(HAVE_EPOLL_CREATE)
+		events_wait_fn = events_wait_epoll;
+#elif defined(HAVE_POLL)
+		events_wait_fn = events_wait_poll;
+#endif
+	}
+
+	return loop;
+}
+
+void
+eventsFree(Events *loop)
+{
+	if (loop != NULL) {
+		listFini(&loop->events);
+		free(loop->set);
+		free(loop);
+	}
+}
+
+void
+eventsRun(Events *loop)
+{
+	long seconds;
+	time_t now, expire;
+
+	if (loop == NULL || loop->events.length == 0)
+		return;
+
+	for (loop->running = 1; loop->running; ) {
+		(void) time(&now);
+		seconds = eventsTimeout(loop, &now);
+		if (eventsWait(loop, seconds * UNIT_MILLI) == ETIMEDOUT && 0 <= seconds) {
+			expire = now + seconds;
+			eventsExpire(loop, &expire);
+		}
+	}
+}
+
+void
+eventsStop(Events *loop)
+{
+	loop->running = 0;
+}
+
+#endif /* SNERT_EVENTS */
+
+/***********************************************************************
+ *** -end-
+ ***********************************************************************/

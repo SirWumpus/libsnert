@@ -9,6 +9,9 @@ handle SIGQUIT nostop pass
 set listsize 24
 
 b main
+#b server_io_cb
+#b client_io_cb
+#b client_close_cb
 #b mx_open
 #b mx_read
 #b mx_io_cb

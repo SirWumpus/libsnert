@@ -894,6 +894,7 @@ typedef int socklen_t;
  * @param ptr
  *	A pointer to an object to be freed.
  */
+#define HAVE_FREEFN_T
 typedef void (*FreeFn)(void *);
 
 /*

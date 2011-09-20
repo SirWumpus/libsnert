@@ -1,7 +1,7 @@
 dnl
 dnl aclocal.m4
 dnl
-dnl Copyright 2002, 2010 by Anthony Howe.  All rights reserved.
+dnl Copyright 2002, 2011 by Anthony Howe.  All rights reserved.
 dnl
 
 dnl AC_LANG(C)
@@ -1430,6 +1430,50 @@ AC_DEFUN(SNERT_TERMIOS,[
 		AC_CHECK_FUNCS(tcgetattr tcsetattr ctermid)
 	])
 ])
+
+AC_DEFUN(SNERT_OPTION_WITH_LIBEV,[
+	AC_ARG_WITH(lua, [[  --with-libev[=DIR]      use libev in place of Snert Events API]])
+])
+AC_DEFUN(SNERT_LIBEV,[
+AS_IF([test ${with_libev:-default} != 'no' -a ${with_libev:-default} != 'default'],[
+	echo
+	echo "Check for libev..."
+	echo
+
+	saved_libs="$LIBS"
+	saved_cflags="$CFLAGS"
+	saved_ldflags="$LDFLAGS"
+
+	for d in $with_lua /usr/local /usr/pkg ; do
+		unset ac_cv_search_ev_run
+		unset ac_cv_header_ev_h
+
+		CFLAGS_LIBEV="-I$d/include"
+		LDFLAGS_LIBEV="-L$d/lib -Wl,-E"
+		echo "trying with $LDFLAGS_LIBEV ..."
+
+		CFLAGS="$CFLAGS_LIBEV $saved_cflags"
+		LDFLAGS="$LDFLAGS_LIBEV $saved_ldflags"
+
+		AC_SEARCH_LIBS([ev_run], [ev], [LIBS="-lev $LIBS"], [], [])
+		AC_CHECK_HEADERS([ev.h],[],[],[/* */])
+
+		AS_IF([test "$ac_cv_search_ev_run" != 'no' -a "$ac_cv_header_ev_h" != 'no'],[
+			AS_IF([test ${with_libev:-default} != 'default'],[AC_DEFINE_UNQUOTED(USE_LIBEV)])
+			AC_SUBST(HAVE_LIB_LIBEV, "-lev")
+			AC_SUBST(LDFLAGS_LIBEV)
+			AC_SUBST(CFLAGS_LIBEV)
+			with_lua="$d"
+			break
+		])
+	done
+
+	LIBS="$saved_libs"
+	CFLAGS="$saved_cflags"
+	LDFLAGS="$save_ldflags"
+])
+])
+
 
 AC_DEFUN(SNERT_OPTION_WITH_LUA,[
 	AC_ARG_WITH(lua, [[  --with-lua[=DIR]        include Lua support]])

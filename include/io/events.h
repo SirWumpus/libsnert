@@ -14,8 +14,43 @@ extern "C" {
 #endif
 
 /***********************************************************************
- *** Events (EXPERIMENTAL)
+ *** Events
  ***********************************************************************/
+
+#ifdef USE_LIBEV
+
+#include <ev.h>
+
+#define EVENT_READ		EV_READ
+#define EVENT_WRITE		EV_WRITE
+#define EVENT_TIMER		EV_TIMER
+
+typedef struct event Event;
+typedef struct ev_loop Events;
+
+typedef struct {
+	ev_io io;
+	ev_timer timeout;
+} EventOn;
+
+struct event {
+	/* Private */
+	FreeFn free;
+	int enabled;
+	Events *loop;
+
+	/* Public */
+	int fd;
+	void *data;
+	EventOn on;
+	long timeout;
+};
+
+#define eventGetBase(e)			(Event *)((struct ev_watcher *) e)->data
+#define eventDoIo(fn, l, e, f)		(*fn)(l, &(e)->on.io, f)
+#define eventDoTimeout(fn, l, e, f)	(*fn)(l, &(e)->on.timeout, f)
+
+#else /* SNERT_EVENTS */
 
 # ifndef INFTIM
 #  define INFTIM	(-1)
@@ -23,20 +58,16 @@ extern "C" {
 
 typedef struct event Event;
 typedef struct events Events;
-typedef void (*EventHook)(Events *loop, Event *event);
+typedef void (*EventHook)(Events *loop, Event *event, int _reserved_);
 
 #if defined(HAVE_KQUEUE)
 # include <sys/types.h>
 # include <sys/event.h>
 # include <sys/time.h>
 
-extern int events_wait_kqueue(Events *loop, long ms);
-
 #endif
 #if defined(HAVE_EPOLL_CREATE)
 # include <sys/epoll.h>
-
-extern int events_wait_epoll(Events *loop, long ms);
 
 #endif
 #if defined(HAVE_POLL)
@@ -46,11 +77,8 @@ extern int events_wait_epoll(Events *loop, long ms);
 #  include <sys/poll.h>
 # endif
 
-extern int events_wait_poll(Events *loop, long ms);
-
 #endif
 #if defined(HAVE_SELECT)
-extern int events_wait_select(Events *loop, long ms);
 
 #else
 # error "kqueue, epoll, or poll APIs required."
@@ -58,6 +86,7 @@ extern int events_wait_select(Events *loop, long ms);
 
 #define EVENT_READ		0x1
 #define EVENT_WRITE		0x2
+#define EVENT_TIMER		0x4	/* not implemented yet */
 
 typedef union {
 #if defined(HAVE_KQUEUE)
@@ -91,46 +120,50 @@ struct event {
 	ListItem node;
 
 	/* Public */
-	int fd;
-	void *data;
-	EventOn on;
-	long timeout;
+	int fd;				/* ro */
+	void *data;			/* rw */
+	EventOn on;			/* rw */
+	long timeout;			/* rw */
 };
 
 struct events {
-	/* Public read only */
-	JMP_BUF on_error;
-
 	/* Private */
 	int running;
 	List events;
 	os_event *set;
 	unsigned set_size;
+
+	/* Public */
+	JMP_BUF on_error;		/* ro */
 };
+
+#define eventGetBase(e)			(Event *)(e)
+#define eventDoIo(fn, l, e, f)		(*fn)(l, e, f)
+#define eventDoTimeout(fn, l, e, f)	(*fn)(l, e, f)
+
+#endif /* SNERT_EVENTS */
 
 extern void eventFree(void *_event);
 extern Event *eventNew(int fd, int type);
 extern void eventInit(Event *event, int fd, int type);
-extern void eventResetExpire(Event *event, const time_t *now);
 extern void eventSetTimeout(Event *event, long seconds);
 extern long eventGetTimeout(Event *event);
+extern void eventResetTimeout(Event *event);
 extern void eventSetEnabled(Event *event, int flag);
 extern  int eventGetEnabled(Event *event);
 extern void eventSetType(Event *event, int type);
 extern  int eventGetType(Event *event);
+extern void eventSetCbIo(Event *event, void *_cb);
+extern void eventSetCbTimer(Event *event, void *_cb);
 
 extern  int eventAdd(Events *loop, Event *event);
 extern void eventRemove(Events *loop, Event *event);
 
-extern  int eventsInit(Events *loop);
+extern Events *eventsNew(void);
 extern void eventsFree(Events *loop);
 extern void eventsStop(Events *loop);
 extern void eventsRun(Events *loop);
-extern  int eventsWait(Events *loop, long ms);
-extern long eventsTimeout(Events *loop, const time_t *now);
-extern void eventsExpire(Events *loop, const time_t *expire);
 
-extern int (*events_wait_fn)(Events *loop, long ms);
 extern void eventsWaitFnSet(const char *name);
 
 /***********************************************************************
