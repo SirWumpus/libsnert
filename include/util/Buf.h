@@ -15,11 +15,17 @@
 extern "C" {
 #endif
 
+#ifndef HAVE_FREEFN_T
+typedef void (*FreeFn)(void *);
+#endif
+
 typedef struct {
-	void (*destroy)(void *);
+	FreeFn free;
 	unsigned char *bytes;
-	size_t capacity;
+	size_t size;
 	size_t length;
+
+	/* Not used. Available for public use. */
 	size_t offset;
 } Buf;
 

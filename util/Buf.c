@@ -6,6 +6,8 @@
  * Copyright 2001, 2008 by Anthony Howe. All rights reserved.
  */
 
+#include <com/snert/lib/version.h>
+
 #include <ctype.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -38,12 +40,12 @@ enlarge(Buf *a, size_t length)
 	size_t capacity;
 	unsigned char *bytes;
 
-	if (a->capacity < length) {
+	if (a->size < length) {
 		capacity = (length / BUF_GROWTH + 1) * BUF_GROWTH;
 		if ((bytes = realloc(a->bytes, capacity)) == NULL)
 			return -1;
 
-		a->capacity = capacity;
+		a->size = capacity;
 		a->bytes = bytes;
 	}
 
@@ -64,9 +66,10 @@ BufCreate(size_t capacity)
 		return NULL;
 	}
 
-	a->destroy = BufDestroy;
-	a->capacity = capacity;
+	a->free = BufDestroy;
+	a->size = capacity;
 	a->length = 0;
+	a->offset = 0;
 
 	return a;
 }
@@ -82,7 +85,7 @@ BufAssignString(char *s)
 	if ((a = malloc(sizeof (*a))) != NULL) {
 		a->bytes = (unsigned char *) s;
 		a->length = strlen(s);
-		a->capacity = a->length+1;
+		a->size = a->length+1;
 	}
 
 	return a;
@@ -157,7 +160,7 @@ BufSetLength(Buf *a, size_t len)
 size_t
 BufCapacity(Buf *a)
 {
-	return a->capacity;
+	return a->size;
 }
 
 unsigned char *
