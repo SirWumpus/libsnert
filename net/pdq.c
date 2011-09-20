@@ -22,8 +22,8 @@
 #define MAX_SPR_ATTEMPTS	5
 #endif
 
-#ifndef socket3_
-#define socket3_		5
+#ifndef SOCKET3_WAIT_NEXT_PACKET_MS
+#define SOCKET3_WAIT_NEXT_PACKET_MS		5
 #endif
 
 #ifndef ETC_HOSTS
@@ -3043,7 +3043,7 @@ pdqPoll(PDQ *pdq, unsigned ms)
 				free(reply);
 			else
 				pdq_link_add(&replies, reply);
-		} while (socket3_wait(pdq->fd, socket3_, SOCKET_WAIT_READ) == 0);
+		} while (socket3_wait(pdq->fd, SOCKET3_WAIT_NEXT_PACKET_MS, SOCKET_WAIT_READ) == 0);
 
 		/* Restore the errno related to recvfrom, since we know
 		 * that socketTimeoutIO will more than likely set errno
@@ -3446,7 +3446,7 @@ pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name,
 {
 	size_t length;
 	const char **suffix;
-	PDQ_rr *answer, *head, *rr;
+	PDQ_rr *answer, *head;
 	char buffer[DOMAIN_STRING_LENGTH];
 
 	answer = NULL;
@@ -3469,25 +3469,8 @@ pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name,
 		}
 	}
 
-	do {
-		head = (*wait_fn)(pdq);
-		answer = pdqListAppend(answer, head);
-#ifdef DONT_RETURN_UNDEFINED
-		/* When wait_fn == pdqWait, then we have to ignore
-		 * responses that are PDQ_RCODE_UNDEFINED (or similar)
-		 * as other DNS lists might return a useful answer.
-		 * This doesn't affect the wait_fn == pdqWaitAll case.
-		 */
-		for (rr = head; rr != NULL; rr = rr->next) {
-			if (rr->rcode == PDQ_RCODE_OK)
-				break;
-		}
-		if (rr == NULL && wait_fn == pdqWait) {
-			pdqListFree(answer);
-			answer = NULL;
-		}
-#endif
-	} while (rr == NULL && pdq->pending != NULL);
+	head = (*wait_fn)(pdq);
+	answer = pdqListAppend(answer, head);
 
 	if (0 < debug)
 		pdqListLog(answer);
