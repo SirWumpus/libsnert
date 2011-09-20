@@ -50,6 +50,63 @@ is no set schedule for releases.
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
 
+--1.75.1--
+
+   !	Modified IO Events API to optionally support libev 4.
+
+   !	Updated to smtpe to support changes to Events API and libev.
+
+   !	Modified URI API to use weaker versions of spamDomain() that
+	ignores DNS RFC 1035 syntax restriction concerning leading and
+	trailing hyphens in labels. The URI API will now find and match
+
+	http://www.creditcard.com.---------phpsessionoscommerce23452.st-partners.ru/priv/cc/verification.html
+
+	based on spam trap samples from AlexB.
+
+   !	uri_mime_decoded_octet(): RFC 3986 indicates that parentheses
+	and single quotes are reserved characters. The previous code
+	assumed that if they appeared in source buffer, that they came
+	in pairs (leading and trailing). The assumption has been removed
+	in favour of possible imbalanced instances possibly due to word
+	separation.
+
+   !	Modified uriParse2() to strip square brackets from ip-domain-
+   	literal eg. "[82.242.224.224]" for the URI host field. The
+   	uriDecoded fields will still retain the square brackets.
+
+   	Example 1: explicit URI using ip-domain-literal
+
+	$ ./uri -p "http://user@[2001:0db8::1234]:8080/path?query#frag"
+	(arg): uri=http://user@[2001:0db8::1234]:8080/path?query#frag
+		uriDecoded=http://user@[2001:0db8::1234]:8080/path?query#frag
+		scheme=http
+		schemeInfo=//user@[2001:0db8::1234]:8080/path?query#frag
+		userInfo=user
+		host=2001:0db8::1234
+		port=8080
+		path=/path
+		query=query
+		fragment=frag
+
+   	Example 2: implicit URI using ip-domain-literal
+
+	$ ./uri -p "(host.example.com, [82.242.224.224])"
+	(arg): uri=[82.242.224.224]
+		uriDecoded=[82.242.224.224]
+		scheme=ip
+		schemeInfo=(NULL)
+		userInfo=(NULL)
+		host=82.242.224.224
+		port=0
+		path=(NULL)
+		query=(NULL)
+		fragment=(NULL)
+
+   !	Changed socke3_peek() to have same arguments as socket3_read().
+
+   !	Convert tools/popin.c to use socket3.
+
 --1.75.0--
 
   !!	Refactored the PDQ API so that the query section is returned as
@@ -113,6 +170,7 @@ is no set schedule for releases.
 	networkContainsIP() to take IPV4 and/or IPv6 string arguments.
 	Also added a netcontainsip CLI test tool.
 
+   !	Major updates to smtpe.
 
 --1.74.22--
 

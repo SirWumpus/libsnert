@@ -1,5 +1,5 @@
 org/sqlite/makefile
-org/sqlite/sqlite-autoconf-3070500.tar.gz
+org/sqlite/sqlite-autoconf-3070800.tar.gz
 com/snert/lib/Log.pm
 com/snert/include/com/snert/lib
 com/snert/include/org/valgrind
@@ -70,12 +70,7 @@ com/snert/src/lib/mail/mime-multi-crlf.eml
 com/snert/src/lib/mail/digestbl.c
 com/snert/src/lib/mail/mfReply.c
 com/snert/src/lib/mail/smf.c
-com/snert/src/lib/mail/smtp.c
 com/snert/src/lib/mail/smtp2.c
-com/snert/src/lib/mail/smtpError.c
-com/snert/src/lib/mail/smtpOpen.c
-com/snert/src/lib/mail/smtpRead.c
-com/snert/src/lib/mail/smtpWrite.c
 com/snert/src/lib/mail/spf.c
 com/snert/src/lib/mail/tlds-alpha-by-domain.txt
 com/snert/src/lib/mail/tlds.c
@@ -194,6 +189,7 @@ com/snert/src/lib/util/TokenNext.c
 com/snert/src/lib/util/TokenQuote.c
 com/snert/src/lib/util/TokenSplit.c
 com/snert/src/lib/util/TokenSplitA.c
+com/snert/src/lib/util/bitcount32.c
 com/snert/src/lib/util/bs.c
 com/snert/src/lib/util/convertDate.c
 com/snert/src/lib/util/escape.c
@@ -249,7 +245,6 @@ com/snert/src/lib/include/mail/smdb-old.h
 com/snert/src/lib/include/mail/mf.h
 com/snert/src/lib/include/mail/mime.h
 com/snert/src/lib/include/mail/smf.h
-com/snert/src/lib/include/mail/smtp.h
 com/snert/src/lib/include/mail/smtp2.h
 com/snert/src/lib/include/mail/spf.h
 com/snert/src/lib/include/mail/tlds.h

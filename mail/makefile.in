@@ -82,12 +82,12 @@ $O$E :
 	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
 
 .c.i:
-	${CC} -E ${CFLAGS} $*.c >$*.i
+	${CC} -E ${CFLAGS_SQLITE3} ${CFLAGS_MILTER} ${CFLAGS} $*.c >$*.i
 
 #######################################################################
 
 OBJS =  grey$O tlds$O MailSpan$O parsePath$O mime$O siq$O spf$O smdb$O \
-	smtp2$O smtpOpen$O smtpRead$O smtpWrite$O smtpError$O mfReply$O smf$O
+	smtp2$O mfReply$O smf$O
 
 .MAIN : build
 
@@ -173,14 +173,6 @@ parsePath$E :  ../sys/gmtime_r$O MailSpan.c parsePath.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)parsePath$E parsePath.c MailSpan.c $(LIBSNERT) $(LIBS)
 
 # This cannot be built until AFTER the lib/io routines have been built.
-smtp$E : ../io/Dns$O smtpError$O smtp.c
-	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp$E smtp.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI}
-
-# This cannot be built until AFTER the lib/io routines have been built.
-smtp1$E : ../io/Dns$O smtpError$O smtpError$O smtpRead$O smtpWrite$O smtpOpen.c
-	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp1$E smtpOpen.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI}
-
-# This cannot be built until AFTER the lib/io routines have been built.
 smtp2$E : ../net/pdq$O ../io/socket2$O smtp2.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp2$E smtp2.c $(LIBSNERT) $(LIBS) ${LIB_PTHREAD} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
 
@@ -209,4 +201,4 @@ mfReply$O : mfReply.c
 	${CC} ${CFLAGS_MILTER} ${CFLAGS} -c $*.c
 
 smf$O : smf.c
-	${CC} ${CFLAGS_MILTER} ${CFLAGS} -c $*.c
+	${CC} ${CFLAGS_SQLITE3} ${CFLAGS_MILTER} ${CFLAGS} -c $*.c
