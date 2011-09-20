@@ -492,6 +492,7 @@ mimeStateEOH(Mime *m, int ch)
 	m->mime_body_length = 0;
 	m->mime_body_decoded_length = 0;
 	m->source.buffer[0] = '\0';
+	m->source.length = 0;
 
 	for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
 		if (hook->body_start != NULL)

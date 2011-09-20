@@ -615,15 +615,20 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 				uri->host--;
 			}
 
+			/* Check for colon-port following host. */
 			if (uri->host[span] == ':') {
 				uri->port = uri->host + span;
 				*uri->port++ = '\0';
-				if (uriGetSchemePort(uri) == -1)
+				if (uriGetSchemePort(uri) == -1) {
 					goto error1;
+				}
 			}
 
-			if (strlen(uri->host) != span)
-				goto error1;
+			/* Remove square brackets from ip-domain-literals. */
+			if (*uri->host == '[' && uri->host[span-1] == ']') {
+				uri->host[span-1] = '\0';
+				uri->host++;
+			}
 		} else if (uri->scheme != NULL && TextInsensitiveCompare(uri->scheme, "file") == 0) {
 			uri->host = "localhost";
 			uri->path = value;
@@ -658,6 +663,10 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	else if (uri->scheme == NULL) {
 		if (0 < (span = spanIP(value))) {
 			uri->scheme = "ip";
+			if (value[span-1] == ']')
+				value[span-1] = '\0';
+			if (*value == '[')
+				value++;
 			uri->host = value;
 		} else if (0 < (span = alt_spanDomain(value, implicit_domain_min_dots))) {
 			if (value[span] == '/') {
@@ -1188,7 +1197,7 @@ uri_mime_decoded_octet(Mime *m, int ch, void *_data)
 	 * implicit URI rules, decoding binary attachments like
 	 * images can result in false positives.
 	 */
-	if (!hold->headers_and_body && !hold->is_text_part)
+	if (!hold->headers_and_body && hold->is_body && !hold->is_text_part)
 		return;
 
         /* Ignore CR as it does not help us with parsing.
@@ -1249,13 +1258,13 @@ uri_mime_decoded_octet(Mime *m, int ch, void *_data)
 		/* RFC 2396 lists parens and single quotes as unreserved mark
 		 * characters that can appear in a URI (how stupid). If the
 		 * hold buffer looks to be bracketed by these characters, then
-		 * strip them off. RFC 3986 has them as reserved.
+		 * strip them off. RFC 3986 has them as reserved. Note too that
+		 * parens and single quotes might be imbalanced.
 		 */
-		if ((hold->buffer[value] == '('  && hold->buffer[hold->length-1] == ')')
-		||  (hold->buffer[value] == '\'' && hold->buffer[hold->length-1] == '\'')) {
-			hold->length--;
+		if (hold->buffer[value] == '(' || hold->buffer[value] == '\'')
 			value++;
-		}
+		if (hold->buffer[hold->length-1] == ')' || hold->buffer[hold->length-1] == '\'')
+			hold->length--;
 
 		/* RFC 3986 and 1035 does not allow underscore in a URI scheme
 		 * nor in a domain/host name.
@@ -1686,7 +1695,7 @@ process_file(const char *filename)
 		goto error2;
 
 	mimeHooksAdd(mime, (MimeHooks *)hold);
-	mimeHeadersFirst(mime, !headers_and_body);
+	mimeHeadersFirst(mime, headers_and_body);
 	rc = process_input(mime, fp, filename);
 error2:
 	mimeFree(mime);
