@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 
 #ifdef HAVE_FCNTL_H
 # include <fcntl.h>
@@ -184,6 +185,14 @@ smtp2Read(Socket2 *s, char ***lines)
 	line_max = 0;
 	*lines = NULL;
 
+	/* Silence "may be used uninitialized in this function" warning.
+	 * the do-while and the top if-block are always entered, thus
+	 * ensuring that table and buffer are initialised to something
+	 * useful.
+	 */
+	table = NULL;
+	buffer = NULL;
+
 	do {
 		if (line_max <= line_no || size <= offset + SMTP_REPLY_LINE_LENGTH) {
 			if ((table = realloc(*lines, sizeof (char *) * (line_max + 11) + size + SMTP_REPLY_LINE_LENGTH)) == NULL)
@@ -236,7 +245,7 @@ smtp2Read(Socket2 *s, char ***lines)
 
 	/* Add in the base of the buffer to each line's offset. */
 	for (ch = 0; ch < line_no; ch++)
-		table[ch] = buffer + (int) table[ch];
+		table[ch] = buffer + (ptrdiff_t) table[ch];
 	table[ch] = NULL;
 
 	if (0 < line_no)
