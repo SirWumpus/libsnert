@@ -58,9 +58,9 @@
 #endif
 
 #include <com/snert/lib/io/Log.h>
-#include <com/snert/lib/io/socket2.h>
+#include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/io/posix.h>
-#include <com/snert/lib/io/Dns.h>
+#include <com/snert/lib/util/Buf.h>
 #include <com/snert/lib/util/md5.h>
 #include <com/snert/lib/util/Text.h>
 
@@ -95,6 +95,9 @@ static long popPort = DEFAULT_POP_PORT;
 static long socketTimeout = DEFAULT_SOCKET_TIMEOUT;
 
 static char line[INPUT_LINE_SIZE+1];
+static unsigned char data[INPUT_LINE_SIZE * 10];
+static Buf buffer = { NULL, data, sizeof (data), 0, 0 };
+
 
 static char usage[] =
 "usage: " _NAME " [-dlmrsuv][-h host][-p port] user pass [msgnum ...] >output\n"
@@ -139,7 +142,7 @@ syslog(int level, const char *fmt, ...)
 #endif
 
 int
-printline(Socket2 *s, char *line)
+printline(SOCKET s, char *line)
 {
 	int rc = 0;
 	long length = (long) strlen(line);
@@ -150,21 +153,21 @@ printline(Socket2 *s, char *line)
 #if defined(NON_BLOCKING_WRITE)
 # if ! defined(NON_BLOCKING_READ)
 	/* Do not block on sending to the SMTP server just yet. */
-	(void) socketSetNonBlocking(s, 1);
+	(void) socket3_set_nonblocking(s, 1);
 # endif
 
-	if (socketWrite(s, (unsigned char *) line, length) == SOCKET_ERROR) {
+	if (socket3_write(s, (unsigned char *) line, length, NULL) == SOCKET_ERROR) {
 		syslog(LOG_ERR, "SocketPrint() error: %s (%d)", strerror(errno), errno);
 		goto error0;
 	}
 
 	/* Now wait for the output to be sent to the SMTP server. */
-	if (!socketCanSend(s, socketTimeout)) {
+	if (socket3_can_send(s, socketTimeout) != 0) {
 		syslog(LOG_ERR, "timeout before output sent to SMTP server");
 		goto error0;
 	}
 #else
-	if (socketWrite(s, line, (long) strlen(line)) == SOCKET_ERROR) {
+	if (socket3_write(s, line, (long) strlen(line), NULL) == SOCKET_ERROR) {
 		syslog(LOG_ERR, "SocketPrint() error: %s (%d)", strerror(errno), errno);
 		goto error0;
 	}
@@ -172,13 +175,13 @@ printline(Socket2 *s, char *line)
 	rc = 1;
 error0:
 #if ! defined(NON_BLOCKING_READ) && defined(NON_BLOCKING_WRITE)
-	(void) socketSetNonBlocking(s, 0);
+	(void) socket3_set_nonblocking(s, 0);
 #endif
 	return rc;
 }
 
 int
-printlines(Socket2 *s, char **lines)
+printlines(SOCKET s, char **lines)
 {
         for ( ; *lines != (char *) 0; lines++) {
         	if (!printline(s, *lines))
@@ -188,14 +191,82 @@ printlines(Socket2 *s, char **lines)
         return 1;
 }
 
+long
+socket3_read_buf(SOCKET fd, Buf *readbuf, char *buffer, size_t size, long ms)
+{
+	if (readbuf == NULL || buffer == NULL || size < 1)
+		return SOCKET_ERROR;
+
+	size--;
+
+	if (readbuf->length <= readbuf->offset) {
+		if (socket3_has_input(fd, ms) != 0)
+			return SOCKET_ERROR;
+		readbuf->length = socket3_read(fd, readbuf->bytes, readbuf->size-1, NULL);
+		if (readbuf->length == SOCKET_ERROR)
+			return SOCKET_ERROR;
+		if (readbuf->length == 0)
+			return SOCKET_EOF;
+
+		/* Keep the buffer null terminated. */
+		readbuf->bytes[readbuf->length] = 0;
+		readbuf->offset = 0;
+	}
+
+	if (readbuf->length < readbuf->offset+size)
+		size = readbuf->length-readbuf->offset;
+
+	(void) memcpy(buffer, readbuf->bytes+readbuf->offset, size);
+	readbuf->offset += size;
+
+	return size;
+}
+
+long
+socket3_read_line(SOCKET fd, Buf *readbuf, char *line, size_t size, long ms)
+{
+	long offset;
+
+	if (readbuf == NULL || line == NULL || size < 1)
+		return SOCKET_ERROR;
+
+	size--;
+
+	for (offset = 0; offset < size; ) {
+		if (readbuf->length <= readbuf->offset) {
+			if (socket3_has_input(fd, ms) != 0)
+				return SOCKET_ERROR;
+			readbuf->length = socket3_read(fd, readbuf->bytes, readbuf->size-1, NULL);
+			if (readbuf->length == SOCKET_ERROR)
+				return SOCKET_ERROR;
+			if (readbuf->length == 0)
+				return SOCKET_EOF;
+
+			/* Keep the buffer null terminated. */
+			readbuf->bytes[readbuf->length] = 0;
+			readbuf->offset = 0;
+		}
+
+		/* Copy from read buffer into the line buffer. */
+		line[offset++] = (char) readbuf->bytes[readbuf->offset++];
+
+		if (line[offset-1] == '\n')
+			break;
+	}
+
+	line[offset] = '\0';
+
+	return offset;
+}
+
 int
-getSocketLine(Socket2 *s, char *line, long size)
+getSocketLine(SOCKET s, char *line, long size)
 {
 	long length = -1;
 
 #if defined(NON_BLOCKING_READ) && ! defined(NON_BLOCKING_WRITE)
 	/* Do not block on reading from the SMTP server just yet. */
-	(void) socketSetNonBlocking(s, 1);
+	(void) socket3_set_nonblocking(s, 1);
 #endif
 	/* Erase the first 5 bytes of the line buffer, which corresponds
 	 * to the 3 ASCII characters of the status code followed by either
@@ -203,7 +274,7 @@ getSocketLine(Socket2 *s, char *line, long size)
 	 */
 	memset(line, 0, 5);
 
-	switch (length = socketReadLine(s, line, size)) {
+	switch (length = socket3_read_line(s, &buffer, line, size, socketTimeout)) {
 	case SOCKET_ERROR:
 		syslog(LOG_ERR, "read error: %s (%d)", strerror(errno), errno);
 		goto error0;
@@ -212,18 +283,25 @@ getSocketLine(Socket2 *s, char *line, long size)
 		goto error0;
 	}
 
+	if (line[length-1] == '\n') {
+		length--;
+		if (line[length-1] == '\r')
+			length--;
+		line[length] = '\0';
+	}
+
 	if (debug)
 		syslog(LOG_DEBUG, "< %ld:%s", length, line);
 error0:
 
 #if defined(NON_BLOCKING_READ) && ! defined(NON_BLOCKING_WRITE)
-	(void) socketSetNonBlocking(s, 0);
+	(void) socket3_set_nonblocking(s, 0);
 #endif
 	return length;
 }
 
 int
-getPopResponse(Socket2 *s, char *line, long size)
+getPopResponse(SOCKET s, char *line, long size)
 {
 	if (getSocketLine(s, line, size) < 0)
 		return -1;
@@ -238,7 +316,7 @@ getPopResponse(Socket2 *s, char *line, long size)
 }
 
 int
-popStatus(Socket2 *pop, long *count, long *bytes)
+popStatus(SOCKET pop, long *count, long *bytes)
 {
 	printline(pop, "STAT\r\n");
 	if (getPopResponse(pop, line, sizeof (line))) {
@@ -258,7 +336,7 @@ popStatus(Socket2 *pop, long *count, long *bytes)
 }
 
 int
-popList(Socket2 *pop, long message)
+popList(SOCKET pop, long message)
 {
 	long number, octets;
 
@@ -280,7 +358,7 @@ popList(Socket2 *pop, long message)
 }
 
 int
-popUidl(Socket2 *pop, long message)
+popUidl(SOCKET pop, long message)
 {
 	long number;
 	char message_id[256];
@@ -303,7 +381,7 @@ popUidl(Socket2 *pop, long message)
 }
 
 int
-popRead(Socket2 *pop, long message)
+popRead(SOCKET pop, long message)
 {
 	long length;
 
@@ -345,7 +423,7 @@ popRead(Socket2 *pop, long message)
 }
 
 int
-popDelete(Socket2 *pop, long message)
+popDelete(SOCKET pop, long message)
 {
 	snprintf(line, sizeof (line), "DELE %ld\r\n", message);
 	printline(pop, line);
@@ -358,7 +436,7 @@ popDelete(Socket2 *pop, long message)
 }
 
 int
-forEach(Socket2 *pop, long start, long stop, int (*function)(Socket2 *pop, long message))
+forEach(SOCKET pop, long start, long stop, int (*function)(SOCKET pop, long message))
 {
 	if (start < 1)
 		start = 1;
@@ -372,7 +450,7 @@ forEach(Socket2 *pop, long start, long stop, int (*function)(Socket2 *pop, long 
 }
 
 int
-forEachArg(Socket2 *pop, int argc, char **argv, int start, int (*function)(Socket2 *pop, long message))
+forEachArg(SOCKET pop, int argc, char **argv, int start, int (*function)(SOCKET pop, long message))
 {
 	long number;
 
@@ -388,7 +466,7 @@ forEachArg(Socket2 *pop, int argc, char **argv, int start, int (*function)(Socke
 int
 main(int argc, char **argv)
 {
-	Socket2 *pop;
+	SOCKET pop;
 	char *arg, *stop;
 	long messages, octets;
 	SocketAddress *address;
@@ -464,7 +542,7 @@ main(int argc, char **argv)
 	if (1 < debug)
 		LogOpen("(standard error)");
 
-	if (socketInit()) {
+	if (socket3_init()) {
 		syslog(LOG_ERR, "socketInit() failed");
 		goto error0;
 	}
@@ -476,23 +554,21 @@ main(int argc, char **argv)
 		goto error0;
 	}
 
-	if ((pop = socketOpen(address, 1)) == NULL) {
+	if ((pop = socket3_open(address, 1)) < 0) {
 		syslog(LOG_ERR, "failed to create socket to host %s:%ld", popHost, popPort);
 		goto error1;
 	}
 
-	if (socketClient(pop, socketTimeout)) {
+	if (socket3_client(pop, address, socketTimeout)) {
 		syslog(LOG_ERR, "failed to connect to host %s:%ld", popHost, popPort);
 		goto error2;
 	}
-
-	socketSetTimeout(pop, socketTimeout);
 
 #if defined(NON_BLOCKING_READ) && defined(NON_BLOCKING_WRITE)
 	/* Set non-blocking I/O once for both getPopResponse() and
 	 * printline() and leave it that way.
 	 */
-	if (socketSetNonBlocking(pop, 1)) {
+	if (socket3_set_nonblocking(pop, 1)) {
 		syslog(LOG_ERR, "internal error: socketSetNonBlocking() failed: %s (%d)", strerror(errno), errno);
 		goto error2;
 	}
@@ -595,7 +671,7 @@ error3:
 	rc = getPopResponse(pop, line, sizeof (line)) != 0;
 	syslog(LOG_INFO, "user %s logged out", argv[argi-2]);
 error2:
-	socketClose(pop);
+	socket3_close(pop);
 error1:
 	free(address);
 error0:
