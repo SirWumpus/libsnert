@@ -449,7 +449,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 
 	response->eoh = buf->offset;
 	if (0 < response->debug)
-		syslog(LOG_DEBUG, "%s eoh=%u", response->id_log, response->eoh);
+		syslog(LOG_DEBUG, "%s eoh=%u", response->id_log, (unsigned) response->eoh);
 
 	if (response->hook.header_end != NULL
 	&& (*response->hook.header_end)(response, buf->bytes, response->eoh) != HTTP_CONTINUE)
