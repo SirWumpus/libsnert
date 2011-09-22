@@ -1112,6 +1112,16 @@ extern PDQ_rr *pdqListPruneDup(PDQ_rr *list);
 
 /**
  * @param list
+ *	A pointer to a PDQ_rr list from which records upto the next
+ *	query section are freed.
+ *
+ * @return
+ *	The updated head of the list or NULL if the list is empty.
+ */
+extern PDQ_rr *pdqListPruneQuery(PDQ_rr *list);
+
+/**
+ * @param list
  *	A pointer to a PDQ_rr list.
  *
  * @param mask

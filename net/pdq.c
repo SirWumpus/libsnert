@@ -905,6 +905,32 @@ pdqListKeepType(PDQ_rr *list, PDQ_keep mask)
 	return list;
 }
 
+/**
+ * @param list
+ *	A pointer to a PDQ_rr list from which records upto the next
+ *	query section are freed.
+ *
+ * @return
+ *	The updated head of the list or NULL if the list is empty.
+ */
+PDQ_rr *
+pdqListPruneQuery(PDQ_rr *list)
+{
+	PDQ_rr **prev, *rr, *next;
+
+	/* Remove records upto next query section in list. */
+	prev = &list;
+	for (rr = list; rr != NULL; rr = next) {
+		*prev = rr->next;
+		next = rr->next;
+		pdqDestroy(rr);
+
+		if (next != NULL && next->section == PDQ_SECTION_QUERY)
+			break;
+	}
+
+	return list;
+}
 
 /**
  * @param list
@@ -3445,8 +3471,8 @@ PDQ_rr *
 pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name, const char **suffix_list, PDQ_rr *(*wait_fn)(PDQ *))
 {
 	size_t length;
+	PDQ_rr *answer;
 	const char **suffix;
-	PDQ_rr *answer, *head;
 	char buffer[DOMAIN_STRING_LENGTH];
 
 	answer = NULL;
@@ -3469,8 +3495,19 @@ pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name,
 		}
 	}
 
-	head = (*wait_fn)(pdq);
-	answer = pdqListAppend(answer, head);
+	do {
+		answer = (*wait_fn)(pdq);
+
+		/* When wait_fn == pdqWait, then we have to ignore
+		 * responses that are PDQ_RCODE_NXDOMAIN (or similar)
+		 * as other DNS lists might return a useful answer.
+		 * This doesn't affect the wait_fn == pdqWaitAll case.
+		 */
+		if (wait_fn == pdqWait) {
+			while (answer != NULL && answer->section == PDQ_SECTION_QUERY && ((PDQ_QUERY *)answer)->rcode != PDQ_RCODE_OK)
+				answer = pdqListPruneQuery(answer);
+		}
+	} while (answer == NULL && pdq->pending != NULL);
 
 	if (0 < debug)
 		pdqListLog(answer);
