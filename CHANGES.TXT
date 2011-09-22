@@ -107,6 +107,10 @@ is no set schedule for releases.
 
    !	Convert tools/popin.c to use socket3.
 
+   !	When pdqGetDnsList() uses pdqWait(), discard NXDOMAIN (all not-
+	OK) results until another DNS list returns a useful answer or
+	there are no further pending queries.
+
 --1.75.0--
 
   !!	Refactored the PDQ API so that the query section is returned as
