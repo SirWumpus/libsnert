@@ -22,16 +22,28 @@
  *	mail-cycle.sh
  */
 
-#ifndef DEFAULT_POP_HOST
-#define DEFAULT_POP_HOST		"127.0.0.1"
+#ifndef POP_HOST
+#define POP_HOST		"127.0.0.1"
 #endif
 
-#ifndef DEFAULT_POP_PORT
-#define DEFAULT_POP_PORT		110
+#ifndef POP_PORT
+#define POP_PORT		110
 #endif
 
-#ifndef DEFAULT_SOCKET_TIMEOUT
-#define DEFAULT_SOCKET_TIMEOUT		120
+#ifndef SOCKET_TIMEOUT
+#define SOCKET_TIMEOUT		120
+#endif
+
+#ifndef SSL_DIR
+#define SSL_DIR			"/etc/openssl"
+#endif
+
+#ifndef CA_PEM_DIR
+#define CA_PEM_DIR		SSL_DIR "/certs"
+#endif
+
+#ifndef CA_PEM_CHAIN
+#define CA_PEM_CHAIN		SSL_DIR "/cert.pem"
 #endif
 
 /***********************************************************************
@@ -90,9 +102,16 @@
 
 static int debug;
 static int cmdFlags;
-static char *popHost = DEFAULT_POP_HOST;
-static long popPort = DEFAULT_POP_PORT;
-static long socketTimeout = DEFAULT_SOCKET_TIMEOUT;
+static char *popHost = POP_HOST;
+static long popPort = POP_PORT;
+static long socketTimeout = SOCKET_TIMEOUT;
+
+#ifdef HAVE_OPENSSL_SSL_H
+static int require_tls;
+static int check_certificate;
+static char *ca_pem_chain = CA_PEM_CHAIN;
+static char *ca_pem_dir = CA_PEM_DIR;
+#endif
 
 static char line[INPUT_LINE_SIZE+1];
 static unsigned char data[INPUT_LINE_SIZE * 10];
@@ -100,17 +119,34 @@ static Buf buffer = { NULL, data, sizeof (data), 0, 0 };
 
 
 static char usage[] =
-"usage: " _NAME " [-dlmrsuv][-h host][-p port] user pass [msgnum ...] >output\n"
+#ifdef HAVE_OPENSSL_SSL_H
+"usage: " _NAME " [-dlmrsuvxX][-c ca_pem][-C ca_dir][-h host][-p port][-t sec]\n"
+"             user pass [msgnum ...] >output\n"
+#else
+"usage: " _NAME " [-dlmrsuv][-h host][-p port][-t sec]\n"
+"             user pass [msgnum ...] >output\n"
+#endif
 "\n"
+#ifdef HAVE_OPENSSL_SSL_H
+"-c ca_pem\tCertificate Authority root certificate chain file;\n"
+"\t\tdefault " CA_PEM_CHAIN "\n"
+"-C dir\t\tCertificate Authority root certificate directory;\n"
+"\t\tdefault " CA_PEM_DIR "\n"
+#endif
 "-d\t\tdelete specified messages; default is leave on server\n"
 "-l\t\tlist specified message sizes; default is all\n"
-"-h host\t\tPOP host to contact, default localhost\n"
+"-h host\t\tPOP host to contact; default " POP_HOST "\n"
 "-m\t\toutput in pseudo mbox format\n"
-"-p port\t\tPOP port to connect to, default 110\n"
+"-p port\t\tPOP port to connect to; default " QUOTE(POP_PORT) "\n"
 "-r\t\tread specified messages or all messages if none specified\n"
 "-s\t\treturn total number of messages and size\n"
+"-t sec\t\tsocket timeout in seconds; default " QUOTE(SOCKET_TIMEOUT) "\n"
 "-u\t\tlist specified message identifiers; default is all\n"
 "-v\t\tverbose debug messages; once maillog, twice stderr\n"
+#ifdef HAVE_OPENSSL_SSL_H
+"-x\t\trequire TLS connection\n"
+"-X\t\tverify the server certificate\n"
+#endif
 "user\t\tuser account to access\n"
 "pass\t\tpassword for user account\n"
 "msgnum\t\tmessage number to read, delete, or get size of; without -d\n"
@@ -316,6 +352,20 @@ getPopResponse(SOCKET s, char *line, long size)
 }
 
 int
+popStartTLS(SOCKET pop)
+{
+	printline(pop, "STLS\r\n");
+	if (getPopResponse(pop, line, sizeof (line))) {
+		syslog(LOG_ERR, "STLS failed: %s", line);
+		return -1;
+	}
+	if (socket3_start_tls(pop, 0, socketTimeout))
+		syslog(LOG_ERR, "socket3_start_tls() failed");
+
+	return 0;
+}
+
+int
 popStatus(SOCKET pop, long *count, long *bytes)
 {
 	printline(pop, "STAT\r\n");
@@ -481,6 +531,12 @@ main(int argc, char **argv)
 			break;
 
 		switch (argv[argi][1]) {
+		case 'c':
+			ca_pem_chain = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			break;
+		case 'C':
+			ca_pem_dir = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			break;
 		case 'd':
 			cmdFlags |= CMD_DELETE;
 			break;
@@ -520,6 +576,12 @@ main(int argc, char **argv)
 			LogSetProgramName(_NAME);
 			debug++;
 			break;
+		case 'x':
+			require_tls++;
+			break;
+		case 'X':
+			check_certificate++;
+			break;
 		default:
 			fprintf(stderr, "invalid option -%c\n%s", argv[argi][1], usage);
 			return EXIT_USAGE;
@@ -542,11 +604,17 @@ main(int argc, char **argv)
 	if (1 < debug)
 		LogOpen("(standard error)");
 
-	if (socket3_init()) {
-		syslog(LOG_ERR, "socketInit() failed");
+#ifdef HAVE_OPENSSL_SSL_H
+	if (socket3_init_tls(NULL, ca_pem_chain, NULL, NULL, NULL)) {
+		syslog(LOG_ERR, "socket3_init_tls() failed");
 		goto error0;
 	}
-
+#else
+	if (socket3_init()) {
+		syslog(LOG_ERR, "socket3_init() failed");
+		goto error0;
+	}
+#endif
 	syslog(LOG_INFO, "connecting to host=%s port=%ld", popHost, popPort);
 
 	if ((address = socketAddressCreate(popHost, popPort)) == NULL) {
@@ -579,6 +647,17 @@ main(int argc, char **argv)
 		goto error2;
 	}
 
+#ifdef HAVE_OPENSSL_SSL_H
+	if (require_tls && popStartTLS(pop)) {
+		syslog(LOG_ERR, "TLS connection required");
+		goto error2;
+	}
+
+	if (check_certificate && !socket3_is_cn_tls(pop, popHost)) {
+		syslog(LOG_ERR, "invalid certificate for %s", popHost);
+		goto error2;
+	}
+#endif
 	/* Look for timestamp in welcome banner. */
 	if ((offset = TextFind(line, "*<*@*>*", -1, 1)) == -1 ) {
 		/* Use USER/PASS clear text login. */

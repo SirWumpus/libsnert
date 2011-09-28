@@ -19,9 +19,11 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include <com/snert/lib/io/Log.h>
-#include <com/snert/lib/io/posix.h>
-#include <com/snert/lib/sys/Time.h>
+#ifndef __MINGW32__
+# if defined(HAVE_SYSLOG_H)
+#  include <syslog.h>
+# endif
+#endif
 
 #ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
@@ -40,10 +42,29 @@
 extern long getpid(void);
 #endif
 
+#include <com/snert/lib/io/Log.h>
+#include <com/snert/lib/io/posix.h>
+#include <com/snert/lib/sys/Time.h>
+
 FILE *logFile;
 static unsigned logMask = LOG_UPTO(LOG_DEBUG);
 static char *logLevels[] = { "PANIC", "ALERT", "FATAL", "ERROR", "WARN", "NOTICE", "INFO", "DEBUG" };
 static const char *programName = "";
+
+#if ! defined(__MINGW32__)
+void
+alt_syslog(int level, const char *fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	if (logFile == NULL)
+		vsyslog(level, fmt, args);
+	else
+		LogV(level, fmt, args);
+	va_end(args);
+}
+#endif
 
 const char *
 LogGetProgramName(void)

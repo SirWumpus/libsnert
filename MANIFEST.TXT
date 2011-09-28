@@ -43,6 +43,7 @@ com/snert/src/lib/io/makefile.in
 com/snert/src/lib/io/mkpath.c
 com/snert/src/lib/io/socket2.c
 com/snert/src/lib/io/socket3.c
+com/snert/src/lib/io/socket3_tls.c
 com/snert/src/lib/io/events.c
 com/snert/src/lib/io/socketAddress.c
 com/snert/src/lib/io/socketAddressIsLocal.c
@@ -346,6 +347,8 @@ com/snert/src/lib/tools/range.c
 com/snert/src/lib/tools/rawls.c
 com/snert/src/lib/tools/rawrm.c
 com/snert/src/lib/tools/rsleep.c
+com/snert/src/lib/tools/secho.c
+com/snert/src/lib/tools/sechod.c
 com/snert/src/lib/tools/sendform.c
 com/snert/src/lib/tools/sendform.cfg
 com/snert/src/lib/tools/sendform.example

@@ -791,12 +791,25 @@ typedef int socklen_t;
  * Lua
  */
 #undef HAVE_LUA_H
+#undef HAVE_LIBLUA
 
 /*
  * libev 4
  */
 #undef USE_LIBEV
 #undef HAVE_EV_H
+
+/*
+ * OpenSSL
+ */
+#undef HAVE_LIBSSL
+#undef HAVE_LIBCRYPTO
+#undef HAVE_OPENSSL_SSL_H
+#undef HAVE_OPENSSL_BIO_H
+#undef HAVE_OPENSSL_ERR_H
+#undef HAVE_EVP_CLEANUP
+#undef HAVE_SSL_LIBRARY_INIT
+#undef HAVE_MACRO_OPENSSL_ADD_ALL_ALGORITHMS
 
 #ifdef TO_BE_REMOVED
 /* 2011-4-19 The need for this 8.13 / 8.14 transition handling

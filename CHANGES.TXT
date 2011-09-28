@@ -49,6 +49,14 @@ is no set schedule for releases.
 
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
+--1.75.2--
+
+   !	Added detection of OpenSSL support.
+
+   !	Modified socket3 API to support TLS.
+
+   !	Modified popin to support STLS (STARTTLS) command and certificate
+   	validation.
 
 --1.75.1--
 

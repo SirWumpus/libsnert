@@ -23,12 +23,14 @@
 #if defined(HAVE_SYSLOG_H) && ! defined(__MINGW32__)
 # include <syslog.h>
 #endif
-
 #ifdef HAVE_FCNTL_H
 # include <fcntl.h>
 #endif
 #ifdef HAVE_UNISTD_H
 # include <unistd.h>
+#endif
+#ifdef HAVE_SYS_RESOURCE_H
+# include <sys/resource.h>
 #endif
 
 #include <com/snert/lib/io/Log.h>
@@ -58,6 +60,8 @@ typedef union {
 } SocketMulticast;
 
 static int debug;
+static void **user_data;
+static size_t user_data_size;
 
 void
 socket3_set_debug(int level)
@@ -92,6 +96,21 @@ socket3_init(void)
 		if (0 < debug)
 			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_select");
 #endif
+#ifdef HAVE_SYS_RESOURCE_H
+{
+		struct rlimit limit;
+		if (getrlimit(RLIMIT_NOFILE, &limit) == 0) {
+			user_data_size = limit.rlim_cur;
+			user_data = calloc(user_data_size, sizeof (*user_data));
+		}
+}
+#endif
+		socket3_fini_hook = socket3_fini_fd;
+		socket3_peek_hook = socket3_peek_fd;
+		socket3_read_hook = socket3_read_fd;
+		socket3_write_hook = socket3_write_fd;
+		socket3_close_hook = socket3_close_fd;
+
 		initialised = 1;
 	}
 
@@ -102,9 +121,18 @@ socket3_init(void)
  * We're finished with the socket subsystem.
  */
 void
+socket3_fini_fd(void)
+{
+	free(user_data);
+	pdqFini();
+}
+
+void (*socket3_fini_hook)(void);
+
+void
 socket3_fini(void)
 {
-	pdqFini();
+	(*socket3_fini_hook)();
 }
 
 /**
@@ -559,13 +587,28 @@ socket3_accept(SOCKET fd, SocketAddress *addrp)
 	return client;
 }
 
+/**
+ * Shutdown and close a socket.
+ *
+ * @param fd
+ *	A SOCKET returned by socket3_open(), socket3_server(),
+ *	or socket3_accept().
+ */
+void
+socket3_close_fd(SOCKET fd)
+{
+	socket3_shutdown(fd, SHUT_WR);
+	closesocket(fd);
+}
+
+void (*socket3_close_hook)(SOCKET fd);
+
 void
 socket3_close(SOCKET fd)
 {
 	if (0 < debug)
 		syslog(LOG_DEBUG, "socket3_close(%d)", (int) fd);
-	socket3_shutdown(fd, SHUT_WR);
-	closesocket(fd);
+	(*socket3_close_hook)(fd);
 }
 
 /**
@@ -636,7 +679,7 @@ socket3_set_keep_alive(SOCKET fd, int flag, int idle, int interval, int count)
  *	The number of bytes written or SOCKET_ERROR.
  */
 long
-socket3_write(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
+socket3_write_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
 {
 	long sent;
 	socklen_t socklen;
@@ -652,12 +695,17 @@ socket3_write(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
 		sent = write(fd, buffer, size);
 	else
 #endif
-	if (to == NULL)
-		sent = send(fd, buffer, size, 0);
-	else
 		sent = sendto(fd, buffer, size, 0, (const struct sockaddr *) to, socklen);
 
  	return sent;
+}
+
+long (*socket3_write_hook)(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to);
+
+long
+socket3_write(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
+{
+	return (*socket3_write_hook)(fd, buffer, size, to);
 }
 
 /**
@@ -679,7 +727,7 @@ socket3_write(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
  *	Return the number of bytes read or SOCKET_ERROR.
  */
 long
-socket3_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
+socket3_read_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 {
 	long nbytes;
 	socklen_t socklen;
@@ -725,6 +773,14 @@ socket3_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 	return nbytes;
 }
 
+long (*socket3_read_hook)(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from);
+
+long
+socket3_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
+{
+	return (*socket3_read_hook)(fd, buffer, size, from);
+}
+
 /**
  * @param fd
  *	A SOCKET returned by socket3_open() or socket3_accept().
@@ -744,7 +800,7 @@ socket3_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
  *	Return the number of bytes read or SOCKET_ERROR.
  */
 long
-socket3_peek(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
+socket3_peek_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 {
 	long nbytes;
 	socklen_t socklen;
@@ -761,6 +817,14 @@ socket3_peek(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 		from->sa.sa_len = socklen;
 #endif
 	return nbytes;
+}
+
+long (*socket3_peek_hook)(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from);
+
+long
+socket3_peek(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
+{
+	return (*socket3_peek_hook)(fd, buffer, size, from);
 }
 
 /**
@@ -1097,5 +1161,36 @@ socket3_wait_fn_set(const char *name)
 			break;
 		}
 	}
+}
+
+void *
+socket3_get_userdata(SOCKET fd)
+{
+#ifdef __unix__
+	if (user_data == NULL)
+		return NULL;
+	return user_data[fd];
+#else
+	return NULL;
+#endif
+}
+
+int
+socket3_set_userdata(SOCKET fd, void *data)
+{
+#ifdef __unix__
+	if (user_data_size < fd) {
+		void **table;
+
+		if ((table = realloc(user_data, (fd+1) * sizeof (*user_data))) == NULL)
+			return SOCKET_ERROR;
+
+		user_data_size = fd+1;
+		user_data = table;
+	}
+
+	user_data[fd] = data;
+#endif
+	return 0;
 }
 

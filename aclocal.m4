@@ -1444,12 +1444,14 @@ AS_IF([test ${with_libev:-default} != 'no' -a ${with_libev:-default} != 'default
 	saved_cflags="$CFLAGS"
 	saved_ldflags="$LDFLAGS"
 
-	for d in $with_lua /usr/local /usr/pkg ; do
+	for d in "$with_libev" /usr/local /usr/pkg ; do
 		unset ac_cv_search_ev_run
 		unset ac_cv_header_ev_h
 
-		CFLAGS_LIBEV="-I$d/include"
-		LDFLAGS_LIBEV="-L$d/lib -Wl,-E"
+		if test X$d != X ; then
+			CFLAGS_LIBEV="-I$d/include"
+			LDFLAGS_LIBEV="-L$d/lib -Wl,-E"
+		fi
 		echo "trying with $LDFLAGS_LIBEV ..."
 
 		CFLAGS="$CFLAGS_LIBEV $saved_cflags"
@@ -1463,7 +1465,7 @@ AS_IF([test ${with_libev:-default} != 'no' -a ${with_libev:-default} != 'default
 			AC_SUBST(HAVE_LIB_LIBEV, "-lev")
 			AC_SUBST(LDFLAGS_LIBEV)
 			AC_SUBST(CFLAGS_LIBEV)
-			with_lua="$d"
+			with_libev="$d"
 			break
 		])
 	done
@@ -1488,18 +1490,20 @@ if test ${with_lua:-default} != 'no' ; then
 	saved_cflags="$CFLAGS"
 	saved_ldflags="$LDFLAGS"
 
-	for d in $with_lua /usr/local /usr/pkg ; do
+	for d in "$with_lua" /usr/local /usr/pkg ; do
 		unset ac_cv_search_luaL_newstate
 		unset ac_cv_header_lua_h
 
-		CFLAGS_LUA="-I$d/include"
-		LDFLAGS_LUA="-L$d/lib -Wl,-E"
+		if test X$d != X ; then
+			CFLAGS_LUA="-I$d/include"
+			LDFLAGS_LUA="-L$d/lib -Wl,-E"
+		fi
 		echo "trying with $LDFLAGS_LUA ..."
 
 		CFLAGS="$CFLAGS_LUA $saved_cflags"
 		LDFLAGS="$LDFLAGS_LUA $saved_ldflags"
 
-		AC_SEARCH_LIBS([luaL_newstate], [lua], [LIBS="-llua -lm $LIBS"], [], [-lm])
+		AC_SEARCH_LIBS([luaL_newstate], [lua], [AC_DEFINE_UNQUOTED(HAVE_LIBLUA, '-llua -lm')], [], [-lm])
 		AC_CHECK_HEADERS([lua.h],[],[],[/* */])
 
 		if test "$ac_cv_search_luaL_newstate" != 'no' -a "$ac_cv_header_lua_h" != 'no' ; then
@@ -1507,6 +1511,57 @@ if test ${with_lua:-default} != 'no' ; then
 			AC_SUBST(LDFLAGS_LUA)
 			AC_SUBST(CFLAGS_LUA)
 			with_lua="$d"
+			break
+		fi
+	done
+
+	LIBS="$saved_libs"
+	CFLAGS="$saved_cflags"
+	LDFLAGS="$save_ldflags"
+fi
+])
+
+AC_DEFUN(SNERT_OPTION_WITH_OPENSSL,[
+	AC_ARG_WITH(openssl, [[  --with-openssl[=DIR]    include OpenSSL support]])
+])
+AC_DEFUN(SNERT_OPENSSL,[
+	echo
+	echo "Check for OpenSSL..."
+	echo
+
+if test ${with_openssl:-default} != 'no' ; then
+	saved_libs="$LIBS"
+	saved_cflags="$CFLAGS"
+	saved_ldflags="$LDFLAGS"
+
+	for d in "$with_openssl" /usr/local /usr/pkg; do
+		unset ac_cv_search_SSL_library_init
+		unset ac_cv_search_EVP_cleanup
+		unset ac_cv_header_openssl_ssl_h
+		unset ac_cv_header_openssl_bio_h
+		unset ac_cv_header_openssl_err_h
+
+		if test X$d != X ; then
+			CFLAGS_SSL="-I$d/include"
+			LDFLAGS_SSL="-L$d/lib -Wl,-E"
+		fi
+		echo "trying with $LDFLAGS_SSL ..."
+
+		CFLAGS="$CFLAGS_SSL $saved_cflags"
+		LDFLAGS="$LDFLAGS_SSL $saved_ldflags"
+
+		AC_SEARCH_LIBS([EVP_cleanup], [crypto], [AC_DEFINE_UNQUOTED(HAVE_LIBCRYPTO, '-lcrypto')])
+		AC_SEARCH_LIBS([SSL_library_init], [ssl], [AC_DEFINE_UNQUOTED(HAVE_LIBSSL, '-lssl')])
+		AC_CHECK_HEADERS([openssl/ssl.h openssl/bio.h openssl/err.h],[],[],[/* */])
+		SNERT_CHECK_DEFINE(OpenSSL_add_all_algorithms, openssl/evp.h)
+		AC_CHECK_FUNCS([SSL_library_init EVP_cleanup])
+
+		if test "$ac_cv_search_SSL_library_init" != 'no' -a "$ac_cv_header_openssl_ssl_h" != 'no' ; then
+			AC_SUBST(HAVE_LIBCRYPTO, '-lcrypto')
+			AC_SUBST(HAVE_LIBSSL, '-lssl')
+			AC_SUBST(LDFLAGS_SSL)
+			AC_SUBST(CFLAGS_SSL)
+			with_openssl="$d"
 			break
 		fi
 	done

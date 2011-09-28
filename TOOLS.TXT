@@ -77,6 +77,15 @@ popin		POP3 interface mail retrieval tool. I originally used
 		this with smtpout (replaced by smtp2) to test a "mail
 		send & receive circuit" with Nagios (see mail-cycle.sh).
 
+secho		Secure echo test client and server. Note that server can
+sechod		only handle a single connection at a time (no threads,
+		no forking) since it was only intended for testing. The
+		client first connects in clear text and forwards standard
+		input to the server, which in turn simply echos back the
+		data. The client can specify a line with ".starttls" to
+		switch to TLS and continue to send and recieve data over
+		an encrypted channel.
+
 sqlargs		An xargs(1) like tool that queries a data source for
 		arguments to be used in a command substitution. Each
 		row from the data source will invoke one instance of

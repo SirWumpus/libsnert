@@ -137,15 +137,63 @@ extern int h_error;
  *** Portable Socket API
  ***********************************************************************/
 
+extern void socket3_set_debug(int level);
+extern void *socket3_get_userdata(SOCKET fd);
+extern int socket3_set_userdata(SOCKET fd, void *data);
+
 /**
  * Initialise the socket subsystem.
  */
 extern int socket3_init(void);
 
 /**
+ * Initialise the socket and SSL/TLS subsystems.
+ */
+extern int socket3_init_tls(
+	const char *ca_pem_dir, const char *ca_pem_chain,
+	const char *key_crt_pem, const char *key_pass,
+	const char *dh_pem
+);
+
+/**
  * We're finished with the socket subsystem.
  */
 extern void socket3_fini(void);
+
+extern void socket3_fini_fd(void);
+extern void socket3_fini_tls(void);
+extern void (*socket3_fini_hook)(void);
+
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @param is_server
+ *	True for server, false for a client connection.
+ *
+ * @param timeout
+ *	A timeout value in milliseconds to wait for the socket TLS accept
+ *	with the server. Zero or negative value for an infinite (system)
+ *	timeout.
+ *
+ * @return
+ * 	Zero if the security handshake was successful; otherwise
+ *	-1 on error.
+ */
+extern int socket3_start_tls(SOCKET fd, int is_server, long timeout);
+
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @param expect_cn
+ *	A C string of the expected common name to match.
+ *
+ * @return
+ *	True if the common name (CN) matches that of the peer's
+ *	presented certificate.
+ */
+extern int socket3_is_cn_tls(SOCKET fd, const char *expect_cn);
 
 /**
  * @param fd
@@ -182,6 +230,10 @@ extern SOCKET socket3_open(SocketAddress *addr, int isStream);
  *	or socket3_accept().
  */
 extern void socket3_close(SOCKET fd);
+
+extern void socket3_close_fd(SOCKET fd);
+extern void socket3_close_tls(SOCKET fd);
+extern void (*socket3_close_hook)(SOCKET fd);
 
 extern void socket3_set_keep_alive(SOCKET fd, int flag, int idle, int interval, int count);
 
@@ -359,6 +411,10 @@ extern SOCKET socket3_accept(SOCKET fd, SocketAddress *addr);
  */
 extern long socket3_peek(SOCKET fd, unsigned char *buf, long size, SocketAddress *from);
 
+extern long socket3_peek_fd(SOCKET fd, unsigned char *buf, long size, SocketAddress *from);
+extern long socket3_peek_tls(SOCKET fd, unsigned char *buf, long size, SocketAddress *from);
+extern long (*socket3_peek_hook)(SOCKET fd, unsigned char *buf, long size, SocketAddress *from);
+
 /**
  * Read in a chunk of input from a socket.
  *
@@ -378,6 +434,10 @@ extern long socket3_peek(SOCKET fd, unsigned char *buf, long size, SocketAddress
  *	Return the number of bytes read or SOCKET_ERROR.
  */
 extern long socket3_read(SOCKET fd, unsigned char *buf, long size, SocketAddress *from);
+
+extern long socket3_read_fd(SOCKET fd, unsigned char *buf, long size, SocketAddress *from);
+extern long socket3_read_tls(SOCKET fd, unsigned char *buf, long size, SocketAddress *from);
+extern long (*socket3_read_hook)(SOCKET fd, unsigned char *buf, long size, SocketAddress *from);
 
 /**
  * Write buffer through a socket to the specified destination.
@@ -399,6 +459,10 @@ extern long socket3_read(SOCKET fd, unsigned char *buf, long size, SocketAddress
  *	The number of bytes written or SOCKET_ERROR.
  */
 extern long socket3_write(SOCKET fd, unsigned char *buf, long size, SocketAddress *to);
+
+extern long socket3_write_fd(SOCKET fd, unsigned char *buf, long size, SocketAddress *to);
+extern long socket3_write_tls(SOCKET fd, unsigned char *buf, long size, SocketAddress *to);
+extern long (*socket3_write_hook)(SOCKET fd, unsigned char *buf, long size, SocketAddress *to);
 
 /**
  * @param fd
