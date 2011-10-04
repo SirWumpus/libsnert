@@ -1204,42 +1204,18 @@ AC_DEFUN(SNERT_POSIX_SEMAPHORES,[
 		saved_libs=$LIBS
 		LIBS=''
 
-		case "${platform}" in
-		SunOS|Solaris)
-			SNERT_CHECK_LIB(rt, sem_init)
-			;;
-		esac
-
-		if test ${with_pthread:-yes} = 'no' ; then
-			pthread=''
-		else
-			pthread='pthread'
-		fi
-
-		AC_SEARCH_LIBS([sem_init], [$pthread rt],[
-
-			snert_posix_semaphores='yes'
-			AC_CHECK_TYPES([sem_t],[],[],[
+		AC_SEARCH_LIBS([sem_init],[rt pthread],[AC_DEFINE_UNQUOTED(HAVE_LIB_SEM, "${ac_cv_search_sem_init}") AC_SUBST(HAVE_LIB_SEM, ${ac_cv_search_sem_init})])
+		AC_CHECK_TYPES([sem_t],[],[],[
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
 #endif
 #ifdef HAVE_SEMAPHORE_H
 # include <semaphore.h>
 #endif
-			])
-			AC_CHECK_FUNCS([sem_init sem_destroy sem_wait sem_post],[],[
-				snert_posix_semaphores='no'
-				break
-			])
-		],[
-			snert_posix_semaphores='no'
 		])
-
-		AC_SUBST(HAVE_LIB_SEM, ${LIBS})
+		AC_CHECK_FUNCS([sem_init sem_destroy sem_wait sem_post sem_trywait sem_timedwait])
 		LIBS=$saved_libs
-	],[
-		snert_posix_semaphores='no'
-	],[/* */])
+	])
 ])
 
 dnl
@@ -1503,7 +1479,7 @@ if test ${with_lua:-default} != 'no' ; then
 		CFLAGS="$CFLAGS_LUA $saved_cflags"
 		LDFLAGS="$LDFLAGS_LUA $saved_ldflags"
 
-		AC_SEARCH_LIBS([luaL_newstate], [lua], [AC_DEFINE_UNQUOTED(HAVE_LIBLUA, '-llua -lm')], [], [-lm])
+		AC_SEARCH_LIBS([luaL_newstate], [lua], [AC_DEFINE_UNQUOTED(HAVE_LIBLUA, "-llua -lm")], [], [-lm])
 		AC_CHECK_HEADERS([lua.h],[],[],[/* */])
 
 		if test "$ac_cv_search_luaL_newstate" != 'no' -a "$ac_cv_header_lua_h" != 'no' ; then
@@ -1550,8 +1526,8 @@ if test ${with_openssl:-default} != 'no' ; then
 		CFLAGS="$CFLAGS_SSL $saved_cflags"
 		LDFLAGS="$LDFLAGS_SSL $saved_ldflags"
 
-		AC_SEARCH_LIBS([EVP_cleanup], [crypto], [AC_DEFINE_UNQUOTED(HAVE_LIBCRYPTO, '-lcrypto')])
-		AC_SEARCH_LIBS([SSL_library_init], [ssl], [AC_DEFINE_UNQUOTED(HAVE_LIBSSL, '-lssl')])
+		AC_SEARCH_LIBS([EVP_cleanup], [crypto], [AC_DEFINE_UNQUOTED(HAVE_LIBCRYPTO, "-lcrypto")])
+		AC_SEARCH_LIBS([SSL_library_init], [ssl], [AC_DEFINE_UNQUOTED(HAVE_LIBSSL, "-lssl")])
 		AC_CHECK_HEADERS([openssl/ssl.h openssl/bio.h openssl/err.h],[],[],[/* */])
 		SNERT_CHECK_DEFINE(OpenSSL_add_all_algorithms, openssl/evp.h)
 		AC_CHECK_FUNCS([SSL_library_init EVP_cleanup])

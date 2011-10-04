@@ -358,12 +358,15 @@ typedef unsigned long time_t;
 /*
  * POSIX Semaphores
  */
+#undef HAVE_LIB_SEM
 #undef HAVE_SEMAPHORE_H
 #undef HAVE_SEM_T
 #undef HAVE_SEM_DESTROY
 #undef HAVE_SEM_INIT
 #undef HAVE_SEM_POST
 #undef HAVE_SEM_WAIT
+#undef HAVE_SEM_TRYWAIT
+#undef HAVE_SEM_TIMEDWAIT
 
 /*
  * System V Semaphores

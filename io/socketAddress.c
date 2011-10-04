@@ -3,7 +3,7 @@
  *
  * Socket Portability API
  *
- * Copyright 2001, 2008 by Anthony Howe. All rights reserved.
+ * Copyright 2001, 2011 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -19,9 +19,11 @@
 #if defined(HAVE_SYSLOG_H) && ! defined(__MINGW32__)
 # include <syslog.h>
 #endif
-
 #ifdef HAVE_FCNTL_H
 # include <fcntl.h>
+#endif
+#ifdef HAVE_SEMAPHORE_H
+# include <semaphore.h>
 #endif
 #ifdef HAVE_UNISTD_H
 # include <unistd.h>
@@ -29,12 +31,11 @@
 
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/net/pdq.h>
-#include <com/snert/lib/io/socket2.h>
+#include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/mail/limits.h>
 #include <com/snert/lib/mail/MailSpan.h>
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/util/Text.h>
-#include <com/snert/lib/sys/pthread.h>
 
 /***********************************************************************
  *** Socket Address
@@ -309,13 +310,19 @@ long
 socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 {
 	struct hostent *host;
-#if defined(HAVE_PTHREAD_MUTEX_INIT)
-	static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+#if defined(HAVE_SEM_T)
+	static sem_t sem;
+	static int sem_ready;
 #endif
 
 	if (addr == NULL) {
 		errno = EFAULT;
 		return 0;
+	}
+
+	if (!sem_ready) {
+		(void) sem_init(&sem, 0, 1);
+		sem_ready = 1;
 	}
 
 	/* If the address is ::0 or 0.0.0.0, we need to lookup
@@ -331,8 +338,8 @@ socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 
 		if (gethostname(buffer, size) < 0)
 			return 0;
-#if defined(HAVE_PTHREAD_MUTEX_INIT)
-		if (pthread_mutex_lock(&mutex))
+#if defined(HAVE_SEM_T)
+		if (sem_wait(&sem))
 			return 0;
 #endif
 #ifdef HAVE_GETHOSTBYNAME2
@@ -341,8 +348,8 @@ socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 		host = gethostbyname(buffer);
 #endif
 		error = h_errno;
-#if defined(HAVE_PTHREAD_MUTEX_INIT)
-		(void) pthread_mutex_unlock(&mutex);
+#if defined(HAVE_SEM_T)
+		(void) sem_post(&sem);
 #endif
 		if (host == NULL) {
 			/* NO_DATA when name is valid, but has no address
@@ -392,8 +399,8 @@ socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 	int error;
 	socklen_t socklen;
 
-# if defined(HAVE_PTHREAD_MUTEX_INIT)
-	if (pthread_mutex_lock(&mutex))
+# if defined(HAVE_SEM_T)
+	if (sem_wait(&sem))
 		return 0;
 # endif
 # ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
@@ -402,8 +409,8 @@ socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 	socklen = socketAddressLength(addr);
 # endif
 	error = getnameinfo(&addr->sa, socklen, buffer, size, NULL, 0, NI_NAMEREQD);
-# if defined(HAVE_PTHREAD_MUTEX_INIT)
-	(void) pthread_mutex_unlock(&mutex);
+# if defined(HAVE_SEM_T)
+	(void) sem_post(&sem);
 # endif
         return error == 0
         	? strlen(buffer)
@@ -415,8 +422,8 @@ socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 	socklen_t socklen;
 	struct hostent *host;
 
-# if defined(HAVE_PTHREAD_MUTEX_INIT)
-	if (pthread_mutex_lock(&mutex))
+# if defined(HAVE_SEM_T)
+	if (sem_wait(&sem))
 		return 0;
 # endif
 # ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
@@ -434,8 +441,8 @@ socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 		break;
 # endif
 	}
-# if defined(HAVE_PTHREAD_MUTEX_INIT)
-	(void) pthread_mutex_unlock(&mutex);
+# if defined(HAVE_SEM_T)
+	(void) sem_post(&sem);
 # endif
 	if (host == NULL)
 	       	return socketAddressGetString(addr, SOCKET_ADDRESS_WITH_BRACKETS, buffer, size);
