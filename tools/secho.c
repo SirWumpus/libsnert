@@ -25,7 +25,11 @@
 #endif
 
 #ifndef SSL_DIR
-#define SSL_DIR			"/etc/openssl"
+# if defined(__OpenBSD__)
+#  define SSL_DIR			"/etc/ssl"
+# else
+#  define SSL_DIR			"/etc/openssl"
+# endif
 #endif
 
 #ifndef CA_PEM_DIR
@@ -33,7 +37,7 @@
 #endif
 
 #ifndef CA_PEM_CHAIN
-#define CA_PEM_CHAIN		CA_PEM_DIR "/roots.pem"
+#define CA_PEM_CHAIN		SSL_DIR "/cert.pem"
 #endif
 
 #ifndef KEY_CRT_PEM
@@ -45,7 +49,7 @@
 #endif
 
 #ifndef DH_PEM
-#define DH_PEM			CA_PEM_DIR "/dh.pem"
+#define DH_PEM			SSL_DIR "/dh.pem"
 #endif
 
 /***********************************************************************

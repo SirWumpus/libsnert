@@ -35,7 +35,11 @@
 #endif
 
 #ifndef SSL_DIR
-#define SSL_DIR			"/etc/openssl"
+# if defined(__OpenBSD__)
+#  define SSL_DIR			"/etc/ssl"
+# else
+#  define SSL_DIR			"/etc/openssl"
+# endif
 #endif
 
 #ifndef CA_PEM_DIR
