@@ -258,6 +258,7 @@ static const char log_buffer[] = "buffer overflow %s(%d)";
  ***
  ***********************************************************************/
 
+#if ! defined(__MINGW32__)
 #undef syslog
 
 void
@@ -272,6 +273,7 @@ syslog(int level, const char *fmt, ...)
 		LogV(level, fmt, args);
 	va_end(args);
 }
+#endif
 
 /***********************************************************************
  *** Unix Signal Handling

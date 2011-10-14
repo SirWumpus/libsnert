@@ -125,6 +125,7 @@ long disconnect_timeout = (long) (~0UL >> 1);
 static const char log_internal[] = "%s(%d): %s (%d)";
 #define __F_L__			   __FILE__, __LINE__
 
+#if ! defined(__MINGW32__)
 #undef syslog
 
 void
@@ -139,6 +140,8 @@ syslog(int level, const char *fmt, ...)
 		LogV(level, fmt, args);
 	va_end(args);
 }
+#endif
+
 void
 signal_exit(int signum)
 {

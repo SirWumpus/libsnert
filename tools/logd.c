@@ -48,6 +48,7 @@ char *windows_service;
 char *interface_address = "127.0.0.1:" QUOTE(SYSLOG_PORT);
 ServerSignals signals;
 
+#if ! defined(__MINGW32__)
 #undef syslog
 
 void
@@ -62,6 +63,7 @@ syslog(int level, const char *fmt, ...)
 		LogV(level, fmt, args);
 	va_end(args);
 }
+#endif
 
 oid
 serverOptions(int argc, char **argv)

@@ -1211,8 +1211,8 @@ name_to_code(struct mapping *map, const char *name)
 	return -1;
 }
 
+#if ! defined(__MINGW32__)
 #undef syslog
-
 void
 syslog(int level, const char *fmt, ...)
 {
@@ -1225,6 +1225,7 @@ syslog(int level, const char *fmt, ...)
 		LogV(level, fmt, args);
 	va_end(args);
 }
+#endif
 
 int
 reportAccept(ServerSession *session)

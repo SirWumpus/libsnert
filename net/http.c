@@ -380,7 +380,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 	 *** types are equivalent to an int (ANSI C89). Therefore we can
 	 *** ignore compiler warning from gcc 3+:
 	 ***
-	 *** warning: dereferencing type-punned pointer will break strict-aliasing rules
+	 *** warning: dereferencing type-prunned pointer will break strict-aliasing rules
 	 ***
 	 *** Removing the cast to fix the warning generates a different
 	 *** compiler warning seen in gcc 2+:
@@ -572,6 +572,7 @@ LIBSNERT_COPYRIGHT "\n"
 ;
 
 #if ! defined(__MINGW32__)
+#undef syslog
 void
 syslog(int level, const char *fmt, ...)
 {

@@ -717,6 +717,7 @@ allocatePath(const char *fmt, ParsePath *p)
 #include <stdio.h>
 
 #if ! defined(__MINGW32__)
+#undef syslog
 void
 syslog(int level, const char *fmt, ...)
 {

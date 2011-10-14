@@ -3362,6 +3362,7 @@ signalExit(int signum)
 }
 
 #if ! defined(__MINGW32__)
+#undef syslog
 void
 syslog(int level, const char *fmt, ...)
 {

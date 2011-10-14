@@ -66,6 +66,7 @@ char socketmap[256] = "socketmap" KVM_DELIM_S "127.0.0.1," KVM_PORT_S;
 char buffer[BUFSIZ];
 
 #if ! defined(__MINGW32__)
+#undef syslog
 void
 syslog(int level, const char *fmt, ...)
 {

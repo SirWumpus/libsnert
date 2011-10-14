@@ -1457,6 +1457,7 @@ LIBSNERT_STRING " " LIBSNERT_COPYRIGHT "\n"
 ;
 
 #if ! defined(__MINGW32__)
+#undef syslog
 void
 syslog(int level, const char *fmt, ...)
 {
