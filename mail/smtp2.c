@@ -474,13 +474,15 @@ smtp2Create(unsigned connect_ms, unsigned command_ms, int flags)
 void
 smtp2Close(void *_smtp)
 {
-	if (_smtp != NULL) {
-		if (!(((SMTP2 *) _smtp)->flags & SMTP_FLAG_DATA))
-			(void) mxCommand(_smtp, "QUIT\r\n");
-		socketClose(((SMTP2 *) _smtp)->mx);
-		free(((SMTP2 *) _smtp)->domain);
-		free(((SMTP2 *) _smtp)->sender);
-		free(_smtp);
+	SMTP2 *smtp = _smtp;
+
+	if (smtp != NULL) {
+		if (!(smtp->flags & SMTP_FLAG_DATA) && smtp->mx != NULL)
+			(void) mxCommand(smtp, "QUIT\r\n");
+		socketClose(smtp->mx);
+		free(smtp->domain);
+		free(smtp->sender);
+		free(smtp);
 	}
 }
 
@@ -930,6 +932,7 @@ char text[SMTP_TEXT_LINE_LENGTH+1];
 char headers[SMTP_MAX_SIZEOF_HEADERS];
 
 #if ! defined(__MINGW32__)
+#undef syslog
 void
 syslog(int level, const char *fmt, ...)
 {
