@@ -36,6 +36,7 @@
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/net/pdq.h>
+#include <com/snert/lib/sys/process.h>
 #include <com/snert/lib/util/timer.h>
 #include <com/snert/lib/util/Text.h>
 
@@ -706,7 +707,7 @@ long
 socket3_write_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
 {
 	socklen_t socklen;
-	long sent = SOCKET_ERROR;
+	long offset = -1, sent = SOCKET_ERROR;
 
 	if (buffer == NULL || size <= 0)
 		goto error1;
@@ -714,20 +715,32 @@ socket3_write_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
 	errno = 0;
 #if defined(HAVE_ISATTY)
 	if (isatty(fd))
-		sent = write(fd, buffer, size);
+		offset = write(fd, buffer, size);
 	else
 #endif
-	if (to == NULL) {
-		sent = send(fd, buffer, size, 0);
-	} else {
-		socklen = socketAddressLength(to);
-		sent = sendto(fd, buffer, size, 0, (const struct sockaddr *) to, socklen);
+	for (offset = 0; offset < size; offset += sent) {
+		if (to == NULL) {
+			sent = send(fd, buffer+offset, size-offset, 0);
+		} else {
+			socklen = socketAddressLength(to);
+			sent = sendto(fd, buffer+offset, size-offset, 0, (const struct sockaddr *) to, socklen);
+		}
+		if (sent < 0) {
+			UPDATE_ERRNO;
+			if (!IS_EAGAIN(errno)) {
+				if (offset == 0)
+					offset = SOCKET_ERROR;
+				break;
+			}
+			sent = 0;
+			nap(1, 0);
+		}
 	}
 error1:
 	if (1 < socket3_debug)
-		syslog(LOG_DEBUG, "%ld = socket3_write_fd(%d, %lx, %ld, %lx)", sent, (int) fd, (unsigned long)buffer, (unsigned long)size, (unsigned long)to);
+		syslog(LOG_DEBUG, "%ld = socket3_write_fd(%d, %lx, %ld, %lx)", offset, (int) fd, (unsigned long)buffer, (unsigned long)size, (unsigned long)to);
 
- 	return sent;
+ 	return offset;
 }
 
 long (*socket3_write_hook)(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to);
