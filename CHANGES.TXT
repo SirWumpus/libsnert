@@ -49,14 +49,31 @@ is no set schedule for releases.
 
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
+   ?	Add a minimum size limit for conditional extraction of a MIME
+   	part. Requested by AlexB.
+
+   ?	Linux RPM options:
+
+   	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
+   	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
+
+
 --1.75.2--
 
    !	Added detection of OpenSSL support.
 
    !	Modified socket3 API to support TLS.
 
-   !	Modified popin to support STLS (STARTTLS) command and certificate
-   	validation.
+   !	Modified popin to support STLS (STARTTLS) command and
+	certificate validation.
+
+   !	Updated SNERT_POSIX_SEMAPHORES macro.
+
+   !	Modified socketAddressGetName() to use a POSIX semaphore, sem_t,
+	instead of POSIX thread mutex, pthread_mutex_t.
+
+   !	Fixed seg.fault bug in mailRcpt(), smtp2Close() when the
+	receipient host has no MX to connect to.
 
 --1.75.1--
 
