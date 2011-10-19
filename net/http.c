@@ -327,7 +327,7 @@ PT_THREAD(http_read(pt_t *pt, SOCKET socket, long ms, Buf *buf))
 
 	PT_BEGIN(pt);
 
-	PT_WAIT_UNTIL(pt, (rc = socket3_has_input(socket, ms)) == 0 || rc != EINTR);
+	PT_WAIT_UNTIL(pt, (rc = socket3_wait(socket, ms, SOCKET_WAIT_READ)) == 0 || rc != EINTR);
 
 	if (rc != 0) {
 		if (0 < httpDebug)

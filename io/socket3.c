@@ -59,14 +59,14 @@ typedef union {
 #endif
 } SocketMulticast;
 
-static int debug;
+int socket3_debug;
 static void **user_data;
 static size_t user_data_size;
 
 void
 socket3_set_debug(int level)
 {
-	debug = level;
+	socket3_debug = level;
 }
 
 /**
@@ -81,19 +81,19 @@ socket3_init(void)
 	if (!initialised && (rc = pdqInit()) == 0) {
 #if defined(HAVE_KQUEUE)
 		socket3_wait_fn = socket3_wait_kqueue;
-		if (0 < debug)
+		if (0 < socket3_debug)
 			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_kqueue");
 #elif defined(HAVE_EPOLL_CREATE)
 		socket3_wait_fn = socket3_wait_epoll;
-		if (0 < debug)
+		if (0 < socket3_debug)
 			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_epoll");
 #elif defined(HAVE_POLL)
 		socket3_wait_fn = socket3_wait_poll;
-		if (0 < debug)
+		if (0 < socket3_debug)
 			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_poll");
 #elif defined(HAVE_SELECT)
 		socket3_wait_fn = socket3_wait_select;
-		if (0 < debug)
+		if (0 < socket3_debug)
 			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_select");
 #endif
 #ifdef HAVE_SYS_RESOURCE_H
@@ -110,6 +110,7 @@ socket3_init(void)
 		socket3_read_hook = socket3_read_fd;
 		socket3_write_hook = socket3_write_fd;
 		socket3_close_hook = socket3_close_fd;
+		socket3_shutdown_hook = socket3_shutdown_fd;
 
 		initialised = 1;
 	}
@@ -123,6 +124,8 @@ socket3_init(void)
 void
 socket3_fini_fd(void)
 {
+	if (0 < socket3_debug)
+		syslog(LOG_DEBUG, "socket3_fini_fd()");
 	free(user_data);
 	pdqFini();
 }
@@ -132,6 +135,8 @@ void (*socket3_fini_hook)(void);
 void
 socket3_fini(void)
 {
+	if (0 < socket3_debug)
+		syslog(LOG_DEBUG, "socket3_fini()");
 	(*socket3_fini_hook)();
 }
 
@@ -224,7 +229,7 @@ socket3_open(SocketAddress *addr, int isStream)
 	 */
 	fd = socket(addr->sa.sa_family, so_type, 0);
 #endif
-	if (0 < debug)
+	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "socket3_open(0x%lx, %d) rc=%d", (unsigned long) addr, isStream, (int) fd);
 
 	return fd;
@@ -352,7 +357,7 @@ socket3_client(SOCKET fd, SocketAddress *addr, long timeout)
 	int rc = SOCKET_ERROR;
 	socklen_t socklen;
 
-	if (fd < 0 || addr == NULL)
+	if (addr == NULL)
 		goto error0;
 
 #ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
@@ -402,7 +407,7 @@ socket3_client(SOCKET fd, SocketAddress *addr, long timeout)
 #endif
 	case EINPROGRESS:
 		(void) socket3_get_error(fd);
-		if (socket3_can_send(fd, timeout) != 0)
+		if (!socket3_can_send(fd, timeout))
 			goto error1;
 
 		/* Resets the socket's copy of the error code. */
@@ -581,7 +586,7 @@ socket3_accept(SOCKET fd, SocketAddress *addrp)
 	if (addrp != NULL)
 		*addrp = addr;
 
-	if (0 < debug)
+	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "socket3_accept(%d, %lx) client=%d", (int) fd, (unsigned long) addrp, (int) client);
 
 	return client;
@@ -597,8 +602,14 @@ socket3_accept(SOCKET fd, SocketAddress *addrp)
 void
 socket3_close_fd(SOCKET fd)
 {
+	if (0 < socket3_debug)
+		syslog(LOG_DEBUG, "socket3_close_fd(%d)", (int) fd);
+
 	socket3_shutdown(fd, SHUT_WR);
 	closesocket(fd);
+
+	if (0 < socket3_debug)
+		syslog(LOG_DEBUG, "closed fd=%d", (int) fd);
 }
 
 void (*socket3_close_hook)(SOCKET fd);
@@ -606,7 +617,7 @@ void (*socket3_close_hook)(SOCKET fd);
 void
 socket3_close(SOCKET fd)
 {
-	if (0 < debug)
+	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "socket3_close(%d)", (int) fd);
 	(*socket3_close_hook)(fd);
 }
@@ -625,16 +636,29 @@ socket3_close(SOCKET fd)
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
 int
-socket3_shutdown(SOCKET fd, int shut)
+socket3_shutdown_fd(SOCKET fd, int shut)
 {
 	int so_type;
 	socklen_t socklen;
+
+	if (0 < socket3_debug)
+		syslog(LOG_DEBUG, "socket3_shutdown_fd(%d, %d)", (int) fd, shut);
 
 	socklen = sizeof (so_type);
 	if (getsockopt(fd, SOL_SOCKET, SO_TYPE, (void *) &so_type, &socklen) || so_type != SOCK_STREAM)
 		return SOCKET_ERROR;
 
 	return shutdown(fd, shut);
+}
+
+int (*socket3_shutdown_hook)(SOCKET fd, int shut);
+
+int
+socket3_shutdown(SOCKET fd, int shut)
+{
+	if (0 < socket3_debug)
+		syslog(LOG_DEBUG, "socket3_shutdown(%d, %d)", (int) fd, shut);
+	return (*socket3_shutdown_hook)(fd, shut);
 }
 
 void
@@ -681,21 +705,27 @@ socket3_set_keep_alive(SOCKET fd, int flag, int idle, int interval, int count)
 long
 socket3_write_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
 {
-	long sent;
 	socklen_t socklen;
+	long sent = SOCKET_ERROR;
 
 	if (buffer == NULL || size <= 0)
-		return 0;
+		goto error1;
 
 	errno = 0;
-	socklen = socketAddressLength(to);
-
 #if defined(HAVE_ISATTY)
 	if (isatty(fd))
 		sent = write(fd, buffer, size);
 	else
 #endif
+	if (to == NULL) {
+		sent = send(fd, buffer, size, 0);
+	} else {
+		socklen = socketAddressLength(to);
 		sent = sendto(fd, buffer, size, 0, (const struct sockaddr *) to, socklen);
+	}
+error1:
+	if (1 < socket3_debug)
+		syslog(LOG_DEBUG, "%ld = socket3_write_fd(%d, %lx, %ld, %lx)", sent, (int) fd, (unsigned long)buffer, (unsigned long)size, (unsigned long)to);
 
  	return sent;
 }
@@ -729,14 +759,13 @@ socket3_write(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
 long
 socket3_read_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 {
-	long nbytes;
 	socklen_t socklen;
+	long nbytes = SOCKET_ERROR;
 
 	if (buffer == NULL || size <= 0)
-		return 0;
+		goto error1;
 
 	errno = 0;
-	socklen = from == NULL ? 0 : sizeof (*from);
 
 /* On Windows, a portable program has to use recv()/send() to
  * read/write sockets, since read()/write() typically only do
@@ -762,7 +791,12 @@ socket3_read_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from
 		nbytes = read(fd, buffer, size);
 	else
 #endif
+	if (from == NULL) {
+		nbytes = recv(fd, buffer, size, 0);
+	} else {
+		socklen = socketAddressLength(from);
 		nbytes = recvfrom(fd, buffer, size, 0, (struct sockaddr *) from, &socklen);
+	}
 #endif
 	UPDATE_ERRNO;
 
@@ -770,6 +804,10 @@ socket3_read_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from
 	if (0 <= nbytes && from != NULL)
 		from->sa.sa_len = socklen;
 #endif
+error1:
+	if (1 < socket3_debug)
+		syslog(LOG_DEBUG, "%ld = socket3_read_fd(%d, %lx, %ld, %lx)", nbytes, (int) fd, (unsigned long)buffer, (unsigned long)size, (unsigned long)from);
+
 	return nbytes;
 }
 
@@ -802,20 +840,28 @@ socket3_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 long
 socket3_peek_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 {
-	long nbytes;
 	socklen_t socklen;
+	long nbytes = SOCKET_ERROR;
 
 	if (buffer == NULL || size <= 0)
-		return 0;
+		goto error1;
 
 	errno = 0;
 	socklen = from == NULL ? 0 : sizeof (*from);
-	nbytes = recvfrom(fd, buffer, size, MSG_PEEK, (struct sockaddr *) from, &socklen);
-
+	if (from == NULL) {
+		nbytes = recv(fd, buffer, size, MSG_PEEK);
+	} else {
+		socklen = socketAddressLength(from);
+		nbytes = recvfrom(fd, buffer, size, MSG_PEEK, (struct sockaddr *) from, &socklen);
+	}
 #ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
 	if (0 <= nbytes && from != NULL)
 		from->sa.sa_len = socklen;
 #endif
+error1:
+	if (1 < socket3_debug)
+		syslog(LOG_DEBUG, "%ld = socket3_peek_fd(%d, %lx, %ld, %lx)", nbytes, (int) fd, (unsigned long)buffer, (unsigned long)size, (unsigned long)from);
+
 	return nbytes;
 }
 
@@ -1120,7 +1166,7 @@ socket3_wait(SOCKET fd, long ms, unsigned rw_flags)
 
 	rc = (*socket3_wait_fn)(fd, ms, rw_flags);
 
-	if (0 < debug)
+	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "socket3_wait(%d, %ld, 0x%X) rc=%d (%s)", (int) fd, ms, rw_flags, rc, strerror(rc));
 
 	return rc;
@@ -1156,7 +1202,7 @@ socket3_wait_fn_set(const char *name)
 	for (mapping = wait_mapping; mapping->name != NULL; mapping++) {
 		if (TextInsensitiveCompare(mapping->name, name) == 0) {
 			socket3_wait_fn = mapping->wait_fn;
-			if (0 < debug)
+			if (0 < socket3_debug)
 				syslog(LOG_DEBUG, "socket3_wait_fn=%s", mapping->name);
 			break;
 		}
@@ -1167,7 +1213,7 @@ void *
 socket3_get_userdata(SOCKET fd)
 {
 #ifdef __unix__
-	if (user_data == NULL)
+	if (user_data == NULL || fd < 0)
 		return NULL;
 	return user_data[fd];
 #else
@@ -1179,6 +1225,8 @@ int
 socket3_set_userdata(SOCKET fd, void *data)
 {
 #ifdef __unix__
+	if (fd < 0)
+		return SOCKET_ERROR;
 	if (user_data_size < fd) {
 		void **table;
 

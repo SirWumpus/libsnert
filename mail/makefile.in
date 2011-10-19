@@ -42,11 +42,13 @@ RANLIB	= @RANLIB@
 ARCHIVE	= @ARCHIVE@
 COMPILE	= @COMPILE@
 
-LIBSNERT = @LIBSNERT@
-
+LIBSNERT 	= @LIBSNERT@
 LIB_RT		= @HAVE_LIB_RT@
+
+LIB_SEM		= @HAVE_LIB_SEM@
 LIB_WS2_32	= @HAVE_LIB_WS2_32@
 LIB_IPHLPAPI	= @HAVE_LIB_IPHLPAPI@
+NETWORK_LIBS	= @NETWORK_LIBS@
 
 LIB_DB		= @HAVE_LIB_DB@
 CFLAGS_DB	= @CFLAGS_DB@
@@ -174,15 +176,15 @@ parsePath$E :  ../sys/gmtime_r$O MailSpan.c parsePath.c
 
 # This cannot be built until AFTER the lib/io routines have been built.
 smtp2$E : ../net/pdq$O ../io/socket2$O smtp2.c
-	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp2$E smtp2.c $(LIBSNERT) $(LIBS) ${LIB_PTHREAD} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smtp2$E smtp2.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
 
 # This cannot be built until AFTER the lib/io routines have been built.
 spf$E :  ../net/pdq$O spf.c
-	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)spf$E spf.c $(LIBSNERT) $(LIBS) ${LIB_PTHREAD} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)spf$E spf.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
 
 # This cannot be built until AFTER the lib/io routines have been built.
 siq$E :  ../net/pdq$O siq.c
-	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)siq$E siq.c $(LIBSNERT) $(LIBS) ${LIB_PTHREAD} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)siq$E siq.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
 
 tlds$E : tlds-alpha-by-domain.c two-level-tlds.c tlds.c
 	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)tlds$E tlds.c $(LIBSNERT) $(LIBS)
@@ -192,10 +194,10 @@ mime$E : mime.c
 
 # In order to test singleKey() and doubleKey() lookups.
 smdb$E : smdb.c
-	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smdb$E smdb.c $(LIBSNERT) ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+	${WRAPPER} $(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)smdb$E smdb.c $(LIBSNERT) ${LIB_DB} ${LIB_SQLITE3} ${NETWORK_LIBS}
 
 digestbl$E : digestbl.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)digestbl$E digestbl.c $(LIBSNERT) ${LIBS} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)digestbl$E digestbl.c $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
 
 mfReply$O : mfReply.c
 	${CC} ${CFLAGS_MILTER} ${CFLAGS} -c $*.c

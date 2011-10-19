@@ -24,34 +24,6 @@
 #define INPUT_LINE_SIZE		128
 #endif
 
-#ifndef SSL_DIR
-# if defined(__OpenBSD__)
-#  define SSL_DIR			"/etc/ssl"
-# else
-#  define SSL_DIR			"/etc/openssl"
-# endif
-#endif
-
-#ifndef CA_PEM_DIR
-#define CA_PEM_DIR		SSL_DIR "/certs"
-#endif
-
-#ifndef CA_PEM_CHAIN
-#define CA_PEM_CHAIN		SSL_DIR "/cert.pem"
-#endif
-
-#ifndef KEY_CRT_PEM
-#define KEY_CRT_PEM		CA_PEM_DIR "/" _NAME ".pem"
-#endif
-
-#ifndef KEY_PASS
-#define KEY_PASS		NULL
-#endif
-
-#ifndef DH_PEM
-#define DH_PEM			SSL_DIR "/dh.pem"
-#endif
-
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/
@@ -95,10 +67,10 @@ static long echo_port = ECHO_PORT;
 static char *echo_host = ECHO_HOST;
 static long socket_timeout = SOCKET_TIMEOUT;
 
-static char *ca_pem_chain = CA_PEM_CHAIN;
-static char *ca_pem_dir = CA_PEM_DIR;
+static char *ca_chain = CA_CHAIN;
+static char *cert_dir = CERT_DIR;
 static char *key_crt_pem = NULL;
-static char *key_pass = KEY_PASS;
+static char *key_pass = NULL;
 
 static char line[INPUT_LINE_SIZE+1];
 static unsigned char data[INPUT_LINE_SIZE * 10];
@@ -113,9 +85,9 @@ static char usage[] =
 "             [-h host[:port]][-p port][-t seconds]\n"
 "\n"
 "-c ca_pem\tCertificate Authority root certificate chain file;\n"
-"\t\tdefault " CA_PEM_CHAIN "\n"
+"\t\tdefault " CA_CHAIN "\n"
 "-C dir\t\tCertificate Authority root certificate directory;\n"
-"\t\tdefault " CA_PEM_DIR "\n"
+"\t\tdefault " CERT_DIR "\n"
 "-h host[:port]\tECHO host and optional port to contact; default " ECHO_HOST "\n"
 "-k key_crt_pem\tprivate key and certificate chain file\n"
 "-K key_pass\tpassword for private key; default no password\n"
@@ -129,6 +101,7 @@ LIBSNERT_COPYRIGHT "\n"
 #undef syslog
 
 #if ! defined(__MINGW32__)
+#undef syslog
 void
 syslog(int level, const char *fmt, ...)
 {
@@ -149,42 +122,72 @@ signal_exit(int signum)
 	running = 0;
 }
 
+long
+echo_read(SOCKET fd)
+{
+	long length;
+
+	if (!socket3_has_input(fd, socket_timeout)) {
+		syslog(LOG_ERR, log_io, __F_L__, strerror(errno), errno);
+		return -1;
+	}
+	if ((length = socket3_read(fd, data, sizeof (data), NULL)) < 0) {
+		syslog(LOG_ERR, log_io, __F_L__, strerror(errno), errno);
+		return -1;
+	}
+	if (0 < length) {
+		(void) fwrite(data, 1, length, stdout);
+		(void) fflush(stdout);
+	}
+
+	return length;
+}
+
 int
 echo_client(SOCKET fd)
 {
 	long length;
+
+	switch (echo_port) {
+	case 25: case 110: case 143:
+		running = 1;
+		goto welcome_banner;
+	}
 
 	for (running = 1; running; ) {
 		if (fgets(line, sizeof (line), stdin) == NULL)
 			break;
 		length = (long) strlen(line);
 
-		if (0 < TextInsensitiveStartsWith(line, ".quit"))
+		if (0 < TextInsensitiveStartsWith(line, "QUIT"))
 			break;
 
 		if (socket3_write(fd, (unsigned char *)line, length, NULL) != length) {
-			syslog(LOG_ERR, log_io, __F_L__, strerror(errno), errno);
+			syslog(LOG_ERR, "write error: %s (%d)", strerror(errno), errno);
+			return -1;
+		}
+welcome_banner:
+		if (echo_read(fd) <= 0) {
+			syslog(LOG_ERR, "read error: %s (%d)", strerror(errno), errno);
 			break;
 		}
 
-		if (line[0] == '.' && isalpha(line[1]))
-			return 1;
+		if (0 < TextInsensitiveStartsWith(line, "STLS")
+		||  0 < TextInsensitiveStartsWith(line, "STARTTLS")) {
+			if (socket3_is_tls(fd)) {
+				syslog(LOG_WARNING, "TLS already started");
+				continue;
+			}
 
-		if (socket3_has_input(fd, socket_timeout) != 0) {
-			syslog(LOG_ERR, log_io, __F_L__, strerror(errno), errno);
-			break;
+			syslog(LOG_INFO, "starting TLS...");
+
+			if (socket3_start_tls(fd, 0, socket_timeout)) {
+				syslog(LOG_ERR, log_io, __F_L__, strerror(errno), errno);
+				return -1;
+			}
+
+			syslog(LOG_INFO, "TLS started");
 		}
-
-		if ((length = socket3_read(fd, data, sizeof (data), NULL)) < 0) {
-			syslog(LOG_ERR, log_io, __F_L__, strerror(errno), errno);
-			break;
-		}
-
-		if (length == 0)
-			break;
-
-		(void) fwrite(data, 1, length, stdout);
-		fflush(stdout);
 	}
 
 	return 0;
@@ -205,10 +208,10 @@ char **argv;
 
 		switch (argv[argi][1]) {
 		case 'c':
-			ca_pem_chain = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			ca_chain = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
 			break;
 		case 'C':
-			ca_pem_dir = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			cert_dir = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
 			break;
 		case 'k':
 			key_crt_pem = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
@@ -247,7 +250,7 @@ char **argv;
 		LogOpen("(standard error)");
 
 		if (1 < debug)
-			socket3_set_debug(debug);
+			socket3_set_debug(debug-1);
 	}
 
 	socket_timeout *= 1000;
@@ -273,9 +276,17 @@ char **argv;
 		goto error0;
 	}
 #endif
-	if (socket3_init_tls(ca_pem_dir, ca_pem_chain, key_crt_pem, key_pass, NULL)) {
+	if (socket3_init_tls()) {
 		syslog(LOG_ERR, log_internal, __F_L__, strerror(errno), errno);
 		goto error0;
+	}
+	if (socket3_set_ca_certs(cert_dir, ca_chain)) {
+		syslog(LOG_ERR, log_internal, __F_L__, strerror(errno), errno);
+		goto error1;
+	}
+	if (key_crt_pem != NULL && socket3_set_cert_key_chain(key_crt_pem, key_pass)) {
+		syslog(LOG_ERR, log_internal, __F_L__, strerror(errno), errno);
+		goto error1;
 	}
 
 	syslog(LOG_INFO, "connecting to host=%s port=%ld", echo_host, echo_port);
@@ -289,18 +300,8 @@ char **argv;
 	(void) socket3_set_linger(echo, 0);
 	(void) socket3_set_nonblocking(echo, 1);
 
-	while (echo_client(echo)) {
-		if (0 < TextInsensitiveStartsWith(line, ".starttls")) {
-			syslog(LOG_INFO, "starting TLS...");
-
-			if (socket3_start_tls(echo, 0, socket_timeout)) {
-				syslog(LOG_ERR, log_io, __F_L__, strerror(errno), errno);
-				goto error2;
-			}
-
-			syslog(LOG_INFO, "TLS started");
-		}
-	}
+	if (echo_client(echo))
+		goto error2;
 
 	rc = EXIT_SUCCESS;
 error2:

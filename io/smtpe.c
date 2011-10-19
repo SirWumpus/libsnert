@@ -5544,7 +5544,7 @@ extern SMTP_DEF(content);
 int
 client_pipelining(SmtpCtx *ctx)
 {
-	if (socket3_has_input(ctx->client.socket, SMTP_PIPELINING_TIMEOUT) == 0) {
+	if (socket3_has_input(ctx->client.socket, SMTP_PIPELINING_TIMEOUT)) {
 		if (verb_info.value)
 			syslog(LOG_INFO, LOG_FMT "pipeline detected", LOG_ID(ctx));
 		ctx->client.is_pipelining = 1;
@@ -5825,7 +5825,7 @@ SMTP_DEF(ehlo)
 
 	if (!opt_test.value
 	&& (ctx->input.size != ctx->pipe.length - ctx->pipe.offset
-	|| socket3_has_input(ctx->client.socket, SMTP_PIPELINING_TIMEOUT) == 0)) {
+	|| socket3_has_input(ctx->client.socket, SMTP_PIPELINING_TIMEOUT))) {
 		ctx->input.data[STRLEN("EHLO")] = '\0';
 		client_send(ctx, fmt_no_piping, SMTP_REJECT, opt_smtp_error_url.string, ctx->input.data);
 		ctx->pipe.length = 0;
@@ -6365,7 +6365,7 @@ SMTP_DEF(noop)
 
 	if (!opt_test.value
 	&& (ctx->input.size != ctx->pipe.length - ctx->pipe.offset
-	|| socket3_has_input(ctx->client.socket, SMTP_PIPELINING_TIMEOUT) == 0)) {
+	|| socket3_has_input(ctx->client.socket, SMTP_PIPELINING_TIMEOUT))) {
 		ctx->input.data[STRLEN("NOOP")] = '\0';
 		client_send(ctx, fmt_no_piping, SMTP_REJECT, opt_smtp_error_url.string, ctx->input.data);
 		ctx->pipe.length = 0;

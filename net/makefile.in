@@ -42,10 +42,13 @@ RANLIB	= @RANLIB@
 ARCHIVE	= @ARCHIVE@
 COMPILE	= @COMPILE@
 
-LIBSNERT = @LIBSNERT@
-LIB_RT = @HAVE_LIB_RT@
-LIB_WS2_32 = @HAVE_LIB_WS2_32@
-LIB_IPHLPAPI = @HAVE_LIB_IPHLPAPI@
+LIBSNERT 	= @LIBSNERT@
+LIB_RT 		= @HAVE_LIB_RT@
+
+LIB_SEM 	= @HAVE_LIB_SEM@
+LIB_WS2_32 	= @HAVE_LIB_WS2_32@
+LIB_IPHLPAPI 	= @HAVE_LIB_IPHLPAPI@
+NETWORK_LIBS 	= @NETWORK_LIBS@
 
 LIB_PTHREAD	= @HAVE_LIB_PTHREAD@
 CFLAGS_PTHREAD	= @CFLAGS_PTHREAD@
@@ -140,13 +143,13 @@ ipinclient$O : ipinclient.c
 	${CC} ${CFLAGS} -c ipinclient.c
 
 pdq$E : pdq.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}pdq$E pdq.c $(LIBSNERT) ${LIBS} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}pdq$E pdq.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
 
 formatIP$E: formatIP.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}formatIP$E formatIP.c  $(LIBSNERT) ${LIBS} ${LIB_WS2_32}
 
 server$E : server.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}server$E server.c $(LIBSNERT) ${LIBS} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+	${CC} -DTEST ${CFLAGS_PTHREAD} ${CFLAGS} ${LDFLAGS_PTHREAD} ${LDFLAGS} ${CC_E}server$E server.c $(LIBSNERT) ${LIB_PTHREAD} ${NETWORK_LIBS} ${LIBS}
 
 ${HDIR}/http.h : ${IDIR}/io/socket3.h ${IDIR}/pt/pt.h ${IDIR}/util/Buf.h \
 	${IDIR}/util/uri.h ${IDIR}/sys/Time.h
@@ -155,7 +158,7 @@ http.c : ${IDIR}/util/convertDate.h ${IDIR}/util/time62.h ${IDIR}/util/Text.h \
 	${IDIR}/io/file.h ${HDIR}/http.h
 
 geturl$E : ${LIB} http.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}geturl$E http.c $(LIBSNERT) ${LIBS} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}geturl$E http.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
 
 netcontainsip$E : network$O
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}netcontainsip$E network.c $(LIBSNERT) ${LIBS}

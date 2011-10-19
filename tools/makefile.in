@@ -42,10 +42,12 @@ COMPILE	= @COMPILE@
 
 LIBSNERT 	= @LIBSNERT@
 LIB_PAM		= @HAVE_LIB_PAM@
+LIB_RT 		= @HAVE_LIB_RT@
+
+LIB_SEM 	= @HAVE_LIB_SEM@
 LIB_WS2_32	= @HAVE_LIB_WS2_32@
 LIB_IPHLPAPI	= @HAVE_LIB_IPHLPAPI@
-LIB_RT 		= @HAVE_LIB_RT@
-LIB_SEM		= @HAVE_LIB_SEM@
+NETWORK_LIBS	= @NETWORK_LIBS@
 
 LIB_PTHREAD	= @HAVE_LIB_PTHREAD@
 CFLAGS_PTHREAD	= @CFLAGS_PTHREAD@
@@ -80,7 +82,7 @@ $O$E :
 #######################################################################
 
 ORIGINAL	= ansi$E flip$E popin$E uue$E show$E range$E sqlargs$E \
-		  counter$E  mimepart$E clamstream$E dnsd$E
+		  counter$E  mimepart$E clamstream$E dnsd$E secho sechod
 MEH_TOOLS	= sendform$E nph-download.cgi here-i-am$E where-are-you$E \
 		  ziplist$E rarlist$E taglengths$E rsleep$E
 MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E echod$E
@@ -136,22 +138,22 @@ lint: title
 #	-splint -D_REENTRANT -I${SNERT_INCDIR} +posixlib +boolint *.c
 
 popin$E : ${top_srcdir}/io/socket3$O ${top_srcdir}/io/socket3_tls$O popin.c
-	$(CC) ${CFLAGS_SSL} $(CFLAGS) ${LDFLAGS_SSL} $(LDFLAGS) $(CC_E)popin$E popin.c $(LIBSNERT) ${HAVE_LIBSSL} ${HAVE_LIBCRYPTO} $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_SEM}
+	$(CC) ${CFLAGS_SSL} $(CFLAGS) ${LDFLAGS_SSL} $(LDFLAGS) $(CC_E)popin$E popin.c $(LIBSNERT) ${HAVE_LIBSSL} ${HAVE_LIBCRYPTO} $(LIBS) ${NETWORK_LIBS}
 
 secho$E : ${top_srcdir}/io/socket3$O ${top_srcdir}/io/socket3_tls$O secho.c
-	$(CC) ${CFLAGS_SSL} $(CFLAGS) ${LDFLAGS_SSL} $(LDFLAGS) $(CC_E)secho$E secho.c $(LIBSNERT) ${HAVE_LIBSSL} ${HAVE_LIBCRYPTO} $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_SEM}
+	$(CC) ${CFLAGS_SSL} $(CFLAGS) ${LDFLAGS_SSL} $(LDFLAGS) $(CC_E)secho$E secho.c $(LIBSNERT) ${HAVE_LIBSSL} ${HAVE_LIBCRYPTO} $(LIBS) ${NETWORK_LIBS}
 
 sechod$E : ${top_srcdir}/io/socket3$O ${top_srcdir}/io/socket3_tls$O sechod.c
-	$(CC) ${CFLAGS_SSL} $(CFLAGS) ${LDFLAGS_SSL} $(LDFLAGS) $(CC_E)sechod$E sechod.c $(LIBSNERT) ${HAVE_LIBSSL} ${HAVE_LIBCRYPTO} $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_SEM}
+	$(CC) ${CFLAGS_SSL} $(CFLAGS) ${LDFLAGS_SSL} $(LDFLAGS) $(CC_E)sechod$E sechod.c $(LIBSNERT) ${HAVE_LIBSSL} ${HAVE_LIBCRYPTO} $(LIBS) ${NETWORK_LIBS}
 
 ansi$E : ansi.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)ansi$E ansi.c ${LIBS_PREFIX}
 
 clamstream$E : ${top_srcdir}/io/socket2$O clamstream.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)clamstream$E clamstream.c $(LIBSNERT) $(LIBS) ${LIB_PTHREAD} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)clamstream$E clamstream.c $(LIBSNERT) $(LIBS) ${NETWORK_LIBS}
 
 socketsink$E : ${top_srcdir}/io/socket2$O socketsink.c
-	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)socketsink$E socketsink.c $(LIBSNERT) ${LIBS} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)socketsink$E socketsink.c $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
 
 flip$E : flip.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)flip$E flip.c $(LIBSNERT) ${LIBS_PREFIX}
@@ -196,13 +198,13 @@ counter$E : counter.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)counter$E counter.c $(LIBSNERT) ${LIBS_PREFIX}
 
 sendform$E : ${top_srcdir}/io/socket2$O sendform.c
-	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)sendform$E sendform.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)sendform$E sendform.c $(LIBSNERT) $(LIBS) ${NETWORK_LIBS}
 
 here-i-am$E : ${top_srcdir}/io/socket2$O here-i-am.c
-	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)here-i-am$E here-i-am.c $(LIBS) ${LIB_PTHREAD} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)here-i-am$E here-i-am.c $(LIBS) ${LIB_PTHREAD} ${NETWORK_LIBS}
 
 where-are-you$E : ${top_srcdir}/io/socket2$O where-are-you.c
-	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)where-are-you$E where-are-you.c $(LIBSNERT) $(LIBS) ${LIB_PTHREAD} ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT}
+	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)where-are-you$E where-are-you.c $(LIBSNERT) $(LIBS) ${LIB_PTHREAD} ${NETWORK_LIBS}
 
 filed$E : filed.c
 	$(CC) $(CC_E)filed$E filed.c ${LIB_PAM} $(LIBS)
@@ -217,10 +219,10 @@ mailgroup$E : mailgroup.c
 	sed '/^$$/q' mailgroup.c
 
 mimepart$E : mimepart.c
-	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)mimepart$E mimepart.c ${LIBSNERT} ${LIBS} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)mimepart$E mimepart.c ${LIBSNERT} ${LIBS}
 
 sqlargs$E: sqlargs.c
-	$(CC) ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)sqlargs$E sqlargs.c ${LIBSNERT} ${LIBS} ${LIB_SQLITE3} ${LIB_PTHREAD}
+	$(CC) ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)sqlargs$E sqlargs.c ${LIBSNERT} ${LIBS} ${LIB_SQLITE3}
 
 ziplist$E : ziplist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)ziplist$E ziplist.c ${LIBS_PREFIX}
@@ -244,13 +246,13 @@ pack-cgi:
 	tar -zcf cgi.tgz counter$E counter.shtml Digits sendform$E sendform.cfg sendform.html
 
 echod$E: ${top_srcdir}/io/socket2$O echod.c
-	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)echod$E echod.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT} ${LIB_PTHREAD}
+	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)echod$E echod.c $(LIBSNERT) $(LIBS) ${LIB_PTHREAD} ${NETWORK_LIBS}
 
 dnsd$E: ${top_srcdir}/io/socket2$O dnsd.c
-	$(CC) ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_SQLITE3} ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)dnsd$E dnsd.c $(LIBSNERT) $(LIBS) ${LIB_WS2_32} ${LIB_IPHLPAPI} ${LIB_RT} ${LIB_SQLITE3} ${LIB_PTHREAD}
+	$(CC) ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_SQLITE3} ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)dnsd$E dnsd.c $(LIBSNERT) $(LIBS) ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
 
 tee$E: tee.c
-	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)tee$E tee.c $(LIBSNERT) $(LIBS) ${LIB_RT} ${LIB_PTHREAD}
+	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)tee$E tee.c $(LIBSNERT) $(LIBS)
 
 d-tee$E: ${top_srcdir}/sys/lockpick$O tee.c
-	$(CC) -DTEST $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)d-tee$E tee.c ${top_srcdir}/sys/lockpick$O $(LIBSNERT) $(LIBS) ${LIB_RT} ${LIB_PTHREAD}
+	$(CC) -DTEST $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)d-tee$E tee.c ${top_srcdir}/sys/lockpick$O $(LIBSNERT) $(LIBS)

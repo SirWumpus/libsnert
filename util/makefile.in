@@ -41,10 +41,13 @@ RANLIB	= @RANLIB@
 ARCHIVE	= @ARCHIVE@
 COMPILE	= @COMPILE@
 
-LIBSNERT = @LIBSNERT@
-LIB_WS2_32 = @HAVE_LIB_WS2_32@
-LIB_IPHLPAPI = @HAVE_LIB_IPHLPAPI@
-LIB_RT = @HAVE_LIB_RT@
+LIBSNERT 	= @LIBSNERT@
+LIB_RT 		= @HAVE_LIB_RT@
+
+LIB_SEM		= @HAVE_LIB_SEM@
+LIB_WS2_32	= @HAVE_LIB_WS2_32@
+LIB_IPHLPAPI	= @HAVE_LIB_IPHLPAPI@
+NETWORK_LIBS	= @NETWORK_LIBS@
 
 LIB_PTHREAD	= @HAVE_LIB_PTHREAD@
 CFLAGS_PTHREAD	= @CFLAGS_PTHREAD@
@@ -94,7 +97,7 @@ TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
        TextTransliterate$E TextSensitiveEndsWith$E TextInsensitiveEndsWith$E \
        ProcTitle$E timer$E
 
-CLI = b64$E convertDate$E playfair$E uri$E victor$E
+CLI = b64$E convertDate$E uri$E playfair$E victor$E cipher$E
 
 .MAIN : build
 
@@ -157,7 +160,7 @@ Memory$E: Memory.c
 uri$E : ../include/mail/mime.h ../mail/mime$O \
 	../include/net/dnsList.h ../net/dnsList$O \
 	../include/net/pdq.h ../net/pdq$O htmlEntity$O uri.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)uri$E uri.c ../mail/mime$O ../net/dnsList$O ../net/pdq$O $(LIBSNERT) ${LIBS} ${LIB_PTHREAD} ${LIB_RT} ${LIB_WS2_32} ${LIB_IPHLPAPI}
+	$(CC) -DTEST ${CFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)uri$E uri.c ../mail/mime$O ../net/dnsList$O ../net/pdq$O $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
 
 sqlite3$O : sqlite3.c
 	${CC} ${CFLAGS_SQLITE3} ${CFLAGS} -c $*.c

@@ -95,7 +95,7 @@ extern int h_error;
 #endif /* __unix__ */
 
 #if defined(EAGAIN) && defined(EWOULDBLOCK) && EAGAIN == EWOULDBLOCK
-# define IS_EAGAIN(e)			(e) == EAGAIN)
+# define IS_EAGAIN(e)			((e) == EAGAIN)
 #else
 # define IS_EAGAIN(e)			((e) == EAGAIN || (e) == EWOULDBLOCK)
 #endif
@@ -133,6 +133,26 @@ extern int h_error;
 # error " No suitable IO Event API"
 #endif
 
+#ifndef SSL_DIR
+# if defined(__OpenBSD__)
+#  define SSL_DIR		"/etc/ssl"
+# else
+#  define SSL_DIR		"/etc/openssl"
+# endif
+#endif
+
+#ifndef CERT_DIR
+#define CERT_DIR		SSL_DIR "/certs"
+#endif
+
+#ifndef CA_CHAIN
+#define CA_CHAIN		SSL_DIR "/cert.pem"
+#endif
+
+#ifndef DH_PEM
+#define DH_PEM			SSL_DIR "/dh.pem"
+#endif
+
 /***********************************************************************
  *** Portable Socket API
  ***********************************************************************/
@@ -149,11 +169,50 @@ extern int socket3_init(void);
 /**
  * Initialise the socket and SSL/TLS subsystems.
  */
-extern int socket3_init_tls(
-	const char *ca_pem_dir, const char *ca_pem_chain,
-	const char *key_crt_pem, const char *key_pass,
-	const char *dh_pem
-);
+extern int socket3_init_tls(void);
+
+/**
+ * @param cert_pem
+ *	A client or server certificate file in PEM format.
+ *	Can be NULL for client applications.
+ *
+ * @param key_pem
+ *	The client or server's private key file in PEM format.
+ *	Can be NULL for client applications.
+ *
+ * @param key_pass
+ *	The private key password string, if required; otherwise NULL.
+ *
+ * @note
+ *	For client applications key_pem and cert_pem are only required
+ *	for bi-literal certificate exchanges. Typically this is not
+ *	required, for example in HTTPS client applications.
+ */
+extern int socket3_set_cert_key(const char *cert_pem, const char *key_pem, const char *key_pass);
+extern int socket3_set_cert_key_chain(const char *key_cert_pem, const char *key_pass);
+
+/**
+ * @param cert_dir
+ *	A directory path containing individual CA certificates
+ *	in PEM format. Can be NULL.
+ *
+ * @param ca_chain
+ *	A collection of CA root certificates as a PEM formatted
+ *	chain file. Can be NULL.
+ *
+ * @note
+ *	At least one of cert_dir or ca_chain must be specified
+ *	in order to find CA root certificates used for validation.
+ */
+extern int socket3_set_ca_certs(const char *cert_dir, const char *ca_chain);
+
+/**
+ * @param dh_pem
+ *	Set the Diffie-Hellman parameter file in PEM format.
+ *	Used only with SSL/TLS servers.
+ *
+ */
+extern int socket3_set_server_dh(const char *dh_pem);
 
 /**
  * We're finished with the socket subsystem.
@@ -169,7 +228,8 @@ extern void (*socket3_fini_hook)(void);
  *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @param is_server
- *	True for server, false for a client connection.
+ *	Zero (0) for a client connection; one (1) for a server connection;
+ *	two (2) for a server connection requiring a client certificate.
  *
  * @param timeout
  *	A timeout value in milliseconds to wait for the socket TLS accept
@@ -182,12 +242,53 @@ extern void (*socket3_fini_hook)(void);
  */
 extern int socket3_start_tls(SOCKET fd, int is_server, long timeout);
 
+#define SOCKET3_CLIENT_TLS		0
+#define SOCKET3_SERVER_TLS		1
+#define SOCKET3_SERVER_CLIENT_TLS	2
+
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @return
+ * 	Zero if the shutdown handshake was successful; otherwise
+ *	-1 on error.
+ *
+ * @note
+ *	Only used to end encrypted communcations, while keeping
+ *	the socket open for further open communications.
+ */
+extern int socket3_end_tls(SOCKET fd);
+
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @return
+ *	True is the connection is encrypted.
+ */
+extern int socket3_is_tls(SOCKET fd);
+
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @return
+ *	True if the peer certificate passed validation.
+ *
+ * @note
+ *	socket3_is_cn_tls() performs this check as part of
+ *	checking the common name (CN) of a certificate.
+ */
+extern int socket3_is_peer_ok(SOCKET fd);
+
 /**
  * @param fd
  *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @param expect_cn
- *	A C string of the expected common name to match.
+ *	A C string of the expected common name to match. The string
+ *	can be a glob-like pattern, see TextFind().
  *
  * @return
  *	True if the common name (CN) matches that of the peer's
@@ -263,6 +364,10 @@ extern int socket3_bind(SOCKET fd, SocketAddress *addr);
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
 extern int socket3_shutdown(SOCKET fd, int shut);
+
+extern int socket3_shutdown_fd(SOCKET fd, int shut);
+extern int socket3_shutdown_tls(SOCKET fd, int shut);
+extern int (*socket3_shutdown_hook)(SOCKET fd, int shut);
 
 /**
  * @param fd
@@ -558,8 +663,8 @@ extern int socket3_wait_select(SOCKET fd, long ms, unsigned rw_flags);
 
 #endif
 
-#define socket3_has_input(fd, ms)	socket3_wait(fd, ms, SOCKET_WAIT_READ)
-#define socket3_can_send(fd, ms)	socket3_wait(fd, ms, SOCKET_WAIT_WRITE)
+#define socket3_has_input(fd, ms)	(socket3_wait(fd, ms, SOCKET_WAIT_READ) == 0)
+#define socket3_can_send(fd, ms)	(socket3_wait(fd, ms, SOCKET_WAIT_WRITE) == 0)
 
 extern int (*socket3_wait_fn)(SOCKET, long, unsigned);
 extern void socket3_wait_fn_set(const char *name);

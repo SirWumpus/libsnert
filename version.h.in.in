@@ -500,6 +500,7 @@ union semun {
 /*
  * SQLite3
  */
+#undef HAVE_LIB_SQLITE3
 #undef HAVE_SQLITE3_H
 #undef HAVE_SQLITE3_OPEN
 
@@ -762,6 +763,7 @@ typedef int socklen_t;
 /*
  * Sendmail libmilter
  */
+#undef HAVE_LIBMILTER
 #undef HAVE_LIBMILTER_MFAPI_H
 #undef HAVE_SMFI_ADDHEADER
 #undef HAVE_SMFI_ADDRCPT
@@ -810,6 +812,7 @@ typedef int socklen_t;
 #undef HAVE_OPENSSL_SSL_H
 #undef HAVE_OPENSSL_BIO_H
 #undef HAVE_OPENSSL_ERR_H
+#undef HAVE_OPENSSL_CRYPTO_H
 #undef HAVE_EVP_CLEANUP
 #undef HAVE_SSL_LIBRARY_INIT
 #undef HAVE_MACRO_OPENSSL_ADD_ALL_ALGORITHMS

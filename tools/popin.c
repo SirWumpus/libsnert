@@ -34,22 +34,6 @@
 #define SOCKET_TIMEOUT		120
 #endif
 
-#ifndef SSL_DIR
-# if defined(__OpenBSD__)
-#  define SSL_DIR			"/etc/ssl"
-# else
-#  define SSL_DIR			"/etc/openssl"
-# endif
-#endif
-
-#ifndef CA_PEM_DIR
-#define CA_PEM_DIR		SSL_DIR "/certs"
-#endif
-
-#ifndef CA_PEM_CHAIN
-#define CA_PEM_CHAIN		SSL_DIR "/cert.pem"
-#endif
-
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/
@@ -76,6 +60,7 @@
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/io/posix.h>
+#include <com/snert/lib/sys/process.h>
 #include <com/snert/lib/util/Buf.h>
 #include <com/snert/lib/util/md5.h>
 #include <com/snert/lib/util/Text.h>
@@ -113,8 +98,8 @@ static long socketTimeout = SOCKET_TIMEOUT;
 #ifdef HAVE_OPENSSL_SSL_H
 static int require_tls;
 static int check_certificate;
-static char *ca_pem_chain = CA_PEM_CHAIN;
-static char *ca_pem_dir = CA_PEM_DIR;
+static char *ca_chain = CA_CHAIN;
+static char *cert_dir = CERT_DIR;
 #endif
 
 static char line[INPUT_LINE_SIZE+1];
@@ -133,9 +118,9 @@ static char usage[] =
 "\n"
 #ifdef HAVE_OPENSSL_SSL_H
 "-c ca_pem\tCertificate Authority root certificate chain file;\n"
-"\t\tdefault " CA_PEM_CHAIN "\n"
+"\t\tdefault " CA_CHAIN "\n"
 "-C dir\t\tCertificate Authority root certificate directory;\n"
-"\t\tdefault " CA_PEM_DIR "\n"
+"\t\tdefault " CERT_DIR "\n"
 #endif
 "-d\t\tdelete specified messages; default is leave on server\n"
 "-l\t\tlist specified message sizes; default is all\n"
@@ -167,6 +152,7 @@ _NAME "/1.3 Copyright 2004, 2011 by Anthony Howe.  All rights reserved.\n"
  ***********************************************************************/
 
 #if ! defined(__MINGW32__)
+#undef syslog
 void
 syslog(int level, const char *fmt, ...)
 {
@@ -202,7 +188,7 @@ printline(SOCKET s, char *line)
 	}
 
 	/* Now wait for the output to be sent to the SMTP server. */
-	if (socket3_can_send(s, socketTimeout) != 0) {
+	if (!socket3_can_send(s, socketTimeout)) {
 		syslog(LOG_ERR, "timeout before output sent to SMTP server");
 		goto error0;
 	}
@@ -240,7 +226,7 @@ socket3_read_buf(SOCKET fd, Buf *readbuf, char *buffer, size_t size, long ms)
 	size--;
 
 	if (readbuf->length <= readbuf->offset) {
-		if (socket3_has_input(fd, ms) != 0)
+		if (!socket3_has_input(fd, ms))
 			return SOCKET_ERROR;
 		readbuf->length = socket3_read(fd, readbuf->bytes, readbuf->size-1, NULL);
 		if (readbuf->length == SOCKET_ERROR)
@@ -274,13 +260,23 @@ socket3_read_line(SOCKET fd, Buf *readbuf, char *line, size_t size, long ms)
 
 	for (offset = 0; offset < size; ) {
 		if (readbuf->length <= readbuf->offset) {
-			if (socket3_has_input(fd, ms) != 0)
+			if (!socket3_has_input(fd, ms))
 				return SOCKET_ERROR;
 			readbuf->length = socket3_read(fd, readbuf->bytes, readbuf->size-1, NULL);
-			if (readbuf->length == SOCKET_ERROR)
+			if (readbuf->length < 0) {
+				if (IS_EAGAIN(errno) || errno == EINTR) {
+					errno = 0;
+					nap(1, 0);
+					continue;
+				}
 				return SOCKET_ERROR;
-			if (readbuf->length == 0)
+			}
+			if (readbuf->length == 0) {
+				/* EOF with partial line read? */
+				if (0 < offset)
+					break;
 				return SOCKET_EOF;
+			}
 
 			/* Keep the buffer null terminated. */
 			readbuf->bytes[readbuf->length] = 0;
@@ -355,6 +351,7 @@ getPopResponse(SOCKET s, char *line, long size)
 	return 0;
 }
 
+#ifdef HAVE_OPENSSL_SSL_H
 int
 popStartTLS(SOCKET pop)
 {
@@ -368,6 +365,7 @@ popStartTLS(SOCKET pop)
 
 	return 0;
 }
+#endif
 
 int
 popStatus(SOCKET pop, long *count, long *bytes)
@@ -535,12 +533,14 @@ main(int argc, char **argv)
 			break;
 
 		switch (argv[argi][1]) {
+#ifdef HAVE_OPENSSL_SSL_H
 		case 'c':
-			ca_pem_chain = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			ca_chain = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
 			break;
 		case 'C':
-			ca_pem_dir = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			cert_dir = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
 			break;
+#endif
 		case 'd':
 			cmdFlags |= CMD_DELETE;
 			break;
@@ -580,12 +580,14 @@ main(int argc, char **argv)
 			LogSetProgramName(_NAME);
 			debug++;
 			break;
+#ifdef HAVE_OPENSSL_SSL_H
 		case 'x':
 			require_tls++;
 			break;
 		case 'X':
 			check_certificate++;
 			break;
+#endif
 		default:
 			fprintf(stderr, "invalid option -%c\n%s", argv[argi][1], usage);
 			return EXIT_USAGE;
@@ -608,32 +610,31 @@ main(int argc, char **argv)
 	if (1 < debug)
 		LogOpen("(standard error)");
 
-#ifdef HAVE_OPENSSL_SSL_H
-	if (socket3_init_tls(NULL, ca_pem_chain, NULL, NULL, NULL)) {
+	if (socket3_init_tls()) {
 		syslog(LOG_ERR, "socket3_init_tls() failed");
 		goto error0;
 	}
-#else
-	if (socket3_init()) {
-		syslog(LOG_ERR, "socket3_init() failed");
-		goto error0;
+#ifdef HAVE_OPENSSL_SSL_H
+	if (socket3_set_ca_certs(cert_dir, ca_chain)) {
+		syslog(LOG_ERR, "socket3_set_ca_certs() failed");
+		goto error1;
 	}
 #endif
 	syslog(LOG_INFO, "connecting to host=%s port=%ld", popHost, popPort);
 
 	if ((address = socketAddressCreate(popHost, popPort)) == NULL) {
 		syslog(LOG_ERR, "failed to find host %s:%ld", popHost, popPort);
-		goto error0;
+		goto error1;
 	}
 
 	if ((pop = socket3_open(address, 1)) < 0) {
 		syslog(LOG_ERR, "failed to create socket to host %s:%ld", popHost, popPort);
-		goto error1;
+		goto error2;
 	}
 
 	if (socket3_client(pop, address, socketTimeout)) {
 		syslog(LOG_ERR, "failed to connect to host %s:%ld", popHost, popPort);
-		goto error2;
+		goto error3;
 	}
 
 #if defined(NON_BLOCKING_READ) && defined(NON_BLOCKING_WRITE)
@@ -642,24 +643,24 @@ main(int argc, char **argv)
 	 */
 	if (socket3_set_nonblocking(pop, 1)) {
 		syslog(LOG_ERR, "internal error: socketSetNonBlocking() failed: %s (%d)", strerror(errno), errno);
-		goto error2;
+		goto error3;
 	}
 #endif
 
 	if (getPopResponse(pop, line, sizeof (line))) {
 		syslog(LOG_ERR, "host %s:%ld responded with an error: %s", popHost, popPort, line);
-		goto error2;
+		goto error3;
 	}
 
 #ifdef HAVE_OPENSSL_SSL_H
 	if (require_tls && popStartTLS(pop)) {
 		syslog(LOG_ERR, "TLS connection required");
-		goto error2;
+		goto error3;
 	}
 
 	if (check_certificate && !socket3_is_cn_tls(pop, popHost)) {
 		syslog(LOG_ERR, "invalid certificate for %s", popHost);
-		goto error2;
+		goto error3;
 	}
 #endif
 	/* Look for timestamp in welcome banner. */
@@ -669,7 +670,7 @@ main(int argc, char **argv)
 		printline(pop, line);
 		if (getPopResponse(pop, line, sizeof (line))) {
 			syslog(LOG_ERR, "USER %s failed: %s", argv[argi], line);
-			goto error3;
+			goto error4;
 		}
 		argi++;
 
@@ -677,7 +678,7 @@ main(int argc, char **argv)
 		printline(pop, line);
 		if (getPopResponse(pop, line, sizeof (line))) {
 			syslog(LOG_ERR, "PASS command failed: %s", line);
-			goto error3;
+			goto error4;
 		}
 		argi++;
 	} else {
@@ -697,7 +698,7 @@ main(int argc, char **argv)
 		printline(pop, line);
 		if (getPopResponse(pop, line, sizeof (line))) {
 			syslog(LOG_ERR, "APOP %s failed: %s", argv[argi], line);
-			goto error3;
+			goto error4;
 		}
 		argi += 2;
 	}
@@ -705,7 +706,7 @@ main(int argc, char **argv)
 	syslog(LOG_INFO, "user %s logged in", argv[argi-2]);
 
 	if (popStatus(pop, &messages, &octets))
-		goto error3;
+		goto error4;
 
 	if (cmdFlags & CMD_STATUS)
 		printf("%ld %ld\r\n", messages, octets);
@@ -713,50 +714,52 @@ main(int argc, char **argv)
 	if (cmdFlags & CMD_LIST) {
 		if (argi < argc) {
 			if (forEachArg(pop, argc, argv, argi, popList))
-				goto error3;
+				goto error4;
 		} else if (forEach(pop, 1, messages, popList)){
-			goto error3;
+			goto error4;
 		}
 	}
 
 	if (cmdFlags & CMD_UIDL) {
 		if (argi < argc) {
 			if (forEachArg(pop, argc, argv, argi, popUidl))
-				goto error3;
+				goto error4;
 		} else if (forEach(pop, 1, messages, popUidl)){
-			goto error3;
+			goto error4;
 		}
 	}
 
 	if (cmdFlags & CMD_READ) {
 		if (argi < argc) {
 			if (forEachArg(pop, argc, argv, argi, popRead))
-				goto error3;
+				goto error4;
 		} else if (forEach(pop, 1, messages, popRead)){
-			goto error3;
+			goto error4;
 		}
 	}
 
 	if (cmdFlags & CMD_DELETE) {
 		if (argi < argc) {
 			if (forEachArg(pop, argc, argv, argi, popDelete))
-				goto error3;
+				goto error4;
 		} else if (forEach(pop, 1, messages, popDelete)){
-			goto error3;
+			goto error4;
 		}
 	}
 
 	if (cmdFlags == 0) {
 		printf("%ld %ld\r\n", messages, octets);
 	}
-error3:
+error4:
 	printline(pop, "QUIT\r\n");
 	rc = getPopResponse(pop, line, sizeof (line)) != 0;
 	syslog(LOG_INFO, "user %s logged out", argv[argi-2]);
-error2:
+error3:
 	socket3_close(pop);
-error1:
+error2:
 	free(address);
+error1:
+	socket3_fini();
 error0:
 	return rc;
 }
