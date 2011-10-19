@@ -70,9 +70,7 @@ mimeDecodeFlush(Mime *m)
 					(*hook->decode_flush)(m, hook->data);
 			}
 		}
-#ifndef NDEBUG
-		(void) memset(m->decode.buffer, 0, sizeof (m->decode.buffer));
-#endif
+		MEMSET(m->decode.buffer, 0, sizeof (m->decode.buffer));
 		m->decode.length = 0;
 	}
 }
@@ -219,9 +217,7 @@ mimeSourceFlush(Mime *m)
 					(*hook->source_flush)(m, hook->data);
 			}
 		}
-#ifndef NDEBUG
-		(void) memset(m->source.buffer, 0, sizeof (m->source.buffer));
-#endif
+		MEMSET(m->source.buffer, 0, sizeof (m->source.buffer));
 		m->source.length = 0;
 	}
 }

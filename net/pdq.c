@@ -8,8 +8,6 @@
  * Copyright 2002, 2011 by Anthony Howe. All rights reserved.
  */
 
-#undef NDEBUG
-
 #ifndef MAX_CNAME_DEPTH
 #define MAX_CNAME_DEPTH		10
 #endif

@@ -4,10 +4,6 @@
  * Copyright 2002, 2006 by Anthony Howe. All rights reserved.
  */
 
-#ifndef NDEBUG
-#define NDEBUG 1
-#endif
-
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/
