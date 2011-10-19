@@ -32,6 +32,7 @@
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/net/pdq.h>
 #include <com/snert/lib/io/socket2.h>
+#include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/mail/limits.h>
 #include <com/snert/lib/mail/MailSpan.h>
 #include <com/snert/lib/mail/parsePath.h>
@@ -50,6 +51,7 @@ void
 socketSetDebug(int level)
 {
 	debug = level;
+	socket3_set_debug(level);
 }
 
 /**
@@ -58,16 +60,7 @@ socketSetDebug(int level)
 int
 socketInit(void)
 {
-	int rc = 0;
-	static int initialised = 0;
-
-	if (!initialised && (rc = pdqInit()) == 0)
-		initialised = 1;
-
-	if (0 < debug)
-		syslog(LOG_DEBUG, "socketInit() rc=%d", rc);
-
-	return rc;
+	return socket3_init();
 }
 
 /**
@@ -76,7 +69,7 @@ socketInit(void)
 void
 socketFini(void)
 {
-	pdqFini();
+	socket3_fini();
 }
 
 /**
@@ -91,16 +84,7 @@ socketFini(void)
 int
 socketGetError(Socket2 *s)
 {
-	int so_error;
-	socklen_t socklen;
-
-	if (s != NULL) {
-		socklen = sizeof (so_error);
-		if (getsockopt(s->fd, SOL_SOCKET, SO_ERROR, (void *) &so_error, &socklen) == 0)
-			return so_error;
-	}
-
-	return SOCKET_ERROR;
+	return socket3_get_error(socketGetFd(s));
 }
 
 /*
@@ -156,12 +140,13 @@ socketHasInput(Socket2 *s, long timeout)
 		goto error0;
 	}
 
-	rc = socketTimeoutIO(s->fd, timeout, 1);
+	rc = socket3_has_input(socketGetFd(s), timeout);
 error0:
 	if (1 < debug) {
 		syslog(
-			LOG_ERR, "socketHasInput(%lx, %ld) s.fd=%d readOffset=%d readLength=%d rc=%d",
-			(long) s, timeout, s == NULL ? -1 : s->fd, s->readOffset, s->readLength, rc
+			LOG_ERR, "socketHasInput(%lx, %ld) s.fd=%d readOffset=%d readLength=%d rc=%d errno=%d",
+			(long) s, timeout, s == NULL ? -1 : socketGetFd(s),
+			s->readOffset, s->readLength, rc, errno
 		);
 	}
 
@@ -189,10 +174,13 @@ socketCanSend(Socket2 *s, long timeout)
 		goto error0;
 	}
 
-	rc = socketTimeoutIO(s->fd, timeout, 0);
+	rc = socket3_can_send(socketGetFd(s), timeout);
 error0:
-	if (1 < debug)
-		syslog(LOG_ERR, "socketCanSend(%lx, %ld) s.fd=%d rc=%d", (long) s, timeout, s == NULL ? -1 : s->fd, rc);
+	if (1 < debug) {
+		syslog(LOG_ERR, "socketCanSend(%lx, %ld) s.fd=%d rc=%d errno=%d",
+			(long) s, timeout, s == NULL ? -1 : socketGetFd(s), rc, errno
+		);
+	}
 
 	return rc;
 }
@@ -211,31 +199,12 @@ error0:
 int
 socketSetNonBlocking(Socket2 *s, int flag)
 {
-	int rc;
-	long flags;
-
 	if (s == NULL) {
 		errno = EFAULT;
 		return SOCKET_ERROR;
 	}
 
-#if defined(__WIN32__)
-	flags = flag;
-	rc = ioctlsocket(s->fd, FIONBIO, (unsigned long *) &flags);
-#else
-	flags = (long) fcntl(s->fd, F_GETFL);
-
-	if (flag)
-		flags |= O_NONBLOCK;
-	else
-		flags &= ~O_NONBLOCK;
-
-	rc = fcntl(s->fd, F_SETFL, flags);
-#endif
-	if (rc == 0)
-		s->isNonBlocking = flag;
-
-	return rc == 0 ? 0 : SOCKET_ERROR;
+	return socket3_set_nonblocking(socketGetFd(s), flag);
 }
 
 Socket2 *
@@ -266,7 +235,7 @@ socketFdClose(Socket2 *s)
 {
 	if (s != NULL) {
 		/* Close without shutdown of connection. */
-		closesocket(s->fd);
+		closesocket(socketGetFd(s));
 		free(s);
 	}
 }
@@ -290,22 +259,8 @@ socketOpen(SocketAddress *addr, int isStream)
 {
 	SOCKET fd;
 	Socket2 *s;
-	int so_type;
 
-	so_type = isStream ? SOCK_STREAM : SOCK_DGRAM;
-
-#ifdef NOT_USED
-	fd = WSASocket(
-		addr->sa.sa_family, so_type, 0, NULL, 0,
-		WSA_FLAG_MULTIPOINT_C_LEAF|WSA_FLAG_MULTIPOINT_D_LEAF
-	);
-#else
-	/* Note that sa_family can be AF_INET, AF_INET6, and AF_UNIX.
-	 * When AF_UNIX is the family you don't want to specify a
-	 * protocol argument.
-	 */
-	fd = socket(addr->sa.sa_family, so_type, 0);
-#endif
+	fd = socket3_open(addr, isStream);
 	if ((s = socketFdOpen(fd)) != NULL) {
 		s->address = *addr;
 #ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
@@ -316,7 +271,7 @@ socketOpen(SocketAddress *addr, int isStream)
 	if (0 < debug) {
 		syslog(
 			LOG_DEBUG, "socketOpen(%lx, %d) s=%lx s.fd=%d",
-			(long) addr, isStream, (long) s, s == NULL ? -1 : s->fd
+			(long) addr, isStream, (long) s, s == NULL ? -1 : socketGetFd(s)
 		);
 	}
 
@@ -337,23 +292,12 @@ socketOpen(SocketAddress *addr, int isStream)
 int
 socketBind(Socket2 *s, SocketAddress *addr)
 {
-	int rc;
-	socklen_t socklen;
-
 	if (s == NULL) {
 		errno = EFAULT;
 		return SOCKET_ERROR;
 	}
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	socklen = addr->sa.sa_len;
-#else
-	socklen = socketAddressLength(addr);
-#endif
 
-	rc = bind(s->fd, /*(const struct sockaddr *) */ (void *) &addr->sa, socklen);
-	UPDATE_ERRNO;
-
-	return rc;
+	return socket3_bind(socketGetFd(s), addr);
 }
 
 /**
@@ -375,7 +319,7 @@ socketSetKeepAlive(Socket2 *s, int flag)
 		return SOCKET_ERROR;
 	}
 
-	socketFdSetKeepAlive(s->fd, flag, -1, -1, -1);
+	socket3_set_keep_alive(socketGetFd(s), flag, -1, -1, -1);
 
 	return 0;
 }
@@ -394,17 +338,12 @@ socketSetKeepAlive(Socket2 *s, int flag)
 int
 socketSetNagle(Socket2 *s, int flag)
 {
-#ifdef TCP_NODELAY
 	if (s == NULL) {
 		errno = EFAULT;
 		return SOCKET_ERROR;
 	}
 
-	flag = !flag;
-	return setsockopt(s->fd, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof (flag));
-#else
-	return 0;
-#endif
+	return socket3_set_nagle(socketGetFd(s), flag);
 }
 
 /**
@@ -422,26 +361,12 @@ socketSetNagle(Socket2 *s, int flag)
 int
 socketSetLinger(Socket2 *s, int seconds)
 {
-#ifdef SO_LINGER
-	struct linger setlinger = { 1, 0 };
-
 	if (s == NULL) {
 		errno = EFAULT;
 		return SOCKET_ERROR;
 	}
 
-#if defined(__WIN32__)
-	setlinger.l_onoff = (u_short) (0 < seconds);
-	setlinger.l_linger = (u_short) seconds;
-#else
-	setlinger.l_onoff = 0 < seconds;
-	setlinger.l_linger = seconds;
-#endif
-
-	return setsockopt(s->fd, SOL_SOCKET, SO_LINGER, (char *) &setlinger, sizeof (setlinger));
-#else
-	return 0;
-#endif
+	return socket3_set_linger(socketGetFd(s), seconds);
 }
 
 /**
@@ -463,13 +388,7 @@ socketSetReuse(Socket2 *s, int flag)
 		return SOCKET_ERROR;
 	}
 
-#if defined(SO_REUSEPORT)
-	return setsockopt(s->fd, SOL_SOCKET, SO_REUSEPORT, (char *) &flag, sizeof (flag));
-#elif defined(SO_REUSEADDR)
-	return setsockopt(s->fd, SOL_SOCKET, SO_REUSEADDR, (char *) &flag, sizeof (flag));
-#else
-	return 0;
-#endif
+	return socket3_set_reuse(socketGetFd(s), flag);
 }
 
 /**
@@ -491,105 +410,15 @@ socketSetReuse(Socket2 *s, int flag)
 int
 socketClient(Socket2 *s, long timeout)
 {
-	int rc = SOCKET_ERROR;
-	socklen_t socklen;
-
-	if (0 < debug)
-		syslog(LOG_DEBUG, "enter socketClient(%lx, %ld) s.fd=%d", (long) s, timeout, s == NULL ? -1 : s->fd);
-
 	if (s == NULL) {
 		errno = EFAULT;
-		goto error0;
+		return SOCKET_ERROR;
 	}
 
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	socklen = s->address.sa.sa_len;
-#else
-	socklen = socketAddressLength(&s->address);
-#endif
-
-	if (timeout <= 0) {
-		/* The "libreral" connect technique relies on the implementation
-		 * of connect() in being restartable for a blocking socket.
-		 *
-		 * http://www.eleves.ens.fr:8080/home/madore/computers/connect-intr.html
-		 *
-		 * This of course is not the SUS definition and non-portable.
-		 *
-		 * SUS also states that a blocking socket "shall block for up to
-		 * an unspecified timeout interval until the connection is
-		 * established". So rather than rely on an unspecified timeout
-		 * internal, use one I know about.
-		 */
-		timeout = SOCKET_CONNECT_TIMEOUT;
-	}
-
-	/* man connect
-	 *
-	 * EINPROGRESS
-	 * 	The  socket  is  non-blocking  and the connection cannot be com-
-	 * 	pleted immediately.  It is possible to select(2) or poll(2)  for
-	 * 	completion  by  selecting  the  socket for writing. After select
-	 * 	indicates writability, use getsockopt(2) to  read  the  SO_ERROR
-	 * 	option  at  level  SOL_SOCKET  to determine whether connect com-
-	 * 	pleted  successfully  (SO_ERROR  is  zero)   or   unsuccessfully
-	 * 	(SO_ERROR  is one of the usual error codes listed here, explain-
-	 * 	ing the reason for the failure).
-	 */
-	if (socketSetNonBlocking(s, 1))
-		goto error0;
-
-	errno = 0;
-	(void) connect(s->fd, (struct sockaddr *) &s->address, socklen);
-	UPDATE_ERRNO;
-
-	switch (errno) {
-	case EAGAIN:
-#if defined(EAGAIN) && defined(EWOULDBLOCK) && EAGAIN != EWOULDBLOCK
-	case EWOULDBLOCK:
-#endif
-	case EINPROGRESS:
-		if (!socketCanSend(s, timeout))
-			goto error1;
-
-		/* Resets the socket's copy of the error code. */
-		if (socketGetError(s))
-			goto error1;
-
-		/*@fallthrough@*/
-	case 0:
-		rc = 0;
-	}
-error1:
-	(void) socketSetNonBlocking(s, 0);
-error0:
-	if (0 < debug)
-		syslog(LOG_DEBUG, "exit  socketClient(%lx, %ld) s.fd=%d errno=%d rc=%d", (long) s, timeout, s == NULL ? -1 : s->fd, errno, rc);
-
-	return rc;
+	return socket3_client(socketGetFd(s), &s->address, timeout);
 }
 
 extern SocketAddress *socketAddressNew(const char *host, unsigned port);
-
-static Socket2 *
-socketBasicConnect(const char *host, unsigned port, long timeout)
-{
-	Socket2 *s;
-	SocketAddress *addr;
-
-	if ((addr = socketAddressNew(host, port)) == NULL)
-		return NULL;
-
-	s = socketOpen(addr, 1);
-	free(addr);
-
-	if (socketClient(s, timeout)) {
-		socketClose(s);
-		return NULL;
-	}
-
-	return s;
-}
 
 /**
  * A convenience function that combines the steps for socketAddressCreate()
@@ -615,63 +444,12 @@ socketBasicConnect(const char *host, unsigned port, long timeout)
 Socket2 *
 socketConnect(const char *host, unsigned port, long timeout)
 {
-	int span;
-	Socket2 *s;
-	char *name;
-	PDQ_rr *list, *rr, *a_rr;
+	SOCKET fd;
 
-	/* Simple case of IP address or local domain path? */
-	if ((s = socketBasicConnect(host, port, timeout)) != NULL)
-		return s;
-
-	/* We have a host[:port] where the host might be multi-homed. */
-	if ((span = spanHost(host, 1)) <= 0)
+	if ((fd = socket3_connect(host, port, timeout)) < 0)
 		return NULL;
 
-	/* Find the optional port. */
-	if (host[span] == ':') {
-		char *stop;
-		long value = (unsigned short) strtol(host+span+1, &stop, 10);
-		if (host+span+1 < stop)
-			port = value;
-	}
-
-	/* Duplicate the host to strip off the port. */
-	if ((name = TextDupN(host, span)) == NULL)
-		return NULL;
-
-	/* Look up the A/AAAA record(s). */
-	list = pdqFetch5A(PDQ_CLASS_IN, name);
-	list = pdqListKeepType(list, PDQ_KEEP_5A|PDQ_KEEP_CNAME);
-
-	/* Walk the list of A/AAAA records, following CNAME as needed. */
-	s = NULL;
-	host = name;
-	for (rr = list; rr != NULL; rr = rr->next) {
-		if (rr->section == PDQ_SECTION_QUERY)
-			continue;
-
-		a_rr = pdqListFindName(rr, PDQ_CLASS_IN, PDQ_TYPE_5A, host);
-		if (PDQ_RR_IS_NOT_VALID(a_rr))
-			continue;
-
-		/* The A/AAAA recorded found might have a different
-		 * host name as a result of CNAME redirections.
-		 * Remember this for subsequent iterations.
-		 */
-		host = a_rr->name.string.value;
-
-		/* Now try to connect to this IP address. */
-		if ((s = socketBasicConnect(((PDQ_AAAA *) a_rr)->address.string.value, port, timeout)) != NULL)
-			break;
-
-		rr = a_rr;
-	}
-
-	pdqListFree(list);
-	free(name);
-
-	return s;
+	return socketFdOpen(fd);
 }
 
 /**
@@ -774,7 +552,7 @@ socketServer(Socket2 *s, int queue_size)
 	if (socketBind(s, &s->address) == SOCKET_ERROR)
 		return SOCKET_ERROR;
 
-	if (listen(s->fd, queue_size) < 0)
+	if (listen(socketGetFd(s), queue_size) < 0)
 		return SOCKET_ERROR;
 
 	return 0;
@@ -814,7 +592,7 @@ socketAccept(Socket2 *s)
 #endif
 	do {
 		errno = 0;
-	} while ((c->fd = accept(s->fd, (struct sockaddr *) &c->address, &socklen)) == INVALID_SOCKET && errno == EINTR);
+	} while ((c->fd = accept(socketGetFd(s), (struct sockaddr *) &c->address, &socklen)) == INVALID_SOCKET && errno == EINTR);
 
 	if (c->fd == INVALID_SOCKET) {
 		free(c);
@@ -824,7 +602,7 @@ error0:
 	if (0 < debug) {
 		syslog(
 			LOG_DEBUG, "socketAccept(%lx) s.fd=%d c=%lx c.fd=%d errno=%d",
-			(long) s, s == NULL ? -1 : s->fd,
+			(long) s, s == NULL ? -1 : socketGetFd(s),
 			(long) c, c == NULL ? -1 : c->fd,
 			errno
 		);
@@ -849,17 +627,9 @@ error0:
 int
 socketShutdown(Socket2 *s, int shut)
 {
-	int so_type;
-	socklen_t socklen;
-
 	if (s == NULL)
 		return SOCKET_ERROR;
-
-	socklen = sizeof (so_type);
-	if (getsockopt(s->fd, SOL_SOCKET, SO_TYPE, (void *) &so_type, &socklen) || so_type != SOCK_STREAM)
-		return SOCKET_ERROR;
-
-	return shutdown(s->fd, shut);
+	return socket3_shutdown(socketGetFd(s), shut);
 }
 
 
@@ -873,7 +643,7 @@ void
 socketClose(Socket2 *s)
 {
 	if (0 < debug)
-		syslog(LOG_DEBUG, "socketClose(%lx) s.fd=%d", (long) s, s == NULL ? -1 : s->fd);
+		syslog(LOG_DEBUG, "socketClose(%lx) s.fd=%d", (long) s, s == NULL ? -1 : socketGetFd(s));
 
 	if (s != NULL) {
 		socketShutdown(s, SHUT_WR);
@@ -884,59 +654,13 @@ socketClose(Socket2 *s)
 void
 socketFdSetKeepAlive(SOCKET fd, int flag, int idle, int interval, int count)
 {
-#ifdef SO_KEEPALIVE
-	if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *) &flag, sizeof (flag)))
-		syslog(LOG_WARNING, "setting fd=%d SO_KEEPALIVE=%d failed", fd, flag);
-#endif
-#ifdef TCP_KEEPIDLE
-	if (0 < idle && setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, (char *) &idle, sizeof (idle)))
-		syslog(LOG_WARNING, "setting fd=%d TCP_KEEPIDLE=%d failed", fd, idle);
-#endif
-#ifdef TCP_KEEPINTVL
-	if (0 < interval && setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, (char *) &interval, sizeof (interval)))
-		syslog(LOG_WARNING, "setting fd=%d TCP_KEEPINTVL=%d failed", fd, interval);
-#endif
-#ifdef TCP_KEEPCNT
-	if (0 < count && setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, (char *) &count, sizeof (count)))
-		syslog(LOG_WARNING, "setting fd=%d TCP_KEEPCNT=%d failed", fd, count);
-#endif
+	socket3_set_keep_alive(fd, flag, idle, interval, count);
 }
 
 long
 socketFdWriteTo(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
 {
-	long sent, offset;
-	socklen_t socklen;
-
-	errno = 0;
-
-	if (buffer == NULL || size <= 0)
-		return 0;
-
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	socklen = to == NULL ? 0 : to->sa.sa_len;
-#else
-	socklen = socketAddressLength(to);
-#endif
-	for (offset = 0; offset < size; offset += sent) {
-		if (to == NULL)
-			sent = send(fd, buffer+offset, size-offset, 0);
-		else
-			sent = sendto(fd, buffer+offset, size-offset, 0, (const struct sockaddr *) to, socklen);
-
-		if (sent < 0) {
-			UPDATE_ERRNO;
-			if (!ERRNO_EQ_EAGAIN) {
-				if (offset == 0)
-					offset = SOCKET_ERROR;
-				break;
-			}
-			sent = 0;
-			nap(1, 0);
-		}
-	}
-
- 	return offset;
+	return socket3_write(fd, buffer, size, to);
 }
 
 /**
@@ -968,7 +692,7 @@ socketWriteTo(Socket2 *s, unsigned char *buffer, long size, SocketAddress *to)
 		return SOCKET_ERROR;
 	}
 
-	return socketFdWriteTo(s->fd, buffer, size, to);
+	return socket3_write(socketGetFd(s), buffer, size, to);
 }
 
 /**
@@ -992,12 +716,7 @@ socketWriteTo(Socket2 *s, unsigned char *buffer, long size, SocketAddress *to)
 long
 socketWrite(Socket2 *s, unsigned char *buffer, long size)
 {
-	if (s == NULL) {
-		errno = EFAULT;
-		return SOCKET_ERROR;
-	}
-
- 	return socketFdWriteTo(s->fd, buffer, size, NULL);
+ 	return socket3_write(socketGetFd(s), buffer, size, NULL);
 }
 
 /**
@@ -1021,48 +740,12 @@ socketWrite(Socket2 *s, unsigned char *buffer, long size)
 long
 socketReadFrom(Socket2 *s, unsigned char *buffer, long size, SocketAddress *from)
 {
-	long nbytes;
-	socklen_t socklen;
-
 	if (s == NULL) {
 		errno = EFAULT;
 		return SOCKET_ERROR;
 	}
 
-	if (buffer == NULL || size <= 0)
-		return 0;
-
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	socklen = s->address.sa.sa_len;
-#else
-	socklen = socketAddressLength(&s->address);
-#endif
-
-/* On Windows, a portable program has to use recv()/send() to
- * read/write sockets, since read()/write() typically only do
- * file I/O via ReadFile()/WriteFile().
- *
- * Using read()/write() for socket I/O is typical of Unix, but
- * only for connected sockets. At some point they will call
- * either recv()/send() or recvfrom()/sendto() to do the actual
- * network I/O.
- *
- * Minix 3.1.2 on the other hand has placed all the network I/O
- * logic for connected (TCP) sockets into read()/write(). recv()
- * is a cover for recvfrom() that only handles UDP currently.
- */
-#ifdef __minix
-	nbytes = read(s->fd, buffer, size, 0, (struct sockaddr *) from, &socklen);
-#else
-	nbytes = recvfrom(s->fd, buffer, size, 0, (struct sockaddr *) from, &socklen);
-#endif
-	UPDATE_ERRNO;
-
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	if (0 <= nbytes && from != NULL)
-		from->sa.sa_len = socklen;
-#endif
-	return nbytes;
+	return socket3_read(socketGetFd(s), buffer, size, from);
 }
 
 /**
@@ -1100,12 +783,7 @@ socketRead(Socket2 *s, unsigned char *buffer, long size)
 		(void) memcpy(buffer, s->readBuffer + s->readOffset, nbytes);
 		s->readOffset += nbytes;
 	} else {
-#ifdef __minix
-		nbytes = read(s->fd, buffer, size, 0);
-#else
-		nbytes = recv(s->fd, buffer, size, 0);
-#endif
-		UPDATE_ERRNO;
+		nbytes = socket3_read(socketGetFd(s), buffer, size, NULL);
 	}
 
 	return nbytes;
@@ -1182,7 +860,7 @@ socketPeek(Socket2 *s, unsigned char *buffer, long size)
 
 	if (length < size) {
 		bytes = size - length;
-		if ((bytes = recv(s->fd, buffer+length, bytes, MSG_PEEK)) < 0 && length <= 0)
+		if ((bytes = socket3_peek(socketGetFd(s), buffer+length, bytes, NULL)) < 0 && length <= 0)
 			return SOCKET_ERROR;
 		length += bytes;
 	}
@@ -1231,116 +909,56 @@ socketPeekByte(Socket2 *s)
 long
 socketReadLine2(Socket2 *s, char *line, long size, int keep_nl)
 {
-	TIMER_DECLARE(mark);
-	long i = SOCKET_ERROR;
+	long offset;
 
-	if (s == NULL || line == NULL) {
-		errno = EFAULT;
-		goto error0;
+	errno = 0;
+	if (s == NULL || line == NULL || size < 1) {
+		return SOCKET_ERROR;
 	}
 
-	if (size <= 0) {
-		errno = EINVAL;
-		goto error0;
-	}
+	size--;
 
-	/* Leave room in the buffer for a terminating null byte. */
-	line[--size] = '\0';
-
-	if (0 < debug)
-		TIMER_START(mark);
-
-	for (i = 0; i < size; ) {
-		/* Keep the buffer null terminated in case we exit prematurely,
-		 * because of an error or EOF condition. "Where ever you go
-		 * there you are." - Buckaroo Bonzai
-		 */
-		line[i] = '\0';
-
-		/* Get a new chunk of data off the wire? */
+	for (offset = 0; offset < size; ) {
 		if (s->readLength <= s->readOffset) {
-			/* Non-blocking reads will be more efficient, trying
-			 * to read more bytes at a time. When blocking reads
-			 * are used, fallback on a byte at a time reads. I
-			 * choose not to set non-blocking mode at the top of
-			 * the function, leaving it up to the application
-			 * design to set it up before hand.
-			 */
-			if (s->isNonBlocking && !socketHasInput(s, s->readTimeout)) {
-				if (i <= 0) {
-					/* Only timeout if no input has been
-					 * read, otherwise return what we have
-					 * thus far.
-					 */
-					errno = ETIMEDOUT;
-					i = SOCKET_ERROR;
-				}
-				break;
-			}
-
-			s->readLength = socketRead(s, s->readBuffer, s->isNonBlocking ? sizeof s->readBuffer : 1);
-
+			if (!socket3_has_input(socketGetFd(s), s->readTimeout))
+				return SOCKET_ERROR;
+			s->readLength = socket3_read(socketGetFd(s), s->readBuffer, sizeof (s->readBuffer)-1, NULL);
 			if (s->readLength < 0) {
-				if (ERRNO_EQ_EAGAIN || errno == EINTR) {
-					if (0 < debug) {
-						TIMER_DIFF(mark);
-						if (TIMER_GE_CONST(diff_mark, 1, 0))
-							syslog(LOG_WARN, "socketReadLine() spinning more than 1 second: %s (%d)", strerror(errno), errno);
-					}
+				if (IS_EAGAIN(errno) || errno == EINTR) {
 					errno = 0;
 					nap(1, 0);
 					continue;
 				}
-
-				/* Read error. */
-				i = SOCKET_ERROR;
-				break;
+				return SOCKET_ERROR;
 			}
-
 			if (s->readLength == 0) {
-				if (i <= 0) {
-					errno = ENOTCONN;
-					i = SOCKET_EOF;
-				}
-
-				/* Buffer underflow, EOF before newline.
-				 * Return partial line.
-				 */
-				break;
+				/* EOF with partial line read? */
+				if (0 < offset)
+					break;
+				return SOCKET_EOF;
 			}
 
+			/* Keep the buffer null terminated. */
+			s->readBuffer[s->readLength] = 0;
 			s->readOffset = 0;
 		}
 
-		/* Copy from our read buffer into the line buffer. */
-		line[i] = (char) s->readBuffer[s->readOffset++];
+		/* Copy from read buffer into the line buffer. */
+		line[offset++] = (char) s->readBuffer[s->readOffset++];
 
-		if (line[i] == '\n') {
-			/* Newline found. */
-			i += keep_nl;
-			line[i] = '\0';
-
-			if (!keep_nl && 0 < i && line[i-1] == '\r')
-				line[--i] = '\0';
-
+		if (line[offset-1] == '\n') {
+			if (!keep_nl) {
+				offset--;
+				if (line[offset-1] == '\r')
+					offset--;
+			}
 			break;
 		}
-
-		/* This is not part of the loop control for a reason; avoids
-		 * the need to decrement the index before the continue after
-		 * EAGAIN in order to stay put.
-		 */
-		i++;
-	}
-error0:
-	if (1 < debug) {
-		syslog(
-			LOG_DEBUG, "socketReadLine(%lx, %lx, %ld) s.fd=%d bytes=%ld",
-			(long) s, (long) line, size, s == NULL ? -1 : s->fd, i
-		);
 	}
 
-	return i;
+	line[offset] = '\0';
+
+	return offset;
 }
 
 /**
@@ -1407,7 +1025,7 @@ socketMulticast(Socket2 *s, SocketAddress *group, int join)
 #ifdef NOT_USED
 	if (join) {
 		SOCKET fd = WSAJoinLeaf(
-			s->fd, (const struct sockaddr *) &group->in.sin_addr,
+			socketGetFd(s), (const struct sockaddr *) &group->in.sin_addr,
 			sizeof (group->in), NULL, NULL, NULL, NULL, JL_BOTH
 		);
 
@@ -1424,7 +1042,7 @@ socketMulticast(Socket2 *s, SocketAddress *group, int join)
 		option = join ? IP_ADD_MEMBERSHIP : IP_DROP_MEMBERSHIP;
 		mr.mreq.imr_interface.s_addr = htonl(INADDR_ANY);
 		mr.mreq.imr_multiaddr = group->in.sin_addr;
-		rc = setsockopt(s->fd, IPPROTO_IP, option, (void *) &mr, sizeof (mr.mreq));
+		rc = setsockopt(socketGetFd(s), IPPROTO_IP, option, (void *) &mr, sizeof (mr.mreq));
 		UPDATE_ERRNO;
 		break;
 
@@ -1433,7 +1051,7 @@ socketMulticast(Socket2 *s, SocketAddress *group, int join)
 		option = join ? IPV6_JOIN_GROUP : IPV6_LEAVE_GROUP;
 		mr.mreq6.ipv6mr_multiaddr = group->in6.sin6_addr;
 		mr.mreq6.ipv6mr_interface = 0;
-		rc = setsockopt(s->fd, IPPROTO_IPV6, option, (void *) &mr, sizeof (mr.mreq6));
+		rc = setsockopt(socketGetFd(s), IPPROTO_IPV6, option, (void *) &mr, sizeof (mr.mreq6));
 		UPDATE_ERRNO;
 		break;
 #endif
@@ -1466,7 +1084,7 @@ socketMulticastLoopback(Socket2 *s, int flag)
 		return SOCKET_ERROR;
 	}
 
-	rc = setsockopt(s->fd, IPPROTO_IP, IP_MULTICAST_LOOP, (char *) &byte, sizeof (byte));
+	rc = setsockopt(socketGetFd(s), IPPROTO_IP, IP_MULTICAST_LOOP, (char *) &byte, sizeof (byte));
 	UPDATE_ERRNO;
 	return rc;
 #else
@@ -1496,7 +1114,7 @@ socketMulticastTTL(Socket2 *s, int ttl)
 		return SOCKET_ERROR;
 	}
 
-	rc = setsockopt(s->fd, IPPROTO_IP, IP_MULTICAST_TTL, (char *) &ttl, sizeof (ttl));
+	rc = setsockopt(socketGetFd(s), IPPROTO_IP, IP_MULTICAST_TTL, (char *) &ttl, sizeof (ttl));
 	UPDATE_ERRNO;
 	return rc;
 #else
