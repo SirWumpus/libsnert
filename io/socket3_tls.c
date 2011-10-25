@@ -23,7 +23,7 @@
 #ifdef HAVE_OPENSSL_SSL_H
 # define OPENSSL_THREAD_DEFINES
 # include <openssl/opensslconf.h>
-# if !defined(OPENSSL_THREADS)
+# if OPENSSL_VERSION_NUMBER > 0x00907000L && !defined(OPENSSL_THREADS)
 #  error "OpenSSL not built with thread support"
 # endif
 # include <openssl/ssl.h>

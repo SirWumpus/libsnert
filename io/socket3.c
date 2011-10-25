@@ -775,10 +775,12 @@ socket3_read_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from
 	socklen_t socklen;
 	long nbytes = SOCKET_ERROR;
 
-	if (buffer == NULL || size <= 0)
-		goto error1;
-
 	errno = 0;
+
+	if (buffer == NULL || size <= 0) {
+		errno = EINVAL;
+		goto error1;
+	}
 
 /* On Windows, a portable program has to use recv()/send() to
  * read/write sockets, since read()/write() typically only do
@@ -812,11 +814,6 @@ socket3_read_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from
 	}
 #endif
 	UPDATE_ERRNO;
-
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	if (0 <= nbytes && from != NULL)
-		from->sa.sa_len = socklen;
-#endif
 error1:
 	if (1 < socket3_debug)
 		syslog(LOG_DEBUG, "%ld = socket3_read_fd(%d, %lx, %ld, %lx)", nbytes, (int) fd, (unsigned long)buffer, (unsigned long)size, (unsigned long)from);
@@ -856,10 +853,13 @@ socket3_peek_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from
 	socklen_t socklen;
 	long nbytes = SOCKET_ERROR;
 
-	if (buffer == NULL || size <= 0)
-		goto error1;
-
 	errno = 0;
+
+	if (buffer == NULL || size <= 0) {
+		errno = EINVAL;
+		goto error1;
+	}
+
 	socklen = from == NULL ? 0 : sizeof (*from);
 	if (from == NULL) {
 		nbytes = recv(fd, buffer, size, MSG_PEEK);
@@ -867,10 +867,6 @@ socket3_peek_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from
 		socklen = socketAddressLength(from);
 		nbytes = recvfrom(fd, buffer, size, MSG_PEEK, (struct sockaddr *) from, &socklen);
 	}
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-	if (0 <= nbytes && from != NULL)
-		from->sa.sa_len = socklen;
-#endif
 error1:
 	if (1 < socket3_debug)
 		syslog(LOG_DEBUG, "%ld = socket3_peek_fd(%d, %lx, %ld, %lx)", nbytes, (int) fd, (unsigned long)buffer, (unsigned long)size, (unsigned long)from);
