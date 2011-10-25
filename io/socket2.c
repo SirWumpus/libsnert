@@ -920,8 +920,11 @@ socketReadLine2(Socket2 *s, char *line, long size, int keep_nl)
 
 	for (offset = 0; offset < size; ) {
 		if (s->readLength <= s->readOffset) {
-			if (!socket3_has_input(socketGetFd(s), s->readTimeout))
+			if (!socket3_has_input(socketGetFd(s), s->readTimeout)) {
+				if (0 < offset)
+					break;
 				return SOCKET_ERROR;
+			}
 			s->readLength = socket3_read(socketGetFd(s), s->readBuffer, sizeof (s->readBuffer)-1, NULL);
 			if (s->readLength < 0) {
 				if (IS_EAGAIN(errno) || errno == EINTR) {
@@ -935,6 +938,9 @@ socketReadLine2(Socket2 *s, char *line, long size, int keep_nl)
 				/* EOF with partial line read? */
 				if (0 < offset)
 					break;
+				if (1 < debug)
+					syslog(LOG_WARNING, "socketReadLine2() zero-length read errno=%d", errno);
+				errno = ENOTCONN;
 				return SOCKET_EOF;
 			}
 

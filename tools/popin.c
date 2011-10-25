@@ -260,8 +260,11 @@ socket3_read_line(SOCKET fd, Buf *readbuf, char *line, size_t size, long ms)
 
 	for (offset = 0; offset < size; ) {
 		if (readbuf->length <= readbuf->offset) {
-			if (!socket3_has_input(fd, ms))
+			if (!socket3_has_input(fd, ms)) {
+				if (0 < offset)
+					break;
 				return SOCKET_ERROR;
+			}
 			readbuf->length = socket3_read(fd, readbuf->bytes, readbuf->size-1, NULL);
 			if (readbuf->length < 0) {
 				if (IS_EAGAIN(errno) || errno == EINTR) {
@@ -275,6 +278,7 @@ socket3_read_line(SOCKET fd, Buf *readbuf, char *line, size_t size, long ms)
 				/* EOF with partial line read? */
 				if (0 < offset)
 					break;
+				errno = ENOTCONN;
 				return SOCKET_EOF;
 			}
 
