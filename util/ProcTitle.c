@@ -22,6 +22,9 @@ static char *arg_v_0;
 
 #if defined(__linux__)
 static size_t arg_size;
+# if !defined(FREE_ENIVRON)
+static char **env_old;
+# endif
 static char **env_array;
 #elif defined(__unix__)
 static char *arg_v_1;
@@ -92,6 +95,8 @@ ProcTitleInit(int argc, char **argv)
 
 # if defined(FREE_ENIVRON)
 	free(environ);
+# else
+	env_old = environ;
 # endif
 	environ = env_array;
 #elif defined(__unix__)
@@ -109,7 +114,10 @@ ProcTitleFini(void)
 {
 #if defined(__linux__)
 	free(arg_v_0);
-# if !defined(FREE_ENIVRON)
+# if defined(FREE_ENIVRON)
+/* Do not free the replacement environment as it is freed
+ * else where and probably before atexit().
+ */
 	free(env_array);
 # endif
 #endif
