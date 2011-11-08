@@ -297,6 +297,7 @@ com/snert/src/lib/include/util/html.h
 com/snert/src/lib/include/util/ixhash.h
 com/snert/src/lib/include/util/md4.h
 com/snert/src/lib/include/util/md5.h
+com/snert/src/lib/include/util/cipher.h
 com/snert/src/lib/include/util/playfair.h
 com/snert/src/lib/include/util/victor.h
 com/snert/src/lib/include/util/setBitWord.h

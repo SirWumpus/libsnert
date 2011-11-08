@@ -57,6 +57,58 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.3--
+
+   !	Some of the configuration script and makefile changes done in
+	1.75.2 dropped the -pthread compiler/linker flag in certain
+	cases. This is meant to assert that the entire library is built
+	thread safe, unless --without-pthread given.
+
+   !	Fixed socketReadLine2() to behave as before prior to the socket3
+	/ OpenSSL conversion. In particular assert that ENOTCONN is
+	returned for a read of zero (0) bytes; Linux and *BSD systems
+	set errno differently causing debug log confusion.
+
+   !	Fixed handshake and buffering issue in socket3_start_tls(),
+	socket3_end_tls(), socket3_peek_tls(), socket3_read_tls(), and
+	socket3_write_tls() to correctly handle SSL_ERROR_WANT_READ and
+	SSL_ERROR_WANT_WRITE conditions.
+
+   !	Changed socket3_wait() for with and without TLS support. In
+	particular when there is data waiting in the TLS read buffer.
+
+   +	Added handling of thread-id for OpenSSL version 0.9.8 or older.
+   	Also added OpenSSL dynamic lock call-backs for threads.
+
+   +	Added socket3_get_cipher_tls(), socket3_get_issuer_tls() and
+	socket3_get_subject_tls() to extract TLS and peer certificate
+	information for logging and/or testing.
+
+   +	Added socket3_get_error_tls() for better error logging by an
+	application, instead of being confined to the socket3 API layer.
+
+   +	Added default session-id-context for TLS renegotiation and
+	session caching. Also socket3_set_sess_id_ctx().
+
+   !	Minor correction to socket3_is_peer_ok() and socket3_is_cn_tls()
+	to assert that a peer certificate was given and passed
+	validation.
+
+   !	Fixed initialisation issues with socket3_init() and pdqInit()
+   	related to TLS changes.
+
+   !	Fixed two potential seg. faults in pdqEqual() and pdqGet()
+   	related to PDQ_QUERY records introduced in 1.75.0.
+
+   !	Fixed issues related to skipping of PDQ_QUERY records in
+   	pdqListFindName() and fix handling of MX 0 rule in pdqGet(),
+   	and pdq_create_rr().
+
+   !	Fixed spfCheck() memory leaks related to A, MX, and PTR checks
+   	and the handling of PDQ_QUERY records introduced in 1.75.0.
+
+   !	Fixed pdqGetMX(), pdqListPrune5A, and pdqListPruneMatch() in
+	correct handling of PDQ_QUERY records causing memory leaks.
 
 --1.75.2--
 
