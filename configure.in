@@ -185,15 +185,14 @@ SNERT_ANSI_TIME
 SNERT_PROCESS
 SNERT_POSIX_IO
 SNERT_POSIX_SIGNALS
+SNERT_POSIX_SEMAPHORES
 SNERT_TERMIOS
 SNERT_PTHREAD
-SNERT_FIND_LIBPTHREAD
 SNERT_OPENSSL
 SNERT_SQLITE3
 SNERT_LIBEV
 SNERT_LUA
 SNERT_BERKELEY_DB
-SNERT_POSIX_SEMAPHORES
 SNERT_SYSTEMV_SEMAPHORES
 SNERT_NETWORK
 SNERT_SYS
@@ -233,28 +232,6 @@ SNERT_CHECK_DEFINE(LOCK_SH, sys/file.h)
 if test $ac_cv_define_LOCK_SH = 'yes'; then
 	AC_DEFINE_UNQUOTED(HAVE_LOCK_SH)
 fi
-
-dnl #######################################################################
-dnl #	Fine resoluition clock
-dnl #######################################################################
-dnl
-dnl if test "$time_api" = 'UNKNOWN_API'; then
-dnl 	if test "$ac_cv_func_clock_gettime" = 'yes'; then
-dnl 		# Fine resoluition clock in nano-seconds (10^-9)
-dnl 		time_api='POSIX_API'
-dnl 	elif test "$ac_cv_func_gettimeofday" = 'yes'; then
-dnl 		# Fine resoluition clock in micro-seconds (10^-6)
-dnl 		time_api='BSD_API'
-dnl 	elif test "$ac_cv_func_time" = 'yes'; then
-dnl 		# Fine resoluition clock in seconds (10^1)
-dnl 		time_api='ANSI_API'
-dnl 	fi
-dnl fi
-dnl
-dnl AC_MSG_CHECKING([which fine resolution clock api to use])
-dnl AC_DEFINE_UNQUOTED(TIME_API, $time_api)
-dnl AC_SUBST(TIME_API, $time_api)
-dnl AC_MSG_RESULT($time_api)
 
 #######################################################################
 #	Determine avaliable Mutex APIs

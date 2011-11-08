@@ -142,7 +142,7 @@ ipinclient$E: ipinclient.c
 ipinclient$O : ipinclient.c
 	${CC} ${CFLAGS} -c ipinclient.c
 
-pdq$E : pdq.c
+pdq$E : ${top_srcdir}/io/socket3$O pdq.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}pdq$E pdq.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
 
 formatIP$E: formatIP.c
@@ -155,7 +155,7 @@ ${HDIR}/http.h : ${IDIR}/io/socket3.h ${IDIR}/pt/pt.h ${IDIR}/util/Buf.h \
 	${IDIR}/util/uri.h ${IDIR}/sys/Time.h
 
 http.c : ${IDIR}/util/convertDate.h ${IDIR}/util/time62.h ${IDIR}/util/Text.h \
-	${IDIR}/io/file.h ${HDIR}/http.h
+	${IDIR}/io/file.h ${top_srcdir}/io/socket3$O ${HDIR}/http.h
 
 geturl$E : ${LIB} http.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}geturl$E http.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}

@@ -145,7 +145,7 @@ lint: title
 
 strip: build
 
-install: build
+install: build-tools
 	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'

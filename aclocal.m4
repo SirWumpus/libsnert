@@ -469,13 +469,6 @@ main(int argc, char **argv)
 	AS_VAR_POPDEF([snert_lib])
 ])
 
-AC_DEFUN(SNERT_FIND_LIBPTHREAD,[
-	saved_libs="$LIBS"
-	LIBS="$LIBS $HAVE_LIB_PTHREAD"
-	SNERT_FIND_LIB([pthread],[AC_DEFINE_UNQUOTED(LIBPTHREAD_PATH, ["$snert_find_lib_pthread"])], [])
-	LIBS="$saved_libs"
-])
-
 AC_DEFUN(SNERT_FIND_LIBC,[
 	SNERT_FIND_LIB([c],[AC_DEFINE_UNQUOTED(LIBC_PATH, ["$snert_find_lib_c"])], [])
 dnl 	echo
@@ -633,7 +626,7 @@ if test ${with_milter:-default} != 'no' ; then
 
 	LIBS="$saved_libs"
 	CFLAGS="$saved_cflags"
-	LDFLAGS="$save_ldflags"
+	LDFLAGS="$saved_ldflags"
 fi
 ])
 
@@ -654,7 +647,7 @@ AC_DEFUN(SNERT_LIBSNERT,[
 		echo
 		ac_cv_lib_snert_parsePath='required'
 		CFLAGS=$saved_cflags
-		LDFLAGS=$save_ldflags
+		LDFLAGS=$saved_ldflags
 	fi
 	snert_libsnert=$ac_cv_lib_snert_parsePath
 
@@ -1117,13 +1110,12 @@ AC_DEFUN(SNERT_OPTION_WITH_PTHREAD,[
 	AC_ARG_WITH(pthread, [[  --with-pthread          include POSIX threads support]])
 ])
 AC_DEFUN(SNERT_PTHREAD,[
+AS_IF([test ${with_pthread:-default} != 'no'],[
 	echo
 	echo "Check for POSIX thread & mutex support..."
 	echo
-if test ${with_pthread:-yes} = 'no' ; then
-	ac_cv_func_pthread_create='disabled'
-	echo "POSIX thread support... disabled"
-elif test ${enable_win32:-no} = 'yes' ; then
+
+if test ${enable_win32:-no} = 'yes' ; then
 	ac_cv_func_pthread_create='limited'
 	echo "POSIX thread support... limited Windows native"
 else
@@ -1140,7 +1132,7 @@ else
 		case "$platform" in
 		FreeBSD|OpenBSD|NetBSD)
 			AC_DEFINE(_THREAD_SAFE)
-			CFLAGS_PTHREAD="-D_THREAD_SAFE -pthread ${CFLAGS_PTHREAD}"
+			CFLAGS_PTHREAD="-D_THREAD_SAFE ${CFLAGS_PTHREAD} -pthread"
 			LDFLAGS_PTHREAD="-pthread"
 			;;
 		*)
@@ -1201,11 +1193,14 @@ else
 			fi
 		])
 
-		LIBS="$saved_libs"
-		CFLAGS="$saved_cflags"
-		LDFLAGS="$saved_ldflags"
+		SNERT_FIND_LIB([pthread],[AC_DEFINE_UNQUOTED(LIBPTHREAD_PATH, ["$snert_find_lib_pthread"])], [])
+
+dnl		LIBS="$saved_libs"
+dnl		CFLAGS="$saved_cflags"
+dnl		LDFLAGS="$saved_ldflags"
 	])
 fi
+])
 ])
 
 dnl
@@ -1221,7 +1216,7 @@ AC_DEFUN(SNERT_POSIX_SEMAPHORES,[
 		saved_libs=$LIBS
 		LIBS=''
 
-		AC_SEARCH_LIBS([sem_init],[rt pthread],[AC_DEFINE_UNQUOTED(HAVE_LIB_SEM, "${ac_cv_search_sem_init}") AC_SUBST(HAVE_LIB_SEM, ${ac_cv_search_sem_init}) NETWORK_LIBS="${ac_cv_search_sem_init} $NETWORK_LIBS"])
+		AC_SEARCH_LIBS([sem_init],[rt],[AC_DEFINE_UNQUOTED(HAVE_LIB_SEM, "${ac_cv_search_sem_init}") AC_SUBST(HAVE_LIB_SEM, ${ac_cv_search_sem_init}) NETWORK_LIBS="${ac_cv_search_sem_init} $NETWORK_LIBS"])
 		AC_CHECK_TYPES([sem_t],[],[],[
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
@@ -1465,7 +1460,7 @@ AS_IF([test ${with_libev:-default} != 'no' -a ${with_libev:-default} != 'default
 
 	LIBS="$saved_libs"
 	CFLAGS="$saved_cflags"
-	LDFLAGS="$save_ldflags"
+	LDFLAGS="$saved_ldflags"
 ])
 ])
 
@@ -1510,7 +1505,7 @@ AS_IF([test ${with_lua:-default} != 'no'],[
 
 	LIBS="$saved_libs"
 	CFLAGS="$saved_cflags"
-	LDFLAGS="$save_ldflags"
+	LDFLAGS="$saved_ldflags"
 ])
 ])
 
@@ -1562,7 +1557,7 @@ AS_IF([test ${with_openssl:-default} != 'no'],[
 
 	LIBS="$saved_libs"
 	CFLAGS="$saved_cflags"
-	LDFLAGS="$save_ldflags"
+	LDFLAGS="$saved_ldflags"
 ])
 ])
 
@@ -1638,7 +1633,7 @@ dnl		AC_SUBST(HAVE_LIB_SQLITE3, "-lsqlite3")
 
 	LIBS=$saved_libs
 	CFLAGS=$saved_cflags
-	LDFLAGS=$save_ldflags
+	LDFLAGS=$saved_ldflags
 ])
 ])
 
@@ -1960,10 +1955,10 @@ AC_DEFUN(SNERT_BACKTRACE,[
 	echo
 	echo "Check for GNU backtrace support..."
 	echo
-	save_ldflags=$LDFLAGS
+	saved_ldflags=$LDFLAGS
 	LDFLAGS="-rdynamic ${LDFLAGS}"
 	AC_CHECK_FUNCS(backtrace backtrace_symbols backtrace_symbols_fd)
-	AS_IF([test $ac_cv_func_backtrace = 'no'],[LDFLAGS="${save_ldflags}"])
+	AS_IF([test $ac_cv_func_backtrace = 'no'],[LDFLAGS="${saved_ldflags}"])
 ])
 
 dnl
