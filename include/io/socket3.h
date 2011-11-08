@@ -136,21 +136,21 @@ extern int h_error;
 #ifndef SSL_DIR
 # if defined(__OpenBSD__)
 #  define SSL_DIR		"/etc/ssl"
-# else
+# elif defined(__NetBSD__)
 #  define SSL_DIR		"/etc/openssl"
 # endif
 #endif
 
-#ifndef CERT_DIR
-#define CERT_DIR		SSL_DIR "/certs"
-#endif
-
-#ifndef CA_CHAIN
-#define CA_CHAIN		SSL_DIR "/cert.pem"
-#endif
-
-#ifndef DH_PEM
-#define DH_PEM			SSL_DIR "/dh.pem"
+#ifdef SSL_DIR
+# ifndef CERT_DIR
+#  define CERT_DIR		SSL_DIR "/certs"
+# endif
+# ifndef CA_CHAIN
+#  define CA_CHAIN		SSL_DIR "/cert.pem"
+# endif
+# ifndef DH_PEM
+#  define DH_PEM		SSL_DIR "/dh.pem"
+# endif
 #endif
 
 /***********************************************************************
@@ -259,6 +259,39 @@ extern int socket3_start_tls(SOCKET fd, int is_server, long timeout);
  *	the socket open for further open communications.
  */
 extern int socket3_end_tls(SOCKET fd);
+
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @return
+ *	Zero (0) no peer certificate, 1 failed validation,
+ *	2 passed validation.
+ */
+extern int socket3_get_valid_tls(SOCKET fd);
+
+/**
+ */
+extern int socket3_get_cipher_tls(SOCKET fd, char *buffer, size_t size);
+
+#define SOCKET_CIPHER_STRING_SIZE	64
+
+/**
+ */
+extern int socket3_get_issuer_tls(SOCKET fd, char *buffer, size_t size);
+extern int socket3_get_subject_tls(SOCKET fd, char *buffer, size_t size);
+
+#define SOCKET_INFO_STRING_SIZE		256
+
+/**
+ */
+extern void socket3_get_error_tls(SOCKET fd, char *buffer, size_t size);
+
+#define SOCKET_ERROR_STRING_SIZE	128
+
+/**
+ */
+extern int socket3_set_sess_id_ctx(SOCKET fd, unsigned char *id, size_t length);
 
 /**
  * @param fd
@@ -626,6 +659,10 @@ extern int socket3_multicast_ttl(SOCKET fd, int ttl);
  *	Zero if the socket is ready; otherwise errno code.
  */
 extern int socket3_wait(SOCKET fd, long timeout, unsigned rw_flags);
+
+extern int socket3_wait_fd(SOCKET fd, long timeout, unsigned rw_flags);
+extern int socket3_wait_tls(SOCKET fd, long timeout, unsigned rw_flags);
+extern int (*socket3_wait_hook)(SOCKET fd, long timeout, unsigned rw_flags);
 
 #define SOCKET_WAIT_READ		0x1
 #define SOCKET_WAIT_WRITE		0x2

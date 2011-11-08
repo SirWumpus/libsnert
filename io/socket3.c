@@ -63,11 +63,18 @@ typedef union {
 int socket3_debug;
 static void **user_data;
 static size_t user_data_size;
+static int socket3_initialised = 0;
 
 void
 socket3_set_debug(int level)
 {
 	socket3_debug = level;
+}
+
+int
+socket3_is_init(void)
+{
+	return socket3_initialised;
 }
 
 /**
@@ -76,26 +83,52 @@ socket3_set_debug(int level)
 int
 socket3_init(void)
 {
-	int rc = 0;
-	static int initialised = 0;
+	if (!socket3_initialised) {
+#if defined(__WIN32__)
+		WORD version;
+		WSADATA wsaData;
 
-	if (!initialised && (rc = pdqInit()) == 0) {
+		version = MAKEWORD(2, 2);
+		if ((rc = WSAStartup(version, &wsaData)) != 0) {
+			syslog(LOG_ERR, "socket3_init: WSAStartup() failed: %d", rc);
+			return -1;
+		}
+
+		if (HIBYTE( wsaData.wVersion ) < 2 || LOBYTE( wsaData.wVersion ) < 2) {
+			syslog(LOG_ERR, "socket3_init: WinSock API must be version 2.2 or better.");
+			(void) WSACleanup();
+			return -1;
+		}
+
+		if (atexit((void (*)(void)) WSACleanup)) {
+			syslog(LOG_ERR, "socket3_init: atexit(WSACleanup) failed: %s", strerror(errno));
+			return -1;
+		}
+#endif
+		socket3_initialised++;
+
+		/* Note that pdqInit() calls socket3_init(). */
+ 		if (pdqInit())
+ 			return -1;
+
+		socket3_fini_hook = socket3_fini_fd;
+		socket3_peek_hook = socket3_peek_fd;
+		socket3_read_hook = socket3_read_fd;
+		socket3_wait_hook = socket3_wait_fd;
+		socket3_write_hook = socket3_write_fd;
+		socket3_close_hook = socket3_close_fd;
+		socket3_shutdown_hook = socket3_shutdown_fd;
+
 #if defined(HAVE_KQUEUE)
 		socket3_wait_fn = socket3_wait_kqueue;
-		if (0 < socket3_debug)
-			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_kqueue");
 #elif defined(HAVE_EPOLL_CREATE)
 		socket3_wait_fn = socket3_wait_epoll;
-		if (0 < socket3_debug)
-			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_epoll");
 #elif defined(HAVE_POLL)
 		socket3_wait_fn = socket3_wait_poll;
-		if (0 < socket3_debug)
-			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_poll");
 #elif defined(HAVE_SELECT)
 		socket3_wait_fn = socket3_wait_select;
-		if (0 < socket3_debug)
-			syslog(LOG_DEBUG, "socket3_wait_fn=socket3_wait_select");
+#else
+# error "No suitable socket3_wait() function."
 #endif
 #ifdef HAVE_SYS_RESOURCE_H
 {
@@ -106,17 +139,10 @@ socket3_init(void)
 		}
 }
 #endif
-		socket3_fini_hook = socket3_fini_fd;
-		socket3_peek_hook = socket3_peek_fd;
-		socket3_read_hook = socket3_read_fd;
-		socket3_write_hook = socket3_write_fd;
-		socket3_close_hook = socket3_close_fd;
-		socket3_shutdown_hook = socket3_shutdown_fd;
-
-		initialised = 1;
+		socket3_initialised++;
 	}
 
-	return rc;
+	return 0;
 }
 
 /**
@@ -125,13 +151,17 @@ socket3_init(void)
 void
 socket3_fini_fd(void)
 {
-	if (0 < socket3_debug)
-		syslog(LOG_DEBUG, "socket3_fini_fd()");
-	free(user_data);
-	pdqFini();
+	if (1 < socket3_initialised) {
+		socket3_initialised--;
+		if (0 < socket3_debug)
+			syslog(LOG_DEBUG, "socket3_fini_fd()");
+		free(user_data);
+		pdqFini();
+		socket3_initialised--;
+	}
 }
 
-void (*socket3_fini_hook)(void);
+void (*socket3_fini_hook)(void) = socket3_fini_fd;
 
 void
 socket3_fini(void)
@@ -606,14 +636,16 @@ socket3_close_fd(SOCKET fd)
 	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "socket3_close_fd(%d)", (int) fd);
 
-	socket3_shutdown(fd, SHUT_WR);
-	closesocket(fd);
+	if (fd != SOCKET_ERROR) {
+		socket3_shutdown(fd, SHUT_WR);
+		closesocket(fd);
+	}
 
 	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "closed fd=%d", (int) fd);
 }
 
-void (*socket3_close_hook)(SOCKET fd);
+void (*socket3_close_hook)(SOCKET fd) = socket3_close_fd;
 
 void
 socket3_close(SOCKET fd)
@@ -652,7 +684,7 @@ socket3_shutdown_fd(SOCKET fd, int shut)
 	return shutdown(fd, shut);
 }
 
-int (*socket3_shutdown_hook)(SOCKET fd, int shut);
+int (*socket3_shutdown_hook)(SOCKET fd, int shut) = socket3_shutdown_fd;
 
 int
 socket3_shutdown(SOCKET fd, int shut)
@@ -743,7 +775,7 @@ error1:
  	return offset;
 }
 
-long (*socket3_write_hook)(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to);
+long (*socket3_write_hook)(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to) = socket3_write_fd;
 
 long
 socket3_write(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
@@ -821,7 +853,7 @@ error1:
 	return nbytes;
 }
 
-long (*socket3_read_hook)(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from);
+long (*socket3_read_hook)(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from) = socket3_read_fd;
 
 long
 socket3_read(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
@@ -874,7 +906,7 @@ error1:
 	return nbytes;
 }
 
-long (*socket3_peek_hook)(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from);
+long (*socket3_peek_hook)(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from) = socket3_peek_fd;
 
 long
 socket3_peek(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
@@ -1164,23 +1196,28 @@ int (*socket3_wait_fn)(SOCKET, long, unsigned) = socket3_wait_select;
 #endif
 
 int
-socket3_wait(SOCKET fd, long ms, unsigned rw_flags)
+socket3_wait_fd(SOCKET fd, long ms, unsigned rw_flags)
 {
 	int rc;
 
-	if (socket3_wait_fn == NULL) {
-		errno = EIO;
-		return 0;
-	}
+	if (socket3_wait_fn == NULL)
+		return errno = EIO;
 
 	rc = (*socket3_wait_fn)(fd, ms, rw_flags);
 
-	if (0 < socket3_debug)
-		syslog(LOG_DEBUG, "socket3_wait(%d, %ld, 0x%X) rc=%d (%s)", (int) fd, ms, rw_flags, rc, strerror(rc));
+	if (1 < socket3_debug)
+		syslog(LOG_DEBUG, "%d = socket3_wait_fd(%d, %ld, 0x%X) (%s)", rc, (int) fd, ms, rw_flags, strerror(rc));
 
 	return rc;
 }
 
+int (*socket3_wait_hook)(SOCKET fd, long ms, unsigned rw_flags) = socket3_wait_fd;
+
+int
+socket3_wait(SOCKET fd, long ms, unsigned rw_flags)
+{
+	return (*socket3_wait_hook)(fd, ms, rw_flags);
+}
 
 typedef struct {
 	const char *name;
