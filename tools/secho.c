@@ -60,6 +60,15 @@
 #include <com/snert/lib/sys/sysexits.h>
 #include <com/snert/lib/util/Buf.h>
 #include <com/snert/lib/util/Text.h>
+#include <com/snert/lib/util/getopt.h>
+
+#ifndef CERT_DIR
+#define CERT_DIR		NULL
+#endif
+
+#ifndef CA_CHAIN
+#define CA_CHAIN		NULL
+#endif
 
 static int debug;
 static int running;
@@ -80,14 +89,13 @@ static const char log_io[] = "socket error %s(%d): %s (%d)";
 static const char log_internal[] = "%s(%d): %s (%d)";
 #define __F_L__			   __FILE__, __LINE__
 
+static char options[] = "vc:C:d:k:K:h:p:t:";
 static char usage[] =
 "usage: " _NAME " [-v][-c ca_pem][-C ca_dir][-d dh_pem][-k key_crt_pem][-K key_pass]\n"
 "             [-h host[:port]][-p port][-t seconds]\n"
 "\n"
-"-c ca_pem\tCertificate Authority root certificate chain file;\n"
-"\t\tdefault " CA_CHAIN "\n"
-"-C dir\t\tCertificate Authority root certificate directory;\n"
-"\t\tdefault " CERT_DIR "\n"
+"-c ca_pem\tCertificate Authority root certificate chain file\n"
+"-C dir\t\tCertificate Authority root certificate directory\n"
 "-h host[:port]\tECHO host and optional port to contact; default " ECHO_HOST "\n"
 "-k key_crt_pem\tprivate key and certificate chain file\n"
 "-K key_pass\tpassword for private key; default no password\n"
@@ -147,6 +155,7 @@ int
 echo_client(SOCKET fd)
 {
 	long length;
+	int wait_for_dot = 0;
 
 	switch (echo_port) {
 	case 25: case 110: case 143:
@@ -155,25 +164,31 @@ echo_client(SOCKET fd)
 	}
 
 	for (running = 1; running; ) {
-		if (fgets(line, sizeof (line), stdin) == NULL)
-			break;
-		length = (long) strlen(line);
+		do {
+			if (fgets(line, sizeof (line), stdin) == NULL)
+				break;
+			length = (long) strlen(line);
 
-		if (0 < TextInsensitiveStartsWith(line, "QUIT"))
-			break;
+			if (line[0] == '.' && (line[1] == '\n' || line[1] == '\r'))
+				wait_for_dot = 0;
 
-		if (socket3_write(fd, (unsigned char *)line, length, NULL) != length) {
-			syslog(LOG_ERR, "write error: %s (%d)", strerror(errno), errno);
-			return -1;
-		}
+			if (socket3_write(fd, (unsigned char *)line, length, NULL) != length) {
+				syslog(LOG_ERR, "write error: %s (%d)", strerror(errno), errno);
+				return -1;
+			}
+		} while (wait_for_dot);
 welcome_banner:
 		if (echo_read(fd) <= 0) {
 			syslog(LOG_ERR, "read error: %s (%d)", strerror(errno), errno);
 			break;
 		}
 
-		if (0 < TextInsensitiveStartsWith(line, "STLS")
-		||  0 < TextInsensitiveStartsWith(line, "STARTTLS")) {
+		if (0 < TextInsensitiveStartsWith(line, "QUIT"))
+			break;
+		else if (0 < TextInsensitiveStartsWith(line, "DATA"))
+			wait_for_dot = 1;
+		else if (0 < TextInsensitiveStartsWith(line, "STLS")
+		     ||  0 < TextInsensitiveStartsWith(line, "STARTTLS")) {
 			if (socket3_is_tls(fd)) {
 				syslog(LOG_WARNING, "TLS already started");
 				continue;
@@ -199,48 +214,36 @@ int argc;
 char **argv;
 {
 	SOCKET echo;
-	char *arg, *stop;
-	int argi, rc = EXIT_FAILURE;
+	int ch, rc = EXIT_FAILURE;
 
-	for (argi = 1; argi < argc; argi++) {
-		if (argv[argi][0] != '-' || (argv[argi][1] == '-' && argv[argi][2] == '\0'))
-			break;
-
-		switch (argv[argi][1]) {
+	while ((ch = getopt(argc, argv, options)) != -1) {
+		switch (ch) {
 		case 'c':
-			ca_chain = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			ca_chain = optarg;
 			break;
 		case 'C':
-			cert_dir = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			cert_dir = optarg;
 			break;
 		case 'k':
-			key_crt_pem = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			key_crt_pem = optarg;
 			break;
 		case 'K':
-			key_pass = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			key_pass = optarg;
 			break;
 		case 'h':
-			echo_host = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			echo_host = optarg;
 			break;
 		case 'p':
-			arg = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
-			if ((echo_port = strtol(arg, &stop, 10)) <= 0 || *stop != '\0') {
-				fprintf(stderr, "invalid ECHO port number\n%s", usage);
-				return EX_USAGE;
-			}
+			echo_port = strtol(optarg, NULL, 10);
 			break;
 		case 't':
-			arg = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
-			if ((socket_timeout = strtol(arg, &stop, 10)) <= 0 || *stop != '\0') {
-				fprintf(stderr, "invalid socket timeout value\n%s", usage);
-				return EX_USAGE;
-			}
+			socket_timeout = strtol(optarg, NULL, 10);
 			break;
 		case 'v':
 			debug++;
 			break;
 		default:
-			fprintf(stderr, "invalid option -%c\n%s", argv[argi][1], usage);
+			fprintf(stderr, usage);
 			return EX_USAGE;
 		}
 	}

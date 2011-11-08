@@ -24,10 +24,6 @@
 #define INPUT_LINE_SIZE		128
 #endif
 
-#ifndef KEY_CRT_PEM
-#define KEY_CRT_PEM		CERT_DIR "/" _NAME ".pem"
-#endif
-
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/
@@ -65,6 +61,18 @@
 #include <com/snert/lib/util/Buf.h>
 #include <com/snert/lib/util/Text.h>
 
+#ifndef CERT_DIR
+#define CERT_DIR		NULL
+#endif
+
+#ifndef CA_CHAIN
+#define CA_CHAIN		NULL
+#endif
+
+#ifndef KEY_CRT_PEM
+#define KEY_CRT_PEM		NULL
+#endif
+
 static int debug;
 static int running;
 static long echo_port = ECHO_PORT;
@@ -89,14 +97,11 @@ static char usage[] =
 "usage: " _NAME " [-v][-c ca_pem][-C ca_dir][-d dh_pem][-k key_crt_pem][-K key_pass]\n"
 "             [-h host[:port]][-p port][-t seconds]\n"
 "\n"
-"-c ca_pem\tCertificate Authority root certificate chain file;\n"
-"\t\tdefault " CA_CHAIN "\n"
-"-C dir\t\tCertificate Authority root certificate directory;\n"
-"\t\tdefault " CERT_DIR "\n"
+"-c ca_pem\tCertificate Authority root certificate chain file\n"
+"-C dir\t\tCertificate Authority root certificate directory\n"
 "-d dh_pem\tDiffie-Hellman parameter file\n"
 "-h host[:port]\tECHO host and optional port to contact; default " ECHO_HOST "\n"
-"-k key_crt_pem\tprivate key and certificate chain file;\n"
-"\t\tdefault " KEY_CRT_PEM "\n"
+"-k key_crt_pem\tprivate key and certificate chain file\n"
 "-K key_pass\tpassword for private key; default no password\n"
 "-p port\t\tECHO port to connect to; default " QUOTE(ECHO_PORT) "\n"
 "-t seconds\tsocket timeout in seconds; default " QUOTE(SOCKET_TIMEOUT) "\n"

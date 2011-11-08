@@ -64,6 +64,7 @@
 #include <com/snert/lib/util/Buf.h>
 #include <com/snert/lib/util/md5.h>
 #include <com/snert/lib/util/Text.h>
+#include <com/snert/lib/util/getopt.h>
 
 /***********************************************************************
  *** Constants
@@ -75,6 +76,14 @@
 
 #define NON_BLOCKING_WRITE
 #define NON_BLOCKING_READ
+
+#ifndef CERT_DIR
+#define CERT_DIR		NULL
+#endif
+
+#ifndef CA_CHAIN
+#define CA_CHAIN		NULL
+#endif
 
 /***********************************************************************
  *** Global Variables
@@ -106,6 +115,11 @@ static char line[INPUT_LINE_SIZE+1];
 static unsigned char data[INPUT_LINE_SIZE * 10];
 static Buf buffer = { NULL, data, sizeof (data), 0, 0 };
 
+#ifdef HAVE_OPENSSL_SSL_H
+static char options[] = "dlmrsuvxXc:C:h:p:t:";
+#else
+static char options[] = "dlmrsuvsh:p:t:";
+#endif
 
 static char usage[] =
 #ifdef HAVE_OPENSSL_SSL_H
@@ -117,10 +131,8 @@ static char usage[] =
 #endif
 "\n"
 #ifdef HAVE_OPENSSL_SSL_H
-"-c ca_pem\tCertificate Authority root certificate chain file;\n"
-"\t\tdefault " CA_CHAIN "\n"
-"-C dir\t\tCertificate Authority root certificate directory;\n"
-"\t\tdefault " CERT_DIR "\n"
+"-c ca_pem\tCertificate Authority root certificate chain file\n"
+"-C dir\t\tCertificate Authority root certificate directory\n"
 #endif
 "-d\t\tdelete specified messages; default is leave on server\n"
 "-l\t\tlist specified message sizes; default is all\n"
@@ -523,26 +535,28 @@ int
 main(int argc, char **argv)
 {
 	SOCKET pop;
-	char *arg, *stop;
 	long messages, octets;
 	SocketAddress *address;
-	int argi, offset, span, rc = EXIT_FAILURE;
+	int ch, offset, span, rc = EXIT_FAILURE;
 
 #if defined(__BORLANDC__) || defined(__CYGWIN__)
 	setmode(0, O_BINARY);
 	setmode(1, O_BINARY);
 #endif
-	for (argi = 1; argi < argc; argi++) {
-		if (argv[argi][0] != '-' || (argv[argi][1] == '-' && argv[argi][2] == '\0'))
-			break;
-
-		switch (argv[argi][1]) {
+	while ((ch = getopt(argc, argv, options)) != -1) {
+		switch (ch) {
 #ifdef HAVE_OPENSSL_SSL_H
 		case 'c':
-			ca_chain = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			ca_chain = optarg;
 			break;
 		case 'C':
-			cert_dir = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			cert_dir = optarg;
+			break;
+		case 'x':
+			require_tls++;
+			break;
+		case 'X':
+			check_certificate++;
 			break;
 #endif
 		case 'd':
@@ -564,41 +578,25 @@ main(int argc, char **argv)
 			cmdFlags |= CMD_UIDL;
 			break;
 		case 'h':
-			popHost = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			popHost = optarg;
 			break;
 		case 'p':
-			arg = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
-			if ((popPort = strtol(arg, &stop, 10)) <= 0 || *stop != '\0') {
-				fprintf(stderr, "invalid POP port number\n%s", usage);
-				return EXIT_USAGE;
-			}
+			popPort = strtol(optarg, NULL, 10);
 			break;
 		case 't':
-			arg = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
-			if ((socketTimeout = strtol(arg, &stop, 10)) <= 0 || *stop != '\0') {
-				fprintf(stderr, "invalid socket timeout value\n%s", usage);
-				return EXIT_USAGE;
-			}
+			socketTimeout = strtol(optarg, NULL, 10);
 			break;
 		case 'v':
 			LogSetProgramName(_NAME);
 			debug++;
 			break;
-#ifdef HAVE_OPENSSL_SSL_H
-		case 'x':
-			require_tls++;
-			break;
-		case 'X':
-			check_certificate++;
-			break;
-#endif
 		default:
-			fprintf(stderr, "invalid option -%c\n%s", argv[argi][1], usage);
+			fprintf(stderr, usage);
 			return EXIT_USAGE;
 		}
 	}
 
-	if (argc < argi + 2) {
+	if (argc < optind + 2) {
 		fprintf(stderr, "missing a user account and/or password\n%s", usage);
 		return EXIT_USAGE;
 	}
@@ -670,21 +668,21 @@ main(int argc, char **argv)
 	/* Look for timestamp in welcome banner. */
 	if ((offset = TextFind(line, "*<*@*>*", -1, 1)) == -1 ) {
 		/* Use USER/PASS clear text login. */
-		snprintf(line, sizeof (line), "USER %s\r\n", argv[argi]);
+		snprintf(line, sizeof (line), "USER %s\r\n", argv[optind]);
 		printline(pop, line);
 		if (getPopResponse(pop, line, sizeof (line))) {
-			syslog(LOG_ERR, "USER %s failed: %s", argv[argi], line);
+			syslog(LOG_ERR, "USER %s failed: %s", argv[optind], line);
 			goto error4;
 		}
-		argi++;
+		optind++;
 
-		snprintf(line, sizeof (line), "PASS %s\r\n", argv[argi]);
+		snprintf(line, sizeof (line), "PASS %s\r\n", argv[optind]);
 		printline(pop, line);
 		if (getPopResponse(pop, line, sizeof (line))) {
 			syslog(LOG_ERR, "PASS command failed: %s", line);
 			goto error4;
 		}
-		argi++;
+		optind++;
 	} else {
 		/* Use APOP login */
 		md5_state_t md5;
@@ -693,21 +691,21 @@ main(int argc, char **argv)
 		md5_init(&md5);
 		for (span = offset + strcspn(line+offset, ">")+1 ; offset < span; offset++)
 			md5_append(&md5, (md5_byte_t *) &line[offset], 1);
-		md5_append(&md5, (md5_byte_t *) argv[argi+1], strlen(argv[argi+1]));
+		md5_append(&md5, (md5_byte_t *) argv[optind+1], strlen(argv[optind+1]));
 		md5_finish(&md5, (md5_byte_t *) digest);
 
-		snprintf(line, sizeof (line), "APOP %s %n___32 ASCII hex digits of MD5___\r\n", argv[argi], &offset);
+		snprintf(line, sizeof (line), "APOP %s %n___32 ASCII hex digits of MD5___\r\n", argv[optind], &offset);
 		md5_digest_to_string(digest, line+offset);
 		line[offset+32] = '\r';
 		printline(pop, line);
 		if (getPopResponse(pop, line, sizeof (line))) {
-			syslog(LOG_ERR, "APOP %s failed: %s", argv[argi], line);
+			syslog(LOG_ERR, "APOP %s failed: %s", argv[optind], line);
 			goto error4;
 		}
-		argi += 2;
+		optind += 2;
 	}
 
-	syslog(LOG_INFO, "user %s logged in", argv[argi-2]);
+	syslog(LOG_INFO, "user %s logged in", argv[optind-2]);
 
 	if (popStatus(pop, &messages, &octets))
 		goto error4;
@@ -716,8 +714,8 @@ main(int argc, char **argv)
 		printf("%ld %ld\r\n", messages, octets);
 
 	if (cmdFlags & CMD_LIST) {
-		if (argi < argc) {
-			if (forEachArg(pop, argc, argv, argi, popList))
+		if (optind < argc) {
+			if (forEachArg(pop, argc, argv, optind, popList))
 				goto error4;
 		} else if (forEach(pop, 1, messages, popList)){
 			goto error4;
@@ -725,8 +723,8 @@ main(int argc, char **argv)
 	}
 
 	if (cmdFlags & CMD_UIDL) {
-		if (argi < argc) {
-			if (forEachArg(pop, argc, argv, argi, popUidl))
+		if (optind < argc) {
+			if (forEachArg(pop, argc, argv, optind, popUidl))
 				goto error4;
 		} else if (forEach(pop, 1, messages, popUidl)){
 			goto error4;
@@ -734,8 +732,8 @@ main(int argc, char **argv)
 	}
 
 	if (cmdFlags & CMD_READ) {
-		if (argi < argc) {
-			if (forEachArg(pop, argc, argv, argi, popRead))
+		if (optind < argc) {
+			if (forEachArg(pop, argc, argv, optind, popRead))
 				goto error4;
 		} else if (forEach(pop, 1, messages, popRead)){
 			goto error4;
@@ -743,8 +741,8 @@ main(int argc, char **argv)
 	}
 
 	if (cmdFlags & CMD_DELETE) {
-		if (argi < argc) {
-			if (forEachArg(pop, argc, argv, argi, popDelete))
+		if (optind < argc) {
+			if (forEachArg(pop, argc, argv, optind, popDelete))
 				goto error4;
 		} else if (forEach(pop, 1, messages, popDelete)){
 			goto error4;
@@ -757,7 +755,7 @@ main(int argc, char **argv)
 error4:
 	printline(pop, "QUIT\r\n");
 	rc = getPopResponse(pop, line, sizeof (line)) != 0;
-	syslog(LOG_INFO, "user %s logged out", argv[argi-2]);
+	syslog(LOG_INFO, "user %s logged out", argv[optind-2]);
 error3:
 	socket3_close(pop);
 error2:
