@@ -184,6 +184,7 @@ static int pdq_round_robin;
 static int pdq_source_port_randomise;
 static long servers_length;
 static SocketAddress *servers;
+static int pdq_initialised = 0;
 static unsigned pdq_max_timeout = PDQ_TIMEOUT_MAX;
 static unsigned pdq_initial_timeout = PDQ_TIMEOUT_START * 1000;
 static PDQ_rr *root_hints;
@@ -447,9 +448,7 @@ pdqDestroy(void *_record)
 
 	if (record != NULL) {
 		if (record->section != PDQ_SECTION_QUERY
-		&& (record->type == PDQ_TYPE_TXT || record->type == PDQ_TYPE_NULL)
-		&& ((PDQ_TXT *) record)->text.value != NULL
-		) {
+		&& (record->type == PDQ_TYPE_TXT || record->type == PDQ_TYPE_NULL)) {
 			free(((PDQ_TXT *) record)->text.value);
 		}
 		free(record);
@@ -597,6 +596,16 @@ pdqEqual(PDQ_rr *a, PDQ_rr *b)
 	if (TextInsensitiveCompare(a->name.string.value, b->name.string.value) != 0)
 		return 0;
 
+	if (a->section == PDQ_SECTION_QUERY && b->section == PDQ_SECTION_QUERY)
+		return 1;
+
+	/* Query records do not have any data related to type,
+	 * which means comparisons between a query record and
+	 * a reply for that query could cause a seg. fault.
+	 */
+	if (a->section == PDQ_SECTION_QUERY || b->section == PDQ_SECTION_QUERY)
+		return 0;
+
 	switch (a->type) {
 	case PDQ_TYPE_A:
 	case PDQ_TYPE_AAAA:
@@ -663,6 +672,7 @@ pdq_create_rr(PDQ_class class, PDQ_type type, const char *host)
 		syslog(LOG_ERR, "%s(%d) name=%s: %s (%d)", __FILE__, __LINE__, host, strerror(errno), errno);
 	} else {
 		pdqSetName(&record->name, host);
+		record->section = PDQ_SECTION_ANSWER;
 		record->class = class;
 		record->next = NULL;
 		record->ttl = 0;
@@ -838,14 +848,13 @@ pdqListPrune5A(PDQ_rr *list, is_ip_t is_ip_mask, int must_have_ip)
 	for (rr = list; rr != NULL; rr = next) {
 		next = rr->next;
 
-		if (rr->section == PDQ_SECTION_QUERY)
-			continue;
-
-		if ((rr->type == PDQ_TYPE_A || rr->type == PDQ_TYPE_AAAA)
-		&& isReservedIPv6(((PDQ_AAAA *) rr)->address.ip.value, is_ip_mask)) {
-			*prev = rr->next;
-			pdqDestroy(rr);
-			continue;
+		if (rr->section != PDQ_SECTION_QUERY) {
+			if ((rr->type == PDQ_TYPE_A || rr->type == PDQ_TYPE_AAAA)
+			&& isReservedIPv6(((PDQ_AAAA *) rr)->address.ip.value, is_ip_mask)) {
+				*prev = rr->next;
+				pdqDestroy(rr);
+				continue;
+			}
 		}
 
 		prev = &rr->next;
@@ -950,20 +959,22 @@ pdqListPruneMatch(PDQ_rr *list)
 	for (rr = list; rr != NULL; rr = next) {
 		next = rr->next;
 
-		/* Discard records we can't use (NXDOMAIN, CNAME, DNAME). */
-		if (rr->type == PDQ_TYPE_CNAME || rr->type == PDQ_TYPE_DNAME) {
-			*prev = rr->next;
-			pdqDestroy(rr);
-			continue;
-		}
-
-		/* Discard MX records without matching A/AAAA records. */
-		if (rr->type == PDQ_TYPE_MX || rr->type == PDQ_TYPE_NS || rr->type == PDQ_TYPE_SOA) {
-			ar = pdqListFindName(list, rr->class, PDQ_TYPE_5A, ((PDQ_MX *) rr)->host.string.value);
-			if (PDQ_RR_IS_NOT_VALID(ar)) {
+		if (rr->section != PDQ_SECTION_QUERY) {
+			/* Discard records we can't use (NXDOMAIN, CNAME, DNAME). */
+			if (rr->type == PDQ_TYPE_CNAME || rr->type == PDQ_TYPE_DNAME) {
 				*prev = rr->next;
 				pdqDestroy(rr);
 				continue;
+			}
+
+			/* Discard MX records without matching A/AAAA records. */
+			if (rr->type == PDQ_TYPE_MX || rr->type == PDQ_TYPE_NS || rr->type == PDQ_TYPE_SOA) {
+				ar = pdqListFindName(list, rr->class, PDQ_TYPE_5A, ((PDQ_MX *) rr)->host.string.value);
+				if (PDQ_RR_IS_NOT_VALID(ar)) {
+					*prev = rr->next;
+					pdqDestroy(rr);
+					continue;
+				}
 			}
 		}
 
@@ -1149,6 +1160,9 @@ pdqListFindName(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *name)
 
 	for (start = name, rr = list; rr != NULL; rr = next) {
 		next = rr->next;
+
+		if (rr->section == PDQ_SECTION_QUERY)
+			continue;
 
 		length = TextInsensitiveStartsWith(rr->name.string.value, name);
 
@@ -1445,7 +1459,7 @@ pdqDump(FILE *fp, PDQ_rr *record)
 	(void) fprintf(fp, PDQ_LOG_FMT_END, PDQ_LOG_ARG_END(record));
 
 	if (record->section == PDQ_SECTION_QUERY)
-		(void) fprintf(fp, " rcode=%s", pdqRcodeName(((PDQ_QUERY *)record)->rcode));
+		(void) fprintf(fp, " rcode=%s (%d)", pdqRcodeName(((PDQ_QUERY *)record)->rcode), ((PDQ_QUERY *)record)->rcode);
 
 	(void) fputc('\n', fp);
 }
@@ -3349,7 +3363,7 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 
 	answer = (PDQ_QUERY *) pdqWaitAll(pdq);
 
-	if (type == PDQ_TYPE_MX && pdqListFind(answer->rr.next, PDQ_CLASS_ANY, PDQ_TYPE_MX, NULL) == NULL) {
+	if (type == PDQ_TYPE_MX && pdqListFind((PDQ_rr *)answer, PDQ_CLASS_ANY, PDQ_TYPE_MX, NULL) == NULL) {
 		/* When there is no MX found, apply the implicit MX 0 rule. */
 		pdqListFree(answer->rr.next);
 
@@ -3654,7 +3668,7 @@ pdqGetMX(PDQ *pdq, PDQ_class class, const char *name, is_ip_t is_ip_mask)
 	/* Did we get a result we can use and is it a valid domain? */
 	if (list != NULL && ((PDQ_QUERY *) list)->rcode == PDQ_RCODE_OK) {
 		/* Remove impossible to reach MX and A/AAAA records. */
-		list = pdqListPrune(list->next, is_ip_mask);
+		list = pdqListPrune(list, is_ip_mask);
 	}
 
 	if (0 < debug)
@@ -4176,66 +4190,45 @@ pdqSetServers(Vector name_servers)
 int
 pdqInit(void)
 {
-	int rc = -1;
+	int rc = 0;
 	Vector name_servers;
 
-#if defined(__WIN32__)
-{
-	static int SocketSupportLoaded = 0;
+	if (!pdq_initialised) {
+		pdq_initialised++;
 
-	if (!SocketSupportLoaded) {
-		int rc;
-		WORD version;
-		WSADATA wsaData;
+		/* Note that socket3_init() calls pdqInit(). */
+		socket3_init();
 
-		version = MAKEWORD(2, 2);
-		if ((rc = WSAStartup(version, &wsaData)) != 0) {
-			syslog(LOG_ERR, "DnsInit: WSAStartup() failed: %d", rc);
-			goto error0;
+		/* Get the list of name server addresses. */
+		name_servers = pdq_get_name_servers(NULL);
+		if (name_servers == NULL) {
+			if ((name_servers = VectorCreate(1)) == NULL)
+				return -1;
+			VectorSetDestroyEntry(name_servers, free);
+			VectorAdd(name_servers, strdup("0.0.0.0"));
 		}
 
-		if (HIBYTE( wsaData.wVersion ) < 2 || LOBYTE( wsaData.wVersion ) < 2) {
-			syslog(LOG_ERR, "DnsInit: WinSock API must be version 2.2 or better.");
-			(void) WSACleanup();
-			goto error0;
-		}
+		rc = pdqSetServers(name_servers);
+		VectorDestroy(name_servers);
 
-		if (atexit((void (*)(void)) WSACleanup)) {
-			syslog(LOG_ERR, "DnsInit: atexit(WSACleanup) failed: %s", strerror(errno));
-			goto error0;
-		}
+		/* Fetch a copy of the current root servers. */
+		pdqSetRoundRobin(1);
+		pdqSetShortQuery(1);
+		if (0 < debug)
+			syslog(LOG_DEBUG, "fetch root_hints...");
+		root_hints = pdqFetch(PDQ_CLASS_IN, PDQ_TYPE_NS, ".", NULL);
+		if (0 < debug)
+			syslog(LOG_DEBUG, "prune root_hints...");
+		root_hints = pdqListKeepType(root_hints, PDQ_KEEP_NS|PDQ_KEEP_5A);
+		root_hints = pdqListPrune(root_hints, IS_IP_RESTRICTED|IS_IP_LAN);
+		if (0 < debug)
+			pdqListLog(root_hints);
+		pdqSetRoundRobin(0);
+		pdqSetShortQuery(0);
 
-		SocketSupportLoaded = 1;
-	}
-}
-#endif
-	/* Get the list of name server addresses. */
-	name_servers = pdq_get_name_servers(NULL);
-	if (name_servers == NULL) {
-		if ((name_servers = VectorCreate(1)) == NULL)
-			goto error0;
-		VectorSetDestroyEntry(name_servers, free);
-		VectorAdd(name_servers, strdup("0.0.0.0"));
+		pdq_initialised++;
 	}
 
-	rc = pdqSetServers(name_servers);
-	VectorDestroy(name_servers);
-
-	/* Fetch a copy of the current root servers. */
-	pdqSetRoundRobin(1);
-	pdqSetShortQuery(1);
-	if (0 < debug)
-		syslog(LOG_DEBUG, "fetch root_hints...");
-	root_hints = pdqFetch(PDQ_CLASS_IN, PDQ_TYPE_NS, ".", NULL);
-	if (0 < debug)
-		syslog(LOG_DEBUG, "prune root_hints...");
-	root_hints = pdqListKeepType(root_hints, PDQ_KEEP_NS|PDQ_KEEP_5A);
-	root_hints = pdqListPrune(root_hints, IS_IP_RESTRICTED|IS_IP_LAN);
-	if (0 < debug)
-		pdqListLog(root_hints);
-	pdqSetRoundRobin(0);
-	pdqSetShortQuery(0);
-error0:
 	return rc;
 }
 
@@ -4245,12 +4238,17 @@ error0:
 void
 pdqFini(void)
 {
-	if (root_hints != NULL) {
-		pdqListFree(root_hints);
-		root_hints = NULL;
+	if (1 < pdq_initialised) {
+		pdq_initialised--;
+		socket3_fini();
+		if (root_hints != NULL) {
+			pdqListFree(root_hints);
+			root_hints = NULL;
+		}
+		free(servers);
+		servers = NULL;
+		pdq_initialised--;
 	}
-	free(servers);
-	servers = NULL;
 }
 
 /**
@@ -4555,7 +4553,6 @@ main(int argc, char **argv)
 	pdqListDump(stdout, answers);
 	pdqListFree(answers);
 	pdqClose(pdq);
-	pdqFini();
 
 	if (suffix_list != NULL)
 		VectorDestroy(suffix_list);

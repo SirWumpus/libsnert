@@ -617,7 +617,6 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 					qualifier = SPF_TEMP_ERROR;
 					goto error5;
 				}
-				list = list->next;
 			}
 
 			if (spfMatchIp(ctx->ipv6, list, cidr))
@@ -655,14 +654,18 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 
 			if (list->section == PDQ_SECTION_QUERY) {
 				if (((PDQ_QUERY *)list)->rcode != PDQ_RCODE_OK) {
-					if (((PDQ_QUERY *)list)->rcode == PDQ_RCODE_UNDEFINED || !spfTempErrorDns.value)
+					if (((PDQ_QUERY *)list)->rcode == PDQ_RCODE_UNDEFINED)
 						continue;
+
+					if (!spfTempErrorDns.value) {
+						ctx->temp_error = 1;
+						continue;
+					}
 
 					err = pdqRcodeName(((PDQ_QUERY *)list)->rcode);
 					qualifier = SPF_TEMP_ERROR;
 					goto error5;
 				}
-				list = list->next;
 			}
 
 			if (spfMatchIp(ctx->ipv6, list, cidr))
@@ -704,7 +707,6 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 					qualifier = SPF_TEMP_ERROR;
 					goto error5;
 				}
-				list = list->next;
 			}
 
 			cidr = cidr6;
@@ -713,7 +715,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				int match;
 				PDQ_rr *alist, *ar;
 
-				if (rr->type != PDQ_TYPE_PTR)
+				if (rr->section == PDQ_SECTION_QUERY || rr->type != PDQ_TYPE_PTR)
 					continue;
 
 				if ((alist = pdqGet5A(pdq, PDQ_CLASS_IN, ((PDQ_PTR *) rr)->host.string.value)) == NULL)
