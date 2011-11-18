@@ -960,6 +960,9 @@ mccStartUnicast(const char **unicast_ips, int port)
 		}
 	}
 
+	/* Assert the array is NULL terminated. */
+	cache.unicast_ip[j] = NULL;
+
 	if (count <= 0 || cache.unicast_ip[0] == NULL) {
 		syslog(LOG_ERR, "empty unicast address list");
 		goto error1;
