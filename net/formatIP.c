@@ -53,6 +53,7 @@ formatIP(unsigned char *ip, int ip_length, int compact, char *buffer, long size)
 	int i, z;
 	long length;
 	unsigned word;
+	const char *word_fmt;
 
 	if (ip == NULL || buffer == NULL) {
 		errno = EFAULT;
@@ -66,6 +67,7 @@ formatIP(unsigned char *ip, int ip_length, int compact, char *buffer, long size)
 		return 0;
 
 	length = 0;
+	word_fmt = compact == 2 ? "%04x:" : "%x:";
 
 	z = 0;
 	for (i = 0; i < IPV6_BYTE_LENGTH; i += 2) {
@@ -75,7 +77,7 @@ formatIP(unsigned char *ip, int ip_length, int compact, char *buffer, long size)
 		if (word == 0 && (i >> 1) == z)
 			z++;
 
-		if (compact && word == 0) {
+		if (compact == 1 && word == 0) {
 			compact = 0;
 			length += snprintf(buffer+length, size-length, 0 < i ? ":" : "::");
 
@@ -94,7 +96,7 @@ formatIP(unsigned char *ip, int ip_length, int compact, char *buffer, long size)
 		if (z == 6 && i == 12)
 			break;
 
-		length += snprintf(buffer+length, size-length, "%x:", word);
+		length += snprintf(buffer+length, size-length, word_fmt, word);
 
 		/* IPv4-mapped-IPv6  == 0:0:0:0:0:ffff:123.45.67.89 */
 		if (z == 5 && i == 10 && word == 0xFFFF)
@@ -237,9 +239,9 @@ main(int argc, char **argv)
 		if (length == 0)
 			printf("%s does not parse\n", argv[argi]);
 		else {
-			printf("%s ", argv[argi]);
+			printf("%s\t", argv[argi]);
 			formatIP(ipv6, sizeof (ipv6), 0, string, sizeof (string));
-			printf("long=%s ", string);
+			printf("full=%s\t", string);
 			formatIP(ipv6, sizeof (ipv6), 1, string, sizeof (string));
 			printf("compact=%s\n", string);
 		}
