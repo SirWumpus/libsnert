@@ -3422,7 +3422,8 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 	}
 
 	/* Make sure we have all the associated A / AAAA records. */
-	if (answer != NULL && !pdq->short_query && (type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA)) {
+	if (answer != NULL && answer->rcode == PDQ_RCODE_OK && !pdq->short_query
+	&& (type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA)) {
 		if (debug)
 			syslog(LOG_DEBUG, "pdqGet() related A/AAAA records...");
 		for (rr = answer->rr.next; rr != NULL; rr = rr->next) {
