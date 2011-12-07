@@ -64,8 +64,6 @@ AC_ARG_ENABLE(access-tagless,
 	]
 )
 
-SNERT_OPTION_ENABLE_BCC32
-
 AC_ARG_ENABLE(cache-db-185,
 	[AC_HELP_STRING([--enable-cache-db-185],[try cache with Berkeley DB 1.85 (unsupported)])],
 	[AC_DEFINE_UNQUOTED(IGNORE_CORRUPT_CACHE_ISSUE_WITH_DB_185)]
@@ -82,11 +80,6 @@ SNERT_OPTION_ENABLE_FORK
 SNERT_OPTION_ENABLE_FCNTL_LOCKS
 SNERT_OPTION_ENABLE_MINGW
 SNERT_OPTION_ENABLE_POPAUTH
-
-dnl AC_ARG_ENABLE(pdq-fd-per-ns,
-dnl	[AC_HELP_STRING([--enable-pdq-fd-per-ns],[enable one file descriptor per NS server in PDQ API])],
-dnl	[AC_DEFINE_UNQUOTED(ENABLE_PDQ_FD_PER_NS)]
-dnl )
 
 #######################################################################
 #	Configuration options: packages
@@ -105,59 +98,45 @@ SNERT_OPTION_WITH_WINDOWS_SDK
 AC_ARG_WITH(mutex,
 	[AC_HELP_STRING([--with-mutex=API],[where API is fcntl, flock, posix, systemv, win32])], [
 		if test "$withval" = "fcntl"; then
-			semaphore_api='FCNTL_API'
+			with_mutex='FCNTL_API'
 		elif test "$withval" = "flock"; then
-			semaphore_api='FLOCK_API'
+			with_mutex='FLOCK_API'
 		elif test "$withval" = "posix"; then
-			semaphore_api='POSIX_API'
+			with_mutex='POSIX_API'
 		elif test "$withval" = "systemv"; then
-			semaphore_api='SYSTEMV_API'
+			with_mutex='SYSTEMV_API'
 		elif test "$withval" = "win32"; then
-			semaphore_api='WIN32_API'
+			with_mutex='WIN32_API'
 		else
-			semaphore_api='UNKNOWN_API'
+			with_mutex='UNKNOWN_API'
 		fi
 	],[
-		semaphore_api='UNKNOWN_API'
+		with_mutex='UNKNOWN_API'
 	]
 )
 
 AC_ARG_WITH(shar-mem,
 	[AC_HELP_STRING([--with-shar-mem=API],[where API is malloc, mmap-anon, posix, systemv, squeeze])], [
 		if test "$withval" = "malloc"; then
-			shared_memory_api='MALLOC_API'
+			with_shar_mem='MALLOC_API'
 		elif test "$withval" = "mmap-anon"; then
-			shared_memory_api='MMAP_ANON'
+			with_shar_mem='MMAP_ANON'
 		elif test "$withval" = "posix"; then
-			shared_memory_api='POSIX_API'
+			with_shar_mem='POSIX_API'
 		elif test "$withval" = "systemv"; then
-			shared_memory_api='SYSTEMV_API'
+			with_shar_mem='SYSTEMV_API'
 		elif test "$withval" = "squeeze"; then
 			echo
 			echo "Oi! Don't squeeze the shar-mem! :>"
 			echo
-			shared_memory_api='UNKNOWN_API'
+			with_shar_mem='UNKNOWN_API'
 		else
-			shared_memory_api='UNKNOWN_API'
+			with_shar_mem='UNKNOWN_API'
 		fi
 	],[
-		shared_memory_api='UNKNOWN_API'
+		with_shar_mem='UNKNOWN_API'
 	]
 )
-
-dnl AC_ARG_WITH(time,
-dnl 	[AC_HELP_STRING([--with-time=API],[where API is ansi, bsd, posix])], [
-dnl 		if test "$withval" = "posix"; then
-dnl 			time_api='POSIX_API'
-dnl 		elif test "$withval" = "bsd"; then
-dnl 			time_api='BSD_API'
-dnl 		else
-dnl 			time_api='ANSI_API'
-dnl 		fi
-dnl 	],[
-dnl 		time_api='UNKNOWN_API'
-dnl 	]
-dnl )
 
 #######################################################################
 #	Check for programs
@@ -251,42 +230,29 @@ fi
 
 AC_MSG_CHECKING([which mutex api to use])
 
-if test "$semaphore_api" = 'UNKNOWN_API'; then
-	# Prefers SystemV before POSIX
-	if test "$platform" = 'Linux' -o "$platform" = 'FreeBSD' -o "$platform" = 'OpenBSD' -o "$platform" = 'NetBSD'; then
-		if test $snert_systemv_semaphores = 'yes'; then
-			semaphore_api='SYSTEMV_API'
-		elif test $snert_posix_semaphores = 'yes'; then
-			semaphore_api='POSIX_API'
-		elif test $has_mutex_fcntl_api = 'yes'; then
-			semaphore_api='FCNTL_API'
-		elif test $has_mutex_flock_api = 'yes'; then
-			semaphore_api='FLOCK_API'
-		fi
-	fi
-
+if test "$with_mutex" = 'UNKNOWN_API'; then
 	# Out in left field...
 	if test "$ac_cv_define___WIN32__" = 'yes'; then
-		semaphore_api='WIN32_API'
+		with_mutex='WIN32_API'
 	fi
 
 	# When unknown, prefer POSIX standard over SystemV.
-	if test "$semaphore_api" = 'UNKNOWN_API'; then
-		if test $snert_posix_semaphores = 'yes'; then
-			semaphore_api='POSIX_API'
+	if test "$with_mutex" = 'UNKNOWN_API'; then
+		if test ${ac_cv_func_sem_init:-no} = 'yes'; then
+			with_mutex='POSIX_API'
 		elif test $snert_systemv_semaphores = 'yes'; then
-			semaphore_api='SYSTEMV_API'
+			with_mutex='SYSTEMV_API'
 		elif test $has_mutex_fcntl_api = 'yes'; then
-			semaphore_api='FCNTL_API'
+			with_mutex='FCNTL_API'
 		elif test $has_mutex_flock_api = 'yes'; then
-			semaphore_api='FLOCK_API'
+			with_mutex='FLOCK_API'
 		fi
 	fi
 fi
 
-AC_DEFINE_UNQUOTED(SERIALIZATION_API, $semaphore_api)
-AC_SUBST(SERIALIZATION_API, "$semaphore_api")
-AC_MSG_RESULT($semaphore_api)
+AC_DEFINE_UNQUOTED(SERIALIZATION_API, $with_mutex)
+AC_SUBST(SERIALIZATION_API, "$with_mutex")
+AC_MSG_RESULT($with_mutex)
 
 #######################################################################
 #	Determine avaliable Shared Memory APIs
@@ -316,63 +282,52 @@ fi
 dnl Shared memory API
 dnl APR_CHECK_FILE(/dev/zero)
 dnl
-dnl if test $shared_memory_api = 'UNKNOWN_API'; then
-dnl 	shared_memory_api='POSIX_API'
+dnl if test $with_shar_mem = 'UNKNOWN_API'; then
+dnl 	with_shar_mem='POSIX_API'
 dnl 	SNERT_CHECK_DEFINE(MMAP_ANON, sys/mman.h)
-dnl 	AC_CHECK_FUNCS([mmap munmap], [], [shared_memory_api='UNKNOWN_API'])
+dnl 	AC_CHECK_FUNCS([mmap munmap], [], [with_shar_mem='UNKNOWN_API'])
 dnl
-dnl 	if test $shared_memory_api = 'POSIX_API'; then
+dnl 	if test $with_shar_mem = 'POSIX_API'; then
 dnl 		if test $ac_cv_define_MMAP_ANON = yes; then
-dnl 			shared_memory_api='MMAP_ANON'
+dnl 			with_shar_mem='MMAP_ANON'
 dnl 		elif test $ac_cv_file__dev_zero = no; then
-dnl 			shared_memory_api='UNKNOWN_API'
+dnl 			with_shar_mem='UNKNOWN_API'
 dnl 		fi
 dnl 	fi
 dnl fi
-dnl if test $shared_memory_api = 'UNKNOWN_API'; then
-dnl 	shared_memory_api='SYSTEMV_API'
-dnl 	AC_CHECK_FUNCS([shmget shmat shmctl shmdt], [], [shared_memory_api='UNKNOWN_API'])
+dnl if test $with_shar_mem = 'UNKNOWN_API'; then
+dnl 	with_shar_mem='SYSTEMV_API'
+dnl 	AC_CHECK_FUNCS([shmget shmat shmctl shmdt], [], [with_shar_mem='UNKNOWN_API'])
 dnl fi
-dnl if test $shared_memory_api = 'UNKNOWN_API'; then
+dnl if test $with_shar_mem = 'UNKNOWN_API'; then
 dnl 	if test $ac_cv_header_windows_h = yes; then
-dnl 		shared_memory_api='MALLOC_API'
+dnl 		with_shar_mem='MALLOC_API'
 dnl 	fi
 dnl fi
 
 AC_MSG_CHECKING([which shared memory api to use])
 
-if test "$shared_memory_api" = 'UNKNOWN_API'; then
-	# Prefers SystemV before POSIX
-	if test "$platform" = 'Linux' -o "$platform" = 'FreeBSD' -o "$platform" = 'OpenBSD' -o "$platform" = 'NetBSD'; then
-		if test "$has_shm_systemv_api" = 'yes'; then
-			shared_memory_api='SYSTEMV_API'
-		elif test "$has_shm_mmap_api" = 'anon'; then
-			shared_memory_api='MMAP_ANON'
-		elif test "$has_shm_mmap_api" = 'yes'; then
-			shared_memory_api='POSIX_API'
-		fi
-	fi
-
+if test "$with_shar_mem" = 'UNKNOWN_API'; then
 	# Out in right field...
 	if test "$ac_cv_define___WIN32__" = 'yes'; then
-		shared_memory_api='WIN32_API'
+		with_shar_mem='WIN32_API'
 	fi
 
 	# When unknown, prefer POSIX standard over others.
-	if test "$shared_memory_api" = 'UNKNOWN_API'; then
+	if test "$with_shar_mem" = 'UNKNOWN_API'; then
 		if test "$has_shm_mmap_api" = 'yes'; then
-			shared_memory_api='POSIX_API'
+			with_shar_mem='POSIX_API'
 		elif test "$has_shm_mmap_api" = 'anon'; then
-			shared_memory_api='MMAP_ANON'
+			with_shar_mem='MMAP_ANON'
 		elif test "$has_shm_systemv_api" = 'yes'; then
-			shared_memory_api='SYSTEMV_API'
+			with_shar_mem='SYSTEMV_API'
 		fi
 	fi
 fi
 
-AC_DEFINE_UNQUOTED(SHARED_MEMORY_API, $shared_memory_api)
-AC_SUBST(SHARED_MEMORY_API, "$shared_memory_api")
-AC_MSG_RESULT($shared_memory_api)
+AC_DEFINE_UNQUOTED(SHARED_MEMORY_API, $with_shar_mem)
+AC_SUBST(SHARED_MEMORY_API, "$with_shar_mem")
+AC_MSG_RESULT($with_shar_mem)
 
 #######################################################################
 #	Generate output.
@@ -398,8 +353,8 @@ AC_MSG_RESULT([  POSIX Semaphores....: "" "" "$HAVE_LIB_SEM"])
 AC_MSG_RESULT([  POSIX Threads.......: "$CFLAGS_PTHREAD" "$LDFLAGS_PTHREAD" "$HAVE_LIB_PTHREAD"])
 AC_MSG_RESULT([  Sendmail libmilter..: "$CFLAGS_MILTER" "$LDFLAGS_MILTER" "$HAVE_LIB_MILTER"])
 AC_MSG_RESULT([  SQLite3.............: "$CFLAGS_SQLITE3" "$LDFLAGS_SQLITE3" "$HAVE_LIB_SQLITE3"])
-AC_MSG_RESULT([  Semaphore API.......: $semaphore_api])
-AC_MSG_RESULT([  Shared Memory API...: $shared_memory_api])
+AC_MSG_RESULT([  Semaphore API.......: $with_mutex])
+AC_MSG_RESULT([  Shared Memory API...: $with_shar_mem])
 AC_MSG_RESULT([  CFLAGS..............: $CFLAGS])
 AC_MSG_RESULT([  LDFLAGS.............: $LDFLAGS])
 AC_MSG_RESULT([  LIBS................: $LIBS])

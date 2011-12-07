@@ -26,13 +26,19 @@ dnl
 dnl SNERT_GCC_SETTINGS
 dnl
 m4_define([SNERT_GCC_SETTINGS],[
-	CFLAGS="-Wall -Wno-char-subscripts ${CFLAGS}"
-	if test ${enable_debug:-no} = 'no'; then
+	AS_IF([test $GCC = 'yes'],[
+		GCC_MAJOR=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC__ \(.*\)/\1/p'`
+		GCC_MINOR=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC_MINOR__ \(.*\)/\1/p'`
+		AS_IF([test $GCC_MAJOR -ge 4],[CFLAGS="-Wno-pointer-sign $CFLAGS"])
+		AS_IF([test $GCC_MAJOR -ge 3],[CFLAGS="-Wno-char-subscripts $CFLAGS"])
+		CFLAGS="-Wall $CFLAGS"
+	])
+	AS_IF([test ${enable_debug:-no} = 'no'],[
 		CFLAGS="-O2 ${CFLAGS}"
 		LDFLAGS="${LDFLAGS}"
-	else
+	],[
 		CFLAGS="-O0 -g ${CFLAGS}"
-	fi
+	])
 
 	if test ${platform:-UNKNOWN} = 'CYGWIN'; then
 		if test ${enable_debug:-no} = 'no'; then
@@ -185,8 +191,10 @@ dnl
 dnl SNERT_CHECK_DEFINE(symbol, header_file)
 dnl
 AC_DEFUN(SNERT_CHECK_DEFINE,[
+	AC_LANG_PUSH(C)
 	AC_CACHE_CHECK([for $1],ac_cv_define_$1,[
 		AC_RUN_IFELSE([
+			AC_LANG_SOURCE([[
 #include <$2>
 int main()
 {
@@ -196,11 +204,13 @@ int main()
 	return 1;
 #endif
 }
+			]])
 		],ac_cv_define_$1=yes, ac_cv_define_$1=no)
 	])
-	if test $ac_cv_define_$1 = 'yes'; then
+	AC_LANG_POP(C)
+	AS_IF([test $ac_cv_define_$1 = 'yes'],[
 		AC_DEFINE_UNQUOTED([HAVE_MACRO_]translit($1, [a-z], [A-Z]))
-	fi
+	])
 ])
 
 
@@ -208,8 +218,10 @@ dnl
 dnl SNERT_CHECK_PREDEFINE(symbol)
 dnl
 AC_DEFUN(SNERT_CHECK_PREDEFINE,[
+	AC_LANG_PUSH(C)
 	AC_CACHE_CHECK([for $1],ac_cv_define_$1,[
 		AC_RUN_IFELSE([
+			AC_LANG_SOURCE([[
 int main()
 {
 #ifdef $1
@@ -218,11 +230,13 @@ int main()
 	return 1;
 #endif
 }
+			]])
 		],ac_cv_define_$1=yes, ac_cv_define_$1=no)
 	])
-	if test $ac_cv_define_$1 = 'yes'; then
+	AC_LANG_POP(C)
+	AS_IF([test $ac_cv_define_$1 = 'yes'],[
 		AC_DEFINE_UNQUOTED([HAVE_MACRO_]translit($1, [a-z], [A-Z]))
-	fi
+	])
 ])
 
 
@@ -1216,7 +1230,7 @@ AC_DEFUN(SNERT_POSIX_SEMAPHORES,[
 		saved_libs=$LIBS
 		LIBS=''
 
-		AC_SEARCH_LIBS([sem_init],[rt],[AC_DEFINE_UNQUOTED(HAVE_LIB_SEM, "${ac_cv_search_sem_init}") AC_SUBST(HAVE_LIB_SEM, ${ac_cv_search_sem_init}) NETWORK_LIBS="${ac_cv_search_sem_init} $NETWORK_LIBS"])
+		AC_SEARCH_LIBS([sem_init],[rt pthread],[AC_DEFINE_UNQUOTED(HAVE_LIB_SEM, "${ac_cv_search_sem_init}") AC_SUBST(HAVE_LIB_SEM, ${ac_cv_search_sem_init}) NETWORK_LIBS="${ac_cv_search_sem_init} $NETWORK_LIBS"])
 		AC_CHECK_TYPES([sem_t],[],[],[
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
