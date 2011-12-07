@@ -57,6 +57,33 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.5--
+
+   *    Upgraded SQLite to 3.7.9
+
+   !	Modified the pdqGet() MX 0 rule logic to better reflect the
+	wording in RFC 5321 section 5.1 paragraphs 2 and 3.
+
+  !!	Fix a bug with PDQ reporting of timeouts. PDQ_QUERY records were
+	introduced in 1.75.0 (for IO event handling) as delimiter record
+	between parallel DNS queries in the same returned RR list. When
+	a query timed out in the old code, a simple PDQ_rr structure was
+	added to the RR list to carry PDQ_RCODE_TIMEDOUT. The new code
+	failed to change the structure used to PDQ_QUERY, and because of
+	structure size differences may have caused memory corruption,
+	segmentation faults, and/or double-frees.
+
+   !	Fixed pdqListPruneMatch() to remove failed queries instead of
+	skipping the PDQ_QUERY record. This should return a list
+	consisting only of successful queries and related matching
+	records.
+
+--1.75.4--
+
+   !	Assert that mccStartUnicast() NULL terminates the unicast_ip host
+   	array, as some entries may be discarded for the broadcast-to-self
+   	case. Avoids a double-free abort by mccStopUnicast().
+
 --1.75.3--
 
    !	Some of the configuration script and makefile changes done in
