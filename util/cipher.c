@@ -4,11 +4,11 @@
  * An API implementing pen & paper cipher techniques.
  *
  * http://users.telenet.be/d.rijmenants/
+ * http://en.wikipedia.org/wiki/VIC_cipher
+ * http://www.quadibloc.com/crypto/pp1324.htm
  *
  * Copyright 2010, 2011 by Anthony Howe. All rights reserved.
  */
-
-#define TRANSPOSE
 
 #include <errno.h>
 #include <ctype.h>
@@ -16,15 +16,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
- * Note that both CT28 and CT37 alphabets are a subset of the
- * Base64 invariant character set by design. This allows for
- * encrypted messages to appear as though they were Base64
- * encoded.
- */
-#define CT28			"ABCDEFGHIJKLMNOPQRSTUVWXYZ+/"
-#define CT37			"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/"
+#define STRLEN(s)		(sizeof (s)-1)
 
+#if !defined(NUMERIC_SEED)
+#define NUMERIC_SEED		"3141592653"	/* PI to 9 decimal places. */
+#endif
+
+#ifndef __com_snert_lib_util_cipher_h__
 /*
  * Eight most frequent characters in English are "SENORITA".
  * Allows for inclusion of two punctuation characters in the
@@ -40,16 +38,22 @@
  */
 #define FREQUENT7		"ESTONIA"
 
-#if !defined(NUMERIC_SEED)
-# define NUMERIC_SEED		"3141592653"	/* PI to 9 decimal places. */
-#endif
+/*
+ * Note that both CT28 and CT37 alphabets are a subset of the
+ * Base64 invariant character set by design. This allows for
+ * encrypted messages to appear as though they were Base64
+ * encoded.
+ */
+#define CT28			FREQUENT8 "BCDFGHJKLMPQUVWXYZ+/"
+#define CT37			FREQUENT7 "BCDFGHJKLMPQRUVWXYZ0123456789/"
 
 /**
  * 1st row is the alphabet seeded with frequent letters and the key.
  * 2nd and 3rd rows are the ASCII digit codes for each glyph in the
  * straddling checkerboard.
  */
-typedef char (cipher_ct)[3][sizeof (CT37)];
+typedef char cipher_ct[3][sizeof (CT37)];
+#endif
 
 /***********************************************************************
  *** Dump Functions
@@ -67,26 +71,22 @@ static int debug;
 void
 cipher_dump_alphabet(FILE *fp, cipher_ct table)
 {
-	int i;
-	size_t half, length;
+	int i, j, k;
+	size_t length;
 
 	length = strlen(table[0]);
-	half = length/2;
+	fprintf(fp, "CT%d\n\n\t", length);
 
-	fprintf(fp, "Conversion Table %d\n\n\t", length);
+	for (j = 0, k = length/2; j < length; j += k, k = length) {
+		for (i = j; i < k; i++)
+			fprintf(fp, "%c  ", table[0][i]);
+		fprintf(fp, "\n\t");
+		for (i = j; i < k; i++)
+			fprintf(fp, "%c%c ", table[1][i], table[2][i]);
+		fprintf(fp, "\n\t");
+	}
 
-	for (i = 0; i < half; i++)
-		fprintf(fp, "%c  ", table[0][i]);
-	fprintf(fp, "\n\t");
-	for (i = 0; i < half; i++)
-		fprintf(fp, "%c%c ", table[1][i], table[2][i]);
-	fprintf(fp, "\n\t");
-	for (i = half; i < length; i++)
-		fprintf(fp, "%c  ", table[0][i]);
-	fprintf(fp, "\n\t");
-	for (i = half; i < length; i++)
-		fprintf(fp, "%c%c ", table[1][i], table[2][i]);
-	fprintf(fp, "\n");
+	fprintf(fp, "\n\n");
 }
 
 /**
@@ -102,45 +102,24 @@ cipher_dump_ct(FILE *fp, cipher_ct table)
 {
 	int i, j, k;
 	size_t length;
-	char row[2][21];
 
 	length = strlen(table[0]);
-	memset(row, ' ', sizeof (row));
-	row[0][20] = row[1][20] = '\0';
+	fprintf(fp, "CT%d Straddling Checkerboard\n\n\t  ", length);
+	k = length == STRLEN(CT28) ? STRLEN(FREQUENT8) : STRLEN(FREQUENT7);
 
-	fprintf(fp, "CT%d Straddling Checkerboard\n\n", length);
+	for (i = length-10; i < length; i++)
+		fprintf(fp, " %c", table[2][i]);
+	fprintf(fp, "\n\n\t  ");
 
-	for (i = '0'; i <= '9'; i++) {
-		for (j = 0; j < length; j++) {
-			if (table[1][j] == i && table[2][j] == ' ') {
-				k = (i-'0')*2;
-				row[0][k] = table[0][j];
-				row[1][k] = table[1][j];
-				break;
-			}
-			if (table[1][j] == i && table[2][j] != ' ') {
-				break;
-			}
-		}
+	for (i = 0; i < k; i++)
+		fprintf(fp, " %c", table[0][i]);
+
+	for (j = k; j < 10; j++, k += 10) {
+		fprintf(fp, "\n\t%c ", table[1][k]);
+		for (i = 0; i < 10; i++)
+			fprintf(fp, " %c", table[0][i+k]);
 	}
-	fprintf(fp, "\t   %s\n\t +---------------------\n\t | %s\n", row[1], row[0]);
-
-	memset(row, ' ', sizeof (row));
-	row[0][20] = row[1][20] = '\0';
-
-	for (j = 0; j < length; j++) {
-		if (table[2][j] != ' ') {
-			i = table[2][j];
-			k = (i-'0')*2;
-			row[0][k] = table[0][j];
-		}
-		if (i == '0') {
-			fprintf(fp, "\t%c| ", table[1][j]);
-			i = 0;
-		} else if (i == '9')
-			fprintf(fp, "%s\n", row[0]);
-	}
-//	fprintf(fp, "\n");
+	fprintf(fp, "\n\n");
 }
 
 /**
@@ -161,6 +140,7 @@ cipher_dump_chain(FILE *fp, const char *chain)
 			fputc(*chain++, fp);
 		fputc('\n', fp);
 	}
+	fputc('\n', fp);
 }
 
 /**
@@ -168,8 +148,7 @@ cipher_dump_chain(FILE *fp, const char *chain)
  *	An output FILE pointer.
  *
  * @param text
- *	A numeric C string to output in space separated
- *	groups of 5 characters.
+ *	A C string to output in space separated groups.
  */
 void
 cipher_dump_grouping(FILE *fp, int grouping, const char *text)
@@ -194,42 +173,48 @@ cipher_dump_grouping(FILE *fp, int grouping, const char *text)
 		}
 		fputc('\n', fp);
 	}
+	fputc('\n', fp);
 }
 
 /**
  * @param fp
  *	An output FILE pointer.
  *
- * @param num_key
+ * @param key
  *	A numeric C string representing the transposition key.
  *
- * @param source
+ * @param data
  *	A numeric C string representing the transposition table.
  */
 void
-cipher_dump_transposition(FILE *fp, const char *num_key, const char *source)
+cipher_dump_transposition(FILE *fp, const char *key, const char *data)
 {
 	int col;
-	const char *sp;
+	const char *dp;
 	size_t key_len;
 
-	key_len = strlen(num_key);
-	fprintf(stderr, "\t%s\n\t", num_key);
+	if (key == NULL)
+		key = NUMERIC_SEED;
+
+	key_len = strlen(key);
+	fprintf(fp, "\t%s\n\t", key);
 	for (col = 0; col < key_len; col++)
 		fputc('-', fp);
 	fputc('\n', fp);
 
 	col = 0;
-	for (sp = source; *sp != '\0'; sp++) {
+	for (dp = data; *dp != '\0'; dp++) {
 		if (col++ == 0)
 			fputc('\t', fp);
-		fputc(*sp, fp);
+		fputc(*dp, fp);
 		if (key_len <= col) {
 			fputc('\n', fp);
 			col = 0;
 		}
 	}
 
+	if (col < key_len)
+		fputc('\n', fp);
 	fputc('\n', fp);
 }
 
@@ -285,9 +270,8 @@ cipher_chain_add(const char *seed_number, char *buffer, size_t size)
 	*ep = '\0';
 
 	if (debug) {
-		fprintf(stderr, "Chain Addition MOD 10 (seed=%s length=%lu)\n\n", seed_number, (unsigned long) size-1);
+		fprintf(stderr, "Chain Addition seed=%s length=%lu\n\n", seed_number, (unsigned long) size-1);
 		cipher_dump_chain(stderr, buffer);
-		fputc('\n', stderr);
 	}
 
 	return 0;
@@ -309,82 +293,184 @@ cipher_chain_invert(char *chain)
 	if (debug) {
 		fprintf(stderr, "Inverted Chain Addition Table\n\n");
 		cipher_dump_chain(stderr, chain);
-		fputc('\n', stderr);
 	}
 }
 
 /**
- * @param source
- *	A numeric C string of 10 digits.
+ * @param in
+ *	A C string of up to 255 bytes in length.
  *
- * @param out
- *	An output buffer of at least 11 bytes, that will contain
- *	the digits from 0 to 9 inclusive corresponding to the
- *	order of digits from source string. The buffer will be
- *	NUL terminated.
+ * @return
+ *	An output buffer that starts with the length N of the
+ *	input string followed by N octets. Each octet in the
+ *	output array corresponds to the character set ordering
+ *	of the input array.
+ *
+ * 	Examples assuming ASCII:
+ *
+ *	    B A B Y L O N 5		input
+ *	    2 1 3 7 4 6 5 0		ordinal order
+ *
+ *	    H E L L O W O R L D		input
+ *	    2 1 3 4 6 9 7 8 5 0		ordinal order
+ *
+ * @see
+ *	cipher_index_order()
  */
-void
-cipher_digit_order(const char source[10], char out[11])
+unsigned char *
+cipher_ordinal_order(const char *in)
 {
-	const char *sp;
-	int digit, count;
+	size_t length;
+	const char *ip;
+	int octet, count;
+	unsigned char *out;
 
-	for (count = digit = '0'; digit <= '9'; digit++) {
-		for (sp = source; *sp != '\0'; sp++) {
-			if (*sp == digit) {
-				out[sp - source] = count;
-				count++;
-			}
+	if (256 <= (length = strlen(in))) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	if ((out = malloc(length)) == NULL)
+		return NULL;
+
+	count = 0;
+	out[0] = length;
+	for (octet = 1; count < length; octet++) {
+		for (ip = in; *ip != '\0'; ip++) {
+			if (*ip == octet)
+				out[ip - in + 1] = count++;
 		}
 	}
-	out[10] = '\0';
 
 	if (debug) {
-		fprintf(stderr, "Digit Order 0..9\n\n");
-		fprintf(stderr, "\t%s\n", source);
-		fprintf(stderr, "\t----------\n");
-		fprintf(stderr, "\t%s\n\n", out);
+		fprintf(stderr, "Ordinal Order (length=%u)\n\n\t", out[0]);
+		for ( ; in < ip; in++)
+			fprintf(stderr, "%c  ", *in);
+		fprintf(stderr, "\n\t");
+		for (ip = (const char *)out+1, in = ip+length; ip < in; ip++)
+			fprintf(stderr, "%02X ", *ip);
+		fprintf(stderr, "\n\n");
 	}
+
+	return out;
 }
 
 /**
- * @param source
- *	A C string of 10 alphabetic letters.
+ * @param in
+ *	A C string of up to 255 bytes in length.
  *
- * @param out
- *	An output buffer of at least 11 bytes, that will contain
- *	the digits from 0 to 9 inclusive corresponding to the
- *	order of letters from source string. The buffer will be
- *	NUL terminated.
+ * @return
+ *	An output buffer that starts with the length N of the
+ *	input string followed by N octets. Each octet in the
+ *	output array contains the index by which the input
+ *	string should be read according to the ordinal order
+ *	of the input.
+ *
+ * 	Examples assuming ASCII:
+ *
+ *	    B A B Y L O N 5		input
+ *	    2 1 3 7 4 6 5 0		ordinal order
+ *	    7 1 0 2 4 6 5 3		index of ordinal
+ *
+ *	    H E L L O W O R L D		input
+ *	    2 1 3 4 6 9 7 8 5 0 	ordinal order
+ *	    9 1 0 2 3 8 4 6 7 5		index of ordinal
+ *
+ * @see
+ *	cipher_ordinal_order()
  */
-void
-cipher_alpha_order(const char source[10], char out[11])
+unsigned char *
+cipher_index_order(const char *in)
 {
-	const char *sp;
-	int alpha, count;
+	int octet;
+	size_t length;
+	const char *ip;
+	unsigned char *op, *out;
 
-	/* Assumes ASCII character set order. */
-	for (count = alpha = 'A'; alpha <= 'Z'; alpha++) {
-		for (sp = source; *sp != '\0'; sp++) {
-			if (*sp == alpha) {
-				out[sp - source] = count;
-				count++;
-			}
+	if (256 <= (length = strlen(in))) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	if ((out = malloc(length)) == NULL)
+		return NULL;
+
+	op = out;
+	*op++ = length;
+	for (octet = 1; op-out <= length; octet++) {
+		for (ip = in; *ip != '\0'; ip++) {
+			if (*ip == octet)
+				*op++ = ip - in;
 		}
 	}
-	out[10] = '\0';
 
 	if (debug) {
-		fprintf(stderr, "Alpa Order 0..9\n\n");
-		fprintf(stderr, "\t%s\n", source);
-		fprintf(stderr, "\t----------\n");
-		fprintf(stderr, "\t%s\n\n", out);
+		fprintf(stderr, "Index Order (length=%u)\n\n\t", out[0]);
+		for ( ; in < ip; in++)
+			fprintf(stderr, "%c  ", *in);
+		fprintf(stderr, "\n\t");
+		for (ip = (const char *)out+1; ip < (const char *)op; ip++)
+			fprintf(stderr, "%02X ", *ip);
+		fprintf(stderr, "\n\n");
 	}
+
+	return out;
 }
 
 /***********************************************************************
  *** Encoding & Decoding Functions
  ***********************************************************************/
+
+static int
+columnar_encode(char *out, const char *in, int i, int j)
+{
+	out[j++] = in[i];
+	return j;
+}
+
+static int
+columnar_decode(char *out, const char *in, int i, int j)
+{
+	while (isspace(in[j]))
+		j++;
+	out[i] = in[j++];
+	return j;
+}
+
+static char *
+columnar_transposition(const char *key, const char *in, int (*fn)(char *, const char *, int, int))
+{
+	char *out;
+	int i, x, k;
+	unsigned char *indices;
+	size_t key_len, out_len;
+
+	if (in == NULL)
+		return NULL;
+	if (key == NULL)
+		key = NUMERIC_SEED;
+
+	if ((indices = cipher_index_order(key)) == NULL)
+		return NULL;
+
+	/* Table length without whitespace. */
+	for (out_len = 0, out = (char *)in; *out != '\0'; out++)
+		out_len += !isspace(*out);
+
+	if ((out = malloc(out_len+1)) != NULL) {
+		x = 0;
+		key_len = indices[0];
+		for (k = 1; k <= key_len; k++) {
+			for (i = indices[k]; i < out_len; i += key_len)
+				x = (*fn)(out, in, i, x);
+		}
+		out[out_len] = '\0';
+	}
+
+	free(indices);
+
+	return out;
+}
 
 /**
  * @param key
@@ -395,47 +481,19 @@ cipher_alpha_order(const char source[10], char out[11])
  *
  * @return
  *	A dynamic C string of the message after applying a
- *	simple column transposition encoding. It is the caller's
+ *	simple columnar transposition encoding. It is the caller's
  *	responsibility to free this memory when done.
  */
 char *
-cipher_simple_transposition_encode(const char *key, const char *in)
+cipher_columnar_transposition_encode(const char *key, const char *in)
 {
-	char *out, *op;
-	int digit, col, i;
-	size_t key_len, in_len;
-
-	if (key == NULL || in == NULL)
-		return NULL;
-
+	char *out = columnar_transposition(key, in, columnar_encode);
 	if (debug) {
-		fprintf(stderr, "Simple Columnar Transposition\n\n");
+		fprintf(stderr, "Columnar Transposition\n\n");
 		cipher_dump_transposition(stderr, key, in);
-		fputc('\n', stderr);
-	}
-
-	in_len = strlen(in);
-	if ((out = malloc(in_len+1)) == NULL)
-		return NULL;
-
-	op = out;
-	key_len = strlen(key);
-	for (digit = '0'; digit <= '9'; digit++) {
-		for (col = 0; key[col] != '\0'; col++) {
-			if (key[col] == digit) {
-				for (i = col; i < in_len; i += key_len)
-					*op++ = in[i];
-			}
-		}
-	}
-	*op = '\0';
-
-	if (debug) {
-		fprintf(stderr, "Message read by column by transposition key order:\n\n");
+		fprintf(stderr, "Output string:\n\n");
 		cipher_dump_grouping(stderr, 5, out);
-		fputc('\n', stderr);
 	}
-
 	return out;
 }
 
@@ -452,35 +510,84 @@ cipher_simple_transposition_encode(const char *key, const char *in)
  *	responsibility to free this memory when done.
  */
 char *
-cipher_simple_transposition_decode(const char *key, const char *in)
+cipher_columnar_transposition_decode(const char *key, const char *in)
+{
+	char *out = columnar_transposition(key, in, columnar_decode);
+	if (debug) {
+		fprintf(stderr, "Columnar Transposition\n\n");
+		cipher_dump_transposition(stderr, key, out);
+		fprintf(stderr, "Output string:\n\n");
+		cipher_dump_grouping(stderr, 5, out);
+	}
+	return out;
+}
+
+static int
+disrupted_encode(char *out, const char *in, int i, int j)
+{
+	out[i] = in[j++];
+	return j;
+}
+
+static int
+disrupted_decode(char *out, const char *in, int i, int j)
+{
+	out[j++] = in[i];
+	return j;
+}
+
+static char *
+disrupted_transposition(const char *key, const char *in, int (*fn)(char *, const char *, int, int))
 {
 	char *out;
-	int digit, col, i;
-	size_t key_len, in_len;
+	unsigned char *indices;
+	int i, j, k, r, rows, x;
+	size_t key_len, out_len;
 
-	if (key == NULL || in == NULL)
+	if (in == NULL)
+		return NULL;
+	if (key == NULL)
+		key = NUMERIC_SEED;
+
+	if ((indices = cipher_index_order(key)) == NULL)
 		return NULL;
 
-	in_len = strlen(in);
-	if ((out = malloc(in_len+1)) == NULL)
-		return NULL;
+	/* Table length without whitespace. */
+	for (out_len = 0, out = (char *)in; *out != '\0'; out++)
+		out_len += !isspace(*out);
 
-	key_len = strlen(key);
-	for (digit = '0'; digit <= '9'; digit++) {
-		for (col = 0; key[col] != '\0'; col++) {
-			if (key[col] == digit) {
-				for (i = col; i < in_len; i += key_len)
-					out[i] = *in++;
+	if ((out = malloc(out_len+1)) != NULL) {
+		x = 0;
+		out[out_len] = '\0';
+		key_len = indices[0];
+		rows = (out_len + key_len - 1) / key_len;
+
+		/* Create one or more triangles in output table. */
+		k = 1;
+		for (r = 0; r < rows; k++) {
+			if (key_len <= k)
+				k = 1;
+			/* Fill triangle area. */
+			for (j = indices[k]; j <= key_len && r < rows; j++, r++) {
+				/* Fill row of triangle. */
+				for (i = 0; i < j; i++)
+					x = (*fn)(out, in, r * key_len + i, x);
+			}
+		}
+
+		/* Fill in empty space. */
+		k = 1;
+		for (r = 0; r < rows; r++, k++) {
+			if (key_len <= k)
+				k = 1;
+			for (j = indices[k]; j < key_len && r < rows; j++, r++) {
+				for (i = j; i < key_len; i++)
+					x = (*fn)(out, in, r * key_len + i, x);
 			}
 		}
 	}
-	out[in_len] = '\0';
 
-	if (debug) {
-		fprintf(stderr, "Simple Columnar Transposition Table\n\n");
-		cipher_dump_transposition(stderr, key, out);
-		fputc('\n', stderr);
-	}
+	free(indices);
 
 	return out;
 }
@@ -499,8 +606,22 @@ cipher_simple_transposition_decode(const char *key, const char *in)
 char *
 cipher_disrupted_transposition_encode(const char *key, const char *in)
 {
-/**** TODO ****/
-	return NULL;
+	char *out;
+	int odebug = debug;
+	debug = 0;
+	out = disrupted_transposition(key, in, disrupted_encode);
+	if (odebug) {
+		fprintf(stderr, "Disrupted Transposition\n\n");
+		cipher_dump_transposition(stderr, key, out);
+	}
+	out = columnar_transposition(key, in = out, columnar_encode);
+	if (odebug) {
+		fprintf(stderr, "Output string:\n\n");
+		cipher_dump_grouping(stderr, 5, out);
+	}
+	free((void *)in);
+	debug = odebug;
+	return out;
 }
 
 /**
@@ -517,8 +638,20 @@ cipher_disrupted_transposition_encode(const char *key, const char *in)
 char *
 cipher_disrupted_transposition_decode(const char *key, const char *in)
 {
-/**** TODO ****/
-	return NULL;
+	char *out;
+	int odebug = debug;
+	debug = 0;
+	out = columnar_transposition(key, in, columnar_decode);
+	debug = odebug;
+	out = disrupted_transposition(key, in = out, disrupted_decode);
+	free((void *)in);
+	if (debug) {
+		fprintf(stderr, "Disrupted Transposition\n\n");
+		cipher_dump_transposition(stderr, key, in);
+		fprintf(stderr, "Output string:\n\n");
+		cipher_dump_grouping(stderr, 5, out);
+	}
+	return out;
 }
 
 /**
@@ -526,81 +659,9 @@ cipher_disrupted_transposition_decode(const char *key, const char *in)
  *	The conversion table size, 28 or 37. Used to select
  *	both the alphabet and frequent English letter list.
  *
- * @param key
- *	A C string for the key in the conversion table alphabet.
- *	Used to scramble alphabet order. Can be NULL for the
- *	default English order.
- *
- * @parma ct_out
- *	A buffer at least ct_size+1 bytes in size to hold the
- *	reordered conversion table alphabet.
- *
- * @return
- *	Zero on success, otherwise non-zero on error.
- *
- * @note
- *	Use cipher_alphabet_fill() to initialise the 1st row
- *	of a cipher_ct table and cipher_ct_fill() to initialise
- *	the remainder of the table based on the alphabet.
- */
-int
-cipher_alphabet_fill(int ct_size, const char *key, char *ct_out)
-{
-	int i, j, ch;
-	char alphabet[sizeof (CT37)], *member, *freq;
-
-	if (key == NULL)
-		key = "";
-
-	if (ct_size == sizeof (CT37)-1) {
-		freq = FREQUENT7;
-		strcpy(alphabet, CT37);
-	} else if (ct_size == sizeof (CT28)-1) {
-		freq = FREQUENT8;
-		strcpy(alphabet, CT28);
-	} else {
-		return errno = EINVAL;
-	}
-
-	/* Copy the frequently used english letters into the table,
-	 * removing the letters from the set of unused alphabet
-	 * characters. This will alter the sequential order of the
-	 * alphabet.
-	 */
-	for (i = j = 0; i < ct_size && freq[i] != '\0'; i++) {
-		ch = freq[i];
-		if ((member = strchr(alphabet, ch)) != NULL) {
-			ct_out[j++] = ch;
-			*member = 0x7F;
-		}
-	}
-
-	/* Copy the key into the table, removing key characters
-	 * from the set of unused alphabet characters. This will
-	 * alter the sequential order of the alphabet.
-	 */
-	for (i = 0; i < ct_size && key[i] != '\0'; i++) {
-		ch = toupper(key[i]);
-		if ((member = strchr(alphabet, ch)) != NULL) {
-			ct_out[j++] = ch;
-			*member = 0x7F;
-		}
-	}
-
-	/* Copy remaining unused alphabet to table. */
-	for (i = 0; i < ct_size; i++) {
-		if (alphabet[i] != 0x7F)
-			ct_out[j++] = alphabet[i];
-	}
-	ct_out[j] = '\0';
-
-	return errno = 0;
-}
-
-/**
  * @param order
- *	A numeric C string of 10 digits 0 to 9 used as a key
- *	to initialise the conversion table.
+ *	An array of 11 octets; a length (10) followed by 10
+ *	octets specifying an ordinal ordering.
  *
  * @param table
  *	A pointer to a cipher_ct, where 1st row is the alphabet
@@ -612,123 +673,121 @@ cipher_alphabet_fill(int ct_size, const char *key, char *ct_out)
  * @return
  *	Zero on success, otherwise non-zero on error.
  *
- * @note
- *	Use cipher_alphabet_fill() to initialise the 1st row
- *	of the table.
+ * @see
+ *	cipher_ordinal_order()
  */
 int
-cipher_ct_fill(const char *order, cipher_ct table)
+cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct table)
 {
-	size_t ct_size;
-	char *freq, *member;
-	int i, j, k, freq_len;
+	int i, j, k, l;
 
-	ct_size = strlen(table[0]);
+	if (table == NULL)
+		return errno = EFAULT;
+	if (order == NULL)
+		order = (unsigned char *)"\012\001\002\003\004\005\006\007\010\011\0";
+	if (order[0] < 10)
+		return errno = EINVAL;
+	order++;
 
-	if (ct_size == sizeof (CT37)-1) {
-		freq = FREQUENT7;
-		freq_len = sizeof (FREQUENT7)-1;
-	} else if (ct_size == sizeof (CT28)-1) {
-		freq = FREQUENT8;
-		freq_len = sizeof (FREQUENT8)-1;
+	if (ct_size == STRLEN(CT37)) {
+		l = STRLEN(FREQUENT7);
+		(void) strcpy(table[0], CT37);
+	} else if (ct_size == STRLEN(CT28)) {
+		l = STRLEN(FREQUENT8);
+		(void) strcpy(table[0], CT28);
 	} else {
 		return errno = EINVAL;
 	}
 
-	memset(table[1], ' ', ct_size);
-	memset(table[2], ' ', ct_size);
-
-	/* The VIC cipher is a similar to a Huffman encoding
-	 * with the seven most frequent letters having a single
-	 * digit encoding, and the less frequent letters and
-	 * decimal digits having double digit encoding.
+	/* A straddling checkerboard is similar to a Huffman
+	 * encoding, where the most frequent glyphs having a
+	 * single digit encoding and the less frequent glyphs
+	 * have a double digit encoding.
+	 *
+	 * The SECOM cipher, using CT37, builds the checkerboard
+	 * specifying the 1st row with some predefined ordering
+	 * of 10 unique digits 1..9 0. In the 2nd row columns 3,
+	 * 6, and 9 are the blank columns and "ESTONIA" fills the
+	 * non-blank columns. The digits above the blank columns
+	 * are written down the left hand side of the table. The
+	 * remaining CT37 alphabet fills the remaining rows,
+	 * starting at the column given by the digit on the left
+	 * hand side, left to right, and wrapping around, before
+	 * repeating the procedure for the remaining two rows.
+	 *
+	 * For example:
+	 *
+	 *        9 4 8 5 2 1 3 0 6 7	(predefined ordering)
+	 *	  E S   T O   N I   A
+	 *	8 F G H J K L M B C D
+	 *	1 P Q R U V W X Y Z /
+	 *      6 6 7 8 9 0 1 2 3 4 5
+	 *
+	 * Our version differs in several ways. First we count as
+	 * programmers do from 0..9 instead 1..9 0 (ie. 1 to 10);
+	 * second the blank columns are assigned after "ESTONIA";
+	 * third we simply write the remaining alphabet into the
+	 * remaining rows.
+	 *
+	 * For example:
+	 *
+	 *        9 4 8 5 2 1 3 0 6 7	(predefined ordering)
+	 *	  E S T O N I A
+	 *	0 B C D F G H J K L M
+	 *	6 P Q R U V W X Y Z 0
+	 *	7 1 2 3 4 5 6 7 8 9 /
+	 *
+	 * This variant is simpler to do by hand, simpler to code,
+	 * and yields an equally scrambled alphabet encoding.
+	 *
+	 * The straddling checkerboard is intended to "fractionate"
+	 * an alphabet to hide the most frequently occuring letters
+	 * similar to Huffman encodings used in compression.
+	 *
+	 * A straddling checkerboard is simply a subsitution cipher
+	 * converting an alpha-numeric message into a purely numeric
+	 * form and should not be relied on as the sole method of
+	 * encryption.
+	 *
+	 * Following the conversion of a message into a numeric form,
+	 * the SECOM cipher apply columnar and disrupted transpositions
+	 * on the message using a predefined set of rules to determine
+	 * the transpositions keys.
+	 *
+	 * Modern "pen & paper" field ciphers will use a subsitution
+	 * with one or more transpositions. The "keys" in combination
+	 * with transformation rules provide the necessary setup.
 	 */
 
-	if (debug) {
-		fprintf(
-			stderr,
-			"Most frequent English letters \"%s\" assigned\n"
-			"to columns based on digit order %s.\n",
-			freq, order
-		);
-		fputc('\n', stderr);
+	/* Single digit code for the most frequent letters. */
+	for (i = 0; i < l; i++) {
+		table[1][i] = order[i]+'0';
+		table[2][i] = ' ';
 	}
 
-	/* Assign single digit code for seven most frequent
-	 * letters based on the "frequent" set order.
-	 */
-	for (i = 0; i < freq_len; i++) {
-		member = strchr(table[0], freq[i]);
-		table[1][member - table[0]] = order[i];
-	}
-
-	/* Assign double digit code for the remaining letters and
-	 * digits, based on the blank positions in the "frequent"
-	 * string.
-	 */
-	k = 0;
-	for (i = freq_len; i < 10; i++) {
-		for (j = 0; j < 10; k++) {
-			if (table[1][k] == ' ') {
-				table[1][k] = order[i];
-				table[2][k] = j+'0';
-				j++;
-			}
+	/* Double digit code for remaining letters and digits. */
+	for (i = 0, j = l; j < 10; i += 10, j++) {
+		for (k = 0; k < 10; k++) {
+			table[1][l+i+k] = order[j]+'0';
+			table[2][l+i+k] = order[k]+'0';
 		}
 	}
+	table[1][ct_size] = table[1][ct_size] = '\0';
 
 	if (debug) {
 		/* http://en.wikipedia.org/wiki/Straddling_checkerboard	*/
 		cipher_dump_ct(stderr, table);
-		fputc('\n', stderr);
+		cipher_dump_alphabet(stderr, table);
 	}
 
 	return errno = 0;
-}
-
-/**
- * @param ct_size
- *	The conversion table size, 28 or 37. Used to select
- *	both the alphabet and frequent English letter list.
- *
- * @param key
- *	A C string for the key in the conversion table alphabet.
- *	Used to scramble alphabet order. Can be NULL for the
- *	default English order.
- *
- * @param order
- *	A numeric C string of 10 digits 0 to 9 used as a key
- *	to initialise the conversion table.
- *
- * @param table
- *	A pointer to a cipher_ct, where 1st row is the alphabet
- *	seeded with frequent English letters and a key. The 2nd
- *	and 3rd rows will be initialised with the ASCII digit
- *	codes (or space) for each glyph based on a straddling
- *	checkerboard.
- *
- * @return
- *	Zero on success, otherwise non-zero on error.
- */
-int
-cipher_ct_init(int ct_size, const char *key, const char *order, cipher_ct table)
-{
-	if (key == NULL)
-		key = "";
-	if (order == NULL)
-		order = "1234567890";
-	if (cipher_alphabet_fill(ct_size, key, table[0]))
-		return -1;
-	if (cipher_ct_fill(order, table))
-		return -1;
-	return 0;
 }
 
 /**
  * @param table
  *	Conversion table, either CT28 or CT37.
  *
- * @param message
+ * @param in
  *	A C string of the message.
  *
  * @return
@@ -737,31 +796,34 @@ cipher_ct_init(int ct_size, const char *key, const char *order, cipher_ct table)
  *	memory when done.
  */
 char *
-cipher_char_to_code(cipher_ct table, const char *message)
+cipher_char_to_code(cipher_ct table, const char *in)
 {
-	int index, i;
+	int i;
 	size_t length;
-	const char *mp;
+	const char *ip;
 	char *op, *out, *glyph;
+
+	if (in == NULL)
+		return NULL;
 
 	/* Make sure the output is large enough to hold
 	 * complete 5-digit groups.
 	 */
-	length = strlen(message) * 2;
+	length = strlen(in) * 2;
 	length = (length + 4) / 5 * 5;
 
 	if ((out = malloc(length+1)) == NULL)
 		return NULL;
 
-	for (op = out, mp = message; *mp != '\0'; mp++) {
-		if ((glyph = strchr(table[0], toupper(*mp))) == NULL)
+	for (op = out, ip = in; *ip != '\0'; ip++) {
+		if ((glyph = strchr(table[0], toupper(*ip))) == NULL)
 			continue;
 
-		index = glyph - table[0];
+		i = glyph - table[0];
 
-		*op++ = table[1][index];
-		if (table[2][index] != ' ')
-			*op++ = table[2][index];
+		*op++ = table[1][i];
+		if (table[2][i] != ' ')
+			*op++ = table[2][i];
 	}
 
 	for (i = (op - out) % 5; 0 < i && i < 5; i++)
@@ -770,13 +832,9 @@ cipher_char_to_code(cipher_ct table, const char *message)
 	*op = '\0';
 
 	if (debug) {
-		cipher_dump_alphabet(stderr, table);
-		fputc('\n', stderr);
-		fprintf(stderr, "Using conversion table convert message to a numeric form.\n\n");
-		cipher_dump_grouping(stderr, 2, message);
-		fputc('\n', stderr);
+		fprintf(stderr, "To numeric:\n\n");
+		cipher_dump_grouping(stderr, 2, in);
 		cipher_dump_grouping(stderr, 5, out);
-		fputc('\n', stderr);
 	}
 
 	return out;
@@ -804,9 +862,8 @@ cipher_mask_code(const char *key_mask, char *out)
 	}
 
 	if (debug) {
-		fprintf(stderr, "Column add MOD 10 using chain addition table.\n\n");
+		fprintf(stderr, "Column Addition MOD 10:\n\n");
 		cipher_dump_grouping(stderr, 5, out);
-		fputc('\n', stderr);
 	}
 }
 
@@ -826,9 +883,8 @@ cipher_code_to_char(cipher_ct table, char *out)
 	size_t length;
 
 	if (debug) {
-		fprintf(stderr, "Using conversion table reverse the numeric form into a string.\n\n");
+		fprintf(stderr, "From numeric:\n\n");
 		cipher_dump_grouping(stderr, 5, out);
-		fputc('\n', stderr);
 	}
 
 	length = strlen(table[0]);
@@ -848,10 +904,8 @@ cipher_code_to_char(cipher_ct table, char *out)
 	}
 	*op = '\0';
 
-	if (debug) {
+	if (debug)
 		cipher_dump_grouping(stderr, 2, out);
-		fputc('\n', stderr);
-	}
 }
 
 /**
@@ -936,11 +990,11 @@ cipher_ct28_denormalise(const char *alphabet, char *text)
 	for (tp = text; *tp != '\0'; tp++) {
 		if (is_number && *tp == '/') {
 			is_number = 0;
-			*tp = ' ';
+//			*tp = ' ';
 			continue;
 		} else if (!is_number && *tp == '/') {
 			is_number++;
-			*tp = ' ';
+//			*tp = ' ';
 			continue;
 		}
 		if (is_number) {
@@ -972,14 +1026,14 @@ typedef struct {
 
 	/* Private */
 	char *chain;
-	char order[11];		/* Digit order based on last row of chain table, plus NUL. */
+	unsigned char *ordinal;
 	cipher_ct table;
 } Cipher;
 
-const char *
+char *
 cipher_transponse_key(Cipher *ctx)
 {
-	char *cp;
+	char *cp, *key;
 	size_t key_len;
 
 	/* Find a column length for the key summing the tail
@@ -988,10 +1042,13 @@ cipher_transponse_key(Cipher *ctx)
 	 */
 	key_len = 0;
 	for (cp = ctx->chain + ctx->chain_size-2; ctx->chain <= cp; cp--) {
+		key_len += *cp - '0';
 		if (9 < key_len)
 			break;
-		key_len += *cp - '0';
 	}
+
+	if ((key = malloc(key_len+1)) == NULL)
+		return NULL;
 
 	/* Use a key taken from the chain addition table.
 	 * Ideally this should be a completely different
@@ -1002,24 +1059,26 @@ cipher_transponse_key(Cipher *ctx)
 	if (cp < ctx->chain)
 		cp = ctx->chain;
 
-	return cp;
+	(void) memcpy(key, cp, key_len);
+	key[key_len] = '\0';
+
+	return key;
 }
 
 int
 cipher_init(Cipher *ctx)
 {
 	if (ctx->chain_size < 10)
-		ctx->chain_size = 100;
+		ctx->chain_size = 10;
 	ctx->chain_size++;
 
 	if ((ctx->chain = malloc(ctx->chain_size)) == NULL)
 		goto error0;
 	if (cipher_chain_add(ctx->seed, ctx->chain, ctx->chain_size))
 		goto error1;
-
-	cipher_digit_order(ctx->chain+ctx->chain_size-11, ctx->order);
-
-	return cipher_ct_init(ctx->ct_size, ctx->key, ctx->order, ctx->table);
+	if ((ctx->ordinal = cipher_ordinal_order(ctx->chain+ctx->chain_size-11)) == NULL)
+		goto error1;
+	return cipher_ct_init(ctx->ct_size, ctx->ordinal, ctx->table);
 error1:
 	free(ctx->chain);
 error0:
@@ -1032,6 +1091,7 @@ cipher_fini(void *_ctx)
 	Cipher *ctx = _ctx;
 
 	if (ctx != NULL) {
+		free(ctx->ordinal);
 		free(ctx->chain);
 	}
 }
@@ -1039,47 +1099,31 @@ cipher_fini(void *_ctx)
 char *
 cipher_encode(Cipher *ctx, const char *message)
 {
-	char *out;
+	char *numeric, *tkey;
 
 	if (ctx->ct_size == 28)
 		message = cipher_ct28_normalise(ctx->table[0], message);
-	out = cipher_char_to_code(ctx->table, message);
+	numeric = cipher_char_to_code(ctx->table, message);
 	if (ctx->ct_size == 28)
-		free((char *) message);
-	if (out == NULL)
-		return NULL;
-#ifdef TRANSPOSE
-{
-	const char *transpose_key;
-	transpose_key = cipher_transponse_key(ctx);
-	message = cipher_simple_transposition_encode(transpose_key, out);
-	free(out);
-	if (message == NULL)
-		return NULL;
-	out = message;
-}
-#else
-	cipher_mask_code(ctx->chain, out);
-#endif
-	return out;
+		free((void *) message);
+
+	tkey = cipher_transponse_key(ctx);
+	message = cipher_columnar_transposition_encode(tkey, numeric);
+	free(numeric);
+	free(tkey);
+
+	return (char *)message;
 }
 
 char *
 cipher_decode(Cipher *ctx, const char *message)
 {
-	char *out;
+	char *out, *tkey;
 
-#ifdef TRANSPOSE
-{
-	const char *transpose_key;
-	transpose_key = cipher_transponse_key(ctx);
-	out = cipher_simple_transposition_decode(transpose_key, message);
-}
-#else
-	cipher_chain_invert(ctx->chain);
-	cipher_mask_code(ctx->chain, out);
-#endif
+	tkey = cipher_transponse_key(ctx);
+	out = cipher_columnar_transposition_decode(tkey, message);
 	cipher_code_to_char(ctx->table, out);
+	free(tkey);
 
 	if (ctx->ct_size == 28)
 		(void) cipher_ct28_denormalise(ctx->table[0], out);
@@ -1089,38 +1133,47 @@ cipher_decode(Cipher *ctx, const char *message)
 
 #include <getopt.h>
 
-static char options[] = "cdvl:";
+static char options[] = "cdvk:l:s:IT:U:";
 
 static char usage[] =
-"usage: cipher [-cdv][-l length] key number [message]\n"
+"usage: cipher [-cdv][-l length][-s seed] . | < message\n"
+"       cipher -I string\n"
+"       cipher -T c|d [-k key] string\n"
+"       cipher -U c|d [-k key] string\n"
 "\n"
-"-c\t\tuse a conversion table 37, instead of 28\n"
+"-c\t\tuse conversion table 37; default 28\n"
 "-d\t\tdecode message\n"
-"-l length\tchain addition table length; default 100\n"
+"-k key\t\talpha-numeric transpostion key\n"
+"-l length\tchain addition length; default 100\n"
+"-s seed\t\tnumeric seed for chain addition; default " NUMERIC_SEED "\n"
 "-v\t\tverbose debug\n"
 "\n"
-"Key is a case insensitive string written in the conversion table alphabet.\n"
-"Number is numeric string used as the seed for the chain addition table.\n"
-"If message is omitted from the command line, then read the message from\n"
-"standard input.\n"
+"-I\t\tdump the indices of the ordinal order of characters\n"
+"-T c|d\t\tdump the encoded columnar or disrupted transposition\n"
+"-U c|d\t\tdump the decoded columnar or disrupted transposition\n"
 "\n"
 "Copyright 2010, 2011 by Anthony Howe.  All rights reserved.\n"
 ;
 
 typedef char *(*cipher_fn)(Cipher *, const char *);
+typedef char *(*transpose_fn)(const char *, const char *);
 
-static char input[256];
+static char input[BUFSIZ];
 
 int
 main(int argc, char **argv)
 {
-	int ch;
+	int ch, dump, transposition;
 	char *out;
 	Cipher ctx;
 	cipher_fn fn;
+	transpose_fn tf;
 
+	memset(&ctx, 0, sizeof (ctx));
+
+	dump = 0;
 	ctx.ct_size = 28;
-	ctx.chain_size = 0;
+	ctx.chain_size = 100;
 	fn = cipher_encode;
 
 	while ((ch = getopt(argc, argv, options)) != -1) {
@@ -1131,48 +1184,75 @@ main(int argc, char **argv)
 		case 'd':
 			fn = cipher_decode;
 			break;
+		case 'k':
+			ctx.key = optarg;
+			break;
 		case 'l':
 			ctx.chain_size = strtol(optarg, NULL, 10);
+			break;
+		case 's':
+			ctx.seed = optarg;
 			break;
 		case 'v':
 			debug++;
 			break;
+		case 'T': case 'U':
+			dump = ch;
+			transposition = *optarg;
+			if (transposition == 'c' || transposition == 'd')
+				break;
+			/*@fallthrough@*/
+		case 'I':
+			if (dump == 0) {
+				dump = ch;
+				break;
+			}
+			/*@fallthrough@*/
 		default:
 			fprintf(stderr, usage);
 			return EXIT_FAILURE;
 		}
 	}
 
-	if (argc < optind + 2) {
-		fprintf(stderr, "missing key and/or number\n%s", usage);
-		return EXIT_FAILURE;
-	}
-
-	ctx.key = (const char *) argv[optind];
-	ctx.seed = (const char *) argv[optind+1];
-
-	if (cipher_init(&ctx)) {
-		fprintf(stderr, "error initialising Cipher structure\n");
-		return EXIT_FAILURE;
-	}
-
-	if (argv[optind+2] != NULL) {
-		if ((out = (*fn)(&ctx, argv[optind+2])) == NULL) {
-			fprintf(stderr, "out of memory\n");
-			cipher_fini(&ctx);
+	switch (dump) {
+	case 'I':
+		debug = 1;
+		free(cipher_ordinal_order(argv[optind]));
+		free(cipher_index_order(argv[optind]));
+		break;
+	case 'T':
+		debug = 1;
+		tf = transposition == 'c'
+			? cipher_columnar_transposition_encode
+			: cipher_disrupted_transposition_encode
+		;
+		free((*tf)(ctx.key, argv[optind]));
+		break;
+	case 'U':
+		debug = 1;
+		tf = transposition == 'c'
+			? cipher_columnar_transposition_decode
+			: cipher_disrupted_transposition_decode
+		;
+		out = (*tf)(ctx.key, argv[optind]);
+		fprintf(stderr, "%s\n", out);
+		free(out);
+		break;
+	default:
+		if (cipher_init(&ctx)) {
+			fprintf(stderr, "error initialising Cipher structure\n");
 			return EXIT_FAILURE;
 		}
 
-		fprintf(stdout, "%s\n", out);
-		free(out);
-	} else {
-		while (fgets(input, sizeof (input), stdin) != NULL) {
+		if (optind < argc && argv[optind][0] == '.')
+			break;
+
+		while (0 < fread(input, 1, sizeof (input), stdin)) {
 			if ((out = (*fn)(&ctx, input)) == NULL) {
-				fprintf(stderr, "out of memory\n");
 				cipher_fini(&ctx);
 				return EXIT_FAILURE;
 			}
-			fprintf(stdout, "%s\n", out);
+			printf("%s\n", out);
 			free(out);
 		}
 	}

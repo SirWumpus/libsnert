@@ -19,6 +19,37 @@ extern "C" {
  ***
  ***********************************************************************/
 
+/*
+ * Eight most frequent characters in English are "SENORITA".
+ * Allows for inclusion of two punctuation characters in the
+ * key table, one of which is used for numeric shift. Used
+ * with CT28.
+ */
+#define FREQUENT8		"SENORITA"
+
+/*
+ * Seven most frequent characters in English are "ESTONIA".
+ * Allows for inclusion of decimal digits and one punctuation
+ * character in the key table. Used with CT37.
+ */
+#define FREQUENT7		"ESTONIA"
+
+/*
+ * Note that both CT28 and CT37 alphabets are a subset of the
+ * Base64 invariant character set by design. This allows for
+ * encrypted messages to appear as though they were Base64
+ * encoded.
+ */
+#define CT28			FREQUENT8 "BCDFGHJKLMPQUVWXYZ+/"
+#define CT37			FREQUENT7 "BCDFGHJKLMPQRUVWXYZ0123456789/"
+
+/**
+ * 1st row is the alphabet seeded with frequent letters and the key.
+ * 2nd and 3rd rows are the ASCII digit codes for each glyph in the
+ * straddling checkerboard.
+ */
+typedef char (cipher_ct)[3][sizeof (CT37)];
+
 /**
  * @param fp
  *	An output FILE pointer.
@@ -52,8 +83,7 @@ extern void cipher_dump_chain(FILE *fp, const char *chain);
  *	An output FILE pointer.
  *
  * @param text
- *	A numeric C string to output in space separated
- *	groups of 5 characters.
+ *	A C string to output in space separated groups.
  */
 extern void cipher_dump_grouping(FILE *fp, int grouping, const char *text);
 
@@ -88,28 +118,60 @@ extern void cipher_dump_transposition(FILE *fp, const char *num_key, const char 
 extern int cipher_chain_add(const char *seed_number, char *buffer, size_t size);
 
 /**
- * @param source
- *	A numeric C string of 10 digits.
- *
- * @param out
- *	An output buffer of at least 11 bytes, that will contain
- *	the digits from 0 to 9 inclusive corresponding to the
- *	order of digits from source string. The buffer will be
- *	NUL terminated.
+ * @param chain
+ *	A numeric C string representing the chain addition to be
+ *	inverted, in place.
  */
-extern void cipher_digit_order(const char source[10], char out[11]);
+extern void cipher_chain_invert(char *chain);
 
 /**
- * @param source
- *	A C string of 10 alphabetic letters.
+ * @param in
+ *	A C string of up to 255 bytes in length.
  *
- * @param out
- *	An output buffer of at least 11 bytes, that will contain
- *	the digits from 0 to 9 inclusive corresponding to the
- *	order of letters from source string. The buffer will be
- *	NUL terminated.
+ * @return
+ *	An output buffer that starts with the length N of the
+ *	input string followed by N octets. Each octet in the
+ *	output array corresponds to the character set ordering
+ *	of the input array.
+ *
+ * 	Examples assuming ASCII:
+ *
+ *	    B A B Y L O N 5		input
+ *	    2 1 3 7 4 6 5 0		ordinal order
+ *
+ *	    H E L L O W O R L D		input
+ *	    2 1 3 4 6 9 7 8 5 0		ordinal order
+ *
+ * @see
+ *	cipher_index_order()
  */
-extern void cipher_alpha_order(const char source[10], char out[11]);
+extern unsigned char *cipher_ordinal_order(const char *in);
+
+/**
+ * @param in
+ *	A C string of up to 255 bytes in length.
+ *
+ * @return
+ *	An output buffer that starts with the length N of the
+ *	input string followed by N octets. Each octet in the
+ *	output array contains the index by which the input
+ *	string should be read according to the ordinal order
+ *	of the input.
+ *
+ * 	Examples assuming ASCII:
+ *
+ *	    B A B Y L O N 5		input
+ *	    2 1 3 7 4 6 5 0		ordinal order
+ *	    7 1 0 2 4 6 5 3		index of ordinal
+ *
+ *	    H E L L O W O R L D		input
+ *	    2 1 3 4 6 9 7 8 5 0 	ordinal order
+ *	    9 1 0 2 3 8 4 6 7 5		index of ordinal
+ *
+ * @see
+ *	cipher_ordinal_order()
+ */
+extern unsigned char *cipher_index_order(const char *in);
 
 /**
  * @param num_key
@@ -123,7 +185,7 @@ extern void cipher_alpha_order(const char source[10], char out[11]);
  *	simple column transposition encoding. It is the caller's
  *	responsibility to free this memory when done.
  */
-extern char *cipher_simple_transposition_encode(const char *num_key, const char *in);
+extern char *cipher_columnar_transposition_encode(const char *num_key, const char *in);
 
 /**
  * @param num_key
@@ -137,7 +199,7 @@ extern char *cipher_simple_transposition_encode(const char *num_key, const char 
  *	simple column transposition decoding. It is the caller's
  *	responsibility to free this memory when done.
  */
-extern char *cipher_simple_transposition_decode(const char *num_key, const char *in);
+extern char *cipher_columnar_transposition_decode(const char *num_key, const char *in);
 
 /**
  * @param num_key
@@ -170,29 +232,9 @@ extern char *cipher_disrupted_transposition_decode(const char *num_key, const ch
  *	The conversion table size, 28 or 37. Used to select
  *	both the alphabet and frequent English letter list.
  *
- * @param key
- *	A C string for the key in the conversion table alphabet.
- *	Used to scramble alphabet order. Can be NULL for the
- *	default English order.
- *
- * @parma ct_out
- *	A buffer at least ct_size+1 bytes in size to hold the
- *	reordered conversion table alphabet.
- *
- * @return
- *	Zero on success, otherwise non-zero on error.
- *
- * @note
- *	Use cipher_alphabet_fill() to initialise the 1st row
- *	of a cipher_ct table and cipher_ct_fill() to initialise
- *	the remainder of the table based on the alphabet.
- */
-extern int cipher_alphabet_fill(int ct_size, const char *key, char *ct_out);
-
-/**
  * @param order
- *	A numeric C string of 10 digits 0 to 9 used as a key
- *	to initialise the conversion table.
+ *	An array of 11 octets; a length (10) followed by 10
+ *	octets specifying an ordinal ordering.
  *
  * @param table
  *	A pointer to a cipher_ct, where 1st row is the alphabet
@@ -204,37 +246,10 @@ extern int cipher_alphabet_fill(int ct_size, const char *key, char *ct_out);
  * @return
  *	Zero on success, otherwise non-zero on error.
  *
- * @note
- *	Use cipher_alphabet_fill() to initialise the 1st row
- *	of the table.
+ * @see
+ *	cipher_ordinal_order()
  */
-extern int cipher_ct_fill(const char *order, cipher_ct table);
-
-/**
- * @param ct_size
- *	The conversion table size, 28 or 37. Used to select
- *	both the alphabet and frequent English letter list.
- *
- * @param key
- *	A C string for the key in the conversion table alphabet.
- *	Used to scramble alphabet order. Can be NULL for the
- *	default English order.
- *
- * @param order
- *	A numeric C string of 10 digits 0 to 9 used as a key
- *	to initialise the conversion table.
- *
- * @param table
- *	A pointer to a cipher_ct, where 1st row is the alphabet
- *	seeded with frequent English letters and a key. The 2nd
- *	and 3rd rows will be initialised with the ASCII digit
- *	codes (or space) for each glyph based on a straddling
- *	checkerboard.
- *
- * @return
- *	Zero on success, otherwise non-zero on error.
- */
-extern int cipher_ct_init(int ct_size, const char *key, const char *order, cipher_ct table);
+extern int cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct table);
 
 /**
  * @param table
