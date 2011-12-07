@@ -508,7 +508,12 @@ pdqSizeOfType(PDQ_type type)
 		return sizeof (PDQ_HINFO);
 
 	case PDQ_TYPE_ANY:
-		return sizeof (PDQ_rr);
+		/* Use PDQ_QUERY instead of PDQ_rr, which for the
+		 * sake of a bit more memory allows allocation of
+		 * query section boundary without having to add
+		 * an internal type, ie. PDQ_TYPE_QUERY.
+		 */
+		return sizeof (PDQ_QUERY);
 
 	default:
 		syslog(LOG_ERR, "unsupported DNS RR type=%d", type);
@@ -801,12 +806,17 @@ pdqListPruneDup(PDQ_rr *list)
 {
 	PDQ_rr **prev, *next, *r1, *r2;
 
+	if (debug)
+		syslog(LOG_DEBUG, "pdqListPruneDup() ...");
+
 	for (r1 = list; r1 != NULL; r1 = r1->next) {
 		prev = &r1->next;
 		for (r2 = r1->next; r2 != NULL; r2 = next) {
 			next = r2->next;
 
 			if (pdqEqual(r1, r2)) {
+				if (debug)
+					pdqLog(r2);
 				*prev = r2->next;
 				pdqDestroy(r2);
 				continue;
@@ -815,6 +825,9 @@ pdqListPruneDup(PDQ_rr *list)
 			prev = &r2->next;
 		}
 	}
+
+	if (debug)
+		syslog(LOG_DEBUG, "pdqListPruneDup() done, list=0x%lx", (long) list);
 
 	return list;
 }
@@ -843,6 +856,9 @@ pdqListPrune5A(PDQ_rr *list, is_ip_t is_ip_mask, int must_have_ip)
 {
 	PDQ_rr **prev, *rr, *next;
 
+	if (debug)
+		syslog(LOG_DEBUG, "pdqListPrune5A()...");
+
 	/* Remove impossible to reach A/AAAA records. */
 	prev = &list;
 	for (rr = list; rr != NULL; rr = next) {
@@ -851,6 +867,8 @@ pdqListPrune5A(PDQ_rr *list, is_ip_t is_ip_mask, int must_have_ip)
 		if (rr->section != PDQ_SECTION_QUERY) {
 			if ((rr->type == PDQ_TYPE_A || rr->type == PDQ_TYPE_AAAA)
 			&& isReservedIPv6(((PDQ_AAAA *) rr)->address.ip.value, is_ip_mask)) {
+				if (debug)
+					pdqLog(rr);
 				*prev = rr->next;
 				pdqDestroy(rr);
 				continue;
@@ -859,6 +877,9 @@ pdqListPrune5A(PDQ_rr *list, is_ip_t is_ip_mask, int must_have_ip)
 
 		prev = &rr->next;
 	}
+
+	if (debug)
+		syslog(LOG_DEBUG, "pdqListPrune5A() done, list=0x%lx", (long) list);
 
 	return list;
 }
@@ -925,9 +946,14 @@ pdqListPruneQuery(PDQ_rr *list)
 {
 	PDQ_rr **prev, *rr, *next;
 
+	if (debug)
+		syslog(LOG_DEBUG, "pdqListPruneQuery()...");
+
 	/* Remove records upto next query section in list. */
 	prev = &list;
 	for (rr = list; rr != NULL; rr = next) {
+		if (debug)
+			pdqLog(rr);
 		*prev = rr->next;
 		next = rr->next;
 		pdqDestroy(rr);
@@ -935,6 +961,9 @@ pdqListPruneQuery(PDQ_rr *list)
 		if (next != NULL && next->section == PDQ_SECTION_QUERY)
 			break;
 	}
+
+	if (debug)
+		syslog(LOG_DEBUG, "pdqListPruneQuery() done, list=0x%lx", (long) list);
 
 	return list;
 }
@@ -952,6 +981,9 @@ pdqListPruneMatch(PDQ_rr *list)
 {
 	PDQ_rr **prev, *rr, *next, *ar;
 
+	if (debug)
+		syslog(LOG_DEBUG, "pdqListPruneMatch()...");
+
 	/* Remove MX/NS/SOA records with no matching A/AAAA records. Note
 	 * that pdqGet() returns the implicit MX 0 record as a convenience.
 	 */
@@ -959,27 +991,39 @@ pdqListPruneMatch(PDQ_rr *list)
 	for (rr = list; rr != NULL; rr = next) {
 		next = rr->next;
 
-		if (rr->section != PDQ_SECTION_QUERY) {
-			/* Discard records we can't use (NXDOMAIN, CNAME, DNAME). */
-			if (rr->type == PDQ_TYPE_CNAME || rr->type == PDQ_TYPE_DNAME) {
+		/* Discard failed queries we can't use. */
+		if (rr->section == PDQ_SECTION_QUERY
+		&& ((PDQ_QUERY *)rr)->rcode != PDQ_RCODE_OK) {
+			*prev = next = pdqListPruneQuery(rr);
+			continue;
+		}
+
+		/* Discard records we can't use (CNAME, DNAME). */
+		if (rr->type == PDQ_TYPE_CNAME || rr->type == PDQ_TYPE_DNAME) {
+			if (debug)
+				pdqLog(rr);
+			*prev = rr->next;
+			pdqDestroy(rr);
+			continue;
+		}
+
+		/* Discard MX records without matching A/AAAA records. */
+		if (rr->type == PDQ_TYPE_MX || rr->type == PDQ_TYPE_NS || rr->type == PDQ_TYPE_SOA) {
+			ar = pdqListFindName(list, rr->class, PDQ_TYPE_5A, ((PDQ_MX *) rr)->host.string.value);
+			if (PDQ_RR_IS_NOT_VALID(ar)) {
+				if (debug)
+					pdqLog(rr);
 				*prev = rr->next;
 				pdqDestroy(rr);
 				continue;
-			}
-
-			/* Discard MX records without matching A/AAAA records. */
-			if (rr->type == PDQ_TYPE_MX || rr->type == PDQ_TYPE_NS || rr->type == PDQ_TYPE_SOA) {
-				ar = pdqListFindName(list, rr->class, PDQ_TYPE_5A, ((PDQ_MX *) rr)->host.string.value);
-				if (PDQ_RR_IS_NOT_VALID(ar)) {
-					*prev = rr->next;
-					pdqDestroy(rr);
-					continue;
-				}
 			}
 		}
 
 		prev = &rr->next;
 	}
+
+	if (debug)
+		syslog(LOG_DEBUG, "pdqListPruneMatch() done, list=0x%lx", (long) list);
 
 	return list;
 }
@@ -2280,7 +2324,7 @@ pdq_query_send_all(PDQ *pdq)
 {
 	time_t now;
 	PDQ_query *query, *next;
-	PDQ_rr *answer, *timedout = NULL;
+	PDQ_rr *entry, *timedout = NULL;
 
 	(void) time(&now);
 
@@ -2288,12 +2332,14 @@ pdq_query_send_all(PDQ *pdq)
 		next = query->next;
 		if (now < query->created + pdq->timeout) {
 			(void) pdq_query_send(pdq, query);
-		} else {
+		} else if ((entry = pdqCreate(PDQ_TYPE_ANY)) != NULL) {
 			/* Return a record reporting the failed query. */
-			answer = pdq_reply_rr(&query->packet, query->packet.data, NULL);
-			if (answer != NULL && answer->section == PDQ_SECTION_QUERY)
-				((PDQ_QUERY *)answer)->rcode = PDQ_RCODE_TIMEDOUT;
-			timedout = pdqListAppend(timedout, answer);
+			pdq_fill_rr(entry, &query->packet, query->packet.data, NULL);
+			((PDQ_QUERY *)entry)->rr.section = PDQ_SECTION_QUERY;
+			((PDQ_QUERY *)entry)->rcode = PDQ_RCODE_TIMEDOUT;
+			((PDQ_QUERY *)entry)->qdcount = 1;
+
+			timedout = pdqListAppend(timedout, entry);
 			pdq_link_remove(&pdq->pending, query);
 			free(query);
 		}
@@ -2331,14 +2377,12 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 		pdqLogPacket(packet, 0);
 
 	/* Create a PDQ_query entry to start a section. */
-	if ((query = malloc(sizeof (*query))) == NULL) {
+	if ((query = (PDQ_QUERY *) pdqCreate(PDQ_TYPE_ANY)) == NULL) {
 		syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
 		goto error0;
 	}
 
 	query->rcode = rcode;
-	query->rr.ttl = 0;
-	query->rr.next = NULL;
 	(void) time(&query->created);
 	query->flags = packet->header.bits;
 	query->rr.section = PDQ_SECTION_QUERY;
@@ -3363,9 +3407,13 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 
 	answer = (PDQ_QUERY *) pdqWaitAll(pdq);
 
-	if (type == PDQ_TYPE_MX && pdqListFind((PDQ_rr *)answer, PDQ_CLASS_ANY, PDQ_TYPE_MX, NULL) == NULL) {
+	if (type == PDQ_TYPE_MX && answer != NULL
+	&& answer->rcode == PDQ_RCODE_OK && answer->ancount == 0) {
 		/* When there is no MX found, apply the implicit MX 0 rule. */
+		if (debug)
+			syslog(LOG_DEBUG, "pdqGet() apply implicit MX 0 rule");
 		pdqListFree(answer->rr.next);
+		answer->ancount = 1;
 
 		if ((answer->rr.next = pdq_create_rr(class, PDQ_TYPE_MX, name)) == NULL)
 			goto error0;
@@ -3375,6 +3423,8 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 
 	/* Make sure we have all the associated A / AAAA records. */
 	if (answer != NULL && !pdq->short_query && (type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA)) {
+		if (debug)
+			syslog(LOG_DEBUG, "pdqGet() related A/AAAA records...");
 		for (rr = answer->rr.next; rr != NULL; rr = rr->next) {
 			if (rr->type == type) {
 				/* "domain IN MX ." is a short hand to indicate
