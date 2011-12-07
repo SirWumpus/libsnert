@@ -1,5 +1,5 @@
 org/sqlite/makefile
-org/sqlite/sqlite-autoconf-3070800.tar.gz
+org/sqlite/sqlite-autoconf-3070900.tar.gz
 com/snert/lib/Log.pm
 com/snert/include/com/snert/lib
 com/snert/include/org/valgrind
@@ -203,7 +203,6 @@ com/snert/src/lib/util/ixhash.eml
 com/snert/src/lib/util/md4.c
 com/snert/src/lib/util/md5.c
 com/snert/src/lib/util/playfair.c
-com/snert/src/lib/util/victor.c
 com/snert/src/lib/util/cipher.c
 com/snert/src/lib/util/properties.txt
 com/snert/src/lib/util/setBitWord.c
@@ -299,7 +298,6 @@ com/snert/src/lib/include/util/md4.h
 com/snert/src/lib/include/util/md5.h
 com/snert/src/lib/include/util/cipher.h
 com/snert/src/lib/include/util/playfair.h
-com/snert/src/lib/include/util/victor.h
 com/snert/src/lib/include/util/setBitWord.h
 com/snert/src/lib/include/util/uri.h
 com/snert/src/lib/include/util/option.h
