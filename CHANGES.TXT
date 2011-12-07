@@ -57,6 +57,11 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.6--
+
+   !	Minor change to pdqGet() to avoid performing unnecessary lookups
+   	for related A/AAAA when an MX / NS / SOA lookup fails.
+
 --1.75.5--
 
    *    Upgraded SQLite to 3.7.9
