@@ -1482,7 +1482,7 @@ pdqDump(FILE *fp, PDQ_rr *record)
 			break;
 
 		case PDQ_TYPE_TXT:
-			(void) fprintf(fp, "\"%s\"", TextEmpty((char *) ((PDQ_TXT *) record)->text.value));
+			(void) fprintf(fp, "%lu:\"%s\"", ((PDQ_TXT *) record)->text.length, TextEmpty((char *) ((PDQ_TXT *) record)->text.value));
 			break;
 
 		case PDQ_TYPE_NULL:
@@ -1521,9 +1521,9 @@ pdqLog(PDQ_rr *record)
 {
 	if (record->section == PDQ_SECTION_QUERY) {
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%s" PDQ_LOG_FMT_END, PDQ_LOG_ARG(record),
-			pdqRcodeName(((PDQ_QUERY *)record)->rcode),
-			PDQ_LOG_ARG_END(record)
+			LOG_DEBUG, PDQ_LOG_FMT PDQ_LOG_FMT_END " rcode=%s (%d)", PDQ_LOG_ARG(record),
+			PDQ_LOG_ARG_END(record),
+			pdqRcodeName(((PDQ_QUERY *)record)->rcode), ((PDQ_QUERY *)record)->rcode
 		);
 		return;
 	}
@@ -1578,9 +1578,10 @@ pdqLog(PDQ_rr *record)
 
 	case PDQ_TYPE_TXT:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "\"%s\"" PDQ_LOG_FMT_END,
+			LOG_DEBUG, PDQ_LOG_FMT "%lu:\"%s\"" PDQ_LOG_FMT_END,
 			PDQ_LOG_ARG(record),
-			((PDQ_TXT *) record)->text.value,
+			((PDQ_TXT *) record)->text.length,
+			TextNull(((PDQ_TXT *) record)->text.value),
 			PDQ_LOG_ARG_END(record)
 		);
 		break;
@@ -1725,7 +1726,8 @@ pdqStringFormat(char *buffer, size_t size, PDQ_rr * record)
 
 	case PDQ_TYPE_TXT:
 		length += snprintf(
-			buffer+length, 0 < size ? size-length : 0, "\"%s\"",
+			buffer+length, 0 < size ? size-length : 0, "%lu:\"%s\"",
+			((PDQ_TXT *) record)->text.length,
 			TextEmpty((char *) ((PDQ_TXT *) record)->text.value)
 		);
 		break;
@@ -1950,8 +1952,13 @@ pdq_txt_create(PDQ_TXT *txt, unsigned char *rdata, unsigned rdlength)
 {
 	unsigned char *stop, *buf;
 
-	if (rdata == NULL)
+	if (1 < debug)
+		syslog(LOG_DEBUG, "pdq_txt_create(0x%lx, 0x%lx, %u)", (long)txt, (long)rdata, rdlength);
+
+	if (rdata == NULL) {
+		errno = EFAULT;
 		return -1;
+	}
 
 	if ((txt->text.value = malloc(rdlength + 1)) == NULL)
 		return -1;
@@ -1965,6 +1972,7 @@ pdq_txt_create(PDQ_TXT *txt, unsigned char *rdata, unsigned rdlength)
 		if (rdlength <= txt->text.length + *rdata) {
 			free(txt->text.value);
 			txt->text.value = NULL;
+			errno = EINVAL;
 			return -1;
 		}
 
@@ -2507,14 +2515,16 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 
 		case PDQ_TYPE_TXT:
 			if (pdq_txt_create((PDQ_TXT *) record, ptr, length)) {
-				break;
+				syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
+				goto error1;
 			}
 			ptr += length;
 			break;
 
 		case PDQ_TYPE_NULL:
 			if ((((PDQ_NULL *) record)->text.value = malloc(length)) == NULL) {
-				break;
+				syslog(LOG_ERR, "%s(%d): %s (%d)", __FILE__, __LINE__, strerror(errno), errno);
+				goto error1;
 			}
 
 			memcpy(((PDQ_NULL *) record)->text.value, ptr, length);
@@ -2635,16 +2645,11 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 	query->rr.next = pdqListReverse(query->rr.next);
 	*list = (PDQ_rr *) query;
 
-	if (rcode == PDQ_RCODE_OK)
-		return PDQ_RCODE_OK;
-
-	/* If at least one RR was successfully parsed, return
-	 * the rcode from the reply packet, otherwise errno.
-	 */
 	return rcode;
 error1:
-	pdqListFree(record);
 	pdqListFree((PDQ_rr *) query);
+error0a:
+	pdqListFree(record);
 error0:
 	return PDQ_RCODE_ERRNO;
 }
@@ -2789,15 +2794,19 @@ pdq_query_reply(PDQ *pdq, struct udp_packet *packet, SocketAddress *address, PDQ
 		rcode = pdq_reply_parse(pdq, packet, list);
 
 	switch (rcode) {
-	default:
+	case PDQ_RCODE_SERVFAIL:
+	case PDQ_RCODE_REFUSED:
 		if (1 < servers_length && query->next_ns != -1)
 			break;
 		/*@fallthrough@*/
-
-	case PDQ_RCODE_OK:
-	case PDQ_RCODE_NXDOMAIN:
-	case PDQ_RCODE_NOT_IMPLEMENTED:
-	case PDQ_RCODE_FORMAT:
+	default:
+//	case PDQ_RCODE_OK:
+//	case PDQ_RCODE_NXDOMAIN:
+//	case PDQ_RCODE_NOT_IMPLEMENTED:
+//	case PDQ_RCODE_FORMAT:
+//	case PDQ_RCODE_ERRNO:
+//	case PDQ_RCODE_TIMEDOUT:
+//	case PDQ_RCODE_ANY:
 		pdq_link_remove(&pdq->pending, query);
 		free(query);
 	}
