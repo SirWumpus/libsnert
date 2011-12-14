@@ -57,6 +57,15 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.7--
+
+   !	Fix pdqGet() returning PDQ_TXT record with a NULL pointer for
+	the text string due to packet parse error. The caller might
+	neglect to verify the pointer is not NULL before accessing it.
+	Now if pdq_txt_create() returns an error (when string length
+	exceeds the packet data length) then the whole result list is
+	discarded.
+
 --1.75.6--
 
    !	Minor change to pdqGet() to avoid performing unnecessary lookups
