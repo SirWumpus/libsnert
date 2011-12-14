@@ -10,6 +10,8 @@
  * Copyright 2010, 2011 by Anthony Howe. All rights reserved.
  */
 
+#define WIPE_MEMORY
+
 #include <errno.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -17,6 +19,14 @@
 #include <string.h>
 
 #define STRLEN(s)		(sizeof (s)-1)
+
+#ifdef WIPE_MEMORY
+#define MEM_WIPE(p, n)		(void) memset(p, 0, n)
+#define STR_WIPE(p)		while (*(p) != '\0') *(char *)(p)++ = 0
+#else
+#define MEM_WIPE(p, n)
+#define STR_WIPE(p)
+#endif
 
 #if !defined(NUMERIC_SEED)
 #define NUMERIC_SEED		"3141592653"	/* PI to 9 decimal places. */
@@ -48,7 +58,7 @@
 #define CT37			FREQUENT7 "BCDFGHJKLMPQRUVWXYZ0123456789/"
 
 /**
- * 1st row is the alphabet seeded with frequent letters and the key.
+ * 1st row is the alphabet seeded with frequent letters and alphabet.
  * 2nd and 3rd rows are the ASCII digit codes for each glyph in the
  * straddling checkerboard.
  */
@@ -75,7 +85,7 @@ cipher_dump_alphabet(FILE *fp, cipher_ct table)
 	size_t length;
 
 	length = strlen(table[0]);
-	fprintf(fp, "CT%d\n\n\t", length);
+	fprintf(fp, "CT%lu\n\n\t", (unsigned long)length);
 
 	for (j = 0, k = length/2; j < length; j += k, k = length) {
 		for (i = j; i < k; i++)
@@ -104,7 +114,7 @@ cipher_dump_ct(FILE *fp, cipher_ct table)
 	size_t length;
 
 	length = strlen(table[0]);
-	fprintf(fp, "CT%d Straddling Checkerboard\n\n\t  ", length);
+	fprintf(fp, "CT%lu Straddling Checkerboard\n\n\t  ", (unsigned long)length);
 	k = length == STRLEN(CT28) ? STRLEN(FREQUENT8) : STRLEN(FREQUENT7);
 
 	for (i = length-10; i < length; i++)
@@ -333,6 +343,7 @@ cipher_ordinal_order(const char *in)
 	if ((out = malloc(length)) == NULL)
 		return NULL;
 
+	ip = in;
 	count = 0;
 	out[0] = length;
 	for (octet = 1; count < length; octet++) {
@@ -395,6 +406,7 @@ cipher_index_order(const char *in)
 	if ((out = malloc(length)) == NULL)
 		return NULL;
 
+	ip = in;
 	op = out;
 	*op++ = length;
 	for (octet = 1; op-out <= length; octet++) {
@@ -467,6 +479,7 @@ columnar_transposition(const char *key, const char *in, int (*fn)(char *, const 
 		out[out_len] = '\0';
 	}
 
+	MEM_WIPE(indices, indices[0]);
 	free(indices);
 
 	return out;
@@ -540,8 +553,8 @@ static char *
 disrupted_transposition(const char *key, const char *in, int (*fn)(char *, const char *, int, int))
 {
 	char *out;
+	int i, j, k, r, x;
 	unsigned char *indices;
-	int i, j, k, r, rows, x;
 	size_t key_len, out_len;
 
 	if (in == NULL)
@@ -560,33 +573,37 @@ disrupted_transposition(const char *key, const char *in, int (*fn)(char *, const
 		x = 0;
 		out[out_len] = '\0';
 		key_len = indices[0];
-		rows = (out_len + key_len - 1) / key_len;
 
 		/* Create one or more triangles in output table. */
-		k = 1;
-		for (r = 0; r < rows; k++) {
-			if (key_len <= k)
-				k = 1;
+		r = 0;
+		for (k = 1; ; k = k % key_len + 1) {
 			/* Fill triangle area. */
-			for (j = indices[k]; j <= key_len && r < rows; j++, r++) {
+			for (j = indices[k]; j <= key_len; j++, r += key_len) {
 				/* Fill row of triangle. */
-				for (i = 0; i < j; i++)
-					x = (*fn)(out, in, r * key_len + i, x);
+				for (i = 0; i < j; i++) {
+					if (out_len <= r + i)
+						goto stop1;
+					x = (*fn)(out, in, r + i, x);
+				}
 			}
 		}
-
-		/* Fill in empty space. */
-		k = 1;
-		for (r = 0; r < rows; r++, k++) {
-			if (key_len <= k)
-				k = 1;
-			for (j = indices[k]; j < key_len && r < rows; j++, r++) {
-				for (i = j; i < key_len; i++)
-					x = (*fn)(out, in, r * key_len + i, x);
+stop1:
+		/* Fill in empty triangle space. */
+		r = 0;
+		for (k = 1; ; k = k % key_len + 1) {
+			for (j = indices[k]; j <= key_len; j++, r += key_len) {
+				for (i = j; i < key_len; i++) {
+					if (out_len <= r + i)
+						goto stop2;
+					x = (*fn)(out, in, r + i, x);
+				}
 			}
 		}
+stop2:
+		;
 	}
 
+	MEM_WIPE(indices, indices[0]);
 	free(indices);
 
 	return out;
@@ -608,19 +625,22 @@ cipher_disrupted_transposition_encode(const char *key, const char *in)
 {
 	char *out;
 	int odebug = debug;
-	debug = 0;
+
 	out = disrupted_transposition(key, in, disrupted_encode);
-	if (odebug) {
+	if (debug) {
 		fprintf(stderr, "Disrupted Transposition\n\n");
 		cipher_dump_transposition(stderr, key, out);
 	}
+	debug = 0;
 	out = columnar_transposition(key, in = out, columnar_encode);
 	if (odebug) {
 		fprintf(stderr, "Output string:\n\n");
 		cipher_dump_grouping(stderr, 5, out);
 	}
+	STR_WIPE(in);
 	free((void *)in);
 	debug = odebug;
+
 	return out;
 }
 
@@ -640,17 +660,20 @@ cipher_disrupted_transposition_decode(const char *key, const char *in)
 {
 	char *out;
 	int odebug = debug;
+
 	debug = 0;
 	out = columnar_transposition(key, in, columnar_decode);
 	debug = odebug;
 	out = disrupted_transposition(key, in = out, disrupted_decode);
-	free((void *)in);
 	if (debug) {
 		fprintf(stderr, "Disrupted Transposition\n\n");
 		cipher_dump_transposition(stderr, key, in);
 		fprintf(stderr, "Output string:\n\n");
 		cipher_dump_grouping(stderr, 5, out);
 	}
+	STR_WIPE(in);
+	free((void *)in);
+
 	return out;
 }
 
@@ -882,11 +905,6 @@ cipher_code_to_char(cipher_ct table, char *out)
 	char *op, *in;
 	size_t length;
 
-	if (debug) {
-		fprintf(stderr, "From numeric:\n\n");
-		cipher_dump_grouping(stderr, 5, out);
-	}
-
 	length = strlen(table[0]);
 	for (op = in = out; *in != '\0'; in++) {
 		for (i = 0; i < length; i++) {
@@ -904,8 +922,10 @@ cipher_code_to_char(cipher_ct table, char *out)
 	}
 	*op = '\0';
 
-	if (debug)
+	if (debug) {
+		fprintf(stderr, "From numeric:\n\n");
 		cipher_dump_grouping(stderr, 2, out);
+	}
 }
 
 /**
@@ -1022,7 +1042,7 @@ typedef struct {
 	size_t ct_size;		/* Conversion table 28 or 37. */
 	const char *key;
 	const char *seed;
-	size_t chain_size;
+	size_t chain_length;
 
 	/* Private */
 	char *chain;
@@ -1031,7 +1051,7 @@ typedef struct {
 } Cipher;
 
 char *
-cipher_transponse_key(Cipher *ctx)
+cipher_transponse_key(Cipher *ctx, size_t *offset)
 {
 	char *cp, *key;
 	size_t key_len;
@@ -1041,7 +1061,7 @@ cipher_transponse_key(Cipher *ctx)
 	 * than 9 (see SECOM).
 	 */
 	key_len = 0;
-	for (cp = ctx->chain + ctx->chain_size-2; ctx->chain <= cp; cp--) {
+	for (cp = ctx->chain + *offset-1; ctx->chain <= cp; cp--) {
 		key_len += *cp - '0';
 		if (9 < key_len)
 			break;
@@ -1059,6 +1079,7 @@ cipher_transponse_key(Cipher *ctx)
 	if (cp < ctx->chain)
 		cp = ctx->chain;
 
+	*offset = cp - ctx->chain;
 	(void) memcpy(key, cp, key_len);
 	key[key_len] = '\0';
 
@@ -1068,17 +1089,18 @@ cipher_transponse_key(Cipher *ctx)
 int
 cipher_init(Cipher *ctx)
 {
-	if (ctx->chain_size < 10)
-		ctx->chain_size = 10;
-	ctx->chain_size++;
+	if (ctx->chain_length < 10)
+		ctx->chain_length = 10;
 
-	if ((ctx->chain = malloc(ctx->chain_size)) == NULL)
+	if ((ctx->chain = malloc(ctx->chain_length+1)) == NULL)
 		goto error0;
-	if (cipher_chain_add(ctx->seed, ctx->chain, ctx->chain_size))
+	if (cipher_chain_add(ctx->seed, ctx->chain, ctx->chain_length+1))
 		goto error1;
-	if ((ctx->ordinal = cipher_ordinal_order(ctx->chain+ctx->chain_size-11)) == NULL)
-		goto error1;
+	if ((ctx->ordinal = cipher_ordinal_order(ctx->chain+ctx->chain_length-10)) == NULL)
+		goto error2;
 	return cipher_ct_init(ctx->ct_size, ctx->ordinal, ctx->table);
+error2:
+	STR_WIPE(ctx->chain);
 error1:
 	free(ctx->chain);
 error0:
@@ -1091,7 +1113,13 @@ cipher_fini(void *_ctx)
 	Cipher *ctx = _ctx;
 
 	if (ctx != NULL) {
+		if (ctx->key != NULL)
+			STR_WIPE(ctx->key);
+		STR_WIPE(ctx->seed);
+		MEM_WIPE(ctx->table, sizeof (ctx->table));
+		MEM_WIPE(ctx->ordinal, *ctx->ordinal);
 		free(ctx->ordinal);
+		STR_WIPE(ctx->chain);
 		free(ctx->chain);
 	}
 }
@@ -1099,31 +1127,55 @@ cipher_fini(void *_ctx)
 char *
 cipher_encode(Cipher *ctx, const char *message)
 {
-	char *numeric, *tkey;
+	size_t offset;
+	char *out, *tkey;
 
 	if (ctx->ct_size == 28)
 		message = cipher_ct28_normalise(ctx->table[0], message);
-	numeric = cipher_char_to_code(ctx->table, message);
+	out = cipher_char_to_code(ctx->table, message);
 	if (ctx->ct_size == 28)
 		free((void *) message);
 
-	tkey = cipher_transponse_key(ctx);
-	message = cipher_columnar_transposition_encode(tkey, numeric);
-	free(numeric);
+	offset = ctx->chain_length;
+	tkey = cipher_transponse_key(ctx, &offset);
+	out = cipher_columnar_transposition_encode(tkey, message = out);
+
+	STR_WIPE(message);
+	free((void *)message);
+	STR_WIPE(tkey);
 	free(tkey);
 
-	return (char *)message;
+	tkey = cipher_transponse_key(ctx, &offset);
+	out = cipher_disrupted_transposition_encode(tkey, message = out);
+
+	STR_WIPE(message);
+	free((void *)message);
+	STR_WIPE(tkey);
+	free(tkey);
+
+	return out;
 }
 
 char *
 cipher_decode(Cipher *ctx, const char *message)
 {
-	char *out, *tkey;
+	size_t offset;
+	char *out, *tk1, *tk2;
 
-	tkey = cipher_transponse_key(ctx);
-	out = cipher_columnar_transposition_decode(tkey, message);
+	offset = ctx->chain_length;
+	tk1 = cipher_transponse_key(ctx, &offset);
+	tk2 = cipher_transponse_key(ctx, &offset);
+
+	out = cipher_disrupted_transposition_decode(tk2, message);
+	out = cipher_columnar_transposition_decode(tk1, message = out);
+	STR_WIPE(message);
 	cipher_code_to_char(ctx->table, out);
-	free(tkey);
+
+	free((void *)message);
+	STR_WIPE(tk2);
+	free(tk2);
+	STR_WIPE(tk1);
+	free(tk1);
 
 	if (ctx->ct_size == 28)
 		(void) cipher_ct28_denormalise(ctx->table[0], out);
@@ -1141,7 +1193,7 @@ static char usage[] =
 "       cipher -T c|d [-k key] string\n"
 "       cipher -U c|d [-k key] string\n"
 "\n"
-"-c\t\tuse conversion table 37; default 28\n"
+"-c\t\tuse conversion table 28; default 37\n"
 "-d\t\tdecode message\n"
 "-k key\t\talpha-numeric transpostion key\n"
 "-l length\tchain addition length; default 100\n"
@@ -1163,23 +1215,24 @@ static char input[BUFSIZ];
 int
 main(int argc, char **argv)
 {
-	int ch, dump, transposition;
 	char *out;
 	Cipher ctx;
 	cipher_fn fn;
 	transpose_fn tf;
+	int ch, dump, transposition;
 
 	memset(&ctx, 0, sizeof (ctx));
 
 	dump = 0;
-	ctx.ct_size = 28;
-	ctx.chain_size = 100;
+	ctx.ct_size = 37;
+	ctx.chain_length = 100;
 	fn = cipher_encode;
+	transposition = 0;
 
 	while ((ch = getopt(argc, argv, options)) != -1) {
 		switch (ch) {
 		case 'c':
-			ctx.ct_size = 37;
+			ctx.ct_size = 28;
 			break;
 		case 'd':
 			fn = cipher_decode;
@@ -1188,7 +1241,7 @@ main(int argc, char **argv)
 			ctx.key = optarg;
 			break;
 		case 'l':
-			ctx.chain_size = strtol(optarg, NULL, 10);
+			ctx.chain_length = strtol(optarg, NULL, 10);
 			break;
 		case 's':
 			ctx.seed = optarg;
@@ -1252,7 +1305,9 @@ main(int argc, char **argv)
 				cipher_fini(&ctx);
 				return EXIT_FAILURE;
 			}
+			MEM_WIPE(input, sizeof (input));
 			printf("%s\n", out);
+			STR_WIPE(out);
 			free(out);
 		}
 	}
