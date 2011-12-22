@@ -21,8 +21,8 @@
 #define STRLEN(s)		(sizeof (s)-1)
 
 #ifdef WIPE_MEMORY
-#define MEM_WIPE(p, n)		(void) memset(p, 0, n)
-#define STR_WIPE(p)		while (*(p) != '\0') *(char *)(p)++ = 0
+#define MEM_WIPE(p, n)		if ((p) != NULL) (void) memset((p), 0, n)
+#define STR_WIPE(p)		if ((p) != NULL) { while (*(p) != '\0') *(char *)(p)++ = 0; }
 #else
 #define MEM_WIPE(p, n)
 #define STR_WIPE(p)
