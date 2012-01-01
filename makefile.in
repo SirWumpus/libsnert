@@ -81,9 +81,9 @@ OBJS = LibSnert$O
 
 SUBDIRS = crc object type util io net mail sys
 
-.MAIN : build
+.MAIN : all
 
-all: build
+all: build-tools
 
 title :
 	@echo
