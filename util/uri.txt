@@ -35,7 +35,7 @@ X-Spam-Report: * 1.2 RCVD_IN_BL_SPAMCOP_NET RBL: Received via a relay in
 	*  0.0 T_SURBL_MULTI1 T_SURBL_MULTI1
 	*  3.1 DOS_OE_TO_MX Delivered direct to MX with OE headers
 Content-Type: multipart/mixed; boundary="--=_test_boundary"
-Content-Transfer-Encoding: 7bit
+Content-Transfer-Encoding: 8bit
 
 ----=_test_boundary
 Content-Type: text/plain
@@ -327,6 +327,18 @@ Comment: URL obfuscation using HTML entity &shy; (soft-hyphen)
 
 http://e&shy;&shy;x&shy;&shy;a&shy;&shy;m&shy;p&shy;l&shy;e&shy;&shy;.&shy;&shy;com/zT7btk1qlUMjBX10001aqyykbtlqvi/VJ4TBBE9203/hN6foQ
 http://e&shy;&shy;x&shy;&shy;a&shy;&shy;m&shy;p&shy;l&shy;e&shy;&shy;.&shy;&shy;com/foo?a=&#128;&q=&quot;
+
+----=_test_boundary
+Content-Type: text/html; charset="big5"
+Content-Transfer-Encoding: 8bit
+
+<HTML>
+<BODY>
+<A href="http://cheng-xia5¡Cinfo/">link</A>
+<A href="http://cheng-xia5¡Dinfo/">link</A>
+<A href="http://cheng-xia5¡Oinfo/">link</A>
+</BODY>
+</HTML>
 
 ----=_test_boundary
 Comment: This should the last test, no end boundary, no last newline.

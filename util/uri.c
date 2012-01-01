@@ -109,8 +109,17 @@ static const char log_error[] = "%s(%d): %s";
 int
 isCharURI(int octet)
 {
-	/* Throw away the ASCII controls, space, and high-bit octets. */
-	if (octet <= 0x20 || 0x7F <= octet)
+	/* Throw away the ASCII controls, space, and high-bit octets.
+	 *
+	 *** AlexB reports instances of spam with URLs containing 8-bit
+	 *** octets in some character encoding, like "big5". RFC 3986
+	 *** section 2 "Characters" appears to allow for this.
+	 ***
+	 *** 	"http://cheng-xia5¡Cinfo/"	0xA143	dot
+	 ***	"http://cheng-xia5¡Dinfo/"	0xA144	dot
+	 ***	"http://cheng-xia5¡Oinfo/"	0xA14F	dot
+	 ***/
+	if (octet <= 0x20 /* || 0x7F <= octet */)
 		return 0;
 
 	/* uri_excluded is the inverse set of unreserved and
@@ -1233,7 +1242,14 @@ uri_mime_decoded_octet(Mime *m, int ch, void *_data)
 				);
 				hold->length = offset + length;
 			}
-		} else {
+		}
+
+		/* Look for Big5 0xA143, 0xA144, 0xA14F representations of dot. */
+		else if (0 < hold->length && (ch == 'C' || ch == 'D' || ch == 'O') && hold->buffer[hold->length-1] == (char) 0xA1) {
+			hold->buffer[hold->length-1] = '.';
+		}
+
+		else {
 			hold->buffer[hold->length++] = ch;
 		}
 		return;
