@@ -590,13 +590,13 @@ smfAccessPattern(smfWork *work, const char *hay, char *pins, char **actionp)
 		(long) work, TextNull(hay), TextNull(pins), (long) actionp
 	);
 
+	if (actionp != NULL)
+		*actionp = NULL;
+
 	if (hay == NULL || pins == NULL || *pins == '\0') {
 		access = SMDB_ACCESS_NOT_FOUND;
 		goto error0;
 	}
-
-	if (actionp != NULL)
-		*actionp = NULL;
 
 	action = "";
 	is_hay_ip = 0 < parseIPv6(hay, ipv6);
