@@ -57,6 +57,17 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.8--
+
+   !	Fixed potential seg.fault in smfAccessPattern(); moved NULL
+	guard for ``actionp'' ahead of the NULL guard for the other
+	arguments.
+
+   !	Changed URI API to allow for 8-bit characters in the URI. Also
+	detect and replace Big5 0xA143, 0xA144, 0xA14F representations
+	of dot with an ASCII dot; see RFC 3986 section 2 "Characters".
+	Reported by AlexB.
+
 --1.75.7--
 
    !	Fix pdqGet() returning PDQ_TXT record with a NULL pointer for

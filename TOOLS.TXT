@@ -20,6 +20,10 @@ ansi		A pumped up echo(1) that does only ANSI (vt100)
 
 b64		Yet another Base64 encoder/decoder.
 
+cipher		An API and CLI for the paper & pencil cipher techniques
+		used by VIC, SECOM, and PPN ciphers. See
+		http://users.telenet.be/d.rijmenants/en/handciphers.htm
+
 clamstream	Yet another tool to stream a message to clamd server.
 
 convertDate	Converts textual date string into seconds; the reverse
@@ -112,11 +116,6 @@ TextFind	General pattern matching similar to glob(3). See the
 uue		Yet another UUE encoder/decoder.
 
 uri		CLI version of milter-link.
-
-victor		An implementation of the paper & pencil VIC cipher as
-		described by http://en.wikipedia.org/wiki/VIC_cipher
-		The output can be feed into a second stage transposition
-		or substituion cipher.
 
 cmp, cksum, comm, echo, kat, tee, strings
 		Unix tool clones intended for use with Windows CLI when
