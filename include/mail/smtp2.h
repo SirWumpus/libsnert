@@ -147,16 +147,16 @@ extern SMTP2 *smtp2OpenMx(const char *domain, unsigned connect_ms, unsigned comm
 extern SMTP2 *smtp2Open(const char *host, unsigned connect_ms, unsigned command_ms, int flags);
 extern void smtp2Close(void *_session);
 
-extern int smtp2Auth(SMTP2 *session, const char *user, const char *pass);
-extern int smtp2Mail(SMTP2 *session, const char *sender);
-extern int smtp2Rcpt(SMTP2 *session, const char *recipient);
-extern int smtp2Data(SMTP2 *session);
-extern int smtp2Print(SMTP2 *session, const char *line, size_t length);
-extern int smtp2PrintfV(SMTP2 *session, const char *fmt, va_list args);
-extern int smtp2Printf(SMTP2 *session, const char *fmt, ...);
-extern int smtp2Dot(SMTP2 *session);
-extern int smtp2Noop(SMTP2 *session);
-extern int smtp2Rset(SMTP2 *session);
+extern SMTP_Reply_Code smtp2Auth(SMTP2 *session, const char *user, const char *pass);
+extern SMTP_Reply_Code smtp2Mail(SMTP2 *session, const char *sender);
+extern SMTP_Reply_Code smtp2Rcpt(SMTP2 *session, const char *recipient);
+extern SMTP_Reply_Code smtp2Data(SMTP2 *session);
+extern SMTP_Reply_Code smtp2Print(SMTP2 *session, const char *line, size_t length);
+extern SMTP_Reply_Code smtp2PrintfV(SMTP2 *session, const char *fmt, va_list args);
+extern SMTP_Reply_Code smtp2Printf(SMTP2 *session, const char *fmt, ...);
+extern SMTP_Reply_Code smtp2Dot(SMTP2 *session);
+extern SMTP_Reply_Code smtp2Noop(SMTP2 *session);
+extern SMTP_Reply_Code smtp2Rset(SMTP2 *session);
 
 /**
  * @param s
@@ -171,7 +171,7 @@ extern int smtp2Rset(SMTP2 *session);
  * @return
  *	An SMTP_ code.
  */
-extern int smtp2Read(Socket2 *s, char ***lines);
+extern SMTP_Reply_Code smtp2Read(Socket2 *s, char ***lines);
 
 /**
  * @param s
@@ -186,7 +186,7 @@ extern int smtp2Read(Socket2 *s, char ***lines);
  * @return
  *	An SMTP_ code.
  */
-extern int smtp2Write(Socket2 *s, char *line, size_t size);
+extern SMTP_Reply_Code smtp2Write(Socket2 *s, char *line, size_t size);
 
 /***********************************************************************
  *** Mail Message API (multiple recipients, multiple destinations)
@@ -203,15 +203,15 @@ typedef struct {
 extern Mail *mailOpen(unsigned connect_ms, unsigned command_ms, int flags);
 extern void mailClose(void *_mail);
 
-extern int mailMail(Mail *mail, const char *sender);
-extern int mailRcpt(Mail *mail, const char *recipient);
-extern int mailData(Mail *mail);
-extern int mailPrint(Mail *mail, const char *line, size_t length);
-extern int mailPrintfV(Mail *mail, const char *fmt, va_list args);
-extern int mailPrintf(Mail *mail, const char *fmt, ...);
-extern int mailDot(Mail *mail);
-extern int mailNoop(Mail *mail);
-extern int mailRset(Mail *mail);
+extern SMTP_Reply_Code mailMail(Mail *mail, const char *sender);
+extern SMTP_Reply_Code mailRcpt(Mail *mail, const char *recipient);
+extern SMTP_Reply_Code mailData(Mail *mail);
+extern SMTP_Reply_Code mailPrint(Mail *mail, const char *line, size_t length);
+extern SMTP_Reply_Code mailPrintfV(Mail *mail, const char *fmt, va_list args);
+extern SMTP_Reply_Code mailPrintf(Mail *mail, const char *fmt, ...);
+extern SMTP_Reply_Code mailDot(Mail *mail);
+extern SMTP_Reply_Code mailNoop(Mail *mail);
+extern SMTP_Reply_Code mailRset(Mail *mail);
 
 /***********************************************************************
  ***

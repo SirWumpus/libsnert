@@ -164,11 +164,12 @@ smtp2AssertCRLF(char *line, size_t length, size_t size)
  * @return
  *	An SMTP reply code.
  */
-int
+SMTP_Reply_Code
 smtp2Read(Socket2 *s, char ***lines)
 {
-	int rc, ch;
+	int ch;
 	long length;
+	SMTP_Reply_Code rc;
 	char *buffer, **table;
 	size_t size, offset, line_no, line_max;
 
@@ -270,7 +271,7 @@ error0:
  * @return
  *	Zero (0) on success or an SMTP_ERROR_ code.
  */
-int
+SMTP_Reply_Code
 smtp2Write(Socket2 *s, char *line, size_t size)
 {
 	if (socketWrite(s, (unsigned char *) line, size) == SOCKET_ERROR)
@@ -284,10 +285,10 @@ smtp2Write(Socket2 *s, char *line, size_t size)
 	return SMTP_OK;
 }
 
-static int
+static SMTP_Reply_Code
 mxPrint(SMTP2 *smtp, const char *line, size_t length)
 {
-	int rc;
+	SMTP_Reply_Code rc;
 
 	/* Have we already had an IO error? */
 	if (smtp->flags & SMTP_FLAG_ERROR)
@@ -305,10 +306,10 @@ mxPrint(SMTP2 *smtp, const char *line, size_t length)
 	return rc;
 }
 
-static int
+static SMTP_Reply_Code
 mxResponse(SMTP2 *smtp)
 {
-	int rc;
+	SMTP_Reply_Code rc;
 	char **lines, **ln;
 
 	/* Have we already had an IO error? */
@@ -333,10 +334,10 @@ mxResponse(SMTP2 *smtp)
 	return rc;
 }
 
-static int
+static SMTP_Reply_Code
 mxCommand(SMTP2 *smtp, const char *line)
 {
-	int rc;
+	SMTP_Reply_Code rc;
 
 	if (line != NULL) {
 		rc = mxPrint(smtp, line, strlen(line));
@@ -349,10 +350,10 @@ error0:
 	return smtp->code = rc;
 }
 
-static int
+static SMTP_Reply_Code
 smtp2Start(SMTP2 *smtp)
 {
-	int rc;
+	SMTP_Reply_Code rc;
 	socklen_t namelen;
 	SocketAddress name;
 
@@ -361,8 +362,8 @@ smtp2Start(SMTP2 *smtp)
 	if (smtp->mx == NULL)
 		return SMTP_ERROR;
 
-	if ((rc = mxCommand(smtp, NULL)) != SMTP_WELCOME)
-		return rc;
+	if (mxCommand(smtp, NULL) != SMTP_WELCOME)
+		return smtp->code;
 
 	namelen = sizeof (name);
 	if (getsockname(smtp->mx->fd, (struct sockaddr *) &name, &namelen))
@@ -381,7 +382,7 @@ smtp2Start(SMTP2 *smtp)
 	return rc;
 }
 
-static int
+static SMTP_Reply_Code
 smtp2Connect(SMTP2 *smtp, const char *host)
 {
 	if ((smtp->mx = socketConnect(host, SMTP_PORT, smtp->connect_to)) == NULL)
@@ -397,10 +398,10 @@ smtp2Connect(SMTP2 *smtp, const char *host)
 	return smtp2Start(smtp);
 }
 
-static int
+static SMTP_Reply_Code
 smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 {
-	int rc;
+	SMTP_Reply_Code rc;
 	PDQ_rr *list, *rr;
 
 	list = pdqFetchMX(PDQ_CLASS_IN, domain, IS_IP_RESTRICTED|IS_IP_LAN);
@@ -519,7 +520,7 @@ smtp2OpenMx(const char *domain, unsigned connect_ms, unsigned command_ms, int fl
 	return smtp;
 }
 
-int
+SMTP_Reply_Code
 smtp2Auth(SMTP2 *smtp, const char *user, const char *pass)
 {
 	B64 b64;
@@ -552,7 +553,7 @@ smtp2Auth(SMTP2 *smtp, const char *user, const char *pass)
 	return mxCommand(smtp, smtp->text);
 }
 
-int
+SMTP_Reply_Code
 smtp2Mail(SMTP2 *smtp, const char *sender)
 {
 	next_msg_id(smtp, smtp->id_string);
@@ -570,17 +571,17 @@ smtp2Mail(SMTP2 *smtp, const char *sender)
 	return mxCommand(smtp, smtp->text);
 }
 
-int
+SMTP_Reply_Code
 smtp2Rcpt(SMTP2 *smtp, const char *recipient)
 {
 	(void) snprintf(smtp->text, sizeof (smtp->text), "RCPT TO:<%s>\r\n", recipient);
 	return mxCommand(smtp, smtp->text);
 }
 
-int
+SMTP_Reply_Code
 smtp2Data(SMTP2 *smtp)
 {
-	int rc;
+	SMTP_Reply_Code rc;
 
 	if ((rc = mxCommand(smtp, "DATA\r\n")) == SMTP_WAITING)
 		smtp->flags |= SMTP_FLAG_DATA;
@@ -588,10 +589,10 @@ smtp2Data(SMTP2 *smtp)
 	return rc;
 }
 
-int
+SMTP_Reply_Code
 smtp2Dot(SMTP2 *smtp)
 {
-	int rc;
+	SMTP_Reply_Code rc;
 
 	if (smtp->flags & SMTP_FLAG_DATA) {
 		smtp->flags &= ~SMTP_FLAG_DATA;
@@ -603,13 +604,13 @@ smtp2Dot(SMTP2 *smtp)
 	return smtp2Rset(smtp);
 }
 
-int
+SMTP_Reply_Code
 smtp2Noop(SMTP2 *smtp)
 {
 	return mxCommand(smtp, "NOOP\r\n");
 }
 
-int
+SMTP_Reply_Code
 smtp2Rset(SMTP2 *smtp)
 {
 	reset_msg_id(smtp);
@@ -619,10 +620,10 @@ smtp2Rset(SMTP2 *smtp)
 	return mxCommand(smtp, "RSET\r\n");
 }
 
-int
+SMTP_Reply_Code
 smtp2Print(SMTP2 *smtp, const char *line, size_t length)
 {
-	int rc;
+	SMTP_Reply_Code rc;
 
 	/* Handle SMTP dot transparency by copying to a working buffer. */
 	if (0 < length && line[0] == '.') {
@@ -676,7 +677,7 @@ smtp2Print(SMTP2 *smtp, const char *line, size_t length)
 	return mxPrint(smtp, line, length);
 }
 
-int
+SMTP_Reply_Code
 smtp2PrintfV(SMTP2 *smtp, const char *fmt, va_list args)
 {
 	int length;
@@ -686,10 +687,10 @@ smtp2PrintfV(SMTP2 *smtp, const char *fmt, va_list args)
 	return smtp2Print(smtp, smtp->text, length);
 }
 
-int
+SMTP_Reply_Code
 smtp2Printf(SMTP2 *smtp, const char *fmt, ...)
 {
-	int rc;
+	SMTP_Reply_Code rc;
 	va_list args;
 
 	va_start(args, fmt);
@@ -715,8 +716,8 @@ smtp2Printf(SMTP2 *smtp, const char *fmt, ...)
  *	When a session fails, then the caller must walk the SMTP session
  *	list checking individual response codes.
  */
-static int
-mailFunction(Mail *mail, int (*fn)(SMTP2 *), int expect)
+static SMTP_Reply_Code
+mailFunction(Mail *mail, SMTP_Reply_Code (*fn)(SMTP2 *), int expect)
 {
 	int count, errors;
 	SMTP2 *smtp, *next;
@@ -749,7 +750,7 @@ mailOpen(unsigned connect_ms, unsigned command_ms, int flags)
 	return mail;
 }
 
-static int
+static SMTP_Reply_Code
 smtp2Close2(SMTP2 *smtp)
 {
 	smtp2Close(smtp);
@@ -766,11 +767,11 @@ mailClose(void *_mail)
 	}
 }
 
-int
+SMTP_Reply_Code
 mailMail(Mail *mail, const char *sender)
 {
 	SMTP2 *smtp;
-	int rc = SMTP_OK;
+	SMTP_Reply_Code rc = SMTP_OK;
 
 	/* Reset any active sessions. */
 	mailRset(mail);
@@ -790,7 +791,7 @@ mailMail(Mail *mail, const char *sender)
 	return rc;
 }
 
-int
+SMTP_Reply_Code
 mailRcpt(Mail *mail, const char *recipient)
 {
 	SMTP2 *smtp;
@@ -824,25 +825,25 @@ mailRcpt(Mail *mail, const char *recipient)
 	return smtp2Rcpt(smtp, recipient);
 }
 
-int
+SMTP_Reply_Code
 mailData(Mail *mail)
 {
 	return mailFunction(mail, smtp2Data, SMTP_WAITING);
 }
 
-int
+SMTP_Reply_Code
 mailDot(Mail *mail)
 {
 	return mailFunction(mail, smtp2Dot, SMTP_OK);
 }
 
-int
+SMTP_Reply_Code
 mailNoop(Mail *mail)
 {
 	return mailFunction(mail, smtp2Noop, SMTP_OK);
 }
 
-int
+SMTP_Reply_Code
 mailRset(Mail *mail)
 {
 	free(mail->sender);
@@ -850,11 +851,11 @@ mailRset(Mail *mail)
 	return mailFunction(mail, smtp2Rset, SMTP_OK);
 }
 
-int
+SMTP_Reply_Code
 mailPrint(Mail *mail, const char *line, size_t length)
 {
 	SMTP2 *smtp;
-	int rc = SMTP_ERROR;
+	SMTP_Reply_Code rc = SMTP_ERROR;
 
 	for (smtp = mail->list; smtp != NULL; smtp = smtp->next)
 		rc = smtp2Print(smtp, line, length);
@@ -862,11 +863,11 @@ mailPrint(Mail *mail, const char *line, size_t length)
 	return rc;
 }
 
-int
+SMTP_Reply_Code
 mailPrintfV(Mail *mail, const char *fmt, va_list args)
 {
 	SMTP2 *smtp;
-	int rc = SMTP_ERROR;
+	SMTP_Reply_Code rc = SMTP_ERROR;
 
 	for (smtp = mail->list; smtp != NULL; smtp = smtp->next) {
 #ifdef HAVE_MACRO_VA_COPY
@@ -882,10 +883,10 @@ mailPrintfV(Mail *mail, const char *fmt, va_list args)
 	return rc;
 }
 
-int
+SMTP_Reply_Code
 mailPrintf(Mail *mail, const char *fmt, ...)
 {
-	int rc;
+	SMTP_Reply_Code rc;
 	va_list args;
 
 	va_start(args, fmt);
