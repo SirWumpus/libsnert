@@ -814,6 +814,8 @@ socket3_read_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from
 		goto error1;
 	}
 
+	socklen = from == NULL ? 0 : sizeof (*from);
+
 /* On Windows, a portable program has to use recv()/send() to
  * read/write sockets, since read()/write() typically only do
  * file I/O via ReadFile()/WriteFile().
@@ -838,12 +840,7 @@ socket3_read_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from
 		nbytes = read(fd, buffer, size);
 	else
 #endif
-	if (from == NULL) {
-		nbytes = recv(fd, buffer, size, 0);
-	} else {
-		socklen = socketAddressLength(from);
 		nbytes = recvfrom(fd, buffer, size, 0, (struct sockaddr *) from, &socklen);
-	}
 #endif
 	UPDATE_ERRNO;
 error1:
@@ -893,12 +890,7 @@ socket3_peek_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from
 	}
 
 	socklen = from == NULL ? 0 : sizeof (*from);
-	if (from == NULL) {
-		nbytes = recv(fd, buffer, size, MSG_PEEK);
-	} else {
-		socklen = socketAddressLength(from);
-		nbytes = recvfrom(fd, buffer, size, MSG_PEEK, (struct sockaddr *) from, &socklen);
-	}
+	nbytes = recvfrom(fd, buffer, size, MSG_PEEK, (struct sockaddr *) from, &socklen);
 error1:
 	if (1 < socket3_debug)
 		syslog(LOG_DEBUG, "%ld = socket3_peek_fd(%d, %lx, %ld, %lx)", nbytes, (int) fd, (unsigned long)buffer, (unsigned long)size, (unsigned long)from);
