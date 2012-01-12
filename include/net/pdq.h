@@ -1003,6 +1003,16 @@ extern PDQ_rr *pdqListFindAddress(PDQ_rr *list, PDQ_class class, PDQ_type type, 
 extern PDQ_rr *pdqListFindIP(PDQ_rr *list, PDQ_class class, PDQ_type type, const unsigned char ipv6[IPV6_BYTE_LENGTH]);
 
 /**
+ * @param list
+ *	A pointer to a PDQ_rr list from which records upto the next
+ *	query section are skipped.
+ *
+ * @return
+ *	A pointer to the next PDQ_QUERY record or NULL for end of list.
+ */
+extern PDQ_rr *pdqListFindQuery(PDQ_rr *rr);
+
+/**
  * @param record
  *	A pointer to a PDQ_rr list.
  *

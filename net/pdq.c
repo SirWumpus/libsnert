@@ -936,6 +936,28 @@ pdqListKeepType(PDQ_rr *list, PDQ_keep mask)
 /**
  * @param list
  *	A pointer to a PDQ_rr list from which records upto the next
+ *	query section are skipped.
+ *
+ * @return
+ *	A pointer to the next PDQ_QUERY record or NULL for end of list.
+ */
+PDQ_rr *
+pdqListFindQuery(PDQ_rr *rr)
+{
+	/* Skip the current query. */
+	if (rr->section == PDQ_SECTION_QUERY)
+		rr = rr->next;
+
+	/* Find next query section. */
+	while (rr != NULL && rr->section != PDQ_SECTION_QUERY)
+		rr = rr->next;
+
+	return rr;
+}
+
+/**
+ * @param list
+ *	A pointer to a PDQ_rr list from which records upto the next
  *	query section are freed.
  *
  * @return
@@ -2648,7 +2670,6 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 	return rcode;
 error1:
 	pdqListFree((PDQ_rr *) query);
-error0a:
 	pdqListFree(record);
 error0:
 	return PDQ_RCODE_ERRNO;
