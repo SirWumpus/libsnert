@@ -57,6 +57,8 @@
 #define CT28			FREQUENT8 "BCDFGHJKLMPQUVWXYZ+/"
 #define CT37			FREQUENT7 "BCDFGHJKLMPQRUVWXYZ0123456789/"
 
+#define ALPHABET		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
 /**
  * 1st row is the alphabet seeded with frequent letters and alphabet.
  * 2nd and 3rd rows are the ASCII digit codes for each glyph in the
@@ -975,7 +977,7 @@ cipher_ct28_normalise(const char *alphabet, const char *text)
 			 */
 			*np++ = alphabet[*tp-'0'];
 		else if (isspace(*tp))
-			/* Use spare puntatuation for whietspace. */
+			/* Use spare puntatuation for whitespace. */
 			*np++ = '+';
 		else
 			*np++ = *tp;
@@ -1131,7 +1133,7 @@ cipher_encode(Cipher *ctx, const char *message)
 	char *out, *tkey;
 
 	if (ctx->ct_size == 28)
-		message = cipher_ct28_normalise(ctx->table[0], message);
+		message = cipher_ct28_normalise(ALPHABET, message);
 	out = cipher_char_to_code(ctx->table, message);
 	if (ctx->ct_size == 28)
 		free((void *) message);
@@ -1178,7 +1180,7 @@ cipher_decode(Cipher *ctx, const char *message)
 	free(tk1);
 
 	if (ctx->ct_size == 28)
-		(void) cipher_ct28_denormalise(ctx->table[0], out);
+		(void) cipher_ct28_denormalise(ALPHABET, out);
 
 	return out;
 }
