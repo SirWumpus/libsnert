@@ -285,12 +285,21 @@ const char *
 dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 {
 	long i;
-	PDQ_A *rr;
+	PDQ_A *rr, *next;
 	unsigned long bits;
 	const char **suffixes;
 
 	suffixes = (const char **) VectorBase(dns_list->suffixes);
-	for (rr = (PDQ_A *) list; rr != NULL; rr = (PDQ_A *) rr->rr.next) {
+	for (rr = (PDQ_A *) list; rr != NULL; rr = next) {
+		next = (PDQ_A *)rr->rr.next;
+
+		/* Ignore failed query sections. */
+		if (rr->rr.section == PDQ_SECTION_QUERY
+		&& ((PDQ_QUERY *) rr)->rcode != PDQ_RCODE_OK) {
+			next = (PDQ_A *)pdqListFindQuery((PDQ_rr *)rr);
+			continue;
+		}
+
 		if (
 		/* Confine ourselves to the answer section. */
 		   rr->rr.section != PDQ_SECTION_ANSWER
@@ -791,6 +800,7 @@ static const char *mail_ignore_table[] = {
 	"*master@*",
 	"bounce*@*",
 	"request*@*",
+	"no-reply@*",
 	NULL
 };
 
