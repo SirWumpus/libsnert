@@ -57,6 +57,24 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.9--
+
+   !	Update smtp2 API function signatures to use the SMTP_Reply_Code
+	instead of a genric int type. The SMTP_Reply_Code enumeration
+	has been available for sometime, just not applied to the API
+	signatures until now.
+
+   !	Fixed socket3_read_fd() and socket3_peek_fd() where it was
+   	failing to save the sender address due to incorrect socket
+   	length setting for the address structure.
+
+   !	Updated TLD and 2-level TLDS lists.
+
+   +	Added pdqListFindQuery().
+
+   !	Tweaked dnsListIsNameListed() to insure a failed query section
+   	is completely skipped over.
+
 --1.75.8--
 
    !	Fixed potential seg.fault in smfAccessPattern(); moved NULL
