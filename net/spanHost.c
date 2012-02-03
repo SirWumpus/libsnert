@@ -41,10 +41,16 @@ spanDomain(const char *domain, int minDots)
 	for (start = domain; *domain != '\0'; domain++) {
 		switch (*domain) {
 		case '.':
+#ifdef RFC_1035_STRICT
+/* RFC 1035 disallows a trailing hypen in domain labels, but some
+ * spam samples have demostrated its use and acceptance by MUAs.
+ *
+ * http://www.creditcard.com.---------phpsessionoscommerce23452.st-partners.ru/priv/cc/verification.html
+ */
 			/* A domain segment must end with an alpha-numeric. */
 			if (!isalnum(previous))
 				return 0;
-
+#endif
 			/* Double dots are illegal. */
 			if (domain[1] == '.')
 				return 0;
@@ -56,14 +62,31 @@ spanDomain(const char *domain, int minDots)
 			}
 			break;
 		case '-':
+#ifdef RFC_1035_STRICT
+/* RFC 1035 disallows a leading hypen in domain labels, but some
+ * spam samples have demostrated its use and acceptance by MUAs.
+ *
+ * http://www.creditcard.com.---------phpsessionoscommerce23452.st-partners.ru/priv/cc/verification.html
+ */
 			/* A domain segment cannot start with a hyphen. */
 			if (previous == '.')
 				return 0;
+#endif
 			break;
 		default:
 			if (!isalnum(*domain))
 				goto stop;
 
+#ifndef RFC_1035_STRICT
+		/* RFC 1035 section 2.3.1. Preferred name syntax grammar
+		 * only allows for alphanumeric, hyphen, and dot in domain
+		 * names. However, the DNS system does not disallow other
+		 * characters from actually being used in certain record
+		 * types and in fact the SPF RFC 4408 susggests utility
+		 * labels like "_spf".
+		 */
+		case '_':
+#endif
 			label_is_alpha = label_is_alpha && isalpha(*domain);
 			break;
 		}

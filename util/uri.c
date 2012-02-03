@@ -253,89 +253,11 @@ spanFragment(const char *fragment)
 }
 
 /*
- * RFC 2821 domain syntax excluding address-literal.
- *
- * Note that RFC 1035 section 2.3.1 indicates that domain labels
- * should begin with an alpha character and end with an alpha-
- * numeric character. However, all numeric domains do exist, such
- * as 123.com, so are permitted.
+ * Removed alt_* code and moved the changes to domain names into
+ * the common functions in order to avoid duplicate code issues.
  */
-static int
-alt_spanDomain(const char *domain, int minDots)
-{
-	const char *start;
-	int dots, previous, label_is_alpha;
-
-	if (domain == NULL)
-		return 0;
-
-	dots = 0;
-	previous = '.';
-	label_is_alpha = 1;
-
-	for (start = domain; *domain != '\0'; domain++) {
-		switch (*domain) {
-		case '.':
-#ifdef RFC_1035_DISALLOW_TRAILING_HYPHEN
-/* Spam sample:
- * http://www.creditcard.com.---------phpsessionoscommerce23452.st-partners.ru/priv/cc/verification.html
- */
-			/* A domain segment must end with an alpha-numeric. */
-			if (!isalnum(previous))
-				return 0;
-#endif
-			/* Double dots are illegal. */
-			if (domain[1] == '.')
-				return 0;
-
-			/* Count only internal dots, not the trailing root dot. */
-			if (domain[1] != '\0') {
-				label_is_alpha = 1;
-				dots++;
-			}
-			break;
-		case '-':
-#ifdef RFC_1035_DISALLOW_LEADING_HYPHEN
-/* Spam sample:
- * http://www.creditcard.com.---------phpsessionoscommerce23452.st-partners.ru/priv/cc/verification.html
- */
-			/* A domain segment cannot start with a hyphen. */
-			if (previous == '.')
-				return 0;
-#endif
-			break;
-		default:
-			if (!isalnum(*domain))
-				goto stop;
-
-			label_is_alpha = label_is_alpha && isalpha(*domain);
-			break;
-		}
-
-		previous = *domain;
-	}
-
-	/* Top level domain must end with dot or alpha character. */
-	if (0 < dots && !label_is_alpha)
-		return 0;
-stop:
-	if (dots < minDots)
-		return 0;
-
-	return domain - start;
-}
-
-
-static int
-alt_spanHost(const char *host, int minDots)
-{
-	int span;
-
-	if (0 < (span = spanIP(host)))
-		return span;
-
-	return alt_spanDomain(host, minDots);
-}
+#define alt_spanDomain		spanDomain
+#define alt_spanHost		spanHost
 
 /***********************************************************************
  ***
