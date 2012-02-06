@@ -797,7 +797,7 @@ cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct table)
 			table[2][l+i+k] = order[k]+'0';
 		}
 	}
-	table[1][ct_size] = table[1][ct_size] = '\0';
+	table[1][ct_size] = table[2][ct_size] = '\0';
 
 	if (debug) {
 		/* http://en.wikipedia.org/wiki/Straddling_checkerboard	*/
