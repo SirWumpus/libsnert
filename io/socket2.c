@@ -38,7 +38,6 @@
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/timer.h>
-#include <com/snert/lib/sys/pthread.h>
 #include <com/snert/lib/sys/process.h>
 
 static int debug;

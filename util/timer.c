@@ -18,7 +18,6 @@
 # include <unistd.h>
 #endif
 
-#include <com/snert/lib/sys/pthread.h>
 #include <com/snert/lib/util/timer.h>
 
 /***********************************************************************

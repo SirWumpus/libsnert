@@ -38,10 +38,6 @@
 # include <semaphore.h>
 #endif
 
-#ifdef _REENTRANT
-# include <com/snert/lib/sys/pthread.h>
-#endif
-
 #include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/util/Text.h>
 
