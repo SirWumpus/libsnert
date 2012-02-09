@@ -84,7 +84,7 @@ processDropPrivilages(const char *run_user, const char *run_group, const char *r
 	process_euid = geteuid();
 
 	if ((process_ruid = getuid()) == 0) {
-		if (*run_group != '\0') {
+		if (run_group != NULL && *run_group != '\0') {
 			if ((gr = getgrnam(run_group)) == NULL) {
 				syslog(LOG_ERR, "group \"%s\" not found", run_group);
 				return -1;
@@ -93,7 +93,7 @@ processDropPrivilages(const char *run_user, const char *run_group, const char *r
 			process_gid = gr->gr_gid;
 		}
 
-		if (*run_user != '\0') {
+		if (run_user != NULL && *run_user != '\0') {
 			if ((pw = getpwnam(run_user)) == NULL) {
 				syslog(LOG_ERR, "user \"%s\" not found", run_user);
 				return -1;
@@ -101,7 +101,7 @@ processDropPrivilages(const char *run_user, const char *run_group, const char *r
 
 			process_euid = pw->pw_uid;
 
-			if (*run_group == '\0')
+			if (run_group != NULL && *run_group == '\0')
 				process_gid = pw->pw_gid;
 # if defined(HAVE_INITGROUPS)
 			/* Make sure to set any supplemental groups  for the new
@@ -120,21 +120,23 @@ processDropPrivilages(const char *run_user, const char *run_group, const char *r
 			return -1;
 		}
 # endif
+		if (run_dir != NULL && *run_dir != '\0') {
 # if defined(HAVE_CHROOT)
-		if (run_jailed) {
-			if (chroot(run_dir)) {
-				syslog(LOG_ERR, "chroot(%s) failed: %s (%d)", run_dir, strerror(errno), errno);
-				return -1;
-			}
-			if (chdir("/")) {
-				syslog(LOG_ERR, "chdir(\"/\") to jail root failed: %s (%d)", strerror(errno), errno);
-				return -1;
-			}
-		} else
+			if (run_jailed) {
+				if (chroot(run_dir)) {
+					syslog(LOG_ERR, "chroot(%s) failed: %s (%d)", run_dir, strerror(errno), errno);
+					return -1;
+				}
+				if (chdir("/")) {
+					syslog(LOG_ERR, "chdir(\"/\") to jail root failed: %s (%d)", strerror(errno), errno);
+					return -1;
+				}
+			} else
 # endif
-		if (*run_dir != '\0' && chdir(run_dir)) {
-			syslog(LOG_ERR, "chdir(%s) failed: %s (%d)", run_dir, strerror(errno), errno);
-			return -1;
+			if (chdir(run_dir)) {
+				syslog(LOG_ERR, "chdir(%s) failed: %s (%d)", run_dir, strerror(errno), errno);
+				return -1;
+			}
 		}
 
 		/* Drop group privileges permanently. */
