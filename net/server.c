@@ -449,9 +449,7 @@ sessionStart(ServerSession *session)
 		return;
 
 	(void) SOCKET_SET_NAGLE(session->client, 0);
-	(void) socketSetLinger(session->client, 0);
 	(void) socketSetKeepAlive(session->client, 1);
-	(void) fileSetCloseOnExec(socketGetFd(session->client), 1);
 	socketSetTimeout(session->client, session->server->option.read_to);
 
 	/* SOCKET_ADDRESS_AS_IPV4 flag: Convert (normalise) IPv4-mapped-IPv6
