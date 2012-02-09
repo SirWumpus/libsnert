@@ -81,6 +81,8 @@ socket3_lock_cb(int mode, int n, const char *file, int line)
 
 # ifdef _REENTRANT
 #  if OPENSSL_VERSION_NUMBER < 0x00909000L
+#include <com/snert/lib/sys/pthread.h>
+
 unsigned long
 socket3_id_cb(void)
 {
