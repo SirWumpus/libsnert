@@ -264,6 +264,7 @@ long
 socket3_read_line(SOCKET fd, Buf *readbuf, char *line, size_t size, long ms)
 {
 	long offset;
+	unsigned char *nl;
 
 	if (readbuf == NULL || line == NULL || size < 1)
 		return SOCKET_ERROR;
@@ -277,7 +278,25 @@ socket3_read_line(SOCKET fd, Buf *readbuf, char *line, size_t size, long ms)
 					break;
 				return SOCKET_ERROR;
 			}
-			readbuf->length = socket3_read(fd, readbuf->bytes, readbuf->size-1, NULL);
+
+			/* Peek at a chunk of data. */
+			readbuf->length = socket3_peek(fd, readbuf->bytes, readbuf->size-1, NULL);
+			if (readbuf->length < 0) {
+				if (IS_EAGAIN(errno) || errno == EINTR) {
+					errno = 0;
+					nap(1, 0);
+					continue;
+				}
+				return SOCKET_ERROR;
+			}
+
+			/* Find length of line. */
+			readbuf->bytes[readbuf->length] = 0;
+			if ((nl = strchr(readbuf->bytes, '\n')) != NULL)
+				readbuf->length = nl - readbuf->bytes + 1;
+
+			/* Read only the line. */
+			readbuf->length = socket3_read(fd, readbuf->bytes, readbuf->length, NULL);
 			if (readbuf->length < 0) {
 				if (IS_EAGAIN(errno) || errno == EINTR) {
 					errno = 0;

@@ -909,6 +909,7 @@ long
 socketReadLine2(Socket2 *s, char *line, long size, int keep_nl)
 {
 	long offset;
+	unsigned char *nl;
 
 	errno = 0;
 	if (s == NULL || line == NULL || size < 1) {
@@ -924,7 +925,25 @@ socketReadLine2(Socket2 *s, char *line, long size, int keep_nl)
 					break;
 				return SOCKET_ERROR;
 			}
-			s->readLength = socket3_read(socketGetFd(s), s->readBuffer, sizeof (s->readBuffer)-1, NULL);
+
+			/* Peek at a chunk of data. */
+			s->readLength = socket3_peek(socketGetFd(s), s->readBuffer, sizeof (s->readBuffer)-1, NULL);
+			if (s->readLength < 0) {
+				if (IS_EAGAIN(errno) || errno == EINTR) {
+					errno = 0;
+					nap(1, 0);
+					continue;
+				}
+				return SOCKET_ERROR;
+			}
+
+			/* Find length of line. */
+			s->readBuffer[s->readLength] = 0;
+			if ((nl = strchr(s->readBuffer, '\n')) != NULL)
+				s->readLength = nl - s->readBuffer + 1;
+
+			/* Read only the line. */
+			s->readLength = socket3_read(socketGetFd(s), s->readBuffer, s->readLength, NULL);
 			if (s->readLength < 0) {
 				if (IS_EAGAIN(errno) || errno == EINTR) {
 					errno = 0;

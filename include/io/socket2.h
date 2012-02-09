@@ -118,7 +118,9 @@ extern int h_error;
 # define ERRNO_EQ_EAGAIN		(errno == EAGAIN || errno == EWOULDBLOCK)
 #endif
 
-#define SOCKET_BUFSIZ			4096
+#ifndef SOCKET_BUFSIZ
+#define SOCKET_BUFSIZ			1024
+#endif
 #define SOCKET_ERROR			(-1)
 #define SOCKET_EOF			(-2)
 #define SOCKET_CONNECT_TIMEOUT		60000

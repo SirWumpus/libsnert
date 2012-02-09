@@ -79,9 +79,9 @@ extern int h_error;
 # define closesocket			close
 # define UPDATE_ERRNO
 
-#ifndef SOCKET
-#define SOCKET				int
-#endif
+# ifndef SOCKET
+#  define SOCKET			int
+# endif
 
 # ifndef EWOULDBLOCK
 #  define EWOULDBLOCK			EAGAIN
@@ -100,7 +100,6 @@ extern int h_error;
 # define IS_EAGAIN(e)			((e) == EAGAIN || (e) == EWOULDBLOCK)
 #endif
 
-#define SOCKET_BUFSIZ			4096
 #define SOCKET_ERROR			(-1)
 #define SOCKET_EOF			(-2)
 #define SOCKET_CONNECT_TIMEOUT		60000
