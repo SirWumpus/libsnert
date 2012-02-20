@@ -34,11 +34,46 @@ bounds(Buf *a, size_t *offp, size_t *lenp)
 	*lenp = len;
 }
 
-static int
-enlarge(Buf *a, size_t length)
+#ifdef BUF_FIELD_FUNCTIONS
+unsigned char *
+BufBytes(Buf *a)
+{
+	return a->bytes;
+}
+
+size_t
+BufSize(Buf *a)
+{
+	return a->size;
+}
+
+size_t
+BufLength(Buf *a)
+{
+	return a->length;
+}
+
+size_t
+BufOffset(Buf *a)
+{
+	return a->offset;
+}
+
+void
+BufSetOffset(Buf *a, size_t offset)
+{
+	a->offset = offset;
+}
+#endif
+
+int
+BufSetSize(Buf *a, size_t length)
 {
 	size_t capacity;
 	unsigned char *bytes;
+
+	if (a == NULL)
+		return -1;
 
 	if (a->size < length) {
 		capacity = (length / BUF_GROWTH + 1) * BUF_GROWTH;
@@ -141,32 +176,17 @@ BufAsBytes(Buf *a)
 	return bytes;
 }
 
-size_t
-BufLength(Buf *a)
-{
-	return a->length;
-}
-
-void
+int
 BufSetLength(Buf *a, size_t len)
 {
-	if (!enlarge(a, len + 1))
-		a->length = len;
+	if (BufSetSize(a, len + 1))
+		return -1;
 
 	/* Keep the buffer null terminated. See BufAddByte(). */
-	a->bytes[a->length] = 0;
-}
+	a->bytes[len] = 0;
+	a->length = len;
 
-size_t
-BufCapacity(Buf *a)
-{
-	return a->size;
-}
-
-unsigned char *
-BufBytes(Buf *a)
-{
-	return a->bytes;
+	return 0;
 }
 
 int
@@ -313,7 +333,7 @@ BufInsertBytes(Buf *a, size_t target, unsigned char *bytes, size_t source, size_
 		return 0;
 
 	/* Make sure we have enough room for the data and a null byte. */
-	if (enlarge(a, a->length + len + 1) < 0)
+	if (BufSetSize(a, a->length + len + 1) < 0)
 		return -1;
 
 	memmove(a->bytes + target + len, a->bytes + target, a->length - target);
@@ -331,7 +351,7 @@ int
 BufAddByte(Buf *a, int byte)
 {
 	/* Make sure we have enough room for the byte and a null byte. */
-	if (enlarge(a, a->length + 2) < 0)
+	if (BufSetSize(a, a->length + 2) < 0)
 		return -1;
 
 	a->bytes[a->length++] = (unsigned char) byte;
@@ -355,7 +375,7 @@ BufAddBytes(Buf *a, unsigned char *bytes, size_t len)
 		return 0;
 
 	/* Make sure we have enough room for the data and a null byte. */
-	if (enlarge(a, a->length + len + 1) < 0)
+	if (BufSetSize(a, a->length + len + 1) < 0)
 		return -1;
 
 	memcpy(a->bytes + a->length, bytes, len);

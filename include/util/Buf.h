@@ -111,10 +111,22 @@ extern unsigned char *BufAsBytes(Buf *);
 /*
  * Access fields.
  */
+#define BufCapacity BufSize
+extern int BufSetSize(Buf *, size_t);
+extern int BufSetLength(Buf *, size_t);
+
+#ifdef BUF_FIELD_FUNCTIONS
+extern size_t BufSize(Buf *);
 extern size_t BufLength(Buf *);
-extern size_t BufCapacity(Buf *);
 extern unsigned char *BufBytes(Buf *);
-extern void BufSetLength(Buf *, size_t);
+extern void BufSetOffset(Buf *, size_t);
+#else
+#define BufBytes(buf)			(buf)->bytes
+#define BufSize(buf)			(buf)->size
+#define BufLength(buf)			(buf)->length
+#define BufOffset(buf)			(buf)->offset
+#define BufSetOffset(buf, off)		(buf)->offset = (off)
+#endif
 
 /*
  * Extract bytes.
