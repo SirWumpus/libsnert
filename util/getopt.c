@@ -9,10 +9,10 @@
 
 #include <com/snert/lib/util/getopt.h>
 
-char *optarg;
-int optind = 1;
-int opterr = 1;
-int optopt;
+char *alt_optarg;
+int alt_optind = 1;
+int alt_opterr = 1;
+int alt_optopt;
 
 int
 alt_getopt(int argc, char * const *argv, const char *optstring)
@@ -21,18 +21,18 @@ alt_getopt(int argc, char * const *argv, const char *optstring)
 	register char *ptr;
 	static int index = 0;
 
-	optopt = '\0';
+	alt_optopt = '\0';
 	optarg = (char *) 0;
 
 	/* Extension: reset index if optstring is NULL. */
 	if (optstring == (char *) 0) {
 		/* Reset getopt(). */
-		optind = index = 1;
+		alt_optind = index = 1;
 		return -1;
 	}
 
-	ptr = argv[optind];
-	if (argc <= optind || ptr == (char *) 0)
+	ptr = argv[alt_optind];
+	if (argc <= alt_optind || ptr == (char *) 0)
 		return -1;
 
 	if (index <= 1) {
@@ -42,10 +42,10 @@ alt_getopt(int argc, char * const *argv, const char *optstring)
 			case '-':
 				/* "--" ends the argument list. */
 				if (ptr[2] == '\0') {
-					++optind;
+					++alt_optind;
 					return -1;
 				}
-				if (opterr)
+				if (alt_opterr)
 					fprintf(stderr, "Long options %s not supported.\n", ptr);
 				return '?';
 			case '\0':
@@ -53,7 +53,7 @@ alt_getopt(int argc, char * const *argv, const char *optstring)
 				 * permits sole "-" as an option.
 				 */
 				if (strchr(optstring, '-') != (char *) 0) {
-					++optind;
+					++alt_optind;
 					return '-';
 				}
 				return -1;
@@ -67,7 +67,7 @@ alt_getopt(int argc, char * const *argv, const char *optstring)
 			 * permits "+[string]" as an option.
 			 */
 			if (strchr(optstring, '+') != (char *) 0) {
-				optarg = &argv[optind++][1];
+				alt_optarg = &argv[alt_optind++][1];
 				return '+';
 			}
 			return -1;
@@ -76,21 +76,21 @@ alt_getopt(int argc, char * const *argv, const char *optstring)
 		}
 	}
 
-	optopt = ptr[index++];
+	alt_optopt = ptr[index++];
 	nextopt = ptr[index];
-	ptr = strchr(optstring, optopt);
+	ptr = strchr(optstring, alt_optopt);
 
 	/* Colon (:) not permitted as an option, because it is a special
 	 * token used in optstring, or optopt is not in optstring.
 	 */
-	if (optopt == ':' || ptr == (char *) 0) {
-		if (opterr && optstring[0] != ':') {
-			fprintf(stderr, "Unknown option -%c.\n", optopt);
+	if (alt_optopt == ':' || ptr == (char *) 0) {
+		if (alt_opterr && optstring[0] != ':') {
+			fprintf(stderr, "Unknown option -%c.\n", alt_optopt);
 		}
 
 		if (nextopt == '\0') {
 			index = 1;
-			++optind;
+			++alt_optind;
 		}
 
 		return '?';
@@ -108,17 +108,17 @@ alt_getopt(int argc, char * const *argv, const char *optstring)
 	if (*++ptr == ':' || *ptr == ';') {
 		if (nextopt != '\0') {
 			/* "-f<arg>" required and optional formats. */
-			optarg = &argv[optind++][index];
+			alt_optarg = &argv[alt_optind++][index];
 		} else if (*ptr == ';') {
 			/* "-f" optional argument format. */
-			++optind;
-		} else if (++optind < argc) {
+			++alt_optind;
+		} else if (++alt_optind < argc) {
 			/* "-f <arg>" required argument format. */
-			optarg = argv[optind++];
+			alt_optarg = argv[alt_optind++];
 		} else {
 			/* Missing required argument error. */
-			if (opterr && optstring[0] != ':') {
-				fprintf(stderr, "Option -%c argument missing.\n", optopt);
+			if (alt_opterr && optstring[0] != ':') {
+				fprintf(stderr, "Option -%c argument missing.\n", alt_optopt);
 				return '?';
 			}
 			return ':';
@@ -126,9 +126,9 @@ alt_getopt(int argc, char * const *argv, const char *optstring)
 		index = 1;
 	} else if (nextopt == '\0') {
 		index = 1;
-		++optind;
+		++alt_optind;
 	}
 
-	return optopt;
+	return alt_optopt;
 }
 
