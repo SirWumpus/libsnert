@@ -22,7 +22,7 @@
 
 #ifdef WIPE_MEMORY
 #define MEM_WIPE(p, n)		if ((p) != NULL) (void) memset((p), 0, n)
-#define STR_WIPE(p)		if ((p) != NULL) { while (*(p) != '\0') *(char *)(p)++ = 0; }
+#define STR_WIPE(p)		if ((p) != NULL) { char *_p = (char *)(p); while (*_p != '\0') *_p++ = 0; }
 #else
 #define MEM_WIPE(p, n)
 #define STR_WIPE(p)
@@ -32,46 +32,211 @@
 #define NUMERIC_SEED		"3141592653"	/* PI to 9 decimal places. */
 #endif
 
-#ifndef __com_snert_lib_util_cipher_h__
 /*
- * Eight most frequent characters in English are "SENORITA".
- * Allows for inclusion of two punctuation characters in the
- * key table, one of which is used for numeric shift. Used
- * with CT28.
+ * CT-28
+ *
+ * The actual straddling checkerboard codes used are determined
+ * by the key specification rules applied.
+ *
+ *		0  1  2  3  4  5  6  7  8  9
+ *		S  E  N  O  R  I  T  A
+ *	     8  B  C  D  F  G  H  J  K  L  M
+ *	     9  P  Q  U  V  W  X  Y  Z  +  /
  */
 #define FREQUENT8		"SENORITA"
+#define CT28			FREQUENT8 "BCDFGHJKLMPQUVWXYZ+/"
 
 /*
- * Seven most frequent characters in English are "ESTONIA".
- * Allows for inclusion of decimal digits and one punctuation
- * character in the key table. Used with CT37.
+ * CT-37
+ *
+ * The actual straddling checkerboard codes used are determined
+ * by the key specification rules applied.
+ *
+ *		0  1  2  3  4  5  6  7  8  9
+ *		E  S  T  O  N  I  A
+ *	     7  B  C  D  F  G  H  J  K  L  M
+ *	     8  P  Q  R  U  V  W  X  Y  Z  /
+ *	     9  0  1  2  3  4  5  6  7  8  9
  */
 #define FREQUENT7		"ESTONIA"
-
-/*
- * Note that both CT28 and CT37 alphabets are a subset of the
- * Base64 invariant character set by design. This allows for
- * encrypted messages to appear as though they were Base64
- * encoded.
- */
-#define CT28			FREQUENT8 "BCDFGHJKLMPQUVWXYZ+/"
 #define CT37			FREQUENT7 "BCDFGHJKLMPQRUVWXYZ0123456789/"
 
-#define ALPHABET		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-/**
- * 1st row is the alphabet seeded with frequent letters and alphabet.
- * 2nd and 3rd rows are the ASCII digit codes for each glyph in the
- * straddling checkerboard.
+/*
+ * Based on reading of other Checkerboard variants and previous
+ * CT28 "normalisation" idea for digits, these are alternative
+ * conversion tables that allow for more variety of characters.
  */
-typedef char cipher_ct[3][sizeof (CT37)];
-#endif
+
+/*
+ * CT-28 ASCII Subset
+ *
+ * The initial shift state is the SI table. The original source
+ * messsage does not specify SI or SU; they are added during
+ * encryption and removed during decryption.
+ *
+ * The actual straddling checkerboard codes used are determined
+ * by the key specification rules applied.
+ *
+ *	SI	0  1  2  3  4  5  6  7  8  9
+ *		E  S  T  O  N  I  A  SP
+ *	     8  B  C  D  F  G  H  J  K  L  M
+ *	     9  P  Q  R  U  V  W  X  Y  Z  SU
+ *
+ *
+ *	SU	0  1  2  3  4  5  6  7  8  9
+ *		LF .  ,  ;  :  ?  @  "
+ *	     8  (  )  *  /  +  -  =  <  >  %	(BOMDAS, relations, percent)
+ *	     9  0  1  2  3  4  5  6  7  8  9
+ */
+#define FREQUENT8_SI		"ESTONIA "
+#define CT28_SI			FREQUENT8_SI "BCDFGHJKLMPQRUVWXYZ\032"
+
+#define FREQUENT8_SU		"\n.,;:?@\""
+#define CT28_SU			FREQUENT8_SU "()*/+-=<>%0123456789"
+
+/*
+ * CT-37 Printable ASCII
+ *
+ * Non-standard variant on CT37 that allows for the encryption of
+ * printable ASCII text files using shift in/out and prefix codes.
+ * This set of tables cover the full set of printable ASCII and
+ * common white space.
+ *
+ * The initial shift state is the SI table. The original source
+ * file does not specify SI, SO, or SU; they are added during
+ * encryption and removed during decryption.
+ *
+ * The actual straddling checkerboard codes used are determined
+ * by the key specification rules applied.
+ *
+ *
+ *	SI	0  1  2  3  4  5  6  7  8  9
+ *		E  S  T  O  N  I  A
+ *	     7  B  C  D  F  G  H  J  K  L  M
+ *	     8  P  Q  R  U  V  W  X  Y  Z  SO
+ *	     9  SP HT CR LF .  ,  ;  :  ?  SU
+ *
+ *
+ *	SO	0  1  2  3  4  5  6  7  8  9
+ *		e  s  t  o  n  i  a
+ *	     7  b  c  d  f  g  h  j  k  l  m
+ *	     8  p  q  r  u  v  w  x  y  z  SI
+ *	     9  SP HT CR LF .  ,  ;  :  ?  SU
+ *
+ *
+ *	SU	0  1  2  3  4  5  6  7  8  9
+ *		!  #  &  @  |  '  "
+ *	     7  {  }  ^  \  ~  _  `  [  ]  $
+ *	     8  (  )  *  /  +  -  =  <  >  %	(BOMDAS, relations, percent)
+ *	     9  0  1  2  3  4  5  6  7  8  9
+ */
+#define FREQUENT7_SI		"ESTONIA"
+#define CT37_SI			FREQUENT7_SI "BCDFGHJKLMPQRUVWXYZ\016 \t\r\n.,;:?\032"
+
+#define FREQUENT7_SO		"estonia"
+#define CT37_SO			FREQUENT7_SO "bcdfghjklmpqruvwxyz\017 \t\r\n.,;:?\032"
+
+#define FREQUENT7_SU		"!#&@|'\""
+#define CT37_SU			FREQUENT7_SU "()*/+-=<>%{}^\\~_`[]$0123456789"
+
+/*
+ * CT-46
+ *
+ * The initial shift state is the SI table. The original source
+ * messsage does not specify SI or SU; they are added during
+ * encryption and removed during decryption. The SU prefix
+ * introduces a code for a predefined word or phrase. The actual
+ * words or phrases attributed are defined by the users.
+ *
+ * The actual straddling checkerboard codes used are determined
+ * by the key specification rules applied.
+ *
+ *
+ *		0  1  2  3  4  5  6  7  8  9
+ *		R  E  A  N  O  I
+ *	     6  B  C  D  F  G  H  J  K  L  M
+ *	     7  P  Q  S  T  U  V  W  X  Y  Z
+ *	     8  SP .  ,  :  ?  /  (  )  "  #
+ *	     9  0  1  2  3  4  5  6  7  8  9
+ */
+#define FREQUENT6		"REANOI"
+#define CT46			FREQUENT6 "BCDFGHJKLMPQSTUVWXYZ .,:?/()\"#0123456789"
+
+typedef struct {
+	const char *name;
+	int length;
+	int freq_length;
+	int shift[3];		/* 0 = SI, 1 = SO, 2 = SU */
+	const char *ct[3];	/* 0 = SI, 1 = SO, 2 = SU */
+	char code[2][47];	/* Two ASCII digit strings of CT length. */
+} cipher_ct;
+
+static const char empty[] = "";
+
+static const char ct28_name[] = "CT28";
+static cipher_ct ct28 = {
+	ct28_name, STRLEN(CT28), STRLEN(FREQUENT8),
+	{ -1, -1, -1 }, { CT28, empty, empty }
+};
+
+static const char ct37_name[] = "CT37";
+static cipher_ct ct37 = {
+	ct37_name, STRLEN(CT37), STRLEN(FREQUENT7),
+	{ -1, -1, -1 }, { CT37, empty, empty }
+};
+
+static const char ct46_name[] = "CT46";
+static cipher_ct ct46 = {
+	ct46_name, STRLEN(CT46), STRLEN(FREQUENT6),
+	{ -1, -1, -1 }, { CT46, empty, empty }
+};
+
+static const char ct28_ascii_name[] = "CT28 ASCII Subset";
+static cipher_ct ct28_ascii = {
+	ct28_ascii_name, STRLEN(CT28_SI), STRLEN(FREQUENT8_SI),
+	{ -1, -1, 27 }, { CT28_SI, empty, CT28_SU }
+};
+
+static const char ct37_ascii_name[] = "CT37 Printable ASCII";
+static cipher_ct ct37_ascii = {
+	ct37_ascii_name, STRLEN(CT37_SI), STRLEN(FREQUENT7_SI),
+	{ 26, 26, 36 }, { CT37_SI, CT37_SO, CT37_SU }
+};
 
 /***********************************************************************
  *** Dump Functions
  ***********************************************************************/
 
 static int debug;
+
+static char *ascii_control[] = {
+	"NU", "SH", "SX", "EX", "ET", "EQ", "AK", "BL",
+	"BS", "HT", "LF", "VT", "FF", "CR", "SO", "SI",
+	"DE", "D1", "D2", "D3", "D4", "NK", "SY", "EB",
+	"CA", "EM", "SU", "ES", "FS", "GS", "RS", "US",
+	"SP"
+};
+
+static void
+cipher_dump_codes(FILE *fp, cipher_ct *table, int shift)
+{
+	int i, j, k;
+
+	for (j = 0, k = table->length/2; j < table->length; j += k, k = table->length) {
+		for (i = j; i < k; i++) {
+			if (table->ct[shift][i] <= 32)
+				fprintf(fp, "%s ", ascii_control[table->ct[shift][i]]);
+			else
+				fprintf(fp, "%c  ", table->ct[shift][i]);
+		}
+		fprintf(fp, "\n\t");
+		for (i = j; i < k; i++)
+			fprintf(fp, "%c%c ", table->code[0][i], table->code[1][i]);
+		fprintf(fp, "\n\t");
+	}
+
+	fputc('\n', fp);
+}
 
 /**
  * @param fp
@@ -81,24 +246,57 @@ static int debug;
  *	A conversion table for CT28 or CT37.
  */
 void
-cipher_dump_alphabet(FILE *fp, cipher_ct table)
+cipher_dump_alphabet(FILE *fp, cipher_ct *table)
 {
-	int i, j, k;
-	size_t length;
+	fprintf(fp, "%s\n\n", table->name);
 
-	length = strlen(table[0]);
-	fprintf(fp, "CT%lu\n\n\t", (unsigned long)length);
+	if (0 <= table->shift[0])
+		fprintf(fp, "SI");
+	fputc('\t', fp);
+	cipher_dump_codes(fp, table, 0);
 
-	for (j = 0, k = length/2; j < length; j += k, k = length) {
-		for (i = j; i < k; i++)
-			fprintf(fp, "%c  ", table[0][i]);
-		fprintf(fp, "\n\t");
-		for (i = j; i < k; i++)
-			fprintf(fp, "%c%c ", table[1][i], table[2][i]);
-		fprintf(fp, "\n\t");
+	if (0 <= table->shift[1]) {
+		fprintf(fp, "\nSO\t");
+		cipher_dump_codes(fp, table, 1);
 	}
 
-	fprintf(fp, "\n\n");
+	if (0 <= table->shift[2]) {
+		fprintf(fp, "\nSU\t");
+		cipher_dump_codes(fp, table, 2);
+	}
+
+	fputc('\n', fp);
+}
+
+static void
+cipher_dump_table(FILE *fp, cipher_ct *table, int shift)
+{
+	int i, j, k;
+
+	k = table->freq_length;
+
+	for (i = table->length-10; i < table->length; i++)
+		fprintf(fp, " %c ", table->code[1][i]);
+	fprintf(fp, "\n\n\t  ");
+
+	for (i = 0; i < k; i++) {
+		if (table->ct[shift][i] <= 32)
+			fprintf(fp, " %s", ascii_control[table->ct[shift][i]]);
+		else
+			fprintf(fp, " %c ", table->ct[shift][i]);
+	}
+
+	for (j = k; j < 10; j++, k += 10) {
+		fprintf(fp, "\n\t%c ", table->code[0][k]);
+		for (i = 0; i < 10; i++) {
+			if (table->ct[shift][i+k] <= 32)
+				fprintf(fp, " %s", ascii_control[table->ct[shift][i+k]]);
+			else
+				fprintf(fp, " %c ", table->ct[shift][i+k]);
+		}
+	}
+
+	fputc('\n', fp);
 }
 
 /**
@@ -110,28 +308,26 @@ cipher_dump_alphabet(FILE *fp, cipher_ct table)
  *	checkerboard format.
  */
 void
-cipher_dump_ct(FILE *fp, cipher_ct table)
+cipher_dump_ct(FILE *fp, cipher_ct *table)
 {
-	int i, j, k;
-	size_t length;
+	fprintf(fp, "%s Straddling Checkerboard\n\n", table->name);
 
-	length = strlen(table[0]);
-	fprintf(fp, "CT%lu Straddling Checkerboard\n\n\t  ", (unsigned long)length);
-	k = length == STRLEN(CT28) ? STRLEN(FREQUENT8) : STRLEN(FREQUENT7);
+	if (0 <= table->shift[0])
+		fprintf(fp, "SI");
+	fprintf(fp, "\t  ");
+	cipher_dump_table(fp, table, 0);
 
-	for (i = length-10; i < length; i++)
-		fprintf(fp, " %c", table[2][i]);
-	fprintf(fp, "\n\n\t  ");
-
-	for (i = 0; i < k; i++)
-		fprintf(fp, " %c", table[0][i]);
-
-	for (j = k; j < 10; j++, k += 10) {
-		fprintf(fp, "\n\t%c ", table[1][k]);
-		for (i = 0; i < 10; i++)
-			fprintf(fp, " %c", table[0][i+k]);
+	if (0 <= table->shift[1]) {
+		fprintf(fp, "\nSO\t  ");
+		cipher_dump_table(fp, table, 1);
 	}
-	fprintf(fp, "\n\n");
+
+	if (0 <= table->shift[2]) {
+		fprintf(fp, "\nSU\t  ");
+		cipher_dump_table(fp, table, 2);
+	}
+
+	fprintf(fp, "\n");
 }
 
 /**
@@ -174,7 +370,7 @@ cipher_dump_grouping(FILE *fp, int grouping, const char *text)
 		group = 0;
 		fputc('\t', fp);
 		for (col = 0; col < 60 && *text != '\0'; text++) {
-			fputc(*text, fp);
+			fputc(isspace(*text) ? '_' : *text, fp);
 			col++;
 
 			if ((++group % grouping) == 0) {
@@ -342,7 +538,7 @@ cipher_ordinal_order(const char *in)
 		return NULL;
 	}
 
-	if ((out = malloc(length)) == NULL)
+	if ((out = malloc(length+1)) == NULL)
 		return NULL;
 
 	ip = in;
@@ -405,7 +601,7 @@ cipher_index_order(const char *in)
 		return NULL;
 	}
 
-	if ((out = malloc(length)) == NULL)
+	if ((out = malloc(length+1)) == NULL)
 		return NULL;
 
 	ip = in;
@@ -702,7 +898,7 @@ cipher_disrupted_transposition_decode(const char *key, const char *in)
  *	cipher_ordinal_order()
  */
 int
-cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct table)
+cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct *table)
 {
 	int i, j, k, l;
 
@@ -714,15 +910,28 @@ cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct table)
 		return errno = EINVAL;
 	order++;
 
-	if (ct_size == STRLEN(CT37)) {
-		l = STRLEN(FREQUENT7);
-		(void) strcpy(table[0], CT37);
-	} else if (ct_size == STRLEN(CT28)) {
-		l = STRLEN(FREQUENT8);
-		(void) strcpy(table[0], CT28);
-	} else {
+	switch (ct_size) {
+	case 28:
+		*table = ct28;
+		break;
+	case 2*28:
+		*table = ct28_ascii;
+		break;
+	case 37:
+		*table = ct37;
+		break;
+	case 3*37:
+		*table = ct37_ascii;
+		break;
+	case 46:
+		*table = ct46;
+		break;
+	default:
 		return errno = EINVAL;
 	}
+
+	memset(table->code, 0, sizeof (table->code));
+	l = table->freq_length;
 
 	/* A straddling checkerboard is similar to a Huffman
 	 * encoding, where the most frequent glyphs having a
@@ -786,18 +995,17 @@ cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct table)
 
 	/* Single digit code for the most frequent letters. */
 	for (i = 0; i < l; i++) {
-		table[1][i] = order[i]+'0';
-		table[2][i] = ' ';
+		table->code[0][i] = order[i]+'0';
+		table->code[1][i] = ' ';
 	}
 
 	/* Double digit code for remaining letters and digits. */
 	for (i = 0, j = l; j < 10; i += 10, j++) {
 		for (k = 0; k < 10; k++) {
-			table[1][l+i+k] = order[j]+'0';
-			table[2][l+i+k] = order[k]+'0';
+			table->code[0][l+i+k] = order[j]+'0';
+			table->code[1][l+i+k] = order[k]+'0';
 		}
 	}
-	table[1][ct_size] = table[2][ct_size] = '\0';
 
 	if (debug) {
 		/* http://en.wikipedia.org/wiki/Straddling_checkerboard	*/
@@ -808,12 +1016,26 @@ cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct table)
 	return errno = 0;
 }
 
+static void
+strupper(char *s)
+{
+	int ch;
+
+	while (*s != '\0') {
+		ch = (char) toupper(*s);
+		*s++ = ch;
+	}
+}
+
 /**
  * @param table
- *	Conversion table, either CT28 or CT37.
+ *	Conversion table.
  *
  * @param in
  *	A C string of the message.
+ *
+ * @param pad
+ *	Pad message out to a full 5 digit group.
  *
  * @return
  *	A dynamic C string of the message converted to a numeric
@@ -821,40 +1043,76 @@ cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct table)
  *	memory when done.
  */
 char *
-cipher_char_to_code(cipher_ct table, const char *in)
+cipher_char_to_code(cipher_ct *table, const char *in, int pad)
 {
-	int i;
 	size_t length;
 	const char *ip;
-	char *op, *out, *glyph;
+	int i, shift, offset, x;
+	char *out, *copy, *glyph;
 
 	if (in == NULL)
 		return NULL;
 
-	/* Make sure the output is large enough to hold
-	 * complete 5-digit groups.
-	 */
-	length = strlen(in) * 2;
-	length = (length + 4) / 5 * 5;
-
+	length = strlen(in);
 	if ((out = malloc(length+1)) == NULL)
 		return NULL;
 
-	for (op = out, ip = in; *ip != '\0'; ip++) {
-		if ((glyph = strchr(table[0], toupper(*ip))) == NULL)
+	if (table->name != ct37_ascii_name)
+		strupper((char *) in);
+
+	shift = 0;
+	for (x = 0, ip = in; *ip != '\0'; ip++) {
+		if ((glyph = strchr(table->ct[shift], *ip)) != NULL) {
+			/* No shift change. */
+			i = 0;
+			offset = glyph - table->ct[shift];
+		} else if ((glyph = strchr(table->ct[!shift], *ip)) != NULL) {
+			/* Invert shift state. */
+			shift = !shift;
+			i = table->shift[shift];
+			offset = glyph - table->ct[shift];
+		} else if ((glyph = strchr(table->ct[2], *ip)) != NULL) {
+			/* Escape prefix. */
+			i = table->shift[2];
+			offset = glyph - table->ct[2];
+		} else {
+			/* Ignore characters not found in the alphabet. */
 			continue;
+		}
 
-		i = glyph - table[0];
+		/* Enough room for a shift, code, and null byte? */
+		if (length <= x+5) {
+			if ((copy = realloc(out, length += 1000)) == NULL) {
+				free(out);
+				return NULL;
+			}
+			out = copy;
+		}
 
-		*op++ = table[1][i];
-		if (table[2][i] != ' ')
-			*op++ = table[2][i];
+		/* Emit shift/escape code? */
+		if (0 < i) {
+			out[x++] = table->code[0][i];
+			if (table->code[1][i] != ' ')
+				out[x++] = table->code[1][i];
+		}
+
+		/* Emit character's code. */
+		out[x++] = table->code[0][offset];
+		if (table->code[1][offset] != ' ')
+			out[x++] = table->code[1][offset];
 	}
 
-	for (i = (op - out) % 5; 0 < i && i < 5; i++)
-		*op++ = '0';
+	if (pad && 0 < x % 5) {
+		if (length <= x+5 && (out = realloc(out, length += 6)) == NULL) {
+			free(out);
+			return NULL;
+		}
 
-	*op = '\0';
+		for (i = 5 - x % 5; 0 < i; i--)
+			out[x++] = '0';
+	}
+
+	out[x] = '\0';
 
 	if (debug) {
 		fprintf(stderr, "To numeric:\n\n");
@@ -894,31 +1152,46 @@ cipher_mask_code(const char *key_mask, char *out)
 
 /**
  * @param table
- *	Conversion table for CT28 or CT37.
+ *	Conversion table.
  *
  * @param out
  *	A numeric C string that is converted back into an
  *	alpha-numeric string in place.
  */
 void
-cipher_code_to_char(cipher_ct table, char *out)
+cipher_code_to_char(cipher_ct *table, char *out)
 {
-	int i;
 	char *op, *in;
-	size_t length;
+	int i, shift, last_shift;
 
-	length = strlen(table[0]);
+	shift = last_shift = 0;
 	for (op = in = out; *in != '\0'; in++) {
-		for (i = 0; i < length; i++) {
-			if (*in == table[1][i]) {
-				if (table[2][i] == ' ') {
-					*op++ = table[0][i];
-					break;
-				} else if (in[1] == table[2][i]) {
-					*op++ = table[0][i];
+		if (isspace(*in))
+			continue;
+		for (i = 0; i < table->length; i++) {
+			if (*in == table->code[0][i]) {
+				if (in[1] == table->code[1][i]) {
 					in++;
-					break;
+				} else if (table->code[1][i] == ' ') {
+					;
+				} else {
+					continue;
 				}
+
+				if (shift < 2 && i == table->shift[shift]) {
+					/* Invert shift state, discard code. */
+					shift = last_shift = !shift;
+				} else if (shift < 2 && i == table->shift[2]) {
+					/* Discard escape prefix. */
+					last_shift = shift;
+					shift = 2;
+				} else {
+					/* Covert code to character. */
+					*op++ = table->ct[shift][i];
+					/* Restore previous shift after escape. */
+					shift = last_shift;
+				}
+				break;
 			}
 		}
 	}
@@ -930,120 +1203,18 @@ cipher_code_to_char(cipher_ct table, char *out)
 	}
 }
 
-/**
- * @param alphabet
- *	A C string for a CT28 alphabet, possibly reordered.
- *
- * @param text
- *	A C string of the message text.
- *
- * @return
- *	A dynamic C string where spaces have been converted to
- *	plus-sign (+) and numbers have been converted into to
- *	alpha, using slash (/) as a numeric shift. It is the
- *	responsibility of the caller to free this memory when
- *	done.
- */
-char *
-cipher_ct28_normalise(const char *alphabet, const char *text)
-{
-	int is_number;
-	size_t length;
-	const char *tp;
-	char *normalised, *np;
-
-	length = strlen(text);
-	length *= 2;
-
-	if ((normalised = malloc(length+1)) == NULL)
-		return NULL;
-
-	is_number = 0;
-	np = normalised;
-	for (tp = text; *tp != '\0'; tp++) {
-		if (is_number && !isdigit(*tp)) {
-			/* Shift to alpha. */
-			is_number = 0;
-			*np++ = '/';
-		} else if (!is_number && isdigit(*tp)) {
-			/* Shift to figures. */
-			is_number++;
-			*np++ = '/';
-		}
-		if (is_number)
-			/* Use the, possibly scrambled, alphabet to
-			 * represent digits. Digits index from the
-			 * start of the alphabet.
-			 */
-			*np++ = alphabet[*tp-'0'];
-		else if (isspace(*tp))
-			/* Use spare puntatuation for whitespace. */
-			*np++ = '+';
-		else
-			*np++ = *tp;
-	}
-	*np = '\0';
-
-	if (debug)
-		fprintf(stderr, "Normalise string for CT28.\n\n\t%s\n\n", normalised);
-
-	return normalised;
-}
-
-/**
- * @param alphabet
- *	A C string for a CT28 alphabet, possibly reordered.
- *
- * @param text
- *	A normalised C string of the message text. The text
- *	is de-normalised, in place, converting plus-sign (+)
- *	to space and slash (/) delimited alpha back to numeric.
- *
- * @return
- *	Return the C string text argument.
- */
-char *
-cipher_ct28_denormalise(const char *alphabet, char *text)
-{
-	int is_number;
-	char *tp, *glyph;
-
-	is_number = 0;
-	for (tp = text; *tp != '\0'; tp++) {
-		if (is_number && *tp == '/') {
-			is_number = 0;
-//			*tp = ' ';
-			continue;
-		} else if (!is_number && *tp == '/') {
-			is_number++;
-//			*tp = ' ';
-			continue;
-		}
-		if (is_number) {
-			if ((glyph = strchr(alphabet, toupper(*tp))) == NULL)
-				continue;
-			*tp = glyph - alphabet + '0';
-		} else if (*tp == '+') {
-			*tp = ' ';
-		}
-	}
-
-	if (debug)
-		fprintf(stderr, "De-normalise string from CT28.\n\n\t%s\n\n", text);
-
-	return text;
-}
-
 /***********************************************************************
  ***
  ***********************************************************************/
 
 #ifdef TEST
+
+static const char base36[] = "0123456789ABCDEFGHIJKLMNOPQRSYUVWXYZ";
+
 typedef struct {
 	/* Public */
 	size_t ct_size;		/* Conversion table 28 or 37. */
 	const char *key;
-	const char *seed;
 	size_t chain_length;
 
 	/* Private */
@@ -1057,6 +1228,9 @@ cipher_transponse_key(Cipher *ctx, size_t *offset)
 {
 	char *cp, *key;
 	size_t key_len;
+
+	if (*offset < 10)
+		*offset = ctx->chain_length;
 
 	/* Find a column length for the key summing the tail
 	 * of the chain addition table until the sum is greater
@@ -1091,16 +1265,27 @@ cipher_transponse_key(Cipher *ctx, size_t *offset)
 int
 cipher_init(Cipher *ctx)
 {
+	char *k, *digit;
+
 	if (ctx->chain_length < 10)
 		ctx->chain_length = 10;
 
+	/* Convert alpha-numeric key into ASCII digit form for chain addition. */
+	if (ctx->key != NULL) {
+		for (k = (char *)ctx->key; *k != '\0'; k++) {
+			if ((digit = strchr(base36, toupper(*k))) == NULL)
+				goto error0;
+			*k = (digit - base36) % 10 + '0';
+		}
+	}
+
 	if ((ctx->chain = malloc(ctx->chain_length+1)) == NULL)
 		goto error0;
-	if (cipher_chain_add(ctx->seed, ctx->chain, ctx->chain_length+1))
+	if (cipher_chain_add(ctx->key, ctx->chain, ctx->chain_length+1))
 		goto error1;
 	if ((ctx->ordinal = cipher_ordinal_order(ctx->chain+ctx->chain_length-10)) == NULL)
 		goto error2;
-	return cipher_ct_init(ctx->ct_size, ctx->ordinal, ctx->table);
+	return cipher_ct_init(ctx->ct_size, ctx->ordinal, &ctx->table);
 error2:
 	STR_WIPE(ctx->chain);
 error1:
@@ -1117,8 +1302,7 @@ cipher_fini(void *_ctx)
 	if (ctx != NULL) {
 		if (ctx->key != NULL)
 			STR_WIPE(ctx->key);
-		STR_WIPE(ctx->seed);
-		MEM_WIPE(ctx->table, sizeof (ctx->table));
+		MEM_WIPE(&ctx->table, sizeof (ctx->table));
 		MEM_WIPE(ctx->ordinal, *ctx->ordinal);
 		free(ctx->ordinal);
 		STR_WIPE(ctx->chain);
@@ -1132,12 +1316,7 @@ cipher_encode(Cipher *ctx, const char *message)
 	size_t offset;
 	char *out, *tkey;
 
-	if (ctx->ct_size == 28)
-		message = cipher_ct28_normalise(ALPHABET, message);
-	out = cipher_char_to_code(ctx->table, message);
-	if (ctx->ct_size == 28)
-		free((void *) message);
-
+	out = cipher_char_to_code(&ctx->table, message, 0);
 	offset = ctx->chain_length;
 	tkey = cipher_transponse_key(ctx, &offset);
 	out = cipher_columnar_transposition_encode(tkey, message = out);
@@ -1171,7 +1350,7 @@ cipher_decode(Cipher *ctx, const char *message)
 	out = cipher_disrupted_transposition_decode(tk2, message);
 	out = cipher_columnar_transposition_decode(tk1, message = out);
 	STR_WIPE(message);
-	cipher_code_to_char(ctx->table, out);
+	cipher_code_to_char(&ctx->table, out);
 
 	free((void *)message);
 	STR_WIPE(tk2);
@@ -1179,34 +1358,30 @@ cipher_decode(Cipher *ctx, const char *message)
 	STR_WIPE(tk1);
 	free(tk1);
 
-	if (ctx->ct_size == 28)
-		(void) cipher_ct28_denormalise(ALPHABET, out);
-
 	return out;
 }
 
 #include <getopt.h>
 
-static char options[] = "cdvk:l:s:IT:U:";
+static char options[] = "c:dvk:l:s:IT:U:";
 
 static char usage[] =
-"usage: cipher [-cdv][-l length][-s seed] . | < message\n"
+"usage: cipher [-dv][-c size][-l length][-k key] . | < message\n"
 "       cipher -I string\n"
 "       cipher -T c|d [-k key] string\n"
 "       cipher -U c|d [-k key] string\n"
 "\n"
-"-c\t\tuse conversion table 28; default 37\n"
+"-c size\t\tconversion table 28, 37, 46, or 111 (CT37-PA); default 37\n"
 "-d\t\tdecode message\n"
-"-k key\t\talpha-numeric transpostion key\n"
+"-k key\t\talpha-numeric string for transpostion or chain addition\n"
 "-l length\tchain addition length; default 100\n"
-"-s seed\t\tnumeric seed for chain addition; default " NUMERIC_SEED "\n"
 "-v\t\tverbose debug\n"
 "\n"
 "-I\t\tdump the indices of the ordinal order of characters\n"
 "-T c|d\t\tdump the encoded columnar or disrupted transposition\n"
 "-U c|d\t\tdump the decoded columnar or disrupted transposition\n"
 "\n"
-"Copyright 2010, 2011 by Anthony Howe.  All rights reserved.\n"
+"Copyright 2010, 2012 by Anthony Howe.  All rights reserved.\n"
 ;
 
 typedef char *(*cipher_fn)(Cipher *, const char *);
@@ -1218,6 +1393,7 @@ int
 main(int argc, char **argv)
 {
 	char *out;
+	ssize_t n;
 	Cipher ctx;
 	cipher_fn fn;
 	transpose_fn tf;
@@ -1234,7 +1410,7 @@ main(int argc, char **argv)
 	while ((ch = getopt(argc, argv, options)) != -1) {
 		switch (ch) {
 		case 'c':
-			ctx.ct_size = 28;
+			ctx.ct_size = strtol(optarg, NULL, 10);
 			break;
 		case 'd':
 			fn = cipher_decode;
@@ -1244,9 +1420,6 @@ main(int argc, char **argv)
 			break;
 		case 'l':
 			ctx.chain_length = strtol(optarg, NULL, 10);
-			break;
-		case 's':
-			ctx.seed = optarg;
 			break;
 		case 'v':
 			debug++;
@@ -1302,16 +1475,28 @@ main(int argc, char **argv)
 		if (optind < argc && argv[optind][0] == '.')
 			break;
 
-		while (0 < fread(input, 1, sizeof (input), stdin)) {
+		/*** TODO handle read/write of "block" units when
+		 *** processing input files larger than the input
+		 *** buffer.
+		 ***/
+
+		while (0 < (n = fread(input, 1, sizeof (input), stdin))) {
 			if ((out = (*fn)(&ctx, input)) == NULL) {
 				cipher_fini(&ctx);
 				return EXIT_FAILURE;
 			}
 			MEM_WIPE(input, sizeof (input));
-			printf("%s\n", out);
+			fputs(out, stdout);
 			STR_WIPE(out);
 			free(out);
 		}
+
+		/* When using CT37-PA, accuracy is very important;
+		 * what goes must be what comes out, particularly
+		 * when encrypting printable text files.
+		 */
+		if (ctx.table.name != ct37_ascii_name || fn == cipher_encode)
+			fputc('\n', stdout);
 	}
 
 	cipher_fini(&ctx);

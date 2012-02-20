@@ -19,36 +19,14 @@ extern "C" {
  ***
  ***********************************************************************/
 
-/*
- * Eight most frequent characters in English are "SENORITA".
- * Allows for inclusion of two punctuation characters in the
- * key table, one of which is used for numeric shift. Used
- * with CT28.
- */
-#define FREQUENT8		"SENORITA"
-
-/*
- * Seven most frequent characters in English are "ESTONIA".
- * Allows for inclusion of decimal digits and one punctuation
- * character in the key table. Used with CT37.
- */
-#define FREQUENT7		"ESTONIA"
-
-/*
- * Note that both CT28 and CT37 alphabets are a subset of the
- * Base64 invariant character set by design. This allows for
- * encrypted messages to appear as though they were Base64
- * encoded.
- */
-#define CT28			FREQUENT8 "BCDFGHJKLMPQUVWXYZ+/"
-#define CT37			FREQUENT7 "BCDFGHJKLMPQRUVWXYZ0123456789/"
-
-/**
- * 1st row is the alphabet seeded with frequent letters and the key.
- * 2nd and 3rd rows are the ASCII digit codes for each glyph in the
- * straddling checkerboard.
- */
-typedef char (cipher_ct)[3][sizeof (CT37)];
+typedef struct {
+	const char *name;
+	int length;
+	int freq_length;
+	int shift[3];		/* 0 = SI, 1 = SO, 2 = SU */
+	const char *ct[3];	/* 0 = SI, 1 = SO, 2 = SU */
+	char code[2][47];	/* Two ASCII digit strings of CT length. */
+} cipher_ct;
 
 /**
  * @param fp
@@ -57,7 +35,7 @@ typedef char (cipher_ct)[3][sizeof (CT37)];
  * @param table
  *	A conversion table for CT28 or CT37.
  */
-extern void cipher_dump_alphabet(FILE *fp, cipher_ct table);
+extern void cipher_dump_alphabet(FILE *fp, cipher_ct *table);
 
 /**
  * @param fp
@@ -67,7 +45,7 @@ extern void cipher_dump_alphabet(FILE *fp, cipher_ct table);
  *	A conversion table CT28 or CT37 to output in straddling
  *	checkerboard format.
  */
-extern void cipher_dump_ct(FILE *fp, cipher_ct table);
+extern void cipher_dump_ct(FILE *fp, cipher_ct *table);
 
 /**
  * @param fp
@@ -229,8 +207,7 @@ extern char *cipher_disrupted_transposition_decode(const char *num_key, const ch
 
 /**
  * @param ct_size
- *	The conversion table size, 28 or 37. Used to select
- *	both the alphabet and frequent English letter list.
+ *	The conversion table size.
  *
  * @param order
  *	An array of 11 octets; a length (10) followed by 10
@@ -249,7 +226,13 @@ extern char *cipher_disrupted_transposition_decode(const char *num_key, const ch
  * @see
  *	cipher_ordinal_order()
  */
-extern int cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct table);
+extern int cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct *table);
+
+#define CT_28		28
+#define CT_37		37
+#define CT_46		46
+#define CT_28_ASCII	56
+#define CT_37_ASCII	111
 
 /**
  * @param table
@@ -258,12 +241,15 @@ extern int cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct tab
  * @param message
  *	A C string of the message.
  *
+ * @param pad
+ *	Pad message out to a full 5 digit group.
+ *
  * @return
  *	A dynamic C string of the message converted to a numeric
  *	string. It is the caller's responsibility to free this
  *	memory when done.
  */
-extern char *cipher_char_to_code(cipher_ct table, const char *message);
+extern char *cipher_char_to_code(cipher_ct *table, const char *message, int pad);
 
 /**
  * @param table
@@ -273,7 +259,7 @@ extern char *cipher_char_to_code(cipher_ct table, const char *message);
  *	A numeric C string that is converted back into an
  *	alpha-numeric string in place.
  */
-extern void cipher_code_to_char(cipher_ct table, char *out);
+extern void cipher_code_to_char(cipher_ct *table, char *out);
 
 /**
  * @param key_mask
@@ -284,36 +270,6 @@ extern void cipher_code_to_char(cipher_ct table, char *out);
  *	column addition MOD 10.
  */
 extern void cipher_mask_code(const char *key_mask, char *out);
-
-/**
- * @param alphabet
- *	A C string for a CT28 alphabet, possibly reordered.
- *
- * @param text
- *	A C string of the message text.
- *
- * @return
- *	A dynamic C string where spaces have been converted to
- *	plus-sign (+) and numbers have been converted into to
- *	alpha, using slash (/) as a numeric shift. It is the
- *	responsibility of the caller to free this memory when
- *	done.
- */
-extern char *cipher_ct28_normalise(const char *alphabet, const char *text);
-
-/**
- * @param alphabet
- *	A C string for a CT28 alphabet, possibly reordered.
- *
- * @param text
- *	A normalised C string of the message text. The text
- *	is de-normalised, in place, converting plus-sign (+)
- *	to space and slash (/) delimited alpha back to numeric.
- *
- * @return
- *	Return the C string text argument.
- */
-extern char *cipher_ct28_denormalise(const char *alphabet, char *text);
 
 /***********************************************************************
  ***
