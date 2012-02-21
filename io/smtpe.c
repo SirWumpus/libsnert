@@ -6906,7 +6906,7 @@ error0:
 void
 at_exit_cleanup(void)
 {
-	optionFree(opt_table, NULL);
+	optionFreeL(opt_table, NULL);
 	VectorDestroy(smart_hosts);
 }
 
