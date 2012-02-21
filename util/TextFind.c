@@ -326,6 +326,7 @@ TextFind(const char *hay, const char *pin, long hay_size, int caseless)
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <getopt.h>
 
 typedef struct {
 	const char *haystack;
