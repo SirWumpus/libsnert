@@ -36,10 +36,9 @@ Order of operations
 	are a family of pdqList* functions for manipulation and pruning
 	of the returned list.
 
-	Each PDQ_rr structure contains a PDQ_RCODE_* result from the
-	result given by a name server. In the case of an error case, the
-	first member of the list of PDQ_rr pointers (typically) contains
-	a pseudo PDQ_rr that carries just the PDQ_RCODE_* result.
+	The returned list may contain the result from more than one
+	query, each result group is delimited by a PDQ_QUERY record,
+	which carries the query's PDQ_RCODE_* status.
 
 	Note that pdqWait and pdqWaitAll are wrapper functions that
 	handle exponential backoff timeout and calling pdqPoll.
