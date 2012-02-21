@@ -1,7 +1,7 @@
 /**
  * dnsList.c
  *
- * Copyright 2008, 2010 by Anthony Howe. All rights reserved.
+ * Copyright 2008, 2012 by Anthony Howe. All rights reserved.
  */
 
 #define NS_VERSION3
@@ -375,16 +375,18 @@ dnsListQueryString(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *n
 		return NULL;
 
 	/* Check cache of previously tested hosts/domains. */
-	for (seen = (const char **) VectorBase(names_seen); *seen != NULL; seen++) {
-		if (TextInsensitiveCompare(name, *seen) == 0) {
-			if (0 < debug)
-				syslog(LOG_DEBUG, "dnsListQueryString name=\"%s\" previously checked", name);
-			return NULL;
+	if (names_seen != NULL) {
+		for (seen = (const char **) VectorBase(names_seen); *seen != NULL; seen++) {
+			if (TextInsensitiveCompare(name, *seen) == 0) {
+				if (0 < debug)
+					syslog(LOG_DEBUG, "dnsListQueryString name=\"%s\" previously checked", name);
+				return NULL;
+			}
 		}
-	}
 
-	if (VectorAdd(names_seen, copy = strdup(name)))
-		free(copy);
+		if (VectorAdd(names_seen, copy = strdup(name)))
+			free(copy);
+	}
 
 	if (0 < debug)
 		syslog(LOG_DEBUG, "dnsListQueryString name=\"%s\" offset=%d", name, offset);
@@ -663,11 +665,13 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 		return NULL;
 
 	/* Check cache of previously tested hosts/domains. */
-	for (seen = (const char **) VectorBase(names_seen); *seen != NULL; seen++) {
-		if (TextInsensitiveCompare(name, *seen) == 0) {
-			if (0 < debug)
-				syslog(LOG_DEBUG, "dnsListQueryNs name=\"%s\" previously seen", name);
-			return NULL;
+	if (names_seen != NULL) {
+		for (seen = (const char **) VectorBase(names_seen); *seen != NULL; seen++) {
+			if (TextInsensitiveCompare(name, *seen) == 0) {
+				if (0 < debug)
+					syslog(LOG_DEBUG, "dnsListQueryNs name=\"%s\" previously seen", name);
+				return NULL;
+			}
 		}
 	}
 
