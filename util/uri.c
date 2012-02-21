@@ -6,10 +6,6 @@
  * Copyright 2006, 2010 by Anthony Howe. All rights reserved.
  */
 
-#ifndef HTTP_BUFFER_SIZE
-#define HTTP_BUFFER_SIZE		(4 * 1024)
-#endif
-
 #ifndef IMPLICIT_DOMAIN_MIN_DOTS
 #define IMPLICIT_DOMAIN_MIN_DOTS	1
 #endif
@@ -42,6 +38,7 @@
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/io/file.h>
 #include <com/snert/lib/io/socket2.h>
+#include <com/snert/lib/net/http.h>
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/net/dnsList.h>
 #include <com/snert/lib/mail/tlds.h>
@@ -1079,6 +1076,8 @@ struct uri_mime {
 	int headers_and_body;
 	char buffer[URI_MIME_BUFFER_SIZE];
 	UriMimeHook uri_found_cb;
+	Vector mail_bl_headers;
+	Vector uri_bl_headers;
 	void *data;
 };
 
@@ -1241,7 +1240,12 @@ uri_mime_header(Mime *m, void *_data)
 		uri_mime_decoded_octet(m, '\n', _data);
 	}
 
-	if (TextMatch((char *) m->source.buffer, "Content-Type:*text/*", m->source.length, 1))
+	if (2 < uriDebug)
+		syslog(LOG_DEBUG, "header [%s]", m->source.buffer);
+
+	if (TextMatch((char *) m->source.buffer, "Content-Type:*text/*", m->source.length, 1)
+	||  TextMatch((char *) m->source.buffer, "Content-Type:*application/*;*name=*.txt*", m->source.length, 1)
+	||  TextMatch((char *) m->source.buffer, "Content-Type:*application/*;*name=*.htm*", m->source.length, 1))
 		hold->is_text_part = 1;
 }
 
@@ -1283,67 +1287,666 @@ uriMimeInit(UriMimeHook uri_found_cb, int all, void *data)
 }
 
 /***********************************************************************
- ***
+ *** Common CLI, CGI and daemon.
  ***********************************************************************/
+#if defined(TEST) || defined(DAEMON)
 
-#ifdef TEST
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef HAVE_LIMITS_H
+# include <limits.h>
+#endif
 #ifdef HAVE_SYS_STAT_H
 # include <sys/stat.h>
 #endif
 
-#include <com/snert/lib/sys/sysexits.h>
-#include <com/snert/lib/util/getopt.h>
 #include <com/snert/lib/net/pdq.h>
+#include <com/snert/lib/util/Buf.h>
+#include <com/snert/lib/util/cgi.h>
+#include <com/snert/lib/util/option.h>
+#include <com/snert/lib/sys/sysexits.h>
 
+#ifndef LINE_WRAP
+#define LINE_WRAP			72
+#endif
+
+# if defined(DAEMON)
+#  define _NAME				"urid"
+# else
+#  define _NAME			 	"uri"
+#endif
+
+#if !defined(CF_DIR)
+# if defined(__WIN32__)
+#  define CF_DIR			"."
+# else
+#  define CF_DIR			"/etc/" _NAME
+# endif
+#endif
+
+#if !defined(CF_FILE)
+# define CF_FILE			CF_DIR "/" _NAME ".cf"
+#endif
+
+typedef struct {
+	const char *file;
+	unsigned line;
+	unsigned hits;
+	unsigned found;
+} FileLine;
+
+typedef struct {
+	CGI cgi;
+	PDQ *pdq;
+	FILE *out;
+	int cgi_mode;
+	long max_hits;
+	FileLine source;
+	int print_uri_parse;
+	int headers_and_body;
+	Vector uri_names_seen;
+	Vector mail_names_seen;
+} UriWorker;
+
+static const char usage_title[] =
+  "\n"
+"# " _NAME "\n"
+"# \n"
+"# " LIBSNERT_COPYRIGHT "\n"
+"#"
+;
+Option opt_title		= { "",				NULL,		usage_title };
+
+static const char usage_info[] =
+  "Write the configuration and compile time options to standard output\n"
+"# and exit.\n"
+"#"
+;
+Option opt_info			= { "info", 			NULL,		usage_info };
+
+static const char usage_syntax[] =
+  "Option Syntax\n"
+"# \n"
+"# Options can be expressed in four different ways. Boolean options\n"
+"# are expressed as +option or -option to turn the option on or off\n"
+"# respectively. Numeric, string, and list options are expressed as\n"
+"# option=value to set the option or option+=value to append to a\n"
+"# list. Note that the +option and -option syntax are equivalent to\n"
+"# option=1 and option=0 respectively. String values containing white\n"
+"# space must be quoted using single (') or double quotes (\"). Option\n"
+"# names are case insensitive.\n"
+"# \n"
+"# Some options, like +help or -help, are treated as immediate\n"
+"# actions or commands. Unknown options are ignored and not reported.\n"
+"# The first command-line argument is that which does not adhere to\n"
+"# the above option syntax. The special command-line argument -- can\n"
+"# be used to explicitly signal an end to the list of options.\n"
+"# \n"
+"# The default options, as shown below, can be altered by specifying\n"
+"# them on the command-line or within an option file, which simply\n"
+"# contains command-line options one or more per line and/or on\n"
+"# multiple lines. Comments are allowed and are denoted by a line\n"
+"# starting with a hash (#) character. If the file option is defined\n"
+"# and not empty, then it is parsed first, followed by the command\n"
+"# line options.\n"
+;
+Option opt_syntax		= { "",				NULL,		usage_syntax };
+
+static const char usage_help[] =
+  "Write the option summary to standard output and exit. The output\n"
+"# is suitable for use as an option file. For Windows this option\n"
+"# can be assigned a file path string to save the output to a file,\n"
+"# eg. help=./" CF_FILE "\n"
+"#"
+;
+Option opt_help			= { "help", 			NULL,		usage_help };
+
+static Option opt_version	= { "version",		NULL,	"Show version and copyright." };
+
+static const char usage_domain_bl[] =
+  "A list of domain black list suffixes to consult, like .dbl.spamhaus.org.\n"
+"# The host or domain name found in a URI is checked against these DNS black\n"
+"# lists. These black lists are assumed to use wildcards entries, so only a\n"
+"# single lookup is done. IP-as-domain in a URI are ignored.\n"
+"#"
+;
+static Option opt_domain_bl	= { "domain-bl",	"",	usage_domain_bl };
+
+static const char usage_mail_bl[] =
+  "A list of mail address black list suffixes to consult. The MAIL FROM:\n"
+"# address and mail addresses found in select headers and the message are MD5\n"
+"# hashed, which are then checked against these black lists. Aggregate lists\n"
+"# are supported using suffix/mask. Without a /mask, suffix is the same as\n"
+"# suffix/0x00FFFFFE.\n"
+"# "
+;
+Option opt_mail_bl		= { "mail-bl",		"",	usage_mail_bl };
+
+static const char usage_mail_bl_headers[] =
+  "A list of mail headers to parse for mail addresses and check against\n"
+"# one or more mail address black lists. Specify the empty list to disable.\n"
+"#"
+;
+Option opt_mail_bl_headers	= { "mail-bl-headers",	"From;Reply-To;Sender",	usage_mail_bl_headers };
+
+static const char usage_mail_bl_domains[] =
+  "A list of domain glob-like patterns for which to test against mail-bl,\n"
+"# typically free mail services. This reduces the load on public BLs.\n"
+"# Specify * to test all domains, empty list to disable.\n"
+"#"
+;
+Option opt_mail_bl_domains	= {
+	"mail-bl-domains",
+
+	 "gmail.*"
+	";hotmail.*"
+	";live.*"
+	";yahoo.*"
+	";aol.*"
+	";aim.com"
+	";cantv.net"
+	";centrum.cz"
+	";centrum.sk"
+	";googlemail.com"
+	";gmx.*"
+	";inmail24.com"
+	";jmail.co.za"
+	";libero.it"
+	";luckymail.com"
+	";mail2world.com"
+	";msn.com"
+	";rediff.com"
+	";rediffmail.com"
+	";rocketmail.com"
+	";she.com"
+	";shuf.com"
+	";sify.com"
+	";terra.*"
+	";tiscali.it"
+	";tom.com"
+	";ubbi.com"
+	";virgilio.it"
+	";voila.fr"
+	";vsnl.*"
+	";walla.com"
+	";wanadoo.*"
+	";windowslive.com"
+	";y7mail.com"
+	";yeah.net"
+	";ymail.com"
+
+	, usage_mail_bl_domains
+};
+
+static const char usage_uri_bl[] =
+  "A list of domain name black list suffixes to consult, like .multi.surbl.org.\n"
+"# The domain name found in a URI is checked against these DNS black lists.\n"
+"# Aggregate lists are supported using suffix/mask. Without a /mask, suffix\n"
+"# is the same as suffix/0x00FFFFFE.\n"
+"#"
+;
+static Option opt_uri_bl	= { "uri-bl",		"",	usage_uri_bl };
+
+static const char usage_uri_a_bl[] =
+  "A list of IP black list suffixes to consult, like zen.spamhaus.org.\n"
+"# The host or domain name found in a URI is used to find its DNS A record\n"
+"# and IP address, which is then checked against these IP DNS black lists.\n"
+"# Aggregate lists are supported using suffix/mask. Without a /mask, suffix\n"
+"# is the same as suffix/0x00FFFFFE.\n"
+"#"
+;
+static Option opt_uri_a_bl	= { "uri-a-bl",		"",	usage_uri_a_bl };
+
+static const char usage_uri_ns_bl[] =
+  "A list of host name and/or domain name black list suffixes to consult. The\n"
+"# domain name found in a URI is used to find its DNS NS records; the NS host\n"
+"# names are checked against these host name and/or domain name DNS black\n"
+"# lists. Aggregate lists are supported using suffix/mask. Without a /mask,\n"
+"# suffix is the same as suffix/0x00FFFFFE.\n"
+"#"
+;
+static Option opt_uri_ns_bl	= { "uri-ns-bl",	"",	usage_uri_ns_bl };
+
+static const char usage_uri_ns_a_bl[] =
+  "A comma or semi-colon separated list of IP black list suffixes to consult.\n"
+"# The host or domain name found in a URI is used to find its DNS NS records\n"
+"# and IP address, which are then checked against these IP black lists.\n"
+"# Aggregate lists are supported using suffix/mask. Without a /mask, suffix\n"
+"# is the same as suffix/0x00FFFFFE.\n"
+"#"
+;
+static Option opt_uri_ns_a_bl	= { "uri-ns-a-bl",	"",	usage_uri_ns_a_bl };
+
+static const char usage_uri_bl_headers[] =
+  "A list of mail headers to parse for URI and check using the uri-bl,\n"
+"# uri-a-bl, and uri-ns-bl options. Specify the empty list to disable.\n"
+"#"
+;
+static Option opt_uri_bl_headers = { "uri-bl-headers",	"X-Originating-IP",	usage_uri_bl_headers };
+
+static int debug;
+static int check_soa;
 static int exit_code;
-static int headers_and_body;
 static int check_link;
 static int check_query;
 static int check_subdomains;
-static int print_uri_parse;
-static char *dBlOption;
-static char *ipBlOption;
-static char *nsBlOption;
-static char *nsIpBlOption;
-static char *uriBlOption;
-static char *mailBlOption;
-static Vector print_uri_ports;
+
 static long *uri_ports;
 
-static const char *mailBlDomains = "*";
-static Vector mail_bl_domains;
+static DnsList *d_bl_list;
+static DnsList *mail_bl_list;
+static DnsList *uri_bl_list;
+static DnsList *uri_a_bl_list;
+static DnsList *uri_ns_bl_list;
+static DnsList *uri_ns_a_bl_list;
 
-#ifdef MAIL_BL_DOMAINS
-	 "gmail.*"
-	",googlemail.*"
-	",hotmail.*"
-	",yahoo.*"
-	",aol.*"
-	",aim.*"
-	",live.*"
-	",ymail.com"
-	",rocketmail.com"
-	",centrum.cz"
-	",centrum.sk"
-	",inmail24.com"
-	",libero.it"
-	",mail2world.com"
-	",msn.com"
-	",she.com"
-	",shuf.com"
-	",sify.com"
-	",terra.es"
-	",tiscali.it"
-	",ubbi.com"
-	",virgilio.it"
-	",voila.fr"
-	",walla.com"
-	",y7mail.com"
-	",yeah.net"
+static Vector mail_bl_domains;
+static Vector mail_bl_headers;
+static Vector uri_bl_headers;
+
+#define LOG_LINE		__FILE__, __LINE__
+
+static const char log_init[] = "initialisation error %s.%d: %s (%d)";
+static const char log_oom[] = "out of memory %s.%d";
+static const char log_internal[] = "internal error %s.%d";
+static const char log_buffer[] = "buffer overflow %s.%d";
+static const char log_err[] = "error %s.%d: %s (%d)";
+
+#if ! defined(__MINGW32__)
+#undef syslog
+void
+syslog(int level, const char *fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	if (logFile == NULL) {
+		vsyslog(level, fmt, args);
+	} else {
+		fflush(stdout);
+		LogV(level, fmt, args);
+		fflush(stderr);
+	}
+	va_end(args);
+}
 #endif
+
+void
+printVersion(void)
+{
+	printf("%s, a LibSnert tool\n", _NAME);
+	printf(LIBSNERT_STRING " " LIBSNERT_COPYRIGHT "\n");
+#ifdef LIBSNERT_BUILT
+	printf("Built on " LIBSNERT_BUILT "\n");
+#endif
+}
+
+void printVar(int columns, const char *name, const char *value);
+
+void
+printInfo(void)
+{
+	printVar(0, "NAME", _NAME);
+#ifdef LIBSNERT_VERSION
+	printVar(0, "LIBSNERT_VERSION", LIBSNERT_VERSION);
+#endif
+#ifdef LIBSNERT_CONFIGURE
+	printVar(LINE_WRAP, "LIBSNERT_CONFIGURE", LIBSNERT_CONFIGURE);
+#endif
+#ifdef LIBSNERT_BUILT
+	printVar(LINE_WRAP, "LIBSNERT_BUILT", LIBSNERT_BUILT);
+#endif
+#ifdef LIBSNERT_CFLAGS
+	printVar(LINE_WRAP, "CFLAGS", CFLAGS_PTHREAD " " LIBSNERT_CFLAGS);
+#endif
+#ifdef LIBSNERT_LDFLAGS
+	printVar(LINE_WRAP, "LDFLAGS", LDFLAGS_PTHREAD " " LIBSNERT_LDFLAGS);
+#endif
+#ifdef LIBSNERT_LIBS
+	printVar(LINE_WRAP, "LIBS", LIBSNERT_LIBS " " HAVE_LIB_PTHREAD);
+#endif
+}
+
+void
+write_result(URI *uri, UriWorker *uw, const char *list_name, const char *fmt, ...)
+{
+	va_list args;
+
+	if (uw->cgi_mode) {
+		if (list_name == NULL) {
+			cgiMapAdd(&uw->cgi.headers, "URI-Found", "%u %s", uw->source.line, uri->uri);
+		} else {
+			uw->source.hits++;
+			cgiMapAdd(&uw->cgi.headers, "URI-Found", "%u %s ; %s", uw->source.line, uri->uri, list_name);
+		}
+	} else if (fmt != NULL && list_name != NULL) {
+		fprintf(uw->out, "%s %u: ", uw->source.file, uw->source.line);
+		uw->source.hits++;
+
+		va_start(args, fmt);
+		vfprintf(uw->out, fmt, args);
+		va_end(args);
+	}
+
+	exit_code = EXIT_FAILURE;
+}
+
+void
+test_uri(URI *uri, UriWorker *uw)
+{
+	unsigned hits;
+	PDQ_valid_soa code;
+	const char *list_name = NULL;
+	const char **seen;
+	char *copy;
+
+	hits = uw->source.hits;
+
+	for (seen = (const char **) VectorBase(uw->uri_names_seen); *seen != NULL; seen++) {
+		if (TextInsensitiveCompare(uri->host, *seen) == 0)
+			return;
+	}
+
+	uw->source.found++;
+
+	if (VectorAdd(uw->uri_names_seen, copy = strdup(uri->host)))
+		free(copy);
+
+	if (uw->source.hits < uw->max_hits
+	&& (list_name = dnsListQueryName(d_bl_list, uw->pdq, NULL, uri->host)) != NULL)
+		write_result(uri, uw, list_name, "%s domain blacklisted %s\r\n", uri->host, list_name);
+
+	if (uw->source.hits < uw->max_hits
+	&& (list_name = dnsListQueryDomain(uri_bl_list, uw->pdq, NULL, check_subdomains, uri->host)) != NULL)
+		write_result(uri, uw, list_name, "%s domain blacklisted %s\r\n", uri->host, list_name);
+
+	if (uw->source.hits < uw->max_hits
+	&& (list_name = dnsListQueryNs(uri_ns_bl_list, uri_ns_a_bl_list, uw->pdq, NULL, uri->host)) != NULL)
+		write_result(uri, uw, list_name, "%s NS blacklisted %s\r\n", uri->host, list_name);
+
+	if (uw->source.hits < uw->max_hits
+	&& (list_name = dnsListQueryIP(uri_a_bl_list, uw->pdq, NULL, uri->host)) != NULL)
+		write_result(uri, uw, list_name, "%s IP blacklisted %s\r\n", uri->host, list_name);
+
+	if (uriGetSchemePort(uri) == SMTP_PORT && uw->source.hits < uw->max_hits
+	&& (list_name = dnsListQueryMail(mail_bl_list, uw->pdq, mail_bl_domains, uw->mail_names_seen, uri->uriDecoded)) != NULL)
+		write_result(uri, uw, list_name, "%s mail blacklisted %s\r\n", uri->uriDecoded, list_name);
+
+	if (check_soa && (code = pdqTestSOA(uw->pdq, PDQ_CLASS_IN, uri->host, NULL)) != PDQ_SOA_OK) {
+		fprintf(uw->out, "%s %u: ", uw->source.file, uw->source.line);
+		fprintf(uw->out, "%s bad SOA %s (%d)\r\n", uri->host, pdqSoaName(code), code);
+		exit_code = EXIT_FAILURE;
+	}
+
+	if (hits == uw->source.hits)
+		write_result(uri, uw, NULL, NULL);
+}
+
+void
+process(URI *uri, UriWorker *uw)
+{
+	long *p;
+	const char *error;
+	URI *origin = NULL;
+
+	if (uri == NULL)
+		return;
+
+	if (uri_ports != NULL) {
+		for (p = uri_ports; 0 <= *p; p++) {
+			if (uriGetSchemePort(uri) == *p)
+				break;
+		}
+
+		if (*p < 0)
+			return;
+	}
+
+	if (uw->print_uri_parse) {
+		fprintf(uw->out, "%s %u:\r\n", uw->source.file, uw->source.line);
+		fprintf(uw->out, "\turi=%s\r\n", uri->uri);
+		fprintf(uw->out, "\turiDecoded=%s\r\n", TextNull(uri->uriDecoded));
+		fprintf(uw->out, "\tscheme=%s\r\n", TextNull(uri->scheme));
+		fprintf(uw->out, "\tschemeInfo=%s\r\n", TextNull(uri->schemeInfo));
+		fprintf(uw->out, "\tuserInfo=%s\r\n", TextNull(uri->userInfo));
+		fprintf(uw->out, "\thost=%s\r\n", TextNull(uri->host));
+		fprintf(uw->out, "\tport=%d\r\n", uriGetSchemePort(uri));
+		fprintf(uw->out, "\tpath=%s\r\n", TextNull(uri->path));
+		fprintf(uw->out, "\tquery=%s\r\n", TextNull(uri->query));
+		fprintf(uw->out, "\tfragment=%s\r\n", TextNull(uri->fragment));
+	} else if (uri_ports != NULL) {
+		fputs(uri->uriDecoded, uw->out);
+		fputc('\n', uw->out);
+	}
+
+	if (uri->host != NULL)
+		test_uri(uri, uw);
+
+	if (check_link && uri->host != NULL) {
+		error = uriHttpOrigin(uri->uriDecoded, &origin);
+		fprintf(uw->out, "%s %u: ", uw->source.file, uw->source.line);
+		fprintf(uw->out, "\t%s -> ", uri->uriDecoded);
+		fprintf(uw->out, "%s\r\n", error == NULL ? origin->uri : error);
+		if (error == uriErrorLoop)
+			exit_code = EXIT_FAILURE;
+	}
+
+	if (origin != NULL && origin->host != NULL && strcmp(uri->host, origin->host) != 0) {
+		test_uri(origin, uw);
+		free(origin);
+	}
+}
+
+void
+process_list(const char *list, const char *delim, UriWorker *uw)
+{
+	int i;
+	URI *uri;
+	Vector args;
+	char *arg, *ptr;
+
+	if (list == NULL)
+		return;
+
+	args = TextSplit(list, delim, 0);
+
+	for (i = 0; i < VectorLength(args); i++) {
+		if ((arg = VectorGet(args, i)) == NULL)
+			continue;
+
+		/* Skip leading symbol name and equals sign. */
+		for (ptr = arg; *ptr != '\0'; ptr++) {
+			if (!isalnum(*ptr) && *ptr != '_') {
+				if (*ptr == '=')
+					arg = ptr+1;
+				break;
+			}
+		}
+
+		uri = uriParse2(arg, -1, 1);
+		process(uri, uw);
+		free(uri);
+	}
+
+	VectorDestroy(args);
+}
+
+void
+process_query(URI *uri,  UriWorker *uw)
+{
+	if (uri->query == NULL) {
+		process_list(uri->path, "&", uw);
+	} else {
+		process_list(uri->query, "&", uw);
+		process_list(uri->query, "/", uw);
+	}
+	process_list(uri->path, "/", uw);
+}
+
+void
+process_uri(URI *uri, void *data)
+{
+	process(uri, data);
+	if (check_query)
+		process_query(uri, data);
+}
+
+int
+process_input(Mime *m, FILE *fp, UriWorker *uw)
+{
+	int ch;
+
+	if (fp != NULL) {
+		mimeReset(m);
+		uw->source.line = 1;
+		uw->source.hits = 0;
+		uw->source.found = 0;
+
+		if (debug)
+			syslog(LOG_DEBUG, "file=%s line=%u", uw->source.file, uw->source.line);
+		do {
+			ch = fgetc(fp);
+			(void) mimeNextCh(m, ch);
+			if (ch == '\n') {
+				uw->source.line++;
+				if (debug)
+					syslog(LOG_DEBUG, "file=%s line=%u", uw->source.file, uw->source.line);
+			}
+		} while (ch != EOF);
+
+		(void) fflush(uw->out);
+	}
+
+	return 0;
+}
+
+int
+process_file(UriWorker *uw)
+{
+	int rc;
+	FILE *fp;
+	Mime *mime;
+	UriMime *hold;
+
+	rc = -1;
+
+	/* Check for standard input. */
+	if (uw->source.file[0] == '-' && uw->source.file[1] == '\0')
+		fp = stdin;
+
+	/* Otherwise open the file. */
+	else if ((fp = fopen(uw->source.file, "r")) == NULL)
+		goto error0;
+
+	if ((mime = mimeCreate()) == NULL)
+		goto error1;
+
+	uw->source.line = 1;
+	uw->source.hits = 0;
+	uw->source.found = 0;
+
+	if ((hold = uriMimeInit(process_uri, uw->headers_and_body, uw)) == NULL)
+		goto error2;
+
+	mimeHeadersFirst(mime, uw->headers_and_body);
+	mimeHooksAdd(mime, (MimeHooks *)hold);
+	rc = process_input(mime, fp, uw);
+
+	if (uw->cgi_mode)
+		cgiMapAdd(&uw->cgi.headers, "Blacklist-Hits", "%u", uw->source.hits);
+error2:
+	mimeFree(mime);
+error1:
+	fclose(fp);
+error0:
+	return rc;
+}
+
+void
+process_string(UriWorker *uw)
+{
+	char *s;
+	Mime *mime;
+	UriMime *hold;
+
+	if ((mime = mimeCreate()) == NULL)
+		return;
+
+	uw->source.line = 1;
+	uw->source.hits = 0;
+	uw->source.found = 0;
+
+	s = (char *) BufBytes(uw->cgi._RAW) + BufOffset(uw->cgi._RAW);
+
+	if ((hold = uriMimeInit(process_uri, uw->headers_and_body, uw)) != NULL) {
+		mimeHeadersFirst(mime, !uw->headers_and_body);
+		mimeHooksAdd(mime, (MimeHooks *)hold);
+		for ( ; *s != '\0'; s++) {
+			(void) mimeNextCh(mime, *s);
+			if (*s == '\n')
+				uw->source.line++;
+		}
+		(void) mimeNextCh(mime, EOF);
+		(void) fflush(uw->out);
+	}
+
+	mimeFree(mime);
+
+	if (uw->cgi_mode)
+		cgiMapAdd(&uw->cgi.headers, "Blacklist-Hits", "%u", uw->source.hits);
+}
+
+static Option *opt_table[];
+
+void
+at_exit_cleanup(void)
+{
+	optionFreeL(opt_table, NULL);
+
+	VectorDestroy(mail_bl_headers);
+	VectorDestroy(mail_bl_domains);
+	VectorDestroy(uri_bl_headers);
+
+	dnsListFree(mail_bl_list);
+	dnsListFree(uri_ns_a_bl_list);
+	dnsListFree(uri_ns_bl_list);
+	dnsListFree(uri_a_bl_list);
+	dnsListFree(uri_bl_list);
+	dnsListFree(d_bl_list);
+
+	pdqFini();
+}
+#endif /* defined(TEST) || defined(DAEMON) */
+
+/***********************************************************************
+ *** CLI / CGI code.
+ ***********************************************************************/
+#if defined(TEST)
+
+#include <com/snert/lib/util/getopt.h>
+
+static Vector print_uri_ports;
+static const char *name_servers;
+
+static Option *opt_table[] = {
+	&opt_title,
+	&opt_syntax,
+	PDQ_OPTIONS_TABLE,
+	&opt_help,
+	&opt_info,
+	&opt_domain_bl,
+	&opt_mail_bl,
+	&opt_mail_bl_domains,
+	&opt_mail_bl_headers,
+	&opt_uri_bl,
+	&opt_uri_a_bl,
+	&opt_uri_ns_bl,
+	&opt_uri_ns_a_bl,
+	&opt_uri_bl_headers,
+	&opt_version,
+	NULL
+};
 
 static char usage[] =
 "usage: uri [-ablLpqRsUv][-A delim][-d dbl,...][-i ip-bl,...][-m mail-bl,...]\n"
@@ -1394,404 +1997,239 @@ QUOTE(EX_SOFTWARE) "\t\tinternal error\n"
 LIBSNERT_STRING " " LIBSNERT_COPYRIGHT "\n"
 ;
 
-#if ! defined(__MINGW32__)
-#undef syslog
 void
-syslog(int level, const char *fmt, ...)
+enableDebug(void)
 {
-	va_list args;
-
-	va_start(args, fmt);
-	if (logFile == NULL)
-		vsyslog(level, fmt, args);
-	else
-		LogV(level, fmt, args);
-	va_end(args);
-}
-#endif
-
-PDQ *pdq;
-int debug;
-int check_soa;
-DnsList *d_bl_list;
-DnsList *ip_bl_list;
-DnsList *ns_bl_list;
-DnsList *ns_ip_bl_list;
-DnsList *uri_bl_list;
-DnsList *mail_bl_list;
-Vector uri_names_seen;
-Vector mail_names_seen;
-const char *name_servers;
-
-void
-test_uri(URI *uri, const char *filename)
-{
-	PDQ_valid_soa code;
-	const char *list_name = NULL;
-
-	if ((list_name = dnsListQueryName(d_bl_list, pdq, uri_names_seen, uri->host)) != NULL) {
-		if (filename != NULL)
-			printf("%s: ", filename);
-		printf("%s domain blacklisted %s\n", uri->host, list_name);
-		exit_code = EXIT_FAILURE;
-	}
-
-	if ((list_name = dnsListQueryDomain(uri_bl_list, pdq, uri_names_seen, check_subdomains, uri->host)) != NULL) {
-		if (filename != NULL)
-			printf("%s: ", filename);
-		printf("%s domain blacklisted %s\n", uri->host, list_name);
-		exit_code = EXIT_FAILURE;
-	}
-
-	if ((list_name = dnsListQueryNs(ns_bl_list, ns_ip_bl_list, pdq, uri_names_seen, uri->host)) != NULL) {
-		if (filename != NULL)
-			printf("%s: ", filename);
-		printf("%s NS blacklisted %s\n", uri->host, list_name);
-		exit_code = EXIT_FAILURE;
-	}
-
-	if ((list_name = dnsListQueryIP(ip_bl_list, pdq, uri_names_seen, uri->host)) != NULL) {
-		if (filename != NULL)
-			printf("%s: ", filename);
-		printf("%s IP blacklisted %s\n", uri->host, list_name);
-		exit_code = EXIT_FAILURE;
-	}
-
-	if (uriGetSchemePort(uri) == SMTP_PORT && (list_name = dnsListQueryMail(mail_bl_list, pdq, mail_bl_domains, mail_names_seen, uri->uriDecoded)) != NULL) {
-		if (filename != NULL)
-			printf("%s: ", filename);
-		printf("%s mail blacklisted %s\n", uri->uriDecoded, list_name);
-		exit_code = EXIT_FAILURE;
-	}
-
-	if (check_soa && (code = pdqTestSOA(pdq, PDQ_CLASS_IN, uri->host, NULL)) != PDQ_SOA_OK) {
-		if (filename != NULL)
-			printf("%s: ", filename);
-		printf("%s bad SOA %s (%d)\n", uri->host, pdqSoaName(code), code);
-		exit_code = EXIT_FAILURE;
-	}
+	LogOpen("(standard error)");
+	LogSetProgramName("uri");
+	dnsListSetDebug(1);
+	socketSetDebug(1);
+	uriSetDebug(4);
+	pdqSetDebug(1);
+	debug++;
 }
 
 void
-process(URI *uri, const char *filename)
+printVar(int columns, const char *name, const char *value)
 {
-	long *p;
-	const char *error;
-	URI *origin = NULL;
+	int length;
+	Vector list;
+	const char **args;
 
-	if (uri == NULL)
-		return;
+	if (columns <= 0)
+		printf("%s=\"%s\"\n",  name, value);
+	else if ((list = TextSplit(value, " \t", 0)) != NULL && 0 < VectorLength(list)) {
+		args = (const char **) VectorBase(list);
 
-	if (uri_ports != NULL) {
-		for (p = uri_ports; 0 <= *p; p++) {
-			if (uriGetSchemePort(uri) == *p)
-				break;
-		}
-
-		if (*p < 0)
-			return;
-	}
-
-	if (print_uri_parse) {
-		if (filename != NULL)
-			printf("%s: ", filename);
-		printf("uri=%s\n", uri->uri);
-		printf("\turiDecoded=%s\n", TextNull(uri->uriDecoded));
-		printf("\tscheme=%s\n", TextNull(uri->scheme));
-		printf("\tschemeInfo=%s\n", TextNull(uri->schemeInfo));
-		printf("\tuserInfo=%s\n", TextNull(uri->userInfo));
-		printf("\thost=%s\n", TextNull(uri->host));
-		printf("\tport=%d\n", uriGetSchemePort(uri));
-		printf("\tpath=%s\n", TextNull(uri->path));
-		printf("\tquery=%s\n", TextNull(uri->query));
-		printf("\tfragment=%s\n", TextNull(uri->fragment));
-	} else if (print_uri_ports != NULL) {
-		fputs(uri->uriDecoded, stdout);
-		fputc('\n', stdout);
-	}
-
-	if (uri->host != NULL)
-		test_uri(uri, filename);
-
-	if (check_link && uri->host != NULL) {
-		error = uriHttpOrigin(uri->uriDecoded, &origin);
-		if (filename != NULL)
-			printf("%s: ", filename);
-		printf("%s -> ", uri->uriDecoded);
-		printf("%s\n", error == NULL ? origin->uri : error);
-		if (error == uriErrorLoop)
-			exit_code = EXIT_FAILURE;
-	}
-
-	if (origin != NULL && origin->host != NULL && strcmp(uri->host, origin->host) != 0) {
-		test_uri(origin, filename);
-		free(origin);
-	}
-}
-
-void
-process_list(const char *list, const char *delim, const char *filename)
-{
-	int i;
-	URI *uri;
-	Vector args;
-	char *arg, *ptr;
-
-	if (list == NULL)
-		return;
-
-	args = TextSplit(list, delim, 0);
-
-	for (i = 0; i < VectorLength(args); i++) {
-		if ((arg = VectorGet(args, i)) == NULL)
-			continue;
-
-		/* Skip leading symbol name and equals sign. */
-		for (ptr = arg; *ptr != '\0'; ptr++) {
-			if (!isalnum(*ptr) && *ptr != '_') {
-				if (*ptr == '=')
-					arg = ptr+1;
-				break;
+		length = printf("%s=\"'%s'", name, *args);
+		for (args++; *args != NULL; args++) {
+			/* Line wrap. */
+			if (columns <= length + strlen(*args) + 4) {
+				(void) printf("\n\t");
+				length = 8;
 			}
+			length += printf(" '%s'", *args);
 		}
+		if (columns <= length + 1) {
+			(void) printf("\n");
+		}
+		(void) printf("\"\n");
 
-		uri = uriParse2(arg, -1, 1);
-		process(uri, filename);
-		free(uri);
+		VectorDestroy(list);
 	}
-
-	VectorDestroy(args);
-}
-
-void
-process_query(URI *uri, const char *filename)
-{
-	if (uri->query == NULL) {
-		process_list(uri->path, "&", filename);
-	} else {
-		process_list(uri->query, "&", filename);
-		process_list(uri->query, "/", filename);
-	}
-	process_list(uri->path, "/", filename);
-}
-
-void
-process_uri(URI *uri, void *data)
-{
-	process(uri, data);
-	if (check_query)
-		process_query(uri, data);
-}
-
-int
-process_input(Mime *m, FILE *fp, const char *filename)
-{
-	int ch;
-	unsigned lineno = 1;
-
-	if (fp != NULL) {
-		mimeReset(m);
-
-		if (debug)
-			syslog(LOG_DEBUG, "file=%s line=%u", filename, lineno);
-		do {
-			ch = fgetc(fp);
-			if (debug && ch == '\n') {
-				lineno++;
-				syslog(LOG_DEBUG, "file=%s line=%u", filename, lineno);
-			}
-			(void) mimeNextCh(m, ch);
-		} while (ch != EOF);
-
-		(void) fflush(stdout);
-	}
-
-	return 0;
-}
-
-int
-process_file(const char *filename)
-{
-	int rc;
-	FILE *fp;
-	Mime *mime;
-	UriMime *hold;
-
-	rc = -1;
-
-	/* Check for standard input. */
-	if (filename[0] == '-' && filename[1] == '\0')
-		fp = stdin;
-
-	/* Otherwise open the file. */
-	else if ((fp = fopen(filename, "r")) == NULL)
-		goto error0;
-
-	if ((mime = mimeCreate()) == NULL)
-		goto error1;
-
-	if ((hold = uriMimeInit(process_uri, headers_and_body, (void *)filename)) == NULL)
-		goto error2;
-
-	mimeHooksAdd(mime, (MimeHooks *)hold);
-	mimeHeadersFirst(mime, headers_and_body);
-	rc = process_input(mime, fp, filename);
-error2:
-	mimeFree(mime);
-error1:
-	fclose(fp);
-error0:
-	return rc;
-}
-
-void
-process_string(const char *s)
-{
-	Mime *mime;
-	UriMime *hold;
-
-	if ((mime = mimeCreate()) == NULL)
-		return;
-
-	mimeHeadersFirst(mime, 0);
-
-	if ((hold = uriMimeInit(process_uri, 1, (void *) "(arg)")) != NULL) {
-		mimeHooksAdd(mime, (MimeHooks *)hold);
-		for ( ; *s != '\0'; s++)
-			(void) mimeNextCh(mime, *s);
-		(void) mimeNextCh(mime, EOF);
-		(void) fflush(stdout);
-	}
-
-	mimeFree(mime);
 }
 
 int
 main(int argc, char **argv)
 {
 	int i, ch;
+	UriWorker uw;
 
-	while ((ch = getopt(argc, argv, "fabA:d:m:M:i:n:N:u:UlLmpP:qQ:RsT:t:v")) != -1) {
-		switch (ch) {
-		case 'f':
-			/* Place holder for old -f option for AlexB. */
-			break;
-		case 'a':
-			headers_and_body = 1;
-			break;
-		case 'b':
-			headers_and_body = 0;
-			break;
-		case 'A':
-			at_sign_delim = *optarg;
-			break;
-		case 'd':
-			dBlOption = optarg;
-			break;
-		/* case 'D': reserved for possible future domain exception list. */
+	memset(&uw, 0, sizeof (uw));
 
-		case 'i':
-			ipBlOption = optarg;
-			break;
-		case 'n':
-			nsBlOption = optarg;
-			break;
-		case 'N':
-			nsIpBlOption = optarg;
-			break;
-		case 'u':
-			uriBlOption = optarg;
-			break;
-		case 'm':
-			mailBlOption = optarg;
-			break;
-		case 'M':
-			mailBlDomains = optarg;
-			break;
-		case 'U':
-			check_subdomains = 1;
-			break;
-		case 'l':
-			check_link = 1;
-			break;
-		case 'L':
-			dnsListSetWaitAll(1);
-			break;;
-		case 'P':
-			print_uri_ports = TextSplit(optarg, ",", 0);
-			break;
-		case 'p':
-			print_uri_parse = 1;
-			break;
-		case 'q':
-			check_query = 1;
-			break;
-		case 'Q':
-			name_servers = optarg;
-			break;
-		case 's':
-			check_soa = 1;
-			break;
-		case 't':
-			uriSetTimeout(strtol(optarg, NULL, 10) * 1000);
-			break;
-		case 'T':
-			pdqMaxTimeout(strtol(optarg, NULL, 10));
-			break;
+	if (atexit(at_exit_cleanup)) {
+		fprintf(stderr, log_init, LOG_LINE, strerror(errno), errno);
+		exit(EX_SOFTWARE);
+	}
 
-		case 'R':
-			pdqSetRoundRobin(1);
-			break;
-		case 'v':
-#ifdef VAR_LOG_DEBUG
-			openlog("uri", LOG_PID, LOG_USER);
-#else
-			LogOpen("(standard error)");
-			LogSetProgramName("uri");
-#endif
-			dnsListSetDebug(1);
-			socketSetDebug(1);
-			uriSetDebug(4);
-			pdqSetDebug(1);
-			debug++;
-			break;
-		default:
-			(void) fputs(usage, stderr);
-			return EX_USAGE;
+	optionInit(opt_table, NULL);
+
+	if (getenv("GATEWAY_INTERFACE") == NULL) {
+//		optind = optionArrayL(argc, argv, opt_table, NULL);
+
+		while ((ch = getopt(argc, argv, "fabA:d:m:M:i:n:N:u:UlLmpP:qQ:RsT:t:v")) != -1) {
+			switch (ch) {
+			case 'f':
+				/* Place holder for old -f option for AlexB. */
+				break;
+			case 'a':
+				uw.headers_and_body = 1;
+				break;
+			case 'b':
+				uw.headers_and_body = 0;
+				break;
+			case 'A':
+				at_sign_delim = *optarg;
+				break;
+			case 'd':
+				opt_domain_bl.string = optarg;
+				break;
+			/* case 'D': reserved for possible future domain exception list. */
+
+			case 'i':
+				opt_uri_a_bl.string = optarg;
+				break;
+			case 'n':
+				opt_uri_ns_bl.string = optarg;
+				break;
+			case 'N':
+				opt_uri_ns_a_bl.string = optarg;
+				break;
+			case 'u':
+				opt_uri_bl.string = optarg;
+				break;
+			case 'm':
+				opt_mail_bl.string = optarg;
+				break;
+			case 'M':
+				opt_mail_bl_domains.string = optarg;
+				break;
+			case 'U':
+				check_subdomains = 1;
+				break;
+			case 'l':
+				check_link = 1;
+				break;
+			case 'L':
+				dnsListSetWaitAll(1);
+				break;;
+			case 'P':
+				print_uri_ports = TextSplit(optarg, ",", 0);
+				break;
+			case 'p':
+				uw.print_uri_parse = 1;
+				break;
+			case 'q':
+				check_query = 1;
+				break;
+			case 'Q':
+				name_servers = optarg;
+				break;
+			case 's':
+				check_soa = 1;
+				break;
+			case 't':
+				uriSetTimeout(strtol(optarg, NULL, 10) * 1000);
+				break;
+			case 'T':
+				pdqMaxTimeout(strtol(optarg, NULL, 10));
+				break;
+
+			case 'R':
+				pdqSetRoundRobin(1);
+				break;
+			case 'v':
+				enableDebug();
+				break;
+			default:
+				(void) fputs(usage, stderr);
+				return EX_USAGE;
+			}
 		}
+
+		uw.max_hits = LONG_MAX;
+	} else {
+		struct stat sb;
+
+		uw.cgi_mode = 1;
+		if (cgiInit(&uw.cgi))
+			exit(EX_SOFTWARE);
+
+		/* Check DOCUMENT_ROOT for .cf file. */
+		sb.st_size = 0;
+		if (stat(CF_FILE, &sb) && uw.cgi.script_filename != NULL) {
+			int length;
+			char *path;
+
+			path = strdup(uw.cgi.script_filename);
+			/* Find previous slash. */
+			length = strlrcspn(path, strlen(path), "/");
+			/* Remove basename. */
+			path[length] = '\0';
+
+			/* Check dirname(SCRIPT_FILENAME) for .cf. */
+			(void) chdir(path);
+			(void) stat(CF_FILE, &sb);
+
+			free(path);
+		}
+
+		/* Parse an option file followed by the header options. */
+		if (0 < sb.st_size)
+			(void) optionFile(CF_FILE, opt_table, NULL);
+		(void) optionArrayL(argc, argv, opt_table, NULL);
+		cgiSetOptions(&uw.cgi, uw.cgi._HTTP, opt_table);
+
+		if (0 <= cgiMapFind(uw.cgi._GET, "q"))
+			check_query = 1;
+	}
+
+	if (opt_info.string != NULL) {
+		printInfo();
+		exit(EX_USAGE);
+	}
+	if (opt_version.string != NULL) {
+		printVersion();
+		exit(EX_USAGE);
+	}
+	if (opt_help.string != NULL) {
+		/* help=filepath (compatibility with Windows)
+		 * equivalent to +help >filepath
+		 */
+		if (opt_help.string[0] != '-' && opt_help.string[0] != '+')
+			(void) freopen(opt_help.string, "w", stdout);
+		optionUsageL(opt_table, NULL);
+		exit(EX_USAGE);
 	}
 
 	if (pdqInit()) {
-		fprintf(stderr, "pdqInit() failed\n");
+		fprintf(stderr, log_init, LOG_LINE, strerror(errno), errno);
 		exit(EX_SOFTWARE);
 	}
+
+	PDQ_OPTIONS_SETTING(debug);
 
 	if (name_servers != NULL) {
 		Vector servers = TextSplit(name_servers, ",", 0);
 		if (pdqSetServers(servers)) {
-			fprintf(stderr, "pdqSetServers() failed\n");
+			fprintf(stderr, log_init, LOG_LINE, strerror(errno), errno);
 			exit(EX_SOFTWARE);
 		}
 		VectorDestroy(servers);
 	}
 
-	if ((pdq = pdqOpen()) == NULL) {
-		fprintf(stderr, "pdqOpen() failed\n");
+	if ((uw.pdq = pdqOpen()) == NULL) {
+		fprintf(stderr, log_init, LOG_LINE, strerror(errno), errno);
 		exit(EX_SOFTWARE);
 	}
 
-	uri_names_seen = VectorCreate(10);
-	VectorSetDestroyEntry(uri_names_seen, free);
-	mail_names_seen = VectorCreate(10);
-	VectorSetDestroyEntry(mail_names_seen, free);
+	uw.out = stdout;
+	uw.uri_names_seen = VectorCreate(10);
+	VectorSetDestroyEntry(uw.uri_names_seen, free);
+	uw.mail_names_seen = VectorCreate(10);
+	VectorSetDestroyEntry(uw.mail_names_seen, free);
 
-	d_bl_list = dnsListCreate(dBlOption);
-	ip_bl_list = dnsListCreate(ipBlOption);
-	ns_bl_list = dnsListCreate(nsBlOption);
-	ns_ip_bl_list = dnsListCreate(nsIpBlOption);
-	uri_bl_list = dnsListCreate(uriBlOption);
-	mail_bl_list = dnsListCreate(mailBlOption);
-	mail_bl_domains = TextSplit(mailBlDomains, ",", 0);
+	d_bl_list = dnsListCreate(opt_domain_bl.string);
+
+	uri_ns_bl_list = dnsListCreate(opt_uri_ns_bl.string);
+	uri_ns_a_bl_list = dnsListCreate(opt_uri_ns_a_bl.string);
+	uri_bl_list = dnsListCreate(opt_uri_bl.string);
+	uri_a_bl_list = dnsListCreate(opt_uri_a_bl.string);
+	uri_bl_headers = TextSplit(opt_uri_bl_headers.string, ";, ", 0);
+
+	mail_bl_list = dnsListCreate(opt_mail_bl.string);
+	mail_bl_domains = TextSplit(opt_mail_bl_domains.string, ";, ", 0);
+	mail_bl_headers = TextSplit(opt_mail_bl_headers.string, ";, ", 0);
 
 	if (0 < VectorLength(print_uri_ports)) {
 		uri_ports = malloc(sizeof (long) * (VectorLength(print_uri_ports) + 1));
@@ -1805,31 +2243,679 @@ main(int argc, char **argv)
 
 	exit_code = EXIT_SUCCESS;
 
-	if (argc <= optind) {
-		(void) process_file("-");
+	if (uw.cgi_mode) {
+		int fi, pi;
+
+		uw.max_hits = 1;
+		if (0 <= (i = cgiMapFind(uw.cgi._GET, "x")))
+			uw.max_hits = strtol(uw.cgi._GET[i].value, NULL, 10);
+
+		uw.headers_and_body = 0;
+		if (0 <= (i = cgiMapFind(uw.cgi._GET, "a")) && uw.cgi._GET[i].value[0] != '0')
+			uw.headers_and_body = 1;
+
+		if (0 <= (fi = cgiMapFind(uw.cgi._GET, "f"))) {
+			uw.source.file = uw.cgi._GET[fi].value;
+			(void) process_file(&uw);
+		} else {
+			uw.source.file = uw.cgi.remote_addr;
+			process_string(&uw);
+		}
+
+		if (uw.cgi.request_method[0] != 'H'
+		&& 0 <= (pi = cgiMapFind(uw.cgi._GET, "p")) && uw.cgi._GET[pi].value[0] != '0') {
+			cgiMapAdd(&uw.cgi.headers, "Content-Type", "%s", "text/plain");
+			cgiSendOk(&uw.cgi, NULL);
+
+			if (0 <= (i = cgiMapFind(uw.cgi._GET, "v")) && uw.cgi._GET[i].value[0] != '0')
+				enableDebug();
+
+			/* Redo parse and dumping found URI. */
+			uw.cgi_mode = 0;
+			uw.print_uri_parse = 1;
+			if (uw.cgi._GET[pi].value[0] == '2') {
+				VectorRemoveAll(uw.uri_names_seen);
+				VectorRemoveAll(uw.mail_names_seen);
+			}
+			if (0 <= fi)
+				(void) process_file(&uw);
+			else
+				process_string(&uw);
+			uw.cgi_mode = 1;
+		} else if (uw.cgi.headers == NULL) {
+			cgiSendNotFound(&uw.cgi, NULL);
+		} else {
+			cgiSendNoContent(&uw.cgi);
+		}
+
+		exit_code = EXIT_SUCCESS;
+		cgiFree(&uw.cgi);
+	} else if (argc <= optind) {
+		uw.source.file = "-";
+		(void) process_file(&uw);
 	} else {
 		for (i = optind; i < argc; i++) {
 			struct stat sb;
 			if ((argv[i][0] == '-' && argv[i][1] == '\0') || stat(argv[i], &sb) == 0) {
-				(void) process_file(argv[i]);
+				uw.source.file = argv[i];
+				(void) process_file(&uw);
 			} else {
-				process_string(argv[i]);
+				uw.cgi._RAW = BufCopyString(argv[i]);
+				uw.source.file = "(arg)";
+				uw.headers_and_body = 1;
+				process_string(&uw);
+				BufDestroy(uw.cgi._RAW);
+				uw.cgi._RAW  = NULL;
 			}
 		}
 	}
 
-	VectorDestroy(mail_bl_domains);
-	VectorDestroy(mail_names_seen);
-	VectorDestroy(uri_names_seen);
-	dnsListFree(mail_bl_list);
-	dnsListFree(uri_bl_list);
-	dnsListFree(ns_ip_bl_list);
-	dnsListFree(ns_bl_list);
-	dnsListFree(ip_bl_list);
-	dnsListFree(d_bl_list);
-	pdqClose(pdq);
-	pdqFini();
+	VectorDestroy(uw.mail_names_seen);
+	VectorDestroy(uw.uri_names_seen);
+	pdqClose(uw.pdq);
 
 	return exit_code;
 }
 #endif
+
+/***********************************************************************
+ *** Daemon
+ ***********************************************************************/
+#if defined(DAEMON)
+
+#ifdef HAVE_SYS_RESOURCE_H
+# include <sys/resource.h>
+#endif
+
+extern void rlimits(void);
+#include <com/snert/lib/sys/pid.h>
+#include <com/snert/lib/sys/process.h>
+#include <com/snert/lib/sys/pthread.h>
+#include <com/snert/lib/net/server.h>
+
+#ifndef RUN_AS_USER
+#define RUN_AS_USER			"www"
+#endif
+
+#ifndef RUN_AS_GROUP
+#define RUN_AS_GROUP			"www"
+#endif
+
+#ifndef SERVER_ACCEPT_TIMEOUT
+#define SERVER_ACCEPT_TIMEOUT		10000
+#endif
+
+#ifndef SERVER_READ_TIMEOUT
+#define SERVER_READ_TIMEOUT		30000
+#endif
+
+#ifndef SERVER_PORT
+#define SERVER_PORT			8088
+#endif
+
+#ifndef SERVER_DIR
+#define SERVER_DIR			"/var/empty"
+#endif
+
+#ifndef INTERFACES
+#define INTERFACES			"[::]:" QUOTE(SERVER_PORT) ";0.0.0.0:" QUOTE(SERVER_PORT)
+#endif
+
+#ifndef THREAD_STACK_SIZE
+# define THREAD_STACK_SIZE		(32 * 1024)
+# if THREAD_STACK_SIZE < PTHREAD_STACK_MIN
+#  undef THREAD_STACK_SIZE
+#  define THREAD_STACK_SIZE		PTHREAD_STACK_MIN
+# endif
+#endif
+
+#ifndef MIN_RAW_SIZE
+#define MIN_RAW_SIZE			(64 * 1024)
+#endif
+
+#define CRLF		"\r\n"
+static const char empty[] = "";
+
+static const char usage_verbose[] =
+  "What to write to mail log. Specify a white space separated list of words:"
+;
+Option opt_verbose	= { "verbose",	"+info", usage_verbose };
+
+/* Verbose levels */
+Option verb_info	= { "info",		"-", empty };
+Option verb_trace	= { "trace",		"-", empty };
+Option verb_debug	= { "debug",		"-", empty };
+
+Option verb_dns		= { "dns",		"-", empty };
+Option verb_http	= { "http",		"-", empty };
+Option verb_server	= { "server",		"-", empty };
+Option verb_socket	= { "socket",		"-", empty };
+Option verb_uri		= { "uri",		"-", empty };
+
+Option *verb_table[] = {
+	&verb_info,
+	&verb_trace,
+	&verb_debug,
+
+	&verb_dns,
+	&verb_http,
+	&verb_server,
+	&verb_socket,
+	&verb_uri,
+
+	NULL
+};
+
+static const char usage_interfaces[] =
+  "A semi-colon separared list of interface host names or IP addresses\n"
+"# on which to bind and listen for new connections. They can be IPv4\n"
+"# and/or IPv6."
+"#"
+;
+Option opt_interfaces 		= { "interfaces", 		INTERFACES,	usage_interfaces };
+
+static const char usage_server_max_threads[] =
+  "Maximum number of server threads possible to handle new requests.\n"
+"# Specify zero to allow upto the system thread limit.\n"
+"#"
+;
+
+static const char usage_server_min_threads[] =
+  "Minimum number of server threads to keep alive to handle new requests.\n"
+"#"
+;
+
+static const char usage_server_new_threads[] =
+  "Number of new server threads to create when all the existing threads\n"
+"# are in use.\n"
+"#"
+;
+
+static const char usage_server_queue_size[] =
+  "Server connection queue size. This setting is OS specific and tells\n"
+"# the kernel how many unanswered connections it should queue before\n"
+"# refusing connections.\n"
+"#"
+;
+
+static const char usage_test_mode[] =
+  "Used for testing. Run the server in single thread mode and accept\n"
+"# client connections sequentionally ie. no concurrency possible.\n"
+"#"
+;
+
+static Option opt_file			= { "file", 			CF_FILE, 	"Read option file before command line options." };
+
+static Option opt_daemon		= { "daemon",			"+",		"Start as a background daemon or foreground application." };
+
+static Option opt_quit			= { "quit", 			NULL,		"Quit an already running instance and exit." };
+static Option opt_restart		= { "restart", 			NULL,		"Terminate an already running instance before starting." };
+static Option opt_restart_if		= { "restart-if", 		NULL,		"Only restart when there is a previous instance running." };
+static Option opt_service		= { "service",			NULL,		"Add or remove Windows service." };
+
+static Option opt_server_accept_timeout	= { "server-accept-timeout",	QUOTE(SERVER_ACCEPT_TIMEOUT),	"Time in milliseconds a server thread waits for a new connection." };
+static Option opt_server_max_threads	= { "server-max-threads",	"0",		usage_server_max_threads };
+static Option opt_server_min_threads	= { "server-min-threads",	"10",		usage_server_min_threads };
+static Option opt_server_new_threads	= { "server-new-threads",	"10",		usage_server_new_threads };
+static Option opt_server_read_timeout	= { "server-read-timeout",	QUOTE(SERVER_READ_TIMEOUT),	"Time in milliseconds the server waits for some input from the client." };
+static Option opt_server_queue_size	= { "server-queue-size",	"10",		usage_server_queue_size };
+
+static Option opt_run_group		= { "run-group",		RUN_AS_GROUP,	"Run as this Unix group." };
+static Option opt_run_jailed		= { "run-jailed",		"-",		"Run in a chroot jail; run-work-dir used as the new root directory." };
+static Option opt_run_open_file_limit	= { "run-open-file-limit",	"1024",		"The maximum open file limit for the process." };
+static Option opt_run_pid_file 		= { "run-pid-file", 		"/var/run/" _NAME ".pid",	"The file path of where to save the process-id." };
+static Option opt_run_user		= { "run-user",			RUN_AS_USER,	"Run as this Unix user." };
+static Option opt_run_work_dir 		= { "run-work-dir", 		SERVER_DIR, 	"The working directory (aka server root) of the process." };
+
+static Option opt_test_mode		= { "test-mode",		"-",		usage_test_mode };
+
+static Option *opt_table[] = {
+	&opt_title,
+	&opt_syntax,
+
+	&opt_daemon,
+	PDQ_OPTIONS_TABLE,
+	&opt_domain_bl,
+	&opt_file,
+	&opt_help,
+	&opt_info,
+	&opt_interfaces,
+	&opt_mail_bl,
+	&opt_mail_bl_domains,
+	&opt_mail_bl_headers,
+	&opt_quit,
+	&opt_restart,
+	&opt_restart_if,
+	&opt_run_group,
+#if defined(HAVE_CHROOT)
+	&opt_run_jailed,
+#endif
+#if defined(RLIMIT_NOFILE)
+	&opt_run_open_file_limit,
+#endif
+	&opt_run_pid_file,
+	&opt_run_user,
+	&opt_run_work_dir,
+	&opt_server_accept_timeout,
+	&opt_server_max_threads,
+	&opt_server_min_threads,
+	&opt_server_new_threads,
+	&opt_server_queue_size,
+	&opt_server_read_timeout,
+	&opt_service,
+	&opt_test_mode,
+	&opt_uri_bl,
+	&opt_uri_a_bl,
+	&opt_uri_ns_bl,
+	&opt_uri_ns_a_bl,
+	&opt_uri_bl_headers,
+	&opt_verbose,
+	&opt_version,
+
+	NULL
+};
+
+typedef struct {
+	size_t size;
+	long length;
+	long offset;
+	char *data;
+} Buffer;
+
+Server server;
+ServerSignals signals;
+
+static void
+verboseFill(const char *prefix, Buffer *buf)
+{
+	Option **opt, *o;
+	long cols, length;
+
+	if (0 < buf->length)
+		buf->length += TextCopy(buf->data+buf->length, buf->size-buf->length, CRLF);
+	buf->length += TextCopy(buf->data+buf->length, buf->size-buf->length, prefix);
+
+	cols = 0;
+	for (opt = verb_table; *opt != NULL; opt++) {
+		o = *opt;
+
+		if (LINE_WRAP <= cols % LINE_WRAP + strlen(o->name) + 2) {
+			buf->length += TextCopy(buf->data+buf->length, buf->size-buf->length, CRLF);
+			buf->length += TextCopy(buf->data+buf->length, buf->size-buf->length, prefix);
+			cols = 0;
+		}
+
+		length = snprintf(
+			buf->data+buf->length,
+			buf->size-buf->length,
+			" %c%s", o->value ? '+' : '-', o->name
+		);
+
+		buf->length += length;
+		cols += length;
+	}
+
+	buf->length += TextCopy(buf->data+buf->length, buf->size-buf->length, CRLF);
+}
+
+static void
+verboseInit(void)
+{
+	static char buffer[2048];
+	static Buffer usage = { sizeof (buffer), 0, 0, buffer };
+
+	opt_verbose.usage = buffer;
+	usage.length = TextCopy(usage.data, usage.size, usage_verbose);
+	verboseFill("#", &usage);
+	usage.length += TextCopy(usage.data+usage.length, usage.size-usage.length, "#");
+
+//	optionInitOption(&opt_verbose);
+//	optionString(opt_verbose.string, verb_table, NULL);
+}
+
+int
+worker_free(ServerWorker *worker)
+{
+	UriWorker *uw;
+
+	if (worker != NULL && worker->data != NULL) {
+		uw = worker->data;
+
+		VectorDestroy(uw->mail_names_seen);
+		VectorDestroy(uw->uri_names_seen);
+		pdqClose(uw->pdq);
+		free(uw);
+	}
+
+	return 0;
+}
+
+int
+worker_create(ServerWorker *worker)
+{
+	UriWorker *uw;
+
+	if ((uw = malloc(sizeof (*uw))) == NULL)
+		goto error0;
+
+	if ((uw->pdq = pdqOpen()) == NULL)
+		goto error1;
+
+	if ((uw->uri_names_seen = VectorCreate(10)) == NULL)
+		goto error2;
+	VectorSetDestroyEntry(uw->uri_names_seen, free);
+
+	if ((uw->mail_names_seen = VectorCreate(10)) == NULL)
+		goto error3;
+	VectorSetDestroyEntry(uw->mail_names_seen, free);
+
+	uw->source.file = NULL;
+	uw->source.line = 1;
+	uw->source.hits = 0;
+
+	worker->data = uw;
+
+	return 0;
+
+	VectorDestroy(uw->mail_names_seen);
+error3:
+	VectorDestroy(uw->uri_names_seen);
+error2:
+	pdqClose(uw->pdq);
+error1:
+	free(uw);
+error0:
+	return -1;
+}
+
+int
+session_accept(ServerSession *session)
+{
+	(void) socketSetNonBlocking(session->client, 1);
+	socketSetTimeout(session->client, opt_server_read_timeout.value);
+
+	return 0;
+}
+
+int
+session_process(ServerSession *session)
+{
+	int i, fi, pi;
+	UriWorker *uw = session->worker->data;
+
+	if (cgiRawInit(&uw->cgi, session->client))
+		return -1;
+
+	uw->cgi_mode = 1;
+	uw->cgi.is_nph = 1;
+	uw->print_uri_parse = 0;
+	uw->out = uw->cgi.out;
+
+	/* Reset the session data. */
+	VectorRemoveAll(uw->mail_names_seen);
+	VectorRemoveAll(uw->uri_names_seen);
+	pdqQueryRemoveAll(uw->pdq);
+
+	uw->max_hits = 1;
+	if (0 <= (i = cgiMapFind(uw->cgi._GET, "x")))
+		uw->max_hits = strtol(uw->cgi._GET[i].value, NULL, 10);
+
+	uw->headers_and_body = 0;
+	if (0 <= (i = cgiMapFind(uw->cgi._GET, "a")) && uw->cgi._GET[i].value[0] != '0')
+		uw->headers_and_body = 1;
+
+	if (0 <= (fi = cgiMapFind(uw->cgi._GET, "f"))) {
+		uw->source.file = uw->cgi._GET[fi].value;
+		(void) process_file(uw);
+	} else {
+		uw->source.file = session->id_log;
+		process_string(uw);
+	}
+
+	if (uw->cgi.request_method[0] != 'H'
+	&& 0 <= (pi = cgiMapFind(uw->cgi._GET, "p")) && uw->cgi._GET[pi].value[0] != '0') {
+		cgiMapAdd(&uw->cgi.headers, "Content-Type", "%s", "text/plain");
+		cgiSendOk(&uw->cgi, NULL);
+
+		/* Redo parse and dumping found URI. */
+		uw->cgi_mode = 0;
+		uw->print_uri_parse = 1;
+		if (uw->cgi._GET[pi].value[0] == '2') {
+			VectorRemoveAll(uw->uri_names_seen);
+			VectorRemoveAll(uw->mail_names_seen);
+		}
+		if (0 <= fi)
+			(void) process_file(uw);
+		else
+			process_string(uw);
+		uw->cgi_mode = 1;
+	} else if (uw->cgi.headers == NULL) {
+		cgiSendNotFound(&uw->cgi, NULL);
+	} else {
+		cgiSendNoContent(&uw->cgi);
+	}
+
+	/* Always log the request. */
+	syslog(
+		LOG_INFO, "%s %s \"%s %s %s\" %u/%u",
+		session->id_log, session->address,
+		uw->cgi.request_method, uw->cgi.request_uri,
+		uw->cgi.server_protocol, uw->source.hits, uw->source.found
+	);
+
+	cgiFree(&uw->cgi);
+
+	return 0;
+}
+
+void
+serverOptions(int argc, char **argv)
+{
+	int argi;
+
+	/* Parse command line options looking for a file= option. */
+	optionInit(opt_table, NULL);
+	argi = optionArrayL(argc, argv, opt_table, NULL);
+
+	/* Parse the option file followed by the command line options again. */
+	if (opt_file.string != NULL && *opt_file.string != '\0') {
+		/* Do NOT reset this option. */
+		opt_file.initial = opt_file.string;
+		opt_file.string = NULL;
+
+		optionInit(opt_table, NULL);
+		(void) optionFile(opt_file.string, opt_table, NULL);
+		(void) optionArrayL(argc, argv, opt_table, NULL);
+	}
+
+	pdqMaxTimeout(optDnsMaxTimeout.value);
+	pdqSetRoundRobin(optDnsRoundRobin.value);
+
+	if (opt_server_min_threads.value < 1)
+		opt_server_min_threads.value = 1;
+	if (opt_server_new_threads.value < 1)
+		opt_server_new_threads.value = 1;
+	if (opt_server_max_threads.value < 1)
+		opt_server_max_threads.value = opt_test_mode.value ? 1 : LONG_MAX;
+
+	optionString(opt_verbose.string, verb_table, NULL);
+}
+
+static int
+server_init(void)
+{
+	if (verb_trace.value) {
+		syslog(LOG_DEBUG, "process limits now");
+		rlimits();
+	}
+# if defined(RLIMIT_NOFILE)
+	/* Compute and/or set the upper limit on the number of
+	 * open file descriptors the process can have. See server
+	 * accept() loop.
+	 */
+	if (50 < opt_run_open_file_limit.value) {
+		struct rlimit limit;
+
+		if (getrlimit(RLIMIT_NOFILE, &limit) == 0) {
+			limit.rlim_cur = (rlim_t) opt_run_open_file_limit.value;
+			if (limit.rlim_max < (rlim_t) opt_run_open_file_limit.value)
+				limit.rlim_max = limit.rlim_cur;
+
+			(void) setrlimit(RLIMIT_NOFILE, &limit);
+		}
+	}
+
+	if (verb_trace.value) {
+		syslog(LOG_DEBUG, "process limits updated");
+		rlimits();
+	}
+# endif
+	if (pdqInit()) {
+		syslog(LOG_ERR, log_init, LOG_LINE, strerror(errno), errno);
+		return -1;
+	}
+
+	PDQ_OPTIONS_SETTING(verb_dns.value);
+	dnsListSetDebug(verb_dns.value);
+	socketSetDebug(verb_socket.value);
+	uriSetDebug(verb_uri.value);
+
+	d_bl_list = dnsListCreate(opt_domain_bl.string);
+
+	uri_ns_bl_list = dnsListCreate(opt_uri_ns_bl.string);
+	uri_ns_a_bl_list = dnsListCreate(opt_uri_ns_a_bl.string);
+	uri_bl_list = dnsListCreate(opt_uri_bl.string);
+	uri_a_bl_list = dnsListCreate(opt_uri_a_bl.string);
+	uri_bl_headers = TextSplit(opt_uri_bl_headers.string, ";, ", 0);
+
+	mail_bl_list = dnsListCreate(opt_mail_bl.string);
+	mail_bl_domains = TextSplit(opt_mail_bl_domains.string, ";, ", 0);
+	mail_bl_headers = TextSplit(opt_mail_bl_headers.string, ";, ", 0);
+
+	server.debug.level = verb_server.value;
+	server.option.spare_threads = opt_server_new_threads.value;
+	server.option.min_threads = opt_server_min_threads.value;
+	server.option.max_threads = opt_server_max_threads.value;
+	server.option.queue_size = opt_server_queue_size.value;
+	server.option.accept_to = opt_server_accept_timeout.value;
+	server.option.read_to = opt_server_read_timeout.value;
+
+	server.hook.worker_create = worker_create;
+	server.hook.worker_free = worker_free;
+
+	server.hook.session_create = NULL;
+	server.hook.session_accept = session_accept;
+	server.hook.session_process = session_process;
+	server.hook.session_free = NULL;
+
+	serverSetStackSize(&server, THREAD_STACK_SIZE);
+
+	if (processDropPrivilages(opt_run_user.string, opt_run_group.string, opt_run_work_dir.string, opt_run_jailed.value))
+		return -1;
+	(void) processDumpCore(1);
+
+	if (verb_trace.value) {
+		char path[PATH_MAX];
+		(void) getcwd(path, sizeof (path));
+		syslog(LOG_INFO, "server cwd=\"%s\"", path);
+	}
+
+	return 0;
+}
+
+int
+serverMain(void)
+{
+	int rc, signal;
+
+	rc = EXIT_FAILURE;
+
+	syslog(LOG_INFO, _NAME ", a LibSnert tool");
+	syslog(LOG_INFO, "LibSnert %s %s", LIBSNERT_VERSION, LIBSNERT_COPYRIGHT);
+#ifdef LIBSNERT_BUILT
+	syslog(LOG_INFO, "Built on " LIBSNERT_BUILT);
+#endif
+	if (pthreadInit())
+		goto error0;
+
+	if (serverSignalsInit(&signals))
+		goto error1;
+
+	if (serverInit(&server, opt_interfaces.string, SERVER_PORT))
+		goto error2;
+
+	if (server_init())
+		goto error3;
+
+#ifdef VERB_VALGRIND
+	if (1 < verb_valgrind.value) {
+		VALGRIND_PRINTF("serverMain before serverStart\n");
+		VALGRIND_DO_LEAK_CHECK;
+	}
+#endif
+	if (serverStart(&server))
+		goto error3;
+
+	syslog(LOG_INFO, "ready");
+
+	signal = serverSignalsLoop(&signals);
+	serverStop(&server, signal == SIGQUIT);
+	rc = EXIT_SUCCESS;
+error3:
+	serverFini(&server);
+error2:
+	serverSignalsFini(&signals);
+error1:
+	pthreadFini();
+error0:
+	return rc;
+}
+
+int
+main(int argc, char **argv)
+{
+	verboseInit();
+	serverOptions(argc, argv);
+	if (atexit(at_exit_cleanup))
+		exit(EX_SOFTWARE);
+
+	if (opt_version.string != NULL) {
+		printVersion();
+		exit(EX_USAGE);
+	}
+	if (opt_info.string != NULL) {
+		printInfo();
+		exit(EX_USAGE);
+	}
+	if (opt_help.string != NULL) {
+		/* help=filepath (compatibility with Windows)
+		 * equivalent to +help >filepath
+		 */
+		if (opt_help.string[0] != '-' && opt_help.string[0] != '+')
+			(void) freopen(opt_help.string, "w", stdout);
+		optionUsageL(opt_table, NULL);
+		exit(EX_USAGE);
+	}
+	if (opt_restart.string != NULL || opt_restart_if.string != NULL) {
+		if (pidKill(opt_run_pid_file.string, SIGTERM) && opt_restart_if.string != NULL) {
+			fprintf(stderr, "no previous instance running\n");
+			syslog(LOG_ERR, "no previous instance running");
+			exit(1);
+		}
+		sleep(2);
+	}
+
+	if (opt_daemon.value) {
+		openlog(_NAME, LOG_PID|LOG_NDELAY, LOG_USER);
+		if (daemon(1, 0)) {
+			syslog(LOG_ERR, "daemon mode failed");
+			exit(EX_SOFTWARE);
+		}
+	} else {
+		LogSetProgramName(_NAME);
+		LogOpen("(standard error)");
+	}
+
+	return serverMain();
+}
+#endif /* DAEMON */

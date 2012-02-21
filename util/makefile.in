@@ -80,7 +80,7 @@ $O$E :
 #######################################################################
 
 OBJS = \
-	ixhash$O md4$O md5$O b64$O playfair$O convertDate$O \
+	ixhash$O md4$O md5$O b64$O cgi$O playfair$O convertDate$O \
 	BigInt$O JavaTime$O getopt$O Memory$O Rotate$O Buf$O \
 	TextBackslash$O TextEscape$O TextInputLine$O TextReadLine$O TextCopy$O \
 	TextCat$O TextDup$O TextDupN$O TokenCount$O TokenNext$O TokenSplitA$O TokenSplit$O TokenQuote$O \
@@ -97,7 +97,7 @@ TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
        TextTransliterate$E TextSensitiveEndsWith$E TextInsensitiveEndsWith$E \
        ProcTitle$E timer$E
 
-CLI = b64$E convertDate$E uri$E playfair$E cipher$E
+CLI = b64$E convertDate$E uri$E urid$E playfair$E cipher$E TextFind$E
 
 .MAIN : build
 
@@ -159,8 +159,13 @@ Memory$E: Memory.c
 
 uri$E : ../include/mail/mime.h ../mail/mime$O \
 	../include/net/dnsList.h ../net/dnsList$O \
-	../include/net/pdq.h ../net/pdq$O htmlEntity$O uri.c
+	../include/net/pdq.h ../net/pdq$O htmlEntity$O cgi$O uri.c
 	$(CC) -DTEST ${CFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)uri$E uri.c ../mail/mime$O ../net/dnsList$O ../net/pdq$O $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
+
+urid$E : ../include/mail/mime.h ../mail/mime$O \
+	../include/net/dnsList.h ../net/dnsList$O \
+	../include/net/pdq.h ../net/pdq$O htmlEntity$O cgi$O uri.c
+	$(CC) -DDAEMON ${CFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)urid$E uri.c ../mail/mime$O ../net/dnsList$O ../net/pdq$O $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
 
 sqlite3$O : sqlite3.c
 	${CC} ${CFLAGS_SQLITE3} ${CFLAGS} -c $*.c
@@ -238,7 +243,7 @@ time62$E : time62.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)time62$E time62.c
 
 timer$E : timer.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)timer$E timer.c $(LIBSNERT)
+	${CC} -DTEST ${CFLAGS} ${CFLAGS_PTHREAD} ${LDFLAGS} ${LDFLAGS_PTHREAD} $(CC_E)timer$E timer.c $(LIBSNERT) ${CFLAGS_PTHREAD}
 
 htmlstrip$E : html.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)htmlstrip$E html.c $(LIBSNERT)
