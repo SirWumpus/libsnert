@@ -619,24 +619,104 @@ optionInit(Option *table[], ...)
 }
 
 void
-optionFree(Option *table[], ...)
+optionFreeV(Option *table[], va_list list)
 {
-	va_list list;
 	Option **opt, *o;
-
-	va_start(list, table);
 
 	for (opt = table; opt != NULL; opt = va_arg(list, Option **)) {
 		for ( ; *opt != NULL; opt++) {
 			o = *opt;
-
 			if (o->initial != o->string)
 				free(o->string);
 			o->string = NULL;
 		}
 	}
+}
 
+void
+optionFreeL(Option *table[], ...)
+{
+	va_list list;
+	va_start(list, table);
+	optionFreeV(table, list);
 	va_end(list);
+}
+
+size_t
+optionCountV(Option *table[], va_list list)
+{
+	Option **opt;
+	size_t count = 0;
+
+	for (opt = table; opt != NULL; opt = va_arg(list, Option **)) {
+		for ( ; *opt != NULL; opt++)
+			count++;
+	}
+
+	return count;
+}
+
+size_t
+optionCountL(Option *table[], ...)
+{
+	size_t count;
+	va_list list;
+
+	va_start(list, table);
+	count = optionCountV(table, list);
+	va_end(list);
+
+	return count;
+}
+
+void
+optionDupFree(Option *table[])
+{
+	optionFreeL(table, NULL);
+	free(table);
+}
+
+Option **
+optionDupV(Option *table[], va_list list)
+{
+	size_t count;
+	va_list list2;
+	Option **opt, **copy, **cpy, *c;
+
+	va_copy(list2, list);
+	count = optionCountV(table, list2);
+
+	if ((copy = malloc((count+1) * sizeof (*copy) + count * sizeof (**copy))) == NULL)
+		return NULL;
+
+	cpy = copy;
+	c = (Option *) &copy[count+1];
+
+	for (opt = table; opt != NULL; opt = va_arg(list, Option **)) {
+		for ( ; *opt != NULL; opt++, cpy++, c++) {
+			*cpy = c;
+			*c = **opt;
+			if (c->initial != c->string)
+				c->string = strdup(c->string);
+		}
+	}
+
+	*cpy = NULL;
+
+	return copy;
+}
+
+Option **
+optionDupL(Option *table[], ...)
+{
+	va_list list;
+	Option **copy;
+
+	va_start(list, table);
+	copy = optionDupV(table, list);
+	va_end(list);
+
+	return copy;
 }
 
 #ifdef TEST

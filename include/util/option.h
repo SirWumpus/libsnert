@@ -47,7 +47,25 @@ extern void optionInitOption(Option *o);
  * @param ...
  *	A NULL terminated list of Option *table[] arguments.
  */
-extern void optionFree(Option *table[], ...);
+extern void optionFreeL(Option *table[], ...);
+extern void optionFreeV(Option *table[], va_list list);
+
+extern void optionDupFree(Option *table[]);
+extern Option **optionDupL(Option *table[], ...);
+extern Option **optionDupV(Option *table[], va_list list);
+
+/**
+ * @param table
+ *	A NULL terminated table of options.
+ *
+ * @param ...
+ *	A NULL terminated list of Option *table[] arguments.
+ *
+ * @return
+ *	Total number of option entries in the list of tables.
+ */
+extern size_t optionCountL(Option *table[], ...);
+extern size_t optionCountV(Option *table[], va_list list);
 
 /**
  * @param table
