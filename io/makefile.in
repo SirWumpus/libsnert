@@ -136,6 +136,9 @@ socket3.c : ${HDIR}/socket3.h
 
 socket3_tls.c : ${HDIR}/socket3.h socket3$O
 
+socket3_tls$O : socket3_tls.c
+	$(CC) ${CFLAGS_PTHREAD} ${CFLAGS} ${CC_O} $*$O -c $<
+
 events.c : ${IDIR}/type/list.h ${HDIR}/events.h
 
 events$O : events.c

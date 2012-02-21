@@ -1,5 +1,5 @@
 org/sqlite/makefile
-org/sqlite/sqlite-autoconf-3070900.tar.gz
+org/sqlite/sqlite-autoconf-3071000.tar.gz
 com/snert/lib/Log.pm
 com/snert/include/com/snert/lib
 com/snert/include/org/valgrind
@@ -150,6 +150,7 @@ com/snert/src/lib/util/Base64.c
 com/snert/src/lib/util/BigInt.c
 com/snert/src/lib/util/Buf.c
 com/snert/src/lib/util/Cache.c
+com/snert/src/lib/util/cgi.c
 com/snert/src/lib/util/DebugMalloc.c
 com/snert/src/lib/util/DebugMallocTest.c
 com/snert/src/lib/util/JavaTime.c
@@ -214,6 +215,7 @@ com/snert/src/lib/util/uri.c
 com/snert/src/lib/util/uriIsDomainBL.c
 com/snert/src/lib/util/uri.txt
 com/snert/src/lib/util/uri.txt.out
+com/snert/src/lib/util/uri-cgi.txt
 com/snert/src/lib/util/option.c
 com/snert/src/lib/util/option.txt
 com/snert/src/lib/util/sqlite3.c
@@ -280,6 +282,7 @@ com/snert/src/lib/include/util/Base64.h
 com/snert/src/lib/include/util/BigInt.h
 com/snert/src/lib/include/util/Buf.h
 com/snert/src/lib/include/util/Cache.h
+com/snert/src/lib/include/util/cgi.h
 com/snert/src/lib/include/util/DebugMalloc.h
 com/snert/src/lib/include/util/HashTable.h
 com/snert/src/lib/include/util/JavaTime.h

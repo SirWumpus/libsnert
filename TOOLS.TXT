@@ -115,7 +115,10 @@ TextFind	General pattern matching similar to glob(3). See the
 
 uue		Yet another UUE encoder/decoder.
 
-uri		CLI version of milter-link.
+uri		CLI version of milter-link. Can also be used as a CGI,
+		see uri-cgi.txt.
+
+urid		Dedicated HTTP / URI server; see uri-cgi.txt.
 
 cmp, cksum, comm, echo, kat, tee, strings
 		Unix tool clones intended for use with Windows CLI when

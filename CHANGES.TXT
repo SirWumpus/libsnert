@@ -57,10 +57,49 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+
+--1.75.11--
+
+   !	Enhanced cipher API and CLI to support CT46 (-c 46), CT28 ASCII
+	Subset (-c 56), and CT37 Printable ASCII (-c 111), which use
+	shift and escape codes to extend the conversion tables. Removed
+	CT28 normalisation code. Assorted fixes.
+
+   !	Fixed socketReadLine2() and socket3_read_line() (see popin.c) so
+	as to not read passed the newline.
+
+   !	It should be the application to decide whether to disable linger
+	and/or set FD_CLOEXEC. Removed from sessionStart().
+
+   !	Fixed uri API to parse attachments marked as:
+
+   		Content-Type: application/octet-stream; name="file.htm"
+   		Content-Type: application/octet-stream; name="file.txt"
+
+   	Reported by Alex Broens.
+
+   +	Enhanced uri CLI to work as a CGI or as a specialised HTTP
+	daemon. Commissioned work. See util/uri-cgi.txt.
+
+--1.75.10--
+
+   *    Upgraded SQLite to 3.7.10
+
+   !	Modified spanDomain() to use the weaker label rules from uri.c
+	(see 1.75.1). In addition allow underscore in domain labels:
+
+	RFC 1035 section 2.3.1. Preferred name syntax grammar only
+	allows for alphanumeric, hyphen, and dot in domain names.
+	However, the DNS system does not disallow other characters from
+	actually being used in certain record types and in fact the SPF
+	RFC 4408 suggests utility labels like "_spf".
+
+	Reported by Alex Broens.
+
 --1.75.9--
 
    !	Update smtp2 API function signatures to use the SMTP_Reply_Code
-	instead of a genric int type. The SMTP_Reply_Code enumeration
+	instead of a generic int type. The SMTP_Reply_Code enumeration
 	has been available for sometime, just not applied to the API
 	signatures until now.
 
@@ -195,7 +234,7 @@ is no set schedule for releases.
 	instead of POSIX thread mutex, pthread_mutex_t.
 
    !	Fixed seg.fault bug in mailRcpt(), smtp2Close() when the
-	receipient host has no MX to connect to.
+	recipient host has no MX to connect to.
 
 --1.75.1--
 
@@ -305,7 +344,7 @@ is no set schedule for releases.
    !	The URI API should now parse and detect implicit IP addresses.
    	Requested by Steven Freegard.
 
-   !	Fix on-the-fly MIME parsing inadvertant switch of state from
+   !	Fix on-the-fly MIME parsing inadvertent switch of state from
 	headers to body when a header exceeds the size of the source
 	buffer. Reported by AlexB.
 

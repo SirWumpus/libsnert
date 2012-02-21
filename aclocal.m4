@@ -630,9 +630,14 @@ if test ${with_milter:-default} != 'no' ; then
 		if test "$ac_cv_search_smfi_main" != 'no' -a "$ac_cv_header_libmilter_mfapi_h" != 'no' ; then
 			LIBS="-lmilter -lpthread $saved_libs"
 			AC_CHECK_FUNCS([smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval smfi_insheader smfi_main smfi_opensocket smfi_progress smfi_quarantine smfi_register smfi_replacebody smfi_setbacklog smfi_setconn smfi_setdbg smfi_setmaxdatasize smfi_setmlreply smfi_setpriv smfi_setreply smfi_setsymlist smfi_settimeout smfi_stop smfi_version])
+
 			AC_SUBST(HAVE_LIB_MILTER, "-lmilter")
 			AC_SUBST(LDFLAGS_MILTER)
 			AC_SUBST(CFLAGS_MILTER)
+
+			AC_DEFINE_UNQUOTED(LDFLAGS_MILTER, "${LDFLAGS_MILTER}")
+			AC_DEFINE_UNQUOTED(CFLAGS_MILTER, "${CFLAGS_MILTER}")
+
 			with_milter="$d"
 			break
 		fi
@@ -1163,6 +1168,11 @@ else
 		AC_SUBST(CFLAGS_PTHREAD)
 		AC_SUBST(LDFLAGS_PTHREAD)
 
+		AC_DEFINE_UNQUOTED(HAVE_LIB_PTHREAD, "${HAVE_LIB_PTHREAD}")
+		AC_DEFINE_UNQUOTED(LDFLAGS_PTHREAD, "${LDFLAGS_PTHREAD}")
+		AC_DEFINE_UNQUOTED(CFLAGS_PTHREAD, "${CFLAGS_PTHREAD}")
+
+		LIBS="$HAVE_LIB_PTHREAD $saved_libs"
 		CFLAGS="$CFLAGS_PTHREAD $saved_cflags"
 		LDFLAGS="$LDFLAGS_PTHREAD $saved_ldflags"
 
@@ -1209,9 +1219,9 @@ else
 
 		SNERT_FIND_LIB([pthread],[AC_DEFINE_UNQUOTED(LIBPTHREAD_PATH, ["$snert_find_lib_pthread"])], [])
 
-dnl		LIBS="$saved_libs"
-dnl		CFLAGS="$saved_cflags"
-dnl		LDFLAGS="$saved_ldflags"
+		LIBS="$saved_libs"
+		CFLAGS="$saved_cflags"
+		LDFLAGS="$saved_ldflags"
 	])
 fi
 ])
@@ -1467,6 +1477,11 @@ AS_IF([test ${with_libev:-default} != 'no' -a ${with_libev:-default} != 'default
 			AC_SUBST(HAVE_LIB_LIBEV, "-lev")
 			AC_SUBST(LDFLAGS_LIBEV)
 			AC_SUBST(CFLAGS_LIBEV)
+
+			AC_DEFINE_UNQUOTED(HAVE_LIB_LIBEV, "${HAVE_LIB_LIBEV}")
+			AC_DEFINE_UNQUOTED(LDFLAGS_LIBEV, "${LDFLAGS_LIBEV}")
+			AC_DEFINE_UNQUOTED(CFLAGS_LIBEV, "${CFLAGS_LIBEV}")
+
 			with_libev="$d"
 			break
 		])
@@ -1512,6 +1527,10 @@ AS_IF([test ${with_lua:-default} != 'no'],[
 			AC_SUBST(HAVE_LIB_LUA, "-llua -lm")
 			AC_SUBST(LDFLAGS_LUA)
 			AC_SUBST(CFLAGS_LUA)
+
+			AC_DEFINE_UNQUOTED(LDFLAGS_LUA, "${LDFLAGS_LUA}")
+			AC_DEFINE_UNQUOTED(CFLAGS_LUA, "${CFLAGS_LUA}")
+
 			with_lua="$d"
 			break
 		fi
@@ -1564,6 +1583,10 @@ AS_IF([test ${with_openssl:-default} != 'no'],[
 			AC_SUBST(HAVE_LIBSSL, '-lssl')
 			AC_SUBST(LDFLAGS_SSL)
 			AC_SUBST(CFLAGS_SSL)
+
+			AC_DEFINE_UNQUOTED(LDFLAGS_SSL, "${LDFLAGS_SSL}")
+			AC_DEFINE_UNQUOTED(CFLAGS_SSL, "${CFLAGS_SSL}")
+
 			with_openssl="$d"
 			break
 		fi
@@ -1644,6 +1667,9 @@ dnl		AC_SUBST(HAVE_LIB_SQLITE3, "-lsqlite3")
 		fi
 	fi
 	AC_SUBST(CFLAGS_SQLITE3)
+
+	AC_DEFINE_UNQUOTED(LDFLAGS_SQLITE3, "${LDFLAGS_SQLITE3}")
+	AC_DEFINE_UNQUOTED(CFLAGS_SQLITE3, "${CFLAGS_SQLITE3}")
 
 	LIBS=$saved_libs
 	CFLAGS=$saved_cflags

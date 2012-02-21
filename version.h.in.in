@@ -338,6 +338,9 @@ typedef unsigned long time_t;
 #undef HAVE_PTHREAD_CLEANUP_PUSH
 #undef HAVE_PTHREAD_CLEANUP_POP
 #undef HAVE_PTHREAD_ONCE
+#undef HAVE_LIB_PTHREAD
+#undef CFLAGS_PTHREAD
+#undef LDFLAGS_PTHREAD
 
 /*
  * Define to enable application level mutex debugging.
@@ -501,6 +504,8 @@ union semun {
  * SQLite3
  */
 #undef HAVE_LIB_SQLITE3
+#undef CFLAGS_SQLITE3
+#undef LDFLAGS_SQLITE3
 #undef HAVE_SQLITE3_H
 #undef HAVE_SQLITE3_OPEN
 
@@ -791,18 +796,25 @@ typedef int socklen_t;
 #undef HAVE_SMFI_SETTIMEOUT
 #undef HAVE_SMFI_STOP
 #undef HAVE_SMFI_VERSION
+#undef CFLAGS_MILTER
+#undef LDFLAGS_MILTER
 
 /*
  * Lua
  */
 #undef HAVE_LUA_H
 #undef HAVE_LIBLUA
+#undef CFLAGS_LUA
+#undef LDFLAGS_LUA
 
 /*
  * libev 4
  */
 #undef USE_LIBEV
 #undef HAVE_EV_H
+#undef HAVE_LIB LIBEV
+#undef CFLAGS_LIBEV
+#undef LDFLAGS_LIBEV
 
 /*
  * OpenSSL
@@ -816,6 +828,8 @@ typedef int socklen_t;
 #undef HAVE_EVP_CLEANUP
 #undef HAVE_SSL_LIBRARY_INIT
 #undef HAVE_MACRO_OPENSSL_ADD_ALL_ALGORITHMS
+#undef CFLAGS_SSL
+#undef LDFLAGS_SSL
 
 #ifdef TO_BE_REMOVED
 /* 2011-4-19 The need for this 8.13 / 8.14 transition handling

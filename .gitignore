@@ -91,6 +91,7 @@ type/kvmc
 type/kvmd
 type/mcc
 util/uri
+util/urid
 util/b64
 util/cipher
 util/htmlstrip
