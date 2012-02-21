@@ -1,0 +1,127 @@
+URI CGI & HTTP Daemon Overview
+==============================
+
+Request By File
+---------------
+GET /weed/?p=[01]&q=[01]&v=[01]&x=[01]&f=/abs-path HTTP/1.0<CRLF>
+Host: www.weeder.example:80<CRLF>
+<CRLF>
+
+
+Request By File (equivalent)
+----------------------------
+HEAD /weed/?p=[01]&q=[01]&v=[01]&x=[01]&f=/abs-path HTTP/1.0<CRLF>
+Host: www.weeder.example:80<CRLF>
+<CRLF>
+
+
+Request By Message
+------------------
+POST /weed/?p=[01]&q=[01]&v=[01]&x=[01] HTTP/1.0<CRLF>
+Host: www.weeder.example:80<CRLF>
+Content-Type: message/rfc822<CRLF>
+Content-Length: NNNN<CRLF>
+<CRLF>
+complete message
+with headers and
+content follows
+
+
+URL Options
+-----------
+
+f=/abs_path	Path of a local file to parse.
+
+p=1		Dump each URI parsed in as body content.
+p=2 		Dump each URI parsed in as body content and redo lookups.
+
+q=1		Check URL query part for embedded URLs.
+
+v=1		Verbose debugging in body content. (CGI only)
+
+x=N		Stop after Nth list hit; default 1.
+
+
+CGI-only Optional Request Headers
+---------------------------------
+These headers present alternative blacklist suffix lists to override
+the default CGI configuration options.
+
+A-BL: bl_suffix0, bl_suffix1 ...
+	*Reserved* does not apply to normal URI. SpamHaus IP BL format.
+
+Domain-BL: bl_suffix0, bl_suffix1 ...
+	A list of domain black list suffixes to consult, like
+	.dbl.spamhaus.org. The host or domain name found in a URI is
+	checked against these DNS black lists. These black lists are
+	assumed to use wildcards entries, so only a single lookup is
+	done. IP-as-domain in a URI are ignored.
+
+URI-BL: bl_suffix0, bl_suffix1 ...
+	A list of domain name black list suffixes to consult, like
+	.multi.surbl.org. The domain name found in a URI is checked
+	against these DNS black lists.
+
+URI-A-BL: bl_suffix0, bl_suffix1 ...
+	A list of IP black list suffixes to consult, like
+	zen.spamhaus.org. The host or domain name found in a URI is used
+	to find its DNS A record and IP address, which is then checked
+	against these IP DNS black lists.
+
+URI-NS-BL: bl_suffix0, bl_suffix1 ...
+	A list of host name and/or domain name black list suffixes to
+	consult. The domain name found in a URI is used to find its DNS
+	NS records; the NS host names are checked against these host
+	name and/or domain name DNS black lists.
+
+URI-NS-A-BL: bl_suffix0, bl_suffix1 ...
+	A list of IP black list suffixes to consult, like
+	zen.spamhaus.org. The host or domain name found in a URI is used
+	to find its DNS A record and IP address, which is then checked
+	against these IP DNS black lists.
+
+Mail-BL: bl_suffix0, bl_suffix1 ...
+	A list of mail address black list suffixes to consult. The mail
+	addresses found in select headers and the message are MD5
+	hashed, which are then checked against these black lists.
+
+Mail-BL-Domains: glob0, glob1 ...
+	A list of domain glob-like patterns for which to test against
+	mail-bl, typically free mail services. This reduces the load on
+	public BLs. Specify * to test all domains, empty list to
+	disable.
+
+Mail-BL-Headers: header0, header1, ...
+	A list of mail headers to parse for mail addresses and check
+	against one or more mail address black lists. Specify the empty
+	list to disable.
+
+
+List Hit
+--------
+HTTP/1.0 204 No Content<CRLF>
+Uri-Found: line_no complete_URI_found0[ ; blacklist_suffix]<CRLF>
+Uri-Found: line_no complete_URI_found1[ ; blacklist_suffix]<CRLF>
+...
+Uri-Found: line_no complete_URI_foundN[ ; blacklist_suffix]<CRLF>
+Blacklist-Hits: NNN<CRLF>
+<CRLF>
+
+
+List Hit & Parse Output
+-----------------------
+HTTP/1.0 200 OK<CRLF>
+Content-Type: text/plain
+Uri-Found: line_no complete_URI_found0[ ; blacklist_suffix]<CRLF>
+Uri-Found: line_no complete_URI_found1[ ; blacklist_suffix]<CRLF>
+...
+Uri-Found: line_no complete_URI_foundN[ ; blacklist_suffix]<CRLF>
+Blacklist-Hits: NNN<CRLF>
+<CRLF>
+uri -p output follows<CRLF>
+
+
+Nothing Found
+-------------
+HTTP/1.0 404 Not Found<CRLF>
+<CRLF>
