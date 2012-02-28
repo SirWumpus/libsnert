@@ -54,6 +54,7 @@ typedef struct {
 	CgiMap *_POST;
 	CgiMap *_HTTP;
 	CgiMap *headers;		/* Output headers. */
+	HttpCode status;
 } CGI;
 
 /**
@@ -109,7 +110,7 @@ extern void cgiSendInternalServerError(CGI *cgi, const char *fmt, ...);
 
 extern int cgiSetOptions(CGI *cgi, CgiMap *array, Option *table[]);
 
-extern int cgiRawInit(CGI *cgi, Socket2 *client);
+extern int cgiRawInit(CGI *cgi, Socket2 *client, int is_nph);
 
 extern int cgiInit(CGI *cgi);
 

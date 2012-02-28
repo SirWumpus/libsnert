@@ -55,8 +55,10 @@ extern "C" {
 
 #include <com/snert/lib/net/pdq.h>
 #include <com/snert/lib/net/network.h>
+#include <com/snert/lib/sys/pthread.h>
 #include <com/snert/lib/type/Vector.h>
 
+#ifdef STRUCTURED_FIELDS
 typedef struct dns_list_code {
 	struct dns_list_code *next;
 	unsigned char code[IPV6_BYTE_LENGTH];
@@ -67,12 +69,16 @@ typedef struct dns_list_suffix {
 	char *suffix;
 	Vector codes;
 	unsigned long mask;
+	unsigned long hit;
 } DnsListSuffix;
+#endif
 
 typedef struct {
 	Vector suffixes;
+	unsigned long *hits;
 	unsigned long *masks;
 	const char *query_server;
+	pthread_mutex_t mutex;
 } DnsList;
 
 typedef enum {

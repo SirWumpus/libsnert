@@ -136,8 +136,10 @@ dnsListFree(void *_list)
 	DnsList *list = _list;
 
 	if (list != NULL) {
+		(void) pthread_mutex_destroy(&list->mutex);
 		VectorDestroy(list->suffixes);
 		free(list->masks);
+		free(list->hits);
 		free(list);
 	}
 }
@@ -239,10 +241,15 @@ black.uribl.com/0xffff08"
 	}
 }
 #else
+	(void) pthread_mutex_init(&list->mutex, NULL);
+
 	if ((list->suffixes = TextSplit(string, " ,;", 0)) == NULL)
 		goto error1;
 
 	if ((list->masks = calloc(sizeof (*list->masks), VectorLength(list->suffixes))) == NULL)
+		goto error1;
+
+	if ((list->hits = calloc(sizeof (*list->hits), VectorLength(list->suffixes))) == NULL)
 		goto error1;
 
 	for (i = 0; i < VectorLength(list->suffixes); i++) {
@@ -334,6 +341,11 @@ dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 
 				if (0 < debug)
 					syslog(LOG_DEBUG, "found %s %s", rr->rr.name.string.value, rr->address.string.value);
+
+				/* Simple statistic counter, can roll-over. */
+				PTHREAD_MUTEX_LOCK(&dns_list->mutex);
+				dns_list->hits[i]++;
+				PTHREAD_MUTEX_UNLOCK(&dns_list->mutex);
 
 				return suffixes[i];
 			}

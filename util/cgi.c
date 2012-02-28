@@ -6,10 +6,6 @@
  * Copyright 2004, 2012 by Anthony Howe. All rights reserved.
  */
 
-#ifndef LINE_SIZE
-#define LINE_SIZE			1024
-#endif
-
 #ifndef CGI_CHUNK_SIZE
 #define CGI_CHUNK_SIZE		(64 * 1024)
 #endif
@@ -247,6 +243,7 @@ cgiSendV(CGI *cgi, HttpCode code, const char *response, const char *fmt, va_list
 {
 	CgiMap *hdr;
 
+	cgi->status = code;
 	(void) fprintf(cgi->out, "%s %d %s\r\n", cgi->is_nph ? "HTTP/1.1" : "Status:", code, response);
 
 	if (cgi->headers != NULL) {
@@ -257,7 +254,7 @@ cgiSendV(CGI *cgi, HttpCode code, const char *response, const char *fmt, va_list
 		(void) fprintf(cgi->out, "Content-Type: text/plain\r\n");
 
 	(void) fprintf(cgi->out, "\r\n");
-	if (fmt != NULL) {
+	if (fmt != NULL && *fmt != '\0') {
 		(void) fprintf(cgi->out, "%d %s\r\n", code, response);
 		(void) vfprintf(cgi->out, fmt, args);
 	}
@@ -523,7 +520,7 @@ cgiReadRequest(CGI *cgi, Socket2 *client)
 	 */
 	for (offset = 0; ; offset += length) {
 		/* Enlarge the buffer if less than 1KB space left. */
-		if (BufCapacity(cgi->_RAW) <= offset + LINE_SIZE
+		if (BufCapacity(cgi->_RAW) <= offset + HTTP_LINE_SIZE
 		&& BufSetSize(cgi->_RAW, offset + CGI_CHUNK_SIZE)) {
 			cgiSendInternalServerError(cgi, "Request read error.\r\n%s %d: %s (%d)\r\n", __FILE__, __LINE__, strerror(errno), errno);
 			return -1;
@@ -566,17 +563,6 @@ cgiReadRequest(CGI *cgi, Socket2 *client)
 
 	BufSetOffset(cgi->_RAW, hdr - (char *)BufBytes(cgi->_RAW));
 	BufSetLength(cgi->_RAW, BufOffset(cgi->_RAW));
-
-	/* The shortest request possible is:
-	 *
-	 *	GET / HTTP/1.1\n	(15 bytes)
-	 *	Host:XX.XX\n		(11 bytes)
-	 *	\n			(1 byte)
-	 */
-	if (BufOffset(cgi->_RAW) <= 27) {
-		cgiSendBadRequest(cgi, "Request too short.\r\n");
-		return -1;
-	}
 
 	return 0;
 }
@@ -689,12 +675,13 @@ cgiParseHeaders(CGI *cgi)
 }
 
 int
-cgiRawInit(CGI *cgi, Socket2 *client)
+cgiRawInit(CGI *cgi, Socket2 *client, int nph)
 {
 	ssize_t n;
 	size_t content_length;
 
 	memset(cgi, 0, sizeof (*cgi));
+	cgi->is_nph = nph;
 
 	if ((cgi->out = fdopen(socketGetFd(client), "wb")) == NULL) {
 		cgiSendInternalServerError(cgi, "%s %d: %s (%d)\r\n", __FILE__, __LINE__, strerror(errno), errno);
@@ -706,19 +693,14 @@ cgiRawInit(CGI *cgi, Socket2 *client)
 		goto error1;
 	}
 
-	if (cgiReadRequest(cgi, client)) {
-		cgiSendInternalServerError(cgi, "Request read error.\r\n%s %d: %s (%d)\r\n", __FILE__, __LINE__, strerror(errno), errno);
-		goto error1;
-	}
-
-	if (cgiParseHeaders(cgi))
+	if (cgiReadRequest(cgi, client) || cgiParseHeaders(cgi))
 		goto error1;
 
 	/* Collect optional POST data. */
 	content_length = (size_t) strtol(cgi->content_length, NULL, 10);
 	while (BufLength(cgi->_RAW) < BufOffset(cgi->_RAW) + content_length) {
 		/* Enlarge the buffer if less than 1KB space left. */
-		if (BufCapacity(cgi->_RAW) <= BufLength(cgi->_RAW) + LINE_SIZE
+		if (BufCapacity(cgi->_RAW) <= BufLength(cgi->_RAW) + HTTP_LINE_SIZE
 		&& BufSetSize(cgi->_RAW, BufLength(cgi->_RAW) + CGI_CHUNK_SIZE)) {
 			cgiSendInternalServerError(cgi, "POST read error.\r\n%s %d: %s (%d)\r\n", __FILE__, __LINE__, strerror(errno), errno);
 			goto error1;

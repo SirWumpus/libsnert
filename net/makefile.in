@@ -142,6 +142,9 @@ ipinclient$E: ipinclient.c
 ipinclient$O : ipinclient.c
 	${CC} ${CFLAGS} -c ipinclient.c
 
+dnsList$O : dnsList.c
+	${CC} ${CFLAGS_PTHREAD} ${CFLAGS} -c dnsList.c
+
 pdq$E : ${top_srcdir}/io/socket3$O pdq.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}pdq$E pdq.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
 

@@ -3,22 +3,22 @@ URI CGI & HTTP Daemon Overview
 
 Request By File
 ---------------
-GET /weed/?p=[01]&q=[01]&v=[01]&x=[01]&f=/abs-path HTTP/1.0<CRLF>
-Host: www.weeder.example:80<CRLF>
+GET /uri/?p=[01]&q=[01]&v=[01]&x=[01]&f=/abs-path HTTP/1.0<CRLF>
+Host: www.weeder.example:8088<CRLF>
 <CRLF>
 
 
 Request By File (equivalent)
 ----------------------------
-HEAD /weed/?p=[01]&q=[01]&v=[01]&x=[01]&f=/abs-path HTTP/1.0<CRLF>
-Host: www.weeder.example:80<CRLF>
+HEAD /uri/?p=[01]&q=[01]&v=[01]&x=[01]&f=/abs-path HTTP/1.0<CRLF>
+Host: www.weeder.example:8088<CRLF>
 <CRLF>
 
 
 Request By Message
 ------------------
-POST /weed/?p=[01]&q=[01]&v=[01]&x=[01] HTTP/1.0<CRLF>
-Host: www.weeder.example:80<CRLF>
+POST /uri/?p=[01]&q=[01]&v=[01]&x=[01] HTTP/1.0<CRLF>
+Host: www.weeder.example:8088<CRLF>
 Content-Type: message/rfc822<CRLF>
 Content-Length: NNNN<CRLF>
 <CRLF>
@@ -125,3 +125,42 @@ Nothing Found
 -------------
 HTTP/1.0 404 Not Found<CRLF>
 <CRLF>
+
+
+Dump Daemon Runtime Blacklist Hits
+----------------------------------
+
+GET /uri/stat/ HTTP/1.0<CRLF>
+Host: www.weeder.example:8088<CRLF>
+<CRLF>
+
+Example response:
+
+HTTP/1.1 200 OK<CRLF>
+Content-Type: text/plain<CRLF>
+<CRLF>
+00000<TAB>dbl.spamhaus.org.<CRLF>
+00000<TAB>multi.surbl.org.<CRLF>
+00000<TAB>black.uribl.com.<CRLF>
+
+
+Daemon Syslog Format
+--------------------
+
+$session_id $client_ip "$http_request_line" $http_status $hits/$found
+
+For example:
+
+o1KFA0139260000100 192.168.1.16 "GET / HTTP/1.0" 404 0/0
+o1KFAw139260000200 192.168.1.16 "GET /uri/stat/ HTTP/1.0" 200 0/0
+o1KFDm139260000400 192.168.1.16 "POST /uri/?p=0&q=1&x=3 HTTP/1.0" 204 0/1
+
+The $session_id format is
+
+	ymd HMS ppppp sssss cc
+
+where y, m, d, H, M, and S are unique over a 62-year cycle. The 'cc' portion
+in the context of this daemon will always be zero-zero (00).
+
+
+-END-

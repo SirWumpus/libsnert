@@ -31,6 +31,7 @@ extern "C" {
 
 #define HTTP_PORT			80
 #define HTTPS_PORT			443
+#define HTTP_PORT_ALT			8008
 #define HTTP_TIMEOUT_MS			30000
 #define HTTP_LINE_SIZE			2048
 #define HTTP_BUFFER_SIZE		8192

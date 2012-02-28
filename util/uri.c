@@ -2573,6 +2573,34 @@ verboseInit(void)
 //	optionString(opt_verbose.string, verb_table, NULL);
 }
 
+static void
+dns_list_dump_stats(DnsList *dns_list, FILE *out)
+{
+	int i;
+	const char **suffixes;
+
+	if (dns_list != NULL) {
+		suffixes = (const char **) VectorBase(dns_list->suffixes);
+		for (i = 0; suffixes[i] != NULL; i++) {
+			(void) fprintf(
+				out, "%05lu\t%s\r\n", dns_list->hits[i],
+				suffixes[i] + (*suffixes[i] == '.')
+			);
+		}
+	}
+}
+
+static void
+dump_bl_stats(UriWorker *uw)
+{
+	dns_list_dump_stats(d_bl_list, uw->out);
+	dns_list_dump_stats(mail_bl_list, uw->out);
+	dns_list_dump_stats(uri_bl_list, uw->out);
+	dns_list_dump_stats(uri_a_bl_list, uw->out);
+	dns_list_dump_stats(uri_ns_bl_list, uw->out);
+	dns_list_dump_stats(uri_ns_a_bl_list, uw->out);
+}
+
 int
 worker_free(ServerWorker *worker)
 {
@@ -2640,16 +2668,28 @@ session_accept(ServerSession *session)
 int
 session_process(ServerSession *session)
 {
-	int i, fi, pi;
+	int i, fi, pi, rc = -1;
 	UriWorker *uw = session->worker->data;
 
-	if (cgiRawInit(&uw->cgi, session->client))
-		return -1;
+	if (cgiRawInit(&uw->cgi, session->client, 1))
+		goto error1;
 
 	uw->cgi_mode = 1;
-	uw->cgi.is_nph = 1;
 	uw->print_uri_parse = 0;
 	uw->out = uw->cgi.out;
+
+	if (0 <= TextSensitiveStartsWith(uw->cgi.request_uri, "/uri/stat")) {
+		cgiSendOk(&uw->cgi, empty);
+		dump_bl_stats(uw);
+		rc = 0;
+		goto error1;
+	}
+
+	if (TextSensitiveStartsWith(uw->cgi.request_uri, "/uri/") < 0
+	&&  TextSensitiveStartsWith(uw->cgi.request_uri, "/weed/") < 0) {
+		cgiSendNotFound(&uw->cgi, NULL);
+		goto error1;
+	}
 
 	/* Reset the session data. */
 	VectorRemoveAll(uw->mail_names_seen);
@@ -2694,18 +2734,20 @@ session_process(ServerSession *session)
 	} else {
 		cgiSendNoContent(&uw->cgi);
 	}
-
+	rc = 0;
+error1:
 	/* Always log the request. */
 	syslog(
-		LOG_INFO, "%s %s \"%s %s %s\" %u/%u",
+		LOG_INFO, "%s %s \"%s %s %s\" %d %u/%u",
 		session->id_log, session->address,
 		uw->cgi.request_method, uw->cgi.request_uri,
-		uw->cgi.server_protocol, uw->source.hits, uw->source.found
+		uw->cgi.server_protocol, uw->cgi.status,
+		uw->source.hits, uw->source.found
 	);
 
 	cgiFree(&uw->cgi);
 
-	return 0;
+	return rc;
 }
 
 void
