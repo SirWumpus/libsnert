@@ -10,6 +10,10 @@
 #define CGI_CHUNK_SIZE		(64 * 1024)
 #endif
 
+#ifndef CGI_SEGMENT_SIZE
+#define CGI_SEGMENT_SIZE	128
+#endif
+
 #include <com/snert/lib/version.h>
 
 #include <ctype.h>
@@ -349,7 +353,7 @@ void
 cgiFree(CGI *cgi)
 {
 	if (cgi != NULL) {
-		if (cgi->out != stdout)
+		if (cgi->out != NULL && cgi->out != stdout)
 			fclose(cgi->out);
 		BufDestroy(cgi->_RAW);
 		free(cgi->headers);
@@ -421,13 +425,13 @@ cgiInit(CGI *cgi)
 		}
 
 		for (length = 0; length < content_length; length += n) {
-			if ((n = read(STDIN_FILENO, BufBytes(cgi->_RAW) + length, (size_t) (content_length-length))) < 0) {
+			if ((n = read(STDIN_FILENO, BufBytes(cgi->_RAW)+length, (size_t)(content_length-length))) < 0) {
 				cgiSendInternalServerError(cgi, "Content read error.\r\ncontent-length=%ld length=%ld n=%ld\r\n%s (%d)\r\n", content_length, length, n, strerror(errno), errno);
 				goto error2;
 			}
 		}
-		BufBytes(cgi->_RAW)[length] = '\0';
 		BufSetLength(cgi->_RAW, length);
+		BufAddByte(cgi->_RAW, '\0');
 
 		if (cgi->content_type != NULL
 		&& strcmp(cgi->content_type, "application/x-www-form-urlencoded") == 0
@@ -482,6 +486,109 @@ error0:
 	return -1;
 }
 
+int
+cgiReadHeader(Socket2 *client, Buf *input)
+{
+	char *hdr;
+	long length;
+	size_t offset;
+	int ch, no_nl;
+
+	/* Append to the current buffer. */
+	offset = BufLength(input);
+
+	/* Read a possibly folded header line. */
+	do {
+		/* Enlarge the buffer if less than a segment of space left. */
+		if (BufSize(input) <= offset + CGI_SEGMENT_SIZE
+		&&  BufSetSize(input, offset + CGI_CHUNK_SIZE))
+			return -1;
+
+		hdr = BufBytes(input) + offset;
+		if ((length = socketReadLine2(client, hdr, BufSize(input)-offset, 1)) < 0)
+			return -1;
+
+		/* Advance to end of segment. */
+		offset += length;
+
+		/* Remove newline. */
+		no_nl = 0;
+		if (2 <= length && hdr[length-2] == '\r' && hdr[length-1] == '\n')
+			offset -= 2;
+		else if (1 <= length && hdr[length-1] == '\n')
+			offset -= 1;
+		else
+			no_nl++;
+
+		/* Repeat if the next line is a folded header line? */
+	} while (no_nl || (ch = socketPeekByte(client)) == ' ' || ch == '\t');
+
+	(void) BufSetLength(input, offset);
+
+	/* Assert string terminator part of buffer data. */
+	(void) BufAddByte(input, '\0');
+
+	return 0;
+}
+
+int
+cgiReadN(Socket2 *client, Buf *input, size_t expect)
+{
+	long n;
+	size_t offset;
+
+	/* Append to buffer. */
+	offset = BufLength(input);
+
+	if (BufSetLength(input, offset+expect))
+		return -1;
+
+	for ( ; offset < BufLength(input); offset += n) {
+		if (!socketHasInput(client, socketGetTimeout(client)))
+			return -1;
+		if ((n = socketRead(client, BufBytes(input)+offset, BufLength(input)-offset)) < 0)
+			return -1;
+	}
+
+	return 0;
+}
+
+/*
+ * RFC 2616 section 3.6.1 Chunked Transfer Coding
+ */
+int
+cgiReadChunk(Socket2 *client, Buf *input)
+{
+	size_t offset, length;
+
+	/* We might be appending, so save current length. */
+	offset = BufLength(input);
+
+	/* Read hex length and any extension parameters. */
+	if (cgiReadHeader(client, input))
+		return -1;
+
+	length = (size_t) strtol(BufBytes(input), NULL, 16);
+
+	/* Reset buffer length for reuse. */
+	(void) BufSetLength(input, offset);
+
+	/* Read and append data plus CRLF. */
+	if (cgiReadN(client, input, length + 2))
+		return -1;
+
+	length += offset;
+
+	/* Assert that the chunk ended with CRLF. */
+	if (BufGetByte(input, length) != '\r' && BufGetByte(input, length+1) != '\n')
+		return -1;
+
+	/* Remove the CRLF. */
+	(void) BufSetLength(input, length);
+
+	return 0;
+}
+
 static int
 isPrintableASCII(const char *s)
 {
@@ -507,62 +614,28 @@ isPrintableASCII(const char *s)
 	return 1;
 }
 
-static int
+int
 cgiReadRequest(CGI *cgi, Socket2 *client)
 {
-	char *hdr;
-	long length;
-	size_t offset;
+	size_t length;
 
-	/* Read in request line and headers. The buffer will contain
-	 * a block of strings followed by an empty string, ie. similar
-	 * in structure to ``environ''.
+	/* Read request line and headers. The buffer will contain
+	 * a block of strings followed by an empty string.
 	 */
-	for (offset = 0; ; offset += length) {
-		/* Enlarge the buffer if less than 1KB space left. */
-		if (BufCapacity(cgi->_RAW) <= offset + HTTP_LINE_SIZE
-		&& BufSetSize(cgi->_RAW, offset + CGI_CHUNK_SIZE)) {
-			cgiSendInternalServerError(cgi, "Request read error.\r\n%s %d: %s (%d)\r\n", __FILE__, __LINE__, strerror(errno), errno);
+	do {
+		/* Start of next header. */
+		length = BufLength(cgi->_RAW);
+
+		if (cgiReadHeader(client, cgi->_RAW) < 0) {
+			cgiSendInternalServerError(cgi, "Read error.\r\n%s %d: %s (%d)\r\n", __FILE__, __LINE__, strerror(errno), errno);
 			return -1;
 		}
 
-		length = socketReadLine2(client, BufBytes(cgi->_RAW)+offset, BufSize(cgi->_RAW)-offset, 1);
-		if (length == SOCKET_EOF) {
-			cgiSendInternalServerError(cgi, "Unexpected EOF.\r\n%s %d: %s (%d)\r\n", __FILE__, __LINE__, strerror(errno), errno);
+		if (!isPrintableASCII(BufBytes(cgi->_RAW)+length)) {
+			cgiSendBadRequest(cgi, "Non-printable ASCII characters in header.\r\n");
 			return -1;
 		}
-		if (length == SOCKET_ERROR) {
-			cgiSendInternalServerError(cgi, "Request read error.\r\n%s %d: %s (%d)\r\n", __FILE__, __LINE__, strerror(errno), errno);
-			return -1;
-		}
-
-		/* Start of header line. */
-		hdr = BufBytes(cgi->_RAW)+offset;
-
-		if (!isPrintableASCII(hdr)) {
-			cgiSendBadRequest(cgi, "Non-printable ASCII characters in request.\r\n");
-			return -1;
-		}
-
-		/* Remove newline. */
-		if (2 <= length && hdr[length-2] == '\r' && hdr[length-1] == '\n')
-			length -= 2;
-		else if (1 <= length && hdr[length-1] == '\n')
-			length -= 1;
-
-		/* Join long header lines. */
-		if ((char *) BufBytes(cgi->_RAW) < hdr && (*hdr == ' ' || *hdr == '\t'))
-			hdr[-1] = ' ';
-
-		hdr[length++] = '\0';
-
-		/* Check for end of headers. */
-		if (*hdr++ == '\0')
-			break;
-	}
-
-	BufSetOffset(cgi->_RAW, hdr - (char *)BufBytes(cgi->_RAW));
-	BufSetLength(cgi->_RAW, BufOffset(cgi->_RAW));
+	} while (length+1 < BufLength(cgi->_RAW));
 
 	return 0;
 }
@@ -592,6 +665,19 @@ cgiParseHeaders(CGI *cgi)
 	cgi->server_protocol = s;
 	s += strlen(s)+1;
 
+	if (strncmp(cgi->server_protocol, "HTTP/1.1", sizeof ("HTTP/1.1")-4) != 0) {
+		cgiSendBadRequest(cgi, "Unknown protocol \"%s\".\r\n", cgi->server_protocol);
+		return -1;
+	}
+	i = cgi->server_protocol[sizeof ("HTTP/1.1")-2];
+	if (cgi->server_protocol[sizeof ("HTTP/1.1")-4] != '1' && i != '0' && i != '1') {
+		cgiSend(
+			cgi, HTTP_VERSION_NOT_SUPPORTED, "HTTP version not supported",
+			"Version \"%s\" not support.\r\n", cgi->server_protocol
+		);
+		return -1;
+	}
+
 	/* Identify the method by testing just one character position of
 	 * the method name:
 	 *
@@ -609,22 +695,23 @@ cgiParseHeaders(CGI *cgi)
 		return -1;
 	}
 
-	/* Parse remaining HTTP request headers. */
+	/* Count remaining HTTP request headers. */
 	nfields = 0;
 	for (t = s; *t != '\0'; t++) {
 		t += strlen(t);
 		nfields++;
 	}
 
-
 	if ((cgi->_HTTP = out = malloc((nfields + 2) * sizeof (*out))) == NULL) {
 		cgiSendInternalServerError(cgi, "Out of memory.\r\n");
 		return -1;
 	}
 
+	/* Create leading sentinel entry. */
 	out->name = out->value = (char *) empty;
 	out++;
 
+	/* Parse HTTP request headers into a CgiMap[]. */
 	for (i = 0; i < nfields; i++) {
 		out[i].name = s;
 		if ((s = strchr(s, ':')) == NULL) {
@@ -641,6 +728,7 @@ cgiParseHeaders(CGI *cgi)
 	out[i].name = NULL;
 	out[i].value = NULL;
 
+	/* Collect some frequently referenced headers. */
 	if ((cgi->query_string = strchr(cgi->request_uri, '?')) != NULL) {
 		cgi->query_string++;
 		cgi->_GET = cgiParseForm(cgi->query_string);
@@ -649,39 +737,16 @@ cgiParseHeaders(CGI *cgi)
 	cgi->content_type = out[cgiMapFind(out, "Content-Type")].value;
 	cgi->content_length = out[cgiMapFind(out, "Content-Length")].value;
 
-	if (cgi->content_type != NULL
-	&& strcmp(cgi->content_type, "application/x-www-form-urlencoded") == 0
-	&& (cgi->_POST = cgiParseForm((const char *) BufBytes(cgi->_RAW))) == NULL) {
-		cgiSendInternalServerError(cgi, "Form POST parse error.\r\n");
-		return -1;
-	}
-
-#ifdef NOPE
-	if (cgi->document_root != NULL && chdir(cgi->document_root))
-		return -1;
-
-	if (cgi->remote_addr == NULL)
-		cgi->remote_addr = localhost;
-
-	if (cgi->server_name == NULL)
-		cgi->server_name = localhost;
-
-	if (cgi->server_port == NULL)
-		cgi->server_port = "80";
-
-	cgi->port = strtol(cgi->server_port, NULL, 10);
-#endif
 	return 0;
 }
 
 int
-cgiRawInit(CGI *cgi, Socket2 *client, int nph)
+cgiReadInit(CGI *cgi, Socket2 *client)
 {
-	ssize_t n;
 	size_t content_length;
 
 	memset(cgi, 0, sizeof (*cgi));
-	cgi->is_nph = nph;
+	cgi->is_nph = 1;
 
 	if ((cgi->out = fdopen(socketGetFd(client), "wb")) == NULL) {
 		cgiSendInternalServerError(cgi, "%s %d: %s (%d)\r\n", __FILE__, __LINE__, strerror(errno), errno);
@@ -696,35 +761,28 @@ cgiRawInit(CGI *cgi, Socket2 *client, int nph)
 	if (cgiReadRequest(cgi, client) || cgiParseHeaders(cgi))
 		goto error1;
 
-	/* Collect optional POST data. */
-	content_length = (size_t) strtol(cgi->content_length, NULL, 10);
-	while (BufLength(cgi->_RAW) < BufOffset(cgi->_RAW) + content_length) {
-		/* Enlarge the buffer if less than 1KB space left. */
-		if (BufCapacity(cgi->_RAW) <= BufLength(cgi->_RAW) + HTTP_LINE_SIZE
-		&& BufSetSize(cgi->_RAW, BufLength(cgi->_RAW) + CGI_CHUNK_SIZE)) {
-			cgiSendInternalServerError(cgi, "POST read error.\r\n%s %d: %s (%d)\r\n", __FILE__, __LINE__, strerror(errno), errno);
+	/* Offset points immediately following end of headers. */
+	BufSetOffset(cgi->_RAW, BufLength(cgi->_RAW)+1);
+
+	/* RFC 2616 section 4.4 Message Length point 3, when
+	 * Transfer-Encoding is present then Content-Length
+	 * is ignored.
+	 */
+	if (cgiMapFind(cgi->_HTTP, "Transfer-Encoding") < 0) {
+		/* Collect optional POST data. */
+		content_length = (size_t) strtol(cgi->content_length, NULL, 10);
+		if (cgiReadN(client, cgi->_RAW, content_length)) {
+			cgiSendInternalServerError(cgi, "POST read error, Content-Length=%lu\r\n%s %d: %s (%d)\r\n", content_length, __FILE__, __LINE__, strerror(errno), errno);
 			goto error1;
 		}
-
-		if (!socketHasInput(client, socketGetTimeout(client))) {
-			cgiSendInternalServerError(cgi, "POST read error.\r\n%s %d: %s (%d)\r\n", __FILE__, __LINE__, strerror(errno), errno);
-			goto error1;
-		}
-
-		/* Read the next chunk of input. */
-		if ((n = socketRead(client, BufBytes(cgi->_RAW)+BufLength(cgi->_RAW), BufSize(cgi->_RAW)-BufLength(cgi->_RAW)-1)) == 0)
-			break;
-
-		if (n < 0) {
-			cgiSendInternalServerError(cgi, "POST read error.\r\n%s %d: %s (%d)\r\n", __FILE__, __LINE__, strerror(errno), errno);
-			goto error1;
-		}
-
-		BufSetLength(cgi->_RAW, BufLength(cgi->_RAW)+n);
 	}
 
-	/* Assert the input is null terminate. */
-	BufBytes(cgi->_RAW)[BufLength(cgi->_RAW)] = '\0';
+	if (cgi->content_type != NULL
+	&& strcmp(cgi->content_type, "application/x-www-form-urlencoded") == 0
+	&& (cgi->_POST = cgiParseForm((const char *) BufBytes(cgi->_RAW)+BufOffset(cgi->_RAW))) == NULL) {
+		cgiSendInternalServerError(cgi, "Form POST parse error.\r\n");
+		goto error1;
+	}
 
 	return 0;
 error1:

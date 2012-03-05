@@ -20,11 +20,29 @@ Request By Message
 POST /uri/?p=[01]&q=[01]&v=[01]&x=[01] HTTP/1.0<CRLF>
 Host: www.weeder.example:8088<CRLF>
 Content-Type: message/rfc822<CRLF>
-Content-Length: NNNN<CRLF>
+Content-Length: NNN...N<CRLF>
 <CRLF>
 complete message
 with headers and
-content follows
+body follows
+
+
+Request By Chunked Message (daemon-only)
+----------------------------------------
+POST /uri/?p=[01]&q=[01]&v=[01]&x=[01] HTTP/1.1<CRLF>
+Host: www.weeder.example:8088<CRLF>
+Content-Type: message/rfc822<CRLF>
+Transfer-Encoding: chunked<CRLF>
+<CRLF>
+HHH...H[; ignored...]<CRLF>
+HHH...H data octets follow<CRLF>
+HHH...H[; ignored...]<CRLF>
+HHH...H data octets follow<CRLF>
+...
+0...[; ignored]<CRLF>
+<CRLF>
+
+Note: Trailer header semantics will not be supported at this time.
 
 
 URL Options
@@ -32,18 +50,21 @@ URL Options
 
 f=/abs_path	Path of a local file to parse.
 
-p=1		Dump each URI parsed in as body content.
-p=2 		Dump each URI parsed in as body content and redo lookups.
+p=1		Dump each URI parsed from the content. (Not supported
+		for chunked transfer-encoding yet.)
+
+p=2 		Dump each URI parsed from the content and redo lookups.
+		(Not supported for chunked transfer-encoding yet.)
 
 q=1		Check URL query part for embedded URLs.
 
-v=1		Verbose debugging in body content. (CGI only)
+v=1		Verbose debugging sent with body content. (CGI only)
 
 x=N		Stop after Nth list hit; default 1.
 
 
-CGI-only Optional Request Headers
----------------------------------
+Optional Request Headers (CGI-only)
+-----------------------------------
 These headers present alternative blacklist suffix lists to override
 the default CGI configuration options.
 
@@ -123,12 +144,13 @@ uri -p output follows<CRLF>
 
 Nothing Found
 -------------
-HTTP/1.0 404 Not Found<CRLF>
+HTTP/1.0 204 No Content<CRLF>
+Blacklist-Hits: 0<CRLF>
 <CRLF>
 
 
-Dump Daemon Runtime Blacklist Hits
-----------------------------------
+Dump Runtime Blacklist Hits (daemon-only)
+-----------------------------------------
 
 GET /uri/stat/ HTTP/1.0<CRLF>
 Host: www.weeder.example:8088<CRLF>
@@ -139,13 +161,13 @@ Example response:
 HTTP/1.1 200 OK<CRLF>
 Content-Type: text/plain<CRLF>
 <CRLF>
-00000<TAB>dbl.spamhaus.org.<CRLF>
-00000<TAB>multi.surbl.org.<CRLF>
-00000<TAB>black.uribl.com.<CRLF>
+00123<TAB>dbl.spamhaus.org.<CRLF>
+00046<TAB>multi.surbl.org.<CRLF>
+00078<TAB>black.uribl.com.<CRLF>
 
 
-Daemon Syslog Format
---------------------
+Syslog Format (daemon-only)
+---------------------------
 
 $session_id $client_ip "$http_request_line" $http_status $hits/$found
 

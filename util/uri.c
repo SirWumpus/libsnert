@@ -1330,11 +1330,16 @@ uriMimeInit(UriMimeHook uri_found_cb, int all, void *data)
 #endif
 
 typedef struct {
-	const char *file;
+	Socket2 *client;
+	Buf data;
+} UriChunk;
+
+typedef struct {
+	const char *name;
 	unsigned line;
 	unsigned hits;
 	unsigned found;
-} FileLine;
+} Source;
 
 typedef struct {
 	CGI cgi;
@@ -1342,7 +1347,7 @@ typedef struct {
 	FILE *out;
 	int cgi_mode;
 	long max_hits;
-	FileLine source;
+	Source source;
 	int print_uri_parse;
 	int headers_and_body;
 	Vector uri_names_seen;
@@ -1621,7 +1626,7 @@ write_result(URI *uri, UriWorker *uw, const char *list_name, const char *fmt, ..
 			cgiMapAdd(&uw->cgi.headers, "URI-Found", "%u %s ; %s", uw->source.line, uri->uri, list_name);
 		}
 	} else if (fmt != NULL && list_name != NULL) {
-		fprintf(uw->out, "%s %u: ", uw->source.file, uw->source.line);
+		fprintf(uw->out, "%s %u: ", uw->source.name, uw->source.line);
 		uw->source.hits++;
 
 		va_start(args, fmt);
@@ -1674,7 +1679,7 @@ test_uri(URI *uri, UriWorker *uw)
 		write_result(uri, uw, list_name, "%s mail blacklisted %s\r\n", uri->uriDecoded, list_name);
 
 	if (check_soa && (code = pdqTestSOA(uw->pdq, PDQ_CLASS_IN, uri->host, NULL)) != PDQ_SOA_OK) {
-		fprintf(uw->out, "%s %u: ", uw->source.file, uw->source.line);
+		fprintf(uw->out, "%s %u: ", uw->source.name, uw->source.line);
 		fprintf(uw->out, "%s bad SOA %s (%d)\r\n", uri->host, pdqSoaName(code), code);
 		exit_code = EXIT_FAILURE;
 	}
@@ -1704,17 +1709,17 @@ process(URI *uri, UriWorker *uw)
 	}
 
 	if (uw->print_uri_parse) {
-		fprintf(uw->out, "%s %u:\r\n", uw->source.file, uw->source.line);
+		fprintf(uw->out, "%s %u:\r\n", uw->source.name, uw->source.line);
 		fprintf(uw->out, "\turi=%s\r\n", uri->uri);
-		fprintf(uw->out, "\turiDecoded=%s\r\n", TextNull(uri->uriDecoded));
-		fprintf(uw->out, "\tscheme=%s\r\n", TextNull(uri->scheme));
-		fprintf(uw->out, "\tschemeInfo=%s\r\n", TextNull(uri->schemeInfo));
-		fprintf(uw->out, "\tuserInfo=%s\r\n", TextNull(uri->userInfo));
-		fprintf(uw->out, "\thost=%s\r\n", TextNull(uri->host));
+		fprintf(uw->out, "\turiDecoded=%s\r\n", TextEmpty(uri->uriDecoded));
+		fprintf(uw->out, "\tscheme=%s\r\n", TextEmpty(uri->scheme));
+		fprintf(uw->out, "\tschemeInfo=%s\r\n", TextEmpty(uri->schemeInfo));
+		fprintf(uw->out, "\tuserInfo=%s\r\n", TextEmpty(uri->userInfo));
+		fprintf(uw->out, "\thost=%s\r\n", TextEmpty(uri->host));
 		fprintf(uw->out, "\tport=%d\r\n", uriGetSchemePort(uri));
-		fprintf(uw->out, "\tpath=%s\r\n", TextNull(uri->path));
-		fprintf(uw->out, "\tquery=%s\r\n", TextNull(uri->query));
-		fprintf(uw->out, "\tfragment=%s\r\n", TextNull(uri->fragment));
+		fprintf(uw->out, "\tpath=%s\r\n", TextEmpty(uri->path));
+		fprintf(uw->out, "\tquery=%s\r\n", TextEmpty(uri->query));
+		fprintf(uw->out, "\tfragment=%s\r\n", TextEmpty(uri->fragment));
 	} else if (uri_ports != NULL) {
 		fputs(uri->uriDecoded, uw->out);
 		fputc('\n', uw->out);
@@ -1725,7 +1730,7 @@ process(URI *uri, UriWorker *uw)
 
 	if (check_link && uri->host != NULL) {
 		error = uriHttpOrigin(uri->uriDecoded, &origin);
-		fprintf(uw->out, "%s %u: ", uw->source.file, uw->source.line);
+		fprintf(uw->out, "%s %u: ", uw->source.name, uw->source.line);
 		fprintf(uw->out, "\t%s -> ", uri->uriDecoded);
 		fprintf(uw->out, "%s\r\n", error == NULL ? origin->uri : error);
 		if (error == uriErrorLoop)
@@ -1793,80 +1798,40 @@ process_uri(URI *uri, void *data)
 }
 
 int
-process_input(Mime *m, FILE *fp, UriWorker *uw)
+iterate_file(void *fp)
 {
-	int ch;
-
-	if (fp != NULL) {
-		mimeReset(m);
-		uw->source.line = 1;
-		uw->source.hits = 0;
-		uw->source.found = 0;
-
-		if (debug)
-			syslog(LOG_DEBUG, "file=%s line=%u", uw->source.file, uw->source.line);
-		do {
-			ch = fgetc(fp);
-			(void) mimeNextCh(m, ch);
-			if (ch == '\n') {
-				uw->source.line++;
-				if (debug)
-					syslog(LOG_DEBUG, "file=%s line=%u", uw->source.file, uw->source.line);
-			}
-		} while (ch != EOF);
-
-		(void) fflush(uw->out);
-	}
-
-	return 0;
+	return fgetc((FILE *)fp);
 }
 
 int
-process_file(UriWorker *uw)
+iterate_string(void *s)
 {
-	int rc;
-	FILE *fp;
-	Mime *mime;
-	UriMime *hold;
+	if (**(char **)s == '\0')
+		return EOF;
+	return *(*(char **)s)++;
+}
 
-	rc = -1;
+int
+iterate_chunk(void *_uc)
+{
+	UriChunk *uc = _uc;
 
-	/* Check for standard input. */
-	if (uw->source.file[0] == '-' && uw->source.file[1] == '\0')
-		fp = stdin;
+	if (uc->data.length <= uc->data.offset) {
+		BufSetLength(&uc->data, 0);
+		BufSetOffset(&uc->data, 0);
+		if (cgiReadChunk(uc->client, &uc->data))
+			return EOF;
+		if (uc->data.length == 0)
+			return EOF;
+	}
 
-	/* Otherwise open the file. */
-	else if ((fp = fopen(uw->source.file, "r")) == NULL)
-		goto error0;
-
-	if ((mime = mimeCreate()) == NULL)
-		goto error1;
-
-	uw->source.line = 1;
-	uw->source.hits = 0;
-	uw->source.found = 0;
-
-	if ((hold = uriMimeInit(process_uri, uw->headers_and_body, uw)) == NULL)
-		goto error2;
-
-	mimeHeadersFirst(mime, uw->headers_and_body);
-	mimeHooksAdd(mime, (MimeHooks *)hold);
-	rc = process_input(mime, fp, uw);
-
-	if (uw->cgi_mode)
-		cgiMapAdd(&uw->cgi.headers, "Blacklist-Hits", "%u", uw->source.hits);
-error2:
-	mimeFree(mime);
-error1:
-	fclose(fp);
-error0:
-	return rc;
+	return uc->data.bytes[uc->data.offset++];
 }
 
 void
-process_string(UriWorker *uw)
+process_loop(UriWorker *uw, int (*iterate)(void *), void *data)
 {
-	char *s;
+	int ch;
 	Mime *mime;
 	UriMime *hold;
 
@@ -1877,17 +1842,22 @@ process_string(UriWorker *uw)
 	uw->source.hits = 0;
 	uw->source.found = 0;
 
-	s = (char *) BufBytes(uw->cgi._RAW) + BufOffset(uw->cgi._RAW);
-
 	if ((hold = uriMimeInit(process_uri, uw->headers_and_body, uw)) != NULL) {
-		mimeHeadersFirst(mime, !uw->headers_and_body);
+		mimeHeadersFirst(mime, uw->cgi_mode || !uw->headers_and_body);
 		mimeHooksAdd(mime, (MimeHooks *)hold);
-		for ( ; *s != '\0'; s++) {
-			(void) mimeNextCh(mime, *s);
-			if (*s == '\n')
+
+		if (debug)
+			syslog(LOG_DEBUG, "file=%s line=%u", uw->source.name, uw->source.line);
+		do {
+			ch = (*iterate)(data);
+			(void) mimeNextCh(mime, ch);
+			if (ch == '\n') {
 				uw->source.line++;
-		}
-		(void) mimeNextCh(mime, EOF);
+				if (debug)
+					syslog(LOG_DEBUG, "file=%s line=%u", uw->source.name, uw->source.line);
+			}
+		} while (ch != EOF);
+
 		(void) fflush(uw->out);
 	}
 
@@ -1895,6 +1865,42 @@ process_string(UriWorker *uw)
 
 	if (uw->cgi_mode)
 		cgiMapAdd(&uw->cgi.headers, "Blacklist-Hits", "%u", uw->source.hits);
+}
+
+void
+process_file(UriWorker *uw)
+{
+	FILE *fp;
+
+	/* Check for standard input. */
+	if (uw->source.name[0] == '-' && uw->source.name[1] == '\0')
+		fp = stdin;
+
+	/* Otherwise open the file. */
+	else if ((fp = fopen(uw->source.name, "rb")) == NULL)
+		return;
+
+	process_loop(uw, iterate_file, fp);
+	fclose(fp);
+}
+
+void
+process_string(UriWorker *uw)
+{
+	unsigned char *s = BufBytes(uw->cgi._RAW) + BufOffset(uw->cgi._RAW);
+	process_loop(uw, iterate_string, (void *)&s);
+}
+
+void
+process_chunk(UriWorker *uw, Socket2 *client)
+{
+	UriChunk chunk;
+
+	if (BufInit(&chunk.data, 0) == 0) {
+		chunk.client = client;
+		process_loop(uw, iterate_chunk, &chunk);
+		BufFini(&chunk.data);
+	}
 }
 
 static Option *opt_table[];
@@ -2250,19 +2256,20 @@ main(int argc, char **argv)
 		if (0 <= (i = cgiMapFind(uw.cgi._GET, "x")))
 			uw.max_hits = strtol(uw.cgi._GET[i].value, NULL, 10);
 
-		uw.headers_and_body = 0;
-		if (0 <= (i = cgiMapFind(uw.cgi._GET, "a")) && uw.cgi._GET[i].value[0] != '0')
-			uw.headers_and_body = 1;
+		uw.headers_and_body = (0 <= (i = cgiMapFind(uw.cgi._GET, "a")) && uw.cgi._GET[i].value[0] != '0');
 
 		if (0 <= (fi = cgiMapFind(uw.cgi._GET, "f"))) {
-			uw.source.file = uw.cgi._GET[fi].value;
-			(void) process_file(&uw);
-		} else {
-			uw.source.file = uw.cgi.remote_addr;
+			uw.source.name = uw.cgi._GET[fi].value;
+			process_file(&uw);
+		} else if (cgiMapFind(uw.cgi._HTTP, "Transfer-Encoding") < 0) {
+			uw.source.name = uw.cgi.remote_addr;
 			process_string(&uw);
+		} else {
+			cgiSend(&uw.cgi, HTTP_NOT_IMPLEMENTED, "Not Implemented", "Transfer-Encoding not implemented.\r\n");
 		}
 
 		if (uw.cgi.request_method[0] != 'H'
+		&& cgiMapFind(uw.cgi._HTTP, "Transfer-Encoding") < 0
 		&& 0 <= (pi = cgiMapFind(uw.cgi._GET, "p")) && uw.cgi._GET[pi].value[0] != '0') {
 			cgiMapAdd(&uw.cgi.headers, "Content-Type", "%s", "text/plain");
 			cgiSendOk(&uw.cgi, NULL);
@@ -2278,12 +2285,10 @@ main(int argc, char **argv)
 				VectorRemoveAll(uw.mail_names_seen);
 			}
 			if (0 <= fi)
-				(void) process_file(&uw);
+				process_file(&uw);
 			else
 				process_string(&uw);
 			uw.cgi_mode = 1;
-		} else if (uw.cgi.headers == NULL) {
-			cgiSendNotFound(&uw.cgi, NULL);
 		} else {
 			cgiSendNoContent(&uw.cgi);
 		}
@@ -2291,19 +2296,20 @@ main(int argc, char **argv)
 		exit_code = EXIT_SUCCESS;
 		cgiFree(&uw.cgi);
 	} else if (argc <= optind) {
-		uw.source.file = "-";
-		(void) process_file(&uw);
+		uw.source.name = "-";
+		process_file(&uw);
 	} else {
 		for (i = optind; i < argc; i++) {
 			struct stat sb;
 			if ((argv[i][0] == '-' && argv[i][1] == '\0') || stat(argv[i], &sb) == 0) {
-				uw.source.file = argv[i];
-				(void) process_file(&uw);
-			} else {
-				uw.cgi._RAW = BufCopyString(argv[i]);
-				uw.source.file = "(arg)";
-				uw.headers_and_body = 1;
-				process_string(&uw);
+				uw.source.name = argv[i];
+				process_file(&uw);
+			} else if ((uw.cgi._RAW = BufCreate(0)) != NULL) {
+				if (BufAddString(uw.cgi._RAW, argv[i]) == 0) {
+					uw.source.name = "(arg)";
+					uw.headers_and_body = 1;
+					process_string(&uw);
+				}
 				BufDestroy(uw.cgi._RAW);
 				uw.cgi._RAW  = NULL;
 			}
@@ -2637,7 +2643,7 @@ worker_create(ServerWorker *worker)
 		goto error3;
 	VectorSetDestroyEntry(uw->mail_names_seen, free);
 
-	uw->source.file = NULL;
+	uw->source.name = NULL;
 	uw->source.line = 1;
 	uw->source.hits = 0;
 
@@ -2671,8 +2677,14 @@ session_process(ServerSession *session)
 	int i, fi, pi, rc = -1;
 	UriWorker *uw = session->worker->data;
 
-	if (cgiRawInit(&uw->cgi, session->client, 1))
-		goto error1;
+	if (cgiReadInit(&uw->cgi, session->client)) {
+		syslog(
+			LOG_INFO, "%s %s \"? ? ?\" %d 0/0",
+			session->id_log, session->address,
+			uw->cgi.status
+		);
+		goto error0;
+	}
 
 	uw->cgi_mode = 1;
 	uw->print_uri_parse = 0;
@@ -2684,9 +2696,7 @@ session_process(ServerSession *session)
 		rc = 0;
 		goto error1;
 	}
-
-	if (TextSensitiveStartsWith(uw->cgi.request_uri, "/uri/") < 0
-	&&  TextSensitiveStartsWith(uw->cgi.request_uri, "/weed/") < 0) {
+	if (TextSensitiveStartsWith(uw->cgi.request_uri, "/uri/") < 0) {
 		cgiSendNotFound(&uw->cgi, NULL);
 		goto error1;
 	}
@@ -2700,19 +2710,21 @@ session_process(ServerSession *session)
 	if (0 <= (i = cgiMapFind(uw->cgi._GET, "x")))
 		uw->max_hits = strtol(uw->cgi._GET[i].value, NULL, 10);
 
-	uw->headers_and_body = 0;
-	if (0 <= (i = cgiMapFind(uw->cgi._GET, "a")) && uw->cgi._GET[i].value[0] != '0')
-		uw->headers_and_body = 1;
+	uw->headers_and_body = (0 <= (i = cgiMapFind(uw->cgi._GET, "a")) && uw->cgi._GET[i].value[0] != '0');
 
 	if (0 <= (fi = cgiMapFind(uw->cgi._GET, "f"))) {
-		uw->source.file = uw->cgi._GET[fi].value;
-		(void) process_file(uw);
-	} else {
-		uw->source.file = session->id_log;
+		uw->source.name = uw->cgi._GET[fi].value;
+		process_file(uw);
+	} else if (cgiMapFind(uw->cgi._HTTP, "Transfer-Encoding") < 0) {
+		uw->source.name = session->id_log;
 		process_string(uw);
+	} else {
+		uw->source.name = session->id_log;
+		process_chunk(uw, session->client);
 	}
 
 	if (uw->cgi.request_method[0] != 'H'
+	&& cgiMapFind(uw->cgi._HTTP, "Transfer-Encoding") < 0
 	&& 0 <= (pi = cgiMapFind(uw->cgi._GET, "p")) && uw->cgi._GET[pi].value[0] != '0') {
 		cgiMapAdd(&uw->cgi.headers, "Content-Type", "%s", "text/plain");
 		cgiSendOk(&uw->cgi, NULL);
@@ -2725,12 +2737,10 @@ session_process(ServerSession *session)
 			VectorRemoveAll(uw->mail_names_seen);
 		}
 		if (0 <= fi)
-			(void) process_file(uw);
+			process_file(uw);
 		else
 			process_string(uw);
 		uw->cgi_mode = 1;
-	} else if (uw->cgi.headers == NULL) {
-		cgiSendNotFound(&uw->cgi, NULL);
 	} else {
 		cgiSendNoContent(&uw->cgi);
 	}
@@ -2746,7 +2756,7 @@ error1:
 	);
 
 	cgiFree(&uw->cgi);
-
+error0:
 	return rc;
 }
 

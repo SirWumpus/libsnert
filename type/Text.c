@@ -1,7 +1,7 @@
 /*
  * Text.c
  *
- * Copyright 2001, 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2001, 2012 by Anthony Howe.  All rights reserved.
  */
 
 #include <ctype.h>
@@ -788,79 +788,6 @@ TextCreate(const char *string)
 		return NULL;
 
 	return TextCreateN(string, (long) strlen(string));
-}
-
-Text
-TextCreateFromInputLine(FILE *fp, long max)
-{
-	Buf *b;
-	Text self;
-
-	if (feof(fp) || ferror(fp))
-		goto error0;
-
-	if ((b = BufCreate(100)) == NULL)
-		goto error0;
-
-	/*@-observertrans@*/
-	if ((self = TextCreateN("", 0)) == NULL)
-		goto error1;
-	/*@=observertrans@*/
-
-	if (BufAddInputLine(b, fp, max) < 0)
-		goto error2;
-
-	free(self->_string);
-	self->destroy = TextDestroy;
-	self->_length = BufLength(b);
-	/*@-mustfreefresh@*/
-	self->_string = (char *) BufAsBytes(b);
-	TextResetTokens(self);
-
-	return self;
-	/*@-usereleased@*/
-error2:
-	self->destroy(self);
-error1:
-	BufDestroy(b);
-error0:
-	return NULL;
-	/*@=mustfreefresh =usereleased@*/
-}
-
-Text
-TextCreateFromReadLine(int fd, long max)
-{
-	Buf *b;
-	Text self;
-
-	if ((b = BufCreate(100)) == NULL)
-		goto error0;
-
-	/*@-observertrans@*/
-	if ((self = TextCreateN("", 0)) == NULL)
-		goto error1;
-	/*@=observertrans@*/
-
-	if (BufAddReadLine(b, fd, max) < 0)
-		goto error2;
-
-	free(self->_string);
-	self->destroy = TextDestroy;
-	self->_length = BufLength(b);
-	/*@-mustfreefresh@*/
-	self->_string = (char *) BufAsBytes(b);
-	TextResetTokens(self);
-
-	return self;
-	/*@-usereleased@*/
-error2:
-	self->destroy(self);
-error1:
-	BufDestroy(b);
-error0:
-	return NULL;
-	/*@=mustfreefresh =usereleased@*/
 }
 
 /***********************************************************************

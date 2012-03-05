@@ -3,8 +3,16 @@
  *
  * Variable length buffer.
  *
- * Copyright 2001, 2008 by Anthony Howe. All rights reserved.
+ * Copyright 2001, 2012 by Anthony Howe. All rights reserved.
  */
+
+#ifndef BUF_GROWTH
+#define BUF_GROWTH		512
+#endif
+
+/***********************************************************************
+ *** No configuration below this point.
+ ***********************************************************************/
 
 #include <com/snert/lib/version.h>
 
@@ -13,10 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <com/snert/lib/io/posix.h>
 #include <com/snert/lib/util/Buf.h>
-
-#define BUF_GROWTH	512
 
 static void
 bounds(Buf *a, size_t *offp, size_t *lenp)
@@ -87,82 +92,54 @@ BufSetSize(Buf *a, size_t length)
 	return 0;
 }
 
+void
+BufFini(void *_buf)
+{
+	Buf *buf = _buf;
+
+	if (buf != NULL) {
+		free(buf->bytes);
+		buf->bytes = NULL;
+	}
+}
+
+int
+BufInit(Buf *a, size_t size)
+{
+	if ((a->bytes = malloc(size)) == NULL)
+		return -1;
+
+	a->free = BufFini;
+	a->size = size;
+	a->length = 0;
+	a->offset = 0;
+
+	return 0;
+}
+
+void
+BufFree(void *_buf)
+{
+	BufFini(_buf);
+	free(_buf);
+}
 
 Buf *
-BufCreate(size_t capacity)
+BufCreate(size_t size)
 {
 	Buf *a;
 
 	if ((a = malloc(sizeof *a)) == NULL)
 		return NULL;
 
-	if ((a->bytes = malloc(capacity)) == NULL) {
+	if (BufInit(a, size)) {
 		free(a);
 		return NULL;
 	}
 
-	a->free = BufDestroy;
-	a->size = capacity;
-	a->length = 0;
-	a->offset = 0;
+	a->free = BufFree;
 
 	return a;
-}
-
-Buf *
-BufAssignString(char *s)
-{
-	Buf *a;
-
-	if (s == NULL)
-		return NULL;
-
-	if ((a = malloc(sizeof (*a))) != NULL) {
-		a->bytes = (unsigned char *) s;
-		a->length = strlen(s);
-		a->size = a->length+1;
-	}
-
-	return a;
-}
-
-Buf *
-BufCopyBytes(unsigned char *bytes, size_t offset, size_t len)
-{
-	Buf *copy;
-
-	if (bytes == NULL || len < 0)
-		return NULL;
-
-	if ((copy = BufCreate(len + BUF_GROWTH)) != NULL) {
-		memcpy(copy->bytes, bytes + offset, len);
-		copy->bytes[len] = 0;
-		copy->length = len;
-	}
-
-	return copy;
-}
-
-Buf *
-BufCopyBuf(Buf *a, size_t offset, size_t len)
-{
-	bounds(a, &offset, &len);
-	return BufCopyBytes(a->bytes, offset, len);
-}
-
-Buf *
-BufCopyString(const char *s)
-{
-	return BufCopyBytes((unsigned char *) s, 0, strlen(s));
-}
-
-void
-BufDestroy(void *_buf)
-{
-	if (_buf != NULL) {
-		free(((Buf *) _buf)->bytes);
-		free(_buf);
-	}
 }
 
 unsigned char *
@@ -247,7 +224,6 @@ BufReverse(Buf *a, size_t offset, size_t len)
 		*y = *x;
 		*x = byte;
 	}
-
 }
 
 void
@@ -435,6 +411,7 @@ BufTrim(Buf *a)
 	a->bytes[a->length] = 0;
 }
 
+/*** DEPRICATED ***/
 int
 BufAddInputLine(Buf *a, FILE *fp, long max)
 {
@@ -465,33 +442,6 @@ BufAddInputLine(Buf *a, FILE *fp, long max)
 	return a->length - start;
 }
 
-int
-BufAddReadLine(Buf *a, int fd, long max)
-{
-	unsigned char byte;
-	size_t start = a->length;
-
-	if (max < 0)
-		max = ULONG_MAX;
-
-	while (a->length - start < max) {
-		if (read(fd, &byte, 1) != 1) {
-			if (start == a->length)
-				/* EOF or error. */
-				return -1;
-			/* EOF before newline. */
-			break;
-		}
-
-		BufAddByte(a, byte);
-
-		if (byte == '\n')
-			break;
-	}
-
-	/* Keep the buffer null terminated. See BufAddByte(). */
-	a->bytes[a->length] = 0;
-
-	return a->length - start;
-}
-
+/***********************************************************************
+ *** END
+ ***********************************************************************/

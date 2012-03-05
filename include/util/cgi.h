@@ -22,7 +22,7 @@ extern "C" {
 #include <com/snert/lib/util/option.h>
 
 /***********************************************************************
- ***
+ *** CGI
  ***********************************************************************/
 
 typedef struct {
@@ -53,8 +53,8 @@ typedef struct {
 	CgiMap *_GET;
 	CgiMap *_POST;
 	CgiMap *_HTTP;
-	CgiMap *headers;		/* Output headers. */
-	HttpCode status;
+	CgiMap *headers;	/* Response headers. */
+	HttpCode status;	/* Response status. */
 } CGI;
 
 /**
@@ -110,11 +110,23 @@ extern void cgiSendInternalServerError(CGI *cgi, const char *fmt, ...);
 
 extern int cgiSetOptions(CGI *cgi, CgiMap *array, Option *table[]);
 
-extern int cgiRawInit(CGI *cgi, Socket2 *client, int is_nph);
-
 extern int cgiInit(CGI *cgi);
 
 extern void cgiFree(CGI *cgi);
+
+/***********************************************************************
+ *** Direct HTTP server read from client socket.
+ ***********************************************************************/
+
+extern int cgiReadN(Socket2 *client, Buf *input, size_t expect);
+
+extern int cgiReadHeader(Socket2 *client, Buf *input);
+
+extern int cgiReadChunk(Socket2 *client, Buf *input);
+
+extern int cgiReadRequest(CGI *cgi, Socket2 *client);
+
+extern int cgiReadInit(CGI *cgi, Socket2 *client);
 
 /***********************************************************************
  ***

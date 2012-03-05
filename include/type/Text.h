@@ -1,7 +1,7 @@
 /*
  * Text.h
  *
- * Copyright 2001, 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2001, 2012 by Anthony Howe.  All rights reserved.
  */
 
 #ifndef __com_snert_lib_type_Text_h__
@@ -431,42 +431,6 @@ extern /*@only@*//*@null@*/ Text TextCreate(/*@unique@*/ const char *cstring);
  *	A new object representing the C string; otherwise null on error.
  */
 extern /*@only@*//*@null@*/ Text TextCreateN(/*@unique@*/ const char *cstring, long length);
-
-/**
- * <p>
- * Read a line of input until a newline (CRLF or LF) is read or the buffer
- * is filled. The newline is removed from the input and the line is always
- * null terminated.
- * </p>
- *
- * @param fd
- *	The file handle from which to read input.
- *
- * @param max
- *	The maximum line length to read, or -1 to ignore.
- *
- * @return
- *	A new object representing the line of input; otherwise null on error.
- */
-extern /*@only@*//*@null@*/ Text TextCreateFromReadLine(int fd, long max);
-
-/**
- * <p>
- * Read a line of input until a newline (CRLF or LF) is read or the buffer
- * is filled. The newline is removed from the input and the line is always
- * null terminated.
- * </p>
- *
- * @param fp
- *	The FILE * from which to read input.
- *
- * @param max
- *	The maximum line length to read, or -1 to ignore.
- *
- * @return
- *	A new object representing the line of input; otherwise null on error.
- */
-extern /*@only@*//*@null@*/ Text TextCreateFromInputLine(FILE *fp, long max);
 
 /*
  * Function oriented API.
