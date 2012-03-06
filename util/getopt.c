@@ -45,9 +45,9 @@ alt_getopt(int argc, char * const *argv, const char *optstring)
 					++alt_optind;
 					return -1;
 				}
-				if (alt_opterr)
+				if (alt_opterr && optstring[0] != ':')
 					fprintf(stderr, "Long options %s not supported.\n", ptr);
-				return '?';
+				return optstring[0] != ':' ? '?' : ':';
 			case '\0':
 				/* Extension: a minus (-) in the optstring
 				 * permits sole "-" as an option.
@@ -84,16 +84,15 @@ alt_getopt(int argc, char * const *argv, const char *optstring)
 	 * token used in optstring, or optopt is not in optstring.
 	 */
 	if (alt_optopt == ':' || ptr == (char *) 0) {
-		if (alt_opterr && optstring[0] != ':') {
+		if (alt_opterr && optstring[0] != ':')
 			fprintf(stderr, "Unknown option -%c.\n", alt_optopt);
-		}
 
 		if (nextopt == '\0') {
 			index = 1;
 			++alt_optind;
 		}
 
-		return '?';
+		return optstring[0] != ':' ? '?' : ':';
 	}
 
 	/* A colon (:) following an option character in optstring
@@ -117,11 +116,9 @@ alt_getopt(int argc, char * const *argv, const char *optstring)
 			alt_optarg = argv[alt_optind++];
 		} else {
 			/* Missing required argument error. */
-			if (alt_opterr && optstring[0] != ':') {
+			if (alt_opterr && optstring[0] != ':')
 				fprintf(stderr, "Option -%c argument missing.\n", alt_optopt);
-				return '?';
-			}
-			return ':';
+			return optstring[0] != ':' ? '?' : ':';
 		}
 		index = 1;
 	} else if (nextopt == '\0') {
