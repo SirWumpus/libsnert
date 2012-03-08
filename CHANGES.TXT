@@ -81,6 +81,11 @@ is no set schedule for releases.
    +	Enhanced uri CLI to work as a CGI or as a specialised HTTP
 	daemon. Commissioned work. See util/uri-cgi.txt.
 
+   !	Fixed inclusion of -lrt for clock_gettime() in Linux builds.
+
+   !	Simplified socketAddressGetName() when the address is ::0 or
+   	0.0.0.0; use the machine's assigned name.
+
 --1.75.10--
 
    *    Upgraded SQLite to 3.7.10

@@ -1321,7 +1321,7 @@ uriMimeInit(UriMimeHook uri_found_cb, int all, void *data)
 # if defined(__WIN32__)
 #  define CF_DIR			"."
 # else
-#  define CF_DIR			"/etc/" _NAME
+#  define CF_DIR			"/etc"
 # endif
 #endif
 
@@ -1402,7 +1402,7 @@ static const char usage_help[] =
   "Write the option summary to standard output and exit. The output\n"
 "# is suitable for use as an option file. For Windows this option\n"
 "# can be assigned a file path string to save the output to a file,\n"
-"# eg. help=./" CF_FILE "\n"
+"# eg. help=" CF_FILE "\n"
 "#"
 ;
 Option opt_help			= { "help", 			NULL,		usage_help };
@@ -2334,6 +2334,7 @@ main(int argc, char **argv)
 #endif
 
 extern void rlimits(void);
+#include <com/snert/lib/io/file.h>
 #include <com/snert/lib/sys/pid.h>
 #include <com/snert/lib/sys/process.h>
 #include <com/snert/lib/sys/pthread.h>
@@ -2493,9 +2494,7 @@ static Option *opt_table[] = {
 	&opt_restart,
 	&opt_restart_if,
 	&opt_run_group,
-#if defined(HAVE_CHROOT)
 	&opt_run_jailed,
-#endif
 #if defined(RLIMIT_NOFILE)
 	&opt_run_open_file_limit,
 #endif
@@ -2528,8 +2527,19 @@ typedef struct {
 	char *data;
 } Buffer;
 
-Server server;
-ServerSignals signals;
+static Server server;
+static ServerSignals signals;
+
+static pthread_mutex_t stat_mutex = PTHREAD_MUTEX_INITIALIZER;
+static unsigned long stat_requests;
+static unsigned long stat_2;
+static unsigned long stat_4;
+static unsigned long stat_5;
+#ifdef ENABLE_STAT_METHOD
+static unsigned long stat_GET;
+static unsigned long stat_HEAD;
+static unsigned long stat_POST;
+#endif
 
 static void
 verboseFill(const char *prefix, Buffer *buf)
@@ -2579,6 +2589,47 @@ verboseInit(void)
 //	optionString(opt_verbose.string, verb_table, NULL);
 }
 
+void
+stat_count_status(HttpCode code)
+{
+	PTHREAD_MUTEX_LOCK(&stat_mutex);
+	stat_requests++;
+	if (200 <= code && code < 300)
+		stat_2++;
+	else if (400 <= code && code < 500)
+		stat_4++;
+	else if (500 <= code && code < 600)
+		stat_5++;
+	PTHREAD_MUTEX_UNLOCK(&stat_mutex);
+}
+
+void
+stat_count_method(const char *method)
+{
+#ifdef ENABLE_STAT_METHOD
+	PTHREAD_MUTEX_LOCK(&stat_mutex);
+	/* Identify the method by testing just one character position of
+	 * the method name:
+	 *
+	 * OPTIONS	O
+	 * GET    	G
+	 * HEAD   	H
+	 * POST   	  S
+	 * PUT    	 U
+	 * DELETE 	D
+	 * TRACE  	T
+	 * CONNECT	C
+	 */
+	if (method[0] == 'G')
+		stat_GET++;
+	else if (method[0] == 'H')
+		stat_HEAD++;
+	else if (method[2] == 'S')
+		stat_POST++;
+	PTHREAD_MUTEX_UNLOCK(&stat_mutex);
+#endif
+}
+
 static void
 dns_list_dump_stats(DnsList *dns_list, FILE *out)
 {
@@ -2599,6 +2650,15 @@ dns_list_dump_stats(DnsList *dns_list, FILE *out)
 static void
 dump_bl_stats(UriWorker *uw)
 {
+	(void) fprintf(uw->out, "%05lu\t%s\r\n", stat_requests, "requests");
+	(void) fprintf(uw->out, "%05lu\t%s\r\n", stat_2, "2xy");
+	(void) fprintf(uw->out, "%05lu\t%s\r\n", stat_4, "4xy");
+	(void) fprintf(uw->out, "%05lu\t%s\r\n", stat_5, "5xy");
+#ifdef ENABLE_STAT_METHOD
+	(void) fprintf(uw->out, "%05lu\t%s\r\n", stat_GET, "GET");
+	(void) fprintf(uw->out, "%05lu\t%s\r\n", stat_HEAD, "HEAD");
+	(void) fprintf(uw->out, "%05lu\t%s\r\n", stat_POST, "POST");
+#endif
 	dns_list_dump_stats(d_bl_list, uw->out);
 	dns_list_dump_stats(mail_bl_list, uw->out);
 	dns_list_dump_stats(uri_bl_list, uw->out);
@@ -2674,7 +2734,7 @@ session_accept(ServerSession *session)
 int
 session_process(ServerSession *session)
 {
-	int i, fi, pi, rc = -1;
+	int i, fi, pi, not_chunked, rc = -1;
 	UriWorker *uw = session->worker->data;
 
 	if (cgiReadInit(&uw->cgi, session->client)) {
@@ -2697,7 +2757,9 @@ session_process(ServerSession *session)
 		goto error1;
 	}
 	if (TextSensitiveStartsWith(uw->cgi.request_uri, "/uri/") < 0) {
-		cgiSendNotFound(&uw->cgi, NULL);
+		const char *host;
+		host = uw->cgi._HTTP[cgiMapFind(uw->cgi._HTTP, "Host")].value;
+		cgiSendNotFound(&uw->cgi, "http://%s%s\r\n",  host, uw->cgi.request_uri);
 		goto error1;
 	}
 
@@ -2710,12 +2772,16 @@ session_process(ServerSession *session)
 	if (0 <= (i = cgiMapFind(uw->cgi._GET, "x")))
 		uw->max_hits = strtol(uw->cgi._GET[i].value, NULL, 10);
 
-	uw->headers_and_body = (0 <= (i = cgiMapFind(uw->cgi._GET, "a")) && uw->cgi._GET[i].value[0] != '0');
+	i = cgiMapFind(uw->cgi._GET, "a");
+	uw->headers_and_body = (0 <= i && uw->cgi._GET[i].value[0] != '0');
+
+	i = cgiMapFind(uw->cgi._HTTP, "Transfer-Encoding");
+	not_chunked = i < 0 || strcmp(uw->cgi._HTTP[i].value, "identity") == 0;
 
 	if (0 <= (fi = cgiMapFind(uw->cgi._GET, "f"))) {
 		uw->source.name = uw->cgi._GET[fi].value;
 		process_file(uw);
-	} else if (cgiMapFind(uw->cgi._HTTP, "Transfer-Encoding") < 0) {
+	} else if (not_chunked) {
 		uw->source.name = session->id_log;
 		process_string(uw);
 	} else {
@@ -2723,11 +2789,14 @@ session_process(ServerSession *session)
 		process_chunk(uw, session->client);
 	}
 
-	if (uw->cgi.request_method[0] != 'H'
-	&& cgiMapFind(uw->cgi._HTTP, "Transfer-Encoding") < 0
+	if (uw->cgi.request_method[0] != 'H' && not_chunked
 	&& 0 <= (pi = cgiMapFind(uw->cgi._GET, "p")) && uw->cgi._GET[pi].value[0] != '0') {
 		cgiMapAdd(&uw->cgi.headers, "Content-Type", "%s", "text/plain");
 		cgiSendOk(&uw->cgi, NULL);
+
+		/*** TODO collect the 1st pass results and
+		 *** reprint, instead of reparsing the input.
+		 ***/
 
 		/* Redo parse and dumping found URI. */
 		uw->cgi_mode = 0;
@@ -2755,8 +2824,11 @@ error1:
 		uw->source.hits, uw->source.found
 	);
 
+	stat_count_method(uw->cgi.request_method);
 	cgiFree(&uw->cgi);
 error0:
+	stat_count_status(uw->cgi.status);
+
 	return rc;
 }
 
@@ -2948,6 +3020,13 @@ main(int argc, char **argv)
 		optionUsageL(opt_table, NULL);
 		exit(EX_USAGE);
 	}
+
+	if (opt_quit.string != NULL)
+		exit(pidKill(opt_run_pid_file.string, SIGTERM) != 0);
+#ifdef ENABLE_SLOW_QUIT
+	if (opt_slow_quit.string != NULL)
+		exit(pidKill(opt_run_pid_file.string, SIGQUIT) != 0);
+#endif
 	if (opt_restart.string != NULL || opt_restart_if.string != NULL) {
 		if (pidKill(opt_run_pid_file.string, SIGTERM) && opt_restart_if.string != NULL) {
 			fprintf(stderr, "no previous instance running\n");
@@ -2963,6 +3042,21 @@ main(int argc, char **argv)
 			syslog(LOG_ERR, "daemon mode failed");
 			exit(EX_SOFTWARE);
 		}
+
+		/* We have to create the .pid file after we become a daemon process
+		 * but before we change process ownership, particularly if we intend
+		 * to create a file in /var/run, which is owned and writeable by root.
+		 */
+		if (pidSave(opt_run_pid_file.string)) {
+			syslog(LOG_ERR, "create \"%s\" failed: %s (%d)", opt_run_pid_file.string, strerror(errno), errno);
+			exit(EX_OSERR);
+		}
+
+		if (pathSetPermsByName(opt_run_pid_file.string, opt_run_user.string, opt_run_group.string, 0660))
+			exit(EX_OSERR);
+
+		if (processDropPrivilages(opt_run_user.string, opt_run_group.string, opt_run_work_dir.string, opt_run_jailed.value))
+			exit(EX_OSERR);
 	} else {
 		LogSetProgramName(_NAME);
 		LogOpen("(standard error)");

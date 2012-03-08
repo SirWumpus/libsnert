@@ -103,6 +103,9 @@ pathSetPermsByName(const char *path, const char *user, const char *group, mode_t
 	struct group *gr;
 	struct passwd *pw;
 
+	if (path == NULL || *path == '\0')
+		return -1;
+
 	if ((pw = getpwnam(user)) == NULL) {
 		syslog(LOG_ERR, "user \"%s\" not found", user);
 		return -1;

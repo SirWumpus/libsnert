@@ -194,6 +194,7 @@ com/snert/src/lib/util/TokenSplitA.c
 com/snert/src/lib/util/bitcount32.c
 com/snert/src/lib/util/bs.c
 com/snert/src/lib/util/convertDate.c
+com/snert/src/lib/util/djb-hash-test.c
 com/snert/src/lib/util/escape.c
 com/snert/src/lib/util/getopt.c
 com/snert/src/lib/util/html.c

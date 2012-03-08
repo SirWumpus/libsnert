@@ -1,3 +1,9 @@
+/*
+ * djb-hash-test.c
+ *
+ * Copyright 2012 by Anthony Howe. All rights reserved.
+ */
+
 #ifndef HASH_TABLE_SIZE
 #define HASH_TABLE_SIZE		(4 * 1024)
 #endif
@@ -43,11 +49,12 @@ main(int argc, char **argv)
 			tsize = (size_t) strtol(optarg, NULL, 10);
 			break;
 		default:
-			fprintf(stderr, "usage: djb-hash-test [-t hash_size]\n");
+			fprintf(stderr, "usage: djb-hash-test [-t table_size] string ...\n");
 			return 2;
 		}
 	}
 
+	printf("table_size=%d\n", tsize);
 	if (optind < argc && strcmp(argv[optind], "-") == 0) {
 		char line[256];
 		while (fgets(line, sizeof (line), stdin) != NULL)

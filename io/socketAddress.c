@@ -309,7 +309,6 @@ socketAddressGetString(SocketAddress *addr, int flags, char *buffer, size_t size
 long
 socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 {
-	struct hostent *host;
 #if defined(HAVE_SEM_T)
 	static sem_t sem;
 	static int sem_ready;
@@ -334,7 +333,10 @@ socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 #endif
 		isReservedIPv4((unsigned char *) &addr->in.sin_addr, IS_IP_THIS_HOST)
 	) {
-		int error;
+#ifdef OLD_VERSION
+/* Forgotten why I did it this way for "this host" 0.0.0.0 or ::0. */
+		long length;
+		struct hostent *host;
 
 		if (gethostname(buffer, size) < 0)
 			return 0;
@@ -347,22 +349,28 @@ socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 #else
 		host = gethostbyname(buffer);
 #endif
-		error = h_errno;
-#if defined(HAVE_SEM_T)
-		(void) sem_post(&sem);
-#endif
 		if (host == NULL) {
 			/* NO_DATA when name is valid, but has no address
 			 * we continue to use the name. Typically this means
 			 * /etc/hosts or DNS is missing either IPv4 or IPv6
 			 * address for this name.
 			 */
-			if (error == NO_DATA)
-				return strlen(buffer);
-			return 0;
+			length = (h_errno == NO_DATA ? (long) strlen(buffer) : 0);
+		} else {
+			length = TextCopy(buffer, size, host->h_name);
 		}
-
-		return TextCopy(buffer, size, host->h_name);
+#if defined(HAVE_SEM_T)
+		(void) sem_post(&sem);
+#endif
+		return length;
+#else
+		/* Address is ::0 or 0.0.0.0, so just use the
+		 * machine's assigned name. This means that
+		 * this name and a subsequent PTR lookup might
+		 * not match.
+		 */
+		return gethostname(buffer, size) ? 0 : (long) strlen(buffer);
+#endif /* OLD_VERSION */
 	}
 
 	/* Otherwise we have an binary IP address in network order. */

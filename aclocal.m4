@@ -1352,7 +1352,7 @@ AC_DEFUN(SNERT_ANSI_TIME,[
 	echo "Check for ANSI & supplemental time support..."
 	echo
 
-	saved_libs=$LIBS
+dnl	saved_libs=$LIBS
 
 	case "${platform}" in
 	Linux|SunOS|Solaris)
@@ -1403,7 +1403,7 @@ dnl #endif
 	AC_STRUCT_TM
 	AC_STRUCT_TIMEZONE
 
-	LIBS=$saved_libs
+dnl	LIBS=$saved_libs
 ])
 
 dnl

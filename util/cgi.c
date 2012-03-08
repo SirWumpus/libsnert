@@ -728,6 +728,11 @@ cgiParseHeaders(CGI *cgi)
 	out[i].name = NULL;
 	out[i].value = NULL;
 
+	if (cgiMapFind(out, "Host") < 0) {
+		cgiSendBadRequest(cgi, "Missing required Host: header.\r\n");
+		return -1;
+	}
+
 	/* Collect some frequently referenced headers. */
 	if ((cgi->query_string = strchr(cgi->request_uri, '?')) != NULL) {
 		cgi->query_string++;
@@ -743,6 +748,7 @@ cgiParseHeaders(CGI *cgi)
 int
 cgiReadInit(CGI *cgi, Socket2 *client)
 {
+	int i;
 	size_t content_length;
 
 	memset(cgi, 0, sizeof (*cgi));
@@ -768,7 +774,8 @@ cgiReadInit(CGI *cgi, Socket2 *client)
 	 * Transfer-Encoding is present then Content-Length
 	 * is ignored.
 	 */
-	if (cgiMapFind(cgi->_HTTP, "Transfer-Encoding") < 0) {
+	i = cgiMapFind(cgi->_HTTP, "Transfer-Encoding");
+	if (i < 0 || strcmp(cgi->_HTTP[i].value, "identity") == 0) {
 		/* Collect optional POST data. */
 		content_length = (size_t) strtol(cgi->content_length, NULL, 10);
 		if (cgiReadN(client, cgi->_RAW, content_length)) {
