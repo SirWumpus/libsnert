@@ -1,0 +1,135 @@
+IO Event Driven DNS
+-------------------
+
+Background
+----------
+
+An advantage for many IO event driven applications is that they can be
+single threaded and simply multiplex many client connections. This
+improves performance and avoids many issues related to multi-threaded
+applications.
+
+Thus there is a need for a DNS library that can easily interface with
+any IO event library, such as libev, libevent, or socketEvent.
+
+Note that libevent does provide a basic DNS API, but it is limited to
+A/AAAA record lookups, which is insufficient for many applications that
+need to fetch and parse other DNS record types such as CNAME, DNAME,
+PTR, MX, NS, TXT, SPF, and SOA.
+
+Below is a selection of asynchronous DNS libraries. The asynchronous
+model assumed (excluding gdnsd) is to prepare and send queries, do some
+other work for the application and occasionally poll for the replies.
+The gdnsd library actually uses libev, but also requires pthreads, which
+is not suitable for single-threaded applications.
+
+These libraries are typically thread safe, implement their own socket
+data type and portability API for POSIX systems (Linux, OpenBSD,
+Solaris, ...) and Windows.
+
+
+adns		http://www.chiark.greenend.org.uk/~ian/adns/
+		Not thread safe. No IPv6. Corse documentation. GPL.
+
+c-ares		http://c-ares.haxx.se/
+		Online reference, no online examples. Supports IPv6 and
+		several DNS types, though not MX it appears. MIT style
+		license
+
+dns.c		http://25thandclement.com/~william/projects/dns.c.html
+		No documentation or reference material. Supports most
+		common DNS record types. MIT style license.
+
+gdnsd		http://code.google.com/p/gdnsd/
+		Requires libev and pthreads.
+
+ldns		http://www.nlnetlabs.nl/projects/ldns/
+		Online documentation with several examples such as an MX
+		lookup example; supports DNSEC & IPv6. BSD style
+		license.
+
+udns		http://www.corpit.ru/mjt/udns.html
+		UDP only.
+
+pdq		http://www.snert.com/libsnert/
+		Free, but not open source. Some reference documentation.
+		Thread safe. Supports IPv6, many DNS record types, UDP &
+		TCP lookups, helper functions (synchronous) for many
+		complex tasks. No DNSSEC.
+
+libev		http://libev.schmorp.de/
+
+libevent	http://www.monkey.org/~provos/libevent/
+
+
+Requirements
+------------
+
+An asynchronous DNS library for a high volume network application such
+as a mail or web server should be able to work with any IO event
+library.
+
+I can see three usage models that a DNS library should be able to support.
+The first (simple) model open and closes a DNS socket as needed during a
+client event. This simplifies the handling of replies related to a
+single client and the writing of call-backs.
+
+The second model opens one DSN socket per client connection. It has
+similar event handling as model one. Its main disadvantage is that it
+doubles the number of file descriptors required per connection. The DNS
+socket might remain idle for long periods of time given SMTP timeouts
+allow for five and ten minute timeouts depending on the state.
+
+The third model uses one DNS socket for the whole application and ties
+the DNS replies to their related client events (using the DNS query /
+reply ID). It also requires knowledge as how to invoke a call-back for
+any IO event library, probably using function wrapping. This might be
+more efficient use of file descriptors, but introduces some complexity
+with call-back handling. It also introduces a security issue with the
+DNS UDP port remaining fixed for the runtime of the application.
+
+Each DNS model will require that the event call-back implement some
+form of state machine or basic co-routine mechanism such as proto-
+threads (see http://www.sics.se/~adam/pt/ ) as the event call-backs have
+to be able to resume at the point where the DNS result is required.
+
+Most, if not all, IO event libraries work with ``file descriptors''
+(typically an ``int'' for POSIX systems or ``SOCKET'' for Windows) since
+they are typically built on top of system APIs such as kqueue, epoll,
+and poll that all work with file descriptors. Therefore a DNS library
+MUST be able to provide the file descriptor of it's open DNS socket
+object so that it can be added to an event loop.
+
+The IO event loop will need to provide a means to ``pause'' the client
+file descriptor in the event loop, while related DNS lookups are being
+done. The system APIs kqueue, epoll, and poll provide such a mechanism
+so these should already exist as wrapper functions in an event library.
+
+A DNS library must provide a means to read the raw DNS replies and a
+means to parse them into more manageable objects. The DNS record types
+CNAME, DNAME, SOA, MX, NS, and TXT might require multiple DNS queries,
+if the DNS server queried fails to provide all the extra data. A DNS
+library also needs to be able to do a TCP lookup in case the UDP reply
+is truncated.
+
+The dns.c library looks reasonable complete from their description, but
+lacks any useful documentation such that the only way to understand how
+to use it is read the source code at great length. A quick review of the
+dns.h file showed a distinct absence of function descriptions.
+
+c-ares has online function reference, but appears not to have an MX
+parse function; how complex that might be to implement is unclear, also
+no mention of TCP lookups.
+
+The libsnert PDQ API is comprehensive and could address the above needs
+with little modification. The helper functions and TCP lookup may have
+to be broken down into smaller units for the purpose of IO event driven
+DNS. However this should be relatively easy due to familarity with the
+code.
+
+The ldns library looks very complete, but the API appears very complex
+requiring a developer to glue together many intermediate operations
+themselves. Its unclear if ldns supports TCP lookups or how easy that
+might be to implement.
+
+-END-

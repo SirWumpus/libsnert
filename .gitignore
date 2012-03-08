@@ -28,6 +28,7 @@ install.sh
 version.sh
 version.h.in
 include/version.h
+libsnert.pc
 
 # Intermediate files and compiled executables.
 crc/Luhn
