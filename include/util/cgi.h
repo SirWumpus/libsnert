@@ -33,6 +33,7 @@ typedef struct {
 typedef struct {
 	int port;
 	int is_nph;
+	int request_close;
 	const char *content_type;
 	const char *content_length;
 	const char *document_root;
@@ -53,8 +54,9 @@ typedef struct {
 	CgiMap *_GET;
 	CgiMap *_POST;
 	CgiMap *_HTTP;
-	CgiMap *headers;	/* Response headers. */
-	HttpCode status;	/* Response status. */
+	int reply_close;
+	CgiMap *reply_headers;
+	HttpCode reply_status;
 } CGI;
 
 /**
@@ -91,6 +93,12 @@ extern void cgiMapFree(CgiMap *map);
 extern int cgiMapAdd(CgiMap **map, const char *name, const char *fmt, ...);
 
 extern int cgiMapFind(CgiMap *map, char *prefix);
+
+extern void cgiSendChunkV(CGI *cgi, const char *fmt, va_list args);
+
+extern void cgiSendChunk(CGI *cgi, const char *fmt, ...);
+
+extern void cgiSendChunkEnd(CGI *cgi);
 
 extern void cgiSendV(CGI *cgi, HttpCode code, const char *response, const char *fmt, va_list args);
 

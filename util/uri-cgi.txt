@@ -3,24 +3,27 @@ URI CGI & HTTP Daemon Overview
 
 Request By File
 ---------------
-GET /uri/?p=[01]&q=[01]&v=[01]&x=[01]&f=/abs-path HTTP/1.0<CRLF>
+GET /uri/?p=[01]&q=[01]&v=[01]&x=[01]&f=/abs-path HTTP/1.1<CRLF>
 Host: www.weeder.example:8088<CRLF>
+Connection: close<CRLF>
 <CRLF>
 
 
 Request By File (equivalent)
 ----------------------------
-HEAD /uri/?p=[01]&q=[01]&v=[01]&x=[01]&f=/abs-path HTTP/1.0<CRLF>
+HEAD /uri/?p=[01]&q=[01]&v=[01]&x=[01]&f=/abs-path HTTP/1.1<CRLF>
 Host: www.weeder.example:8088<CRLF>
+Connection: close<CRLF>
 <CRLF>
 
 
 Request By Message
 ------------------
-POST /uri/?p=[01]&q=[01]&v=[01]&x=[01] HTTP/1.0<CRLF>
+POST /uri/?p=[01]&q=[01]&v=[01]&x=[01] HTTP/1.1<CRLF>
 Host: www.weeder.example:8088<CRLF>
 Content-Type: message/rfc822<CRLF>
 Content-Length: NNN...N<CRLF>
+Connection: close<CRLF>
 <CRLF>
 complete message
 with headers and
@@ -33,6 +36,7 @@ POST /uri/?p=[01]&q=[01]&v=[01]&x=[01] HTTP/1.1<CRLF>
 Host: www.weeder.example:8088<CRLF>
 Content-Type: message/rfc822<CRLF>
 Transfer-Encoding: chunked<CRLF>
+Connection: close<CRLF>
 <CRLF>
 HHH...H[; ignored...]<CRLF>
 HHH...H data octets follow<CRLF>
@@ -126,40 +130,45 @@ Uri-Found: line_no complete_URI_found1[ ; blacklist_suffix]<CRLF>
 ...
 Uri-Found: line_no complete_URI_foundN[ ; blacklist_suffix]<CRLF>
 Blacklist-Hits: NNN<CRLF>
+Connection: close<CRLF>
 <CRLF>
 
 
 List Hit & Parse Output
 -----------------------
-HTTP/1.0 200 OK<CRLF>
+HTTP/1.1 200 OK<CRLF>
 Content-Type: text/plain
 Uri-Found: line_no complete_URI_found0[ ; blacklist_suffix]<CRLF>
 Uri-Found: line_no complete_URI_found1[ ; blacklist_suffix]<CRLF>
 ...
 Uri-Found: line_no complete_URI_foundN[ ; blacklist_suffix]<CRLF>
 Blacklist-Hits: NNN<CRLF>
+Connection: close<CRLF>
 <CRLF>
 uri -p output follows<CRLF>
 
 
 Nothing Found
 -------------
-HTTP/1.0 204 No Content<CRLF>
+HTTP/1.1 204 No Content<CRLF>
 Blacklist-Hits: 0<CRLF>
+Connection: close<CRLF>
 <CRLF>
 
 
 Dump Runtime Blacklist Hits (daemon-only)
 -----------------------------------------
 
-GET /uri/stat/ HTTP/1.0<CRLF>
+GET /uri/stat/ HTTP/1.1<CRLF>
 Host: www.weeder.example:8088<CRLF>
+Connection: close<CRLF>
 <CRLF>
 
 Example response:
 
 HTTP/1.1 200 OK<CRLF>
 Content-Type: text/plain<CRLF>
+Connection: close<CRLF>
 <CRLF>
 00123<TAB>dbl.spamhaus.org.<CRLF>
 00046<TAB>multi.surbl.org.<CRLF>

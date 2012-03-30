@@ -1354,6 +1354,9 @@ typedef struct {
 	Vector mail_names_seen;
 } UriWorker;
 
+#define CRLF		"\r\n"
+static const char empty[] = "";
+
 static const char usage_title[] =
   "\n"
 "# " _NAME "\n"
@@ -1620,10 +1623,10 @@ write_result(URI *uri, UriWorker *uw, const char *list_name, const char *fmt, ..
 
 	if (uw->cgi_mode) {
 		if (list_name == NULL) {
-			cgiMapAdd(&uw->cgi.headers, "URI-Found", "%u %s", uw->source.line, uri->uri);
+			cgiMapAdd(&uw->cgi.reply_headers, "URI-Found", "%u %s", uw->source.line, uri->uri);
 		} else {
 			uw->source.hits++;
-			cgiMapAdd(&uw->cgi.headers, "URI-Found", "%u %s ; %s", uw->source.line, uri->uri, list_name);
+			cgiMapAdd(&uw->cgi.reply_headers, "URI-Found", "%u %s ; %s", uw->source.line, uri->uri, list_name);
 		}
 	} else if (fmt != NULL && list_name != NULL) {
 		fprintf(uw->out, "%s %u: ", uw->source.name, uw->source.line);
@@ -1864,7 +1867,7 @@ process_loop(UriWorker *uw, int (*iterate)(void *), void *data)
 	mimeFree(mime);
 
 	if (uw->cgi_mode)
-		cgiMapAdd(&uw->cgi.headers, "Blacklist-Hits", "%u", uw->source.hits);
+		cgiMapAdd(&uw->cgi.reply_headers, "Blacklist-Hits", "%u", uw->source.hits);
 }
 
 void
@@ -2265,14 +2268,13 @@ main(int argc, char **argv)
 			uw.source.name = uw.cgi.remote_addr;
 			process_string(&uw);
 		} else {
-			cgiSend(&uw.cgi, HTTP_NOT_IMPLEMENTED, "Not Implemented", "Transfer-Encoding not implemented.\r\n");
+			cgiSend(&uw.cgi, HTTP_NOT_IMPLEMENTED, "Not Implemented", "Transfer-Encoding not implemented.");
 		}
 
 		if (uw.cgi.request_method[0] != 'H'
 		&& cgiMapFind(uw.cgi._HTTP, "Transfer-Encoding") < 0
 		&& 0 <= (pi = cgiMapFind(uw.cgi._GET, "p")) && uw.cgi._GET[pi].value[0] != '0') {
-			cgiMapAdd(&uw.cgi.headers, "Content-Type", "%s", "text/plain");
-			cgiSendOk(&uw.cgi, NULL);
+			cgiSendOk(&uw.cgi, empty);
 
 			if (0 <= (i = cgiMapFind(uw.cgi._GET, "v")) && uw.cgi._GET[i].value[0] != '0')
 				enableDebug();
@@ -2379,9 +2381,6 @@ extern void rlimits(void);
 #ifndef MIN_RAW_SIZE
 #define MIN_RAW_SIZE			(64 * 1024)
 #endif
-
-#define CRLF		"\r\n"
-static const char empty[] = "";
 
 static const char usage_verbose[] =
   "What to write to mail log. Specify a white space separated list of words:"
@@ -2741,7 +2740,7 @@ session_process(ServerSession *session)
 		syslog(
 			LOG_INFO, "%s %s \"? ? ?\" %d 0/0",
 			session->id_log, session->address,
-			uw->cgi.status
+			uw->cgi.reply_status
 		);
 		goto error0;
 	}
@@ -2759,7 +2758,7 @@ session_process(ServerSession *session)
 	if (TextSensitiveStartsWith(uw->cgi.request_uri, "/uri/") < 0) {
 		const char *host;
 		host = uw->cgi._HTTP[cgiMapFind(uw->cgi._HTTP, "Host")].value;
-		cgiSendNotFound(&uw->cgi, "http://%s%s\r\n",  host, uw->cgi.request_uri);
+		cgiSendNotFound(&uw->cgi, "http://%s%s",  host, uw->cgi.request_uri);
 		goto error1;
 	}
 
@@ -2791,8 +2790,7 @@ session_process(ServerSession *session)
 
 	if (uw->cgi.request_method[0] != 'H' && not_chunked
 	&& 0 <= (pi = cgiMapFind(uw->cgi._GET, "p")) && uw->cgi._GET[pi].value[0] != '0') {
-		cgiMapAdd(&uw->cgi.headers, "Content-Type", "%s", "text/plain");
-		cgiSendOk(&uw->cgi, NULL);
+		cgiSendOk(&uw->cgi, empty);
 
 		/*** TODO collect the 1st pass results and
 		 *** reprint, instead of reparsing the input.
@@ -2820,14 +2818,14 @@ error1:
 		LOG_INFO, "%s %s \"%s %s %s\" %d %u/%u",
 		session->id_log, session->address,
 		uw->cgi.request_method, uw->cgi.request_uri,
-		uw->cgi.server_protocol, uw->cgi.status,
+		uw->cgi.server_protocol, uw->cgi.reply_status,
 		uw->source.hits, uw->source.found
 	);
 
 	stat_count_method(uw->cgi.request_method);
 	cgiFree(&uw->cgi);
 error0:
-	stat_count_status(uw->cgi.status);
+	stat_count_status(uw->cgi.reply_status);
 
 	return rc;
 }

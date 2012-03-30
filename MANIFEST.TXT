@@ -18,7 +18,6 @@ com/snert/src/lib/configure
 com/snert/src/lib/configure.in
 com/snert/src/lib/makefile.in
 com/snert/src/lib/libsnert.pc.in
-com/snert/src/lib/stdlib.h
 com/snert/src/lib/version.h.in.in
 com/snert/src/lib/version.sh.in
 com/snert/src/lib/crc/Luhn.c
@@ -226,6 +225,7 @@ com/snert/src/lib/util/timespec.c
 com/snert/src/lib/util/timeval.c
 com/snert/src/lib/include/autoconf.h
 com/snert/src/lib/include/berkeley_db.h
+com/snert/src/lib/include/stdlib.h
 com/snert/src/lib/include/crc/Crc.h
 com/snert/src/lib/include/crc/Luhn.h
 com/snert/src/lib/include/io/Dns.h

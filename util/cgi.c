@@ -243,24 +243,77 @@ cgiMapFind(CgiMap *map, char *prefix)
 }
 
 void
+cgiSendChunkV(CGI *cgi, const char *fmt, va_list args)
+{
+	int length;
+	va_list args2;
+
+	va_copy(args2, args);
+	length = vsnprintf(NULL, 0, fmt, args2);
+	(void) fprintf(cgi->out, "%X\r\n", length);
+	(void) vfprintf(cgi->out, fmt, args);
+	(void) fprintf(cgi->out, "\r\n");
+}
+
+void
+cgiSendChunk(CGI *cgi, const char *fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	cgiSendChunkV(cgi, fmt, args);
+	va_end(args);
+}
+
+void
+cgiSendChunkEnd(CGI *cgi)
+{
+	if (!cgi->reply_close)
+		(void) fprintf(cgi->out, "0\r\n\r\n");
+}
+
+void
 cgiSendV(CGI *cgi, HttpCode code, const char *response, const char *fmt, va_list args)
 {
 	CgiMap *hdr;
+	va_list args2;
+	int length = 0, no_content_type = 1, no_content_length = 1;
 
-	cgi->status = code;
+	cgi->reply_status = code;
 	(void) fprintf(cgi->out, "%s %d %s\r\n", cgi->is_nph ? "HTTP/1.1" : "Status:", code, response);
 
-	if (cgi->headers != NULL) {
-		for (hdr = cgi->headers; hdr->name != NULL; hdr++)
+	if (cgi->reply_headers != NULL) {
+		for (hdr = cgi->reply_headers; hdr->name != NULL; hdr++)
 			(void) fprintf(cgi->out, "%s: %s\r\n", hdr->name, hdr->value);
+		no_content_type = cgiMapFind(cgi->reply_headers, "Content-Type") < 0;
+		no_content_length = cgiMapFind(cgi->reply_headers, "Content-Length") < 0
+			&& cgiMapFind(cgi->reply_headers, "Transfer-Encoding") < 0;
 	}
-	if (fmt != NULL)
-		(void) fprintf(cgi->out, "Content-Type: text/plain\r\n");
 
+	if (fmt != NULL) {
+		if (no_content_type)
+			(void) fprintf(cgi->out, "Content-Type: text/plain\r\n");
+		if (no_content_length && *fmt != '\0') {
+			va_copy(args2, args);
+//			length  = snprintf(NULL, 0, "%s (%d)\r\n", response, code);
+			length += vsnprintf(NULL, 0, fmt, args2);
+
+			if (cgi->reply_close)
+				(void) fprintf(cgi->out, "Content-Length: %d\r\n", length);
+			else
+				(void) fprintf(cgi->out, "Transfer-Encoding: chunked\r\n");
+		}
+	}
+
+	(void) fprintf(cgi->out, "Connection: %s\r\n", cgi->reply_close ? "close" : "persistent");
 	(void) fprintf(cgi->out, "\r\n");
+
 	if (fmt != NULL && *fmt != '\0') {
-		(void) fprintf(cgi->out, "%d %s\r\n", code, response);
+		if (!cgi->reply_close)
+			(void) fprintf(cgi->out, "%X\r\n", length);
+//		(void) fprintf(cgi->out, "%s (%d)\r\n", response, code);
 		(void) vfprintf(cgi->out, fmt, args);
+		(void) fprintf(cgi->out, "\r\n");
 	}
 }
 
@@ -296,8 +349,9 @@ cgiSendSeeOther(CGI *cgi, const char *url, const char *fmt, ...)
 	va_list args;
 
 	va_start(args, fmt);
-	cgiMapAdd(&cgi->headers, "Location", "%s", url);
+	cgiMapAdd(&cgi->reply_headers, "Location", "%s", url);
 	cgiSendV(cgi, HTTP_SEE_OTHER, "See Other", fmt, args);
+	cgiSendChunkEnd(cgi);
 	va_end(args);
 }
 
@@ -308,6 +362,7 @@ cgiSendBadRequest(CGI *cgi, const char *fmt, ...)
 
 	va_start(args, fmt);
 	cgiSendV(cgi, HTTP_BAD_REQUEST, "Bad Request", fmt, args);
+	cgiSendChunkEnd(cgi);
 	va_end(args);
 }
 
@@ -318,6 +373,7 @@ cgiSendNotFound(CGI *cgi, const char *fmt, ...)
 
 	va_start(args, fmt);
 	cgiSendV(cgi, HTTP_NOT_FOUND, "Not Found", fmt, args);
+	cgiSendChunkEnd(cgi);
 	va_end(args);
 }
 
@@ -328,6 +384,7 @@ cgiSendInternalServerError(CGI *cgi, const char *fmt, ...)
 
 	va_start(args, fmt);
 	cgiSendV(cgi, HTTP_INTERNAL, "Internal Server Error", fmt, args);
+	cgiSendChunkEnd(cgi);
 	va_end(args);
 }
 
@@ -356,7 +413,7 @@ cgiFree(CGI *cgi)
 		if (cgi->out != NULL && cgi->out != stdout)
 			fclose(cgi->out);
 		BufDestroy(cgi->_RAW);
-		free(cgi->headers);
+		free(cgi->reply_headers);
 		free(cgi->_HTTP);
 		free(cgi->_POST);
 		free(cgi->_GET);
@@ -374,6 +431,8 @@ cgiInit(CGI *cgi)
 	memset(cgi, 0, sizeof (*cgi));
 
 	cgi->out = stdout;
+	cgi->reply_close = 1;
+	cgi->request_close = 1;
 	cgi->content_type = getenv("CONTENT_TYPE");
 	cgi->content_length = getenv("CONTENT_LENGTH");
 	cgi->document_root = getenv("DOCUMENT_ROOT");
@@ -739,8 +798,15 @@ cgiParseHeaders(CGI *cgi)
 		cgi->_GET = cgiParseForm(cgi->query_string);
 	}
 
+	/* Note that if Content-Type and/or Content-Length are
+	 * missing, then the empty string is used in their place.
+	 * So when Content-Length is missing, then strlen(empty)
+	 * is zero (0).
+	 */
 	cgi->content_type = out[cgiMapFind(out, "Content-Type")].value;
 	cgi->content_length = out[cgiMapFind(out, "Content-Length")].value;
+
+	cgi->request_close = strcmp(out[cgiMapFind(out, "Connection")].value, "persistent") != 0;
 
 	return 0;
 }
@@ -752,6 +818,12 @@ cgiReadInit(CGI *cgi, Socket2 *client)
 	size_t content_length;
 
 	memset(cgi, 0, sizeof (*cgi));
+
+	/* Assume HTTP/1.0 style one request per connection. */
+	cgi->request_close = 1;
+	cgi->reply_close = 1;
+
+	/* Direct reading of HTTP request implies handling HTTP reply. */
 	cgi->is_nph = 1;
 
 	if ((cgi->out = fdopen(socketGetFd(client), "wb")) == NULL) {
@@ -775,8 +847,13 @@ cgiReadInit(CGI *cgi, Socket2 *client)
 	 * is ignored.
 	 */
 	i = cgiMapFind(cgi->_HTTP, "Transfer-Encoding");
-	if (i < 0 || strcmp(cgi->_HTTP[i].value, "identity") == 0) {
+	if (cgi->request_method[2] == 'S'
+	&& (i < 0 || strcmp(cgi->_HTTP[i].value, "identity") == 0)) {
 		/* Collect optional POST data. */
+		if (cgi->content_length == empty) {
+			cgiSend(cgi, HTTP_LENGTH_REQUIRED, "Length Required", "Missing Content-Length header.");
+			goto error1;
+		}
 		content_length = (size_t) strtol(cgi->content_length, NULL, 10);
 		if (cgiReadN(client, cgi->_RAW, content_length)) {
 			cgiSendInternalServerError(cgi, "POST read error, Content-Length=%lu\r\n%s %d: %s (%d)\r\n", content_length, __FILE__, __LINE__, strerror(errno), errno);
