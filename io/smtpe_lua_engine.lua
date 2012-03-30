@@ -13,6 +13,9 @@ require 'json'
 -- OSBF/Lua
 local osbf = require 'osbf'
 
+-- kvm lookups
+dofile '/root/kvm.lua'
+
 --[[
 
 Completed:
@@ -37,24 +40,29 @@ Completed:
 :: URIBL
 :: Short URL resolution
 :: Min/Max Headers
+:: Header modifications
+:: Message Size
+:: Relaying
+:: Forwarding
+:: Access-map whitelist/blacklist
 
 Things to implement:
 :: Preferences
-:: Header modifications
-:: Message Size
 :: Rate Limiting
-:: Relaying
-:: Forwarding
 :: BCC-style functions
 :: Click whitelisting
 :: Electronic Watermarks (EMEW)
-:: Access-map whitelist/blacklist
 :: OSBF-Lua
 :: SPF
 :: Filename/Filetype rules
 :: ZIP/RAR Filename rules
 :: Charset rules
 :: Stats
+:: Access-map BODY tags
+
+Other TODO:
+:: Test IPv6 support
+:: Test framework
 
 ]]--
 
@@ -65,7 +73,7 @@ local conf = {
 	['greylist_key_ttl'] = 90000,  -- 25 hours
 	['abook_ttl'] = (86400*40), -- 40 days
 	['helo_ttl'] = (86400*40), -- 40 days
-	['spamd_score_reject'] = 10,
+	['spamd_score_reject'] = 999,
 	['uri_max_limit'] = 10,
 	['dns_blacklists'] = {
 		'zen.spamhaus.org',
@@ -91,26 +99,41 @@ local conf = {
 	['clamd_hosts'] = {
 		'127.0.0.1',
 	},
-	['debug'] = 0,
+	['osbf_dbset'] = {
+		classes = {'/tmp/osbf_nonspamdb.cfc', '/tmp/osbf_spamdb.cfc'},
+		ncfs = 1,
+		delimiters = ""
+	},
+	['message_max_size'] = (1*1024*1024), -- 25Mb
+	['debug'] = 1,
+	['rejectables'] = {
+		['enable_ehlo'] = false,
+		['dns_bl'] = true,
+		['no_rdns'] = false,
+		['rdns_invalid_tld'] = true,
+		['strict_helo'] = true,
+		['helo_schizophrenic'] = true,
+		['extra_params'] = true,
+		['mail_mx_required'] = true,
+		['one_domain_per_conn'] = true,
+		['one_rcpt_per_null'] = true,
+		['strict_relay'] = true,
+		['greylisting'] = false,
+	}
 }
 
 local domains = {
-	['fsl.com'] = '127.0.0.1:26',
-	['d-rr.com'] = '127.0.0.1:26',
-	['redcrane.net'] = '127.0.0.1:26',
-	['dlsi.com'] = '127.0.0.1:26',
-	['snertsoft.com'] = 'mx.snert.net',
-	['snert.com'] = 'mx.snert.net',
-	['vm2.fsl.com'] = '127.0.0.1:26',
+	['vm2.fsl.com'] = { '127.0.0.1:26' },
 }
 
+local conn = nil
 function init_conn_table()
 	conn = nil
 	conn = {
+		id = nil,
 		ptrs = {},
 		host_id = nil,
 		helo = nil,
-		esmtp = false,
 		ehlo_no_helo = false,
 		unknown_count = 0,
 		noop_count = 0,
@@ -134,16 +157,24 @@ function init_conn_table()
 		rcpts_accepted = 0,
 		rcpts_tempfail = 0,
 		rcpts_rejected = 0,
+		quarantine = false,
+		quarantine_type = nil,
 	}
 	conn.start_time = socket.gettime()
+	conn.id = client.id_sess
+	debug('init: \'conn\' table initialized')
 end
 
+local txn = nil
 function init_txn_table()
 	txn = nil
 	txn = {
+		id = nil,
 		date = nil,
 		sender = nil,
-		rcpts = {},
+		rcpts_accepted = {},
+		rcpts_tempfail = {},
+		rcpts_rejected = {},
 		rcpt_domains = {},
 		prefs = 'DEFAULT',
 		headers = {
@@ -154,45 +185,79 @@ function init_txn_table()
 		flags = {},
 		rejectables = {},
 		dot_rejectables = {},
+		msg_needs_tagging = false,
+		spamd_score = nil,
+		spamd_rules_hit = {},
 	}
 	-- Add date in YYYYMMDD format to transaction table
 	-- This is used when messages are quarantined.
 	local date = os.date('!*t')  -- NOTE: UTC
 	txn.date = date.year .. string.format('%02d', date.month) .. string.format('%02d', date.day)
+	txn.id = client.id_trans
+	debug('init: \'txn\' table initialized')
 end
 
 --print ('CPU count: '..util.cpucount())
 --print (table.show(util.getloadavg(),'loadavg'))
 
 function hook.accept(ip, ptr)
-	debug('hook.accept: ip='..ip..', ptr='..ptr)
+	debug(string.format('hook.accept: ip=%s, ptr=%s', ip, ptr))
 
 	-- rate/concurrency limits here
 
 	-- Initialisation
 	init_conn_table()
-	init_txn_table()
- 
-	------------------------
-	-- Access map lookups --
-	------------------------
-	-- TODO: ACCESS MAP LOOKUPS HERE
 
-	------------------------
-	-- Earlytalker checks --
-	------------------------
+	-- Access map lookups
+	local access = accessConnect(ip, ptr)
+	if access and access.action then
+		if access.action == 'OK' then
+			conn.flags['white'] = true
+		elseif access.action == 'CONTENT' then
+			conn.flags['content'] = true
+		elseif access.action == 'REJECT' then
+			add_rejectable(conn.rejectables, {
+				name = 'black',
+				output = ternary(access.action_text, access.action_text, string.format('550 host %s [%s] black listed', ptr, ip))
+			})
+		elseif access.action == 'IREJECT' then
+			return true, ternary(access.action_text, access.action_text, string.format('550 host %s [%s] black listed', ptr, ip))
+		elseif access.action == 'DISCARD' then
+			conn.flags['discard'] = true
+		elseif access.action == 'TAG' then
+			conn.flags['tag'] = true
+		elseif access.action == 'SAVE' then
+			conn.flags['save'] = true
+			conn.quarantine = true
+			if access.action_text then
+				conn.quarantine_type = access.action_text
+			else
+				conn.quarantine_type = 'save'
+			end
+		elseif access.action == 'TRAP' then
+			conn.flags['trap'] = true
+			conn.quarantine = true
+			if access.action_text then
+				conn.quarantine_type = access.action_text
+			else
+				conn.quarantine_type = 'trap'
+			end
+		else
+			syslog.error(string.format('access-map unknown action \'%s\'', access.action))
+		end
+	end
+
+	-- Earlytalker checks
 	if client.is_pipelining then
 		debug('hook.accept: earlytalker detected!')
-		conn.flags['earlytalker'] = true
-		table.insert(conn.rejectables, {
+		add_rejectable(conn.rejectables, {
 			name = 'earlytalker',
 			output = '550 5.3.3 pipelining not allowed'
 		})
 	end
 
-	-----------------------
-	-- PTR record checks --
-	-----------------------
+	-- PTR record checks
+	-- TODO: CNAME/DNAME resolution
 	-- Skip all PTR checks for Loopback and LAN IPs
 	if not net.is_ip_reserved(ip, (net.is_ip.LAN + net.is_ip.LOCAL)) then
 		-- Re-do the PTR lookup here as there might be multiple PTRs
@@ -207,33 +272,31 @@ function hook.accept(ip, ptr)
 			   result.rcode ~= dns.rcode.NXDOMAIN and
 			   result.rcode ~= dns.rcode.NOERROR
 			then
-				conn.flags['ptr_lookup_error'] = true
-				table.insert(conn.rejectables, {
-					name = 'no_ptr',
-					output = '450 Error resolving rDNS name for host '..ip..' ('..dns.rcodename(result.rcode)..')'
+				add_rejectable(conn.rejectables, {
+					name = 'no_rdns',
+					output = string.format('450 Error resolving reverse DNS name for host [%s] (%s)', ip, dns.rcodename(result.rcode))
 				})
 			else
-				conn.flags['no_ptr'] = true
-				table.insert(conn.rejectables, {
-					name = 'no_ptr',
-					output = '550 Host '..ip..' has no rDNS name'
+				add_rejectable(conn.rejectables, {
+					name = 'no_rdns',
+					output = string.format('550 Host [%s] has no reverse DNS name', ip)
 				})
 			end 
 		else 
 			for i, answer in ipairs(result.answer) do
+				-- TODO: check answer.type == PTR
 				answer.value = answer.value:lower()
 				table.insert(conn.ptrs,answer.value)
 				-- is PTR valid TLD?
 				if not net.has_valid_tld(answer.value) then
-					conn.flags['ptr_invalid_tld'] = true
-					table.insert(conn.rejectables, {
-						name = 'ptr_invalid_tld',
-						output = '550 Reverse DNS name for '..ip..' does not have a valid TLD ('..answer.value..')'
+					add_rejectable(conn.rejectables, {
+						name = 'rdns_invalid_tld',
+						output = string.format('550 Reverse DNS name for [%s] does not have a valid TLD (%s)', ip, answer.value)
 					})
 				end 
 				-- IP in name?
 				if net.is_ipv4_in_name(ip, answer.value) > 0 then
-					conn.flags['ip_in_ptr'] = true
+					conn.flags['ip_in_rdns'] = true
 				end
 				-- FCrDNS?
 				dns.query(dns.class.IN, dns.type.A, answer.value)
@@ -245,11 +308,13 @@ function hook.accept(ip, ptr)
 				end
 				dns.reset()
 				local fcrdns_answers = nil
-				-- PTR multidomain
-				if #conn.ptrs > 1 and
-				   hostname_to_domain(answer.value) ~= hostname_to_domain(conn.ptrs[1])
-				then
-					 conn.flags['ptr_multidomain'] = true	
+				-- Multiple PTRs
+				if #conn.ptrs > 1 then
+					if hostname_to_domain(answer.value) ~= hostname_to_domain(conn.ptrs[1]) then
+						conn.flags['rdns_multidomain'] = true
+					else
+						conn.flags['rdns_multiple'] = true
+					end
 				end
 			end
 			local result = nil
@@ -259,11 +324,13 @@ function hook.accept(ip, ptr)
 	end
 
 	-- Calculate the host ID for use with greylisting
-	if conn.flags['no_ptr'] or 
-	   conn.flags['ptr_lookup_error'] or
-	   conn.flags['ptr_multidomain'] or 
-	   conn.flags['ptr_invalid_tld'] or
-	   conn.flags['ip_in_ptr'] 
+	-- TODO: consider HELO name
+	if conn.rejectables['no_rdns'] or 
+	   conn.rejectables['rdns_lookup_error'] or
+	   conn.flags['rdns_multidomain'] or 
+	   conn.rejectables['rdns_invalid_tld'] or
+	   conn.flags['ip_in_rdns'] or
+	   not conn.flags['fcrdns']
 	then
 		conn.host_id = ip
 	else
@@ -281,7 +348,7 @@ function hook.accept(ip, ptr)
 		end
 	end
 
-	debug('host_id: '..conn.host_id)
+	debug('greylisting: host_id='..conn.host_id)
 
 	-- Check to see if this host has passed greylisting
 	if redis:get('grey-pass:'..conn.host_id) then
@@ -290,56 +357,63 @@ function hook.accept(ip, ptr)
 
 	-- TODO: lookup conn.ptrs in URI/Domain blacklists.
 
-	----------------------
-	-- DNS list lookups --
-	----------------------
-	-- White lists (trusted, skip all checks except AV)
-	local wl = dns_list_lookup_ip(ip, conf.dns_whitelists)
-	if wl and #wl > 0 then conn.flags['dns_wl'] = true end
-	-- Yellow list (skip blacklists, greylist etc.)
-	if not conn.flags['dns_wl'] then
-		local yl = dns_list_lookup_ip(ip, conf.dns_yellowlists)
-		if yl and #yl > 0 then conn.flags['dns_yl'] = true end
-	end
-	-- Black lists
-	if not (conn.flags['dns_wl'] or conn.flags['dns_yl']) then
-		local bl = dns_list_lookup_ip(ip, conf.dns_blacklists)
-		if bl and #bl > 0 then
-			conn.flags['dns_bl'] = true
-			for i, list in ipairs(bl) do
-				table.insert(conn.rejectables, {
-					name = 'dns_bl',
-					sub_test = list,
-					output = '550 5.7.0 Host '..ip..' black listed by '..list
-				})
+	-- DNS list lookups
+	if not (conn.flags['white'] or conn.flags['content']) then 
+		-- White lists (trusted, skip all checks except AV)
+		local wl = dns_list_lookup_ip(ip, conf.dns_whitelists)
+		if wl and #wl > 0 then conn.flags['dns_wl'] = true end
+		-- Yellow list (skip blacklists, greylist etc.)
+		if not conn.flags['dns_wl'] then
+			local yl = dns_list_lookup_ip(ip, conf.dns_yellowlists)
+			if yl and #yl > 0 then conn.flags['dns_yl'] = true end
+		end
+		-- Black lists
+		if not (conn.flags['dns_wl'] or conn.flags['dns_yl']) then
+			local bl = dns_list_lookup_ip(ip, conf.dns_blacklists)
+			if bl and #bl > 0 then
+				for i, list in ipairs(bl) do
+					add_rejectable(conn.rejectables, {
+						name = 'dns_bl',
+						sub_test = list,
+						output = string.format('550 5.7.0 Host %s [%s] black listed by %s', ptr, ip, list)
+					})
+				end
 			end
 		end
 	end
+
 	-- TODO: Have we seen this host before (rep=?)
 
-	-- Log point
-	syslog.info(string.format('start i=%s p="%s", f="%s"', ip, ptr, table.concat(conn.flags)))
+	-- Is this host allowed to relay?
+	local route = nil
+	if conn.flags['fcrdns'] then
+		-- Only allow relaying based on PTR if it is forward confirmed
+		route = routeIsRelay(ip, ptr)
+	else
+		route = routeIsRelay(ip)
+	end
+	if route and (route.v and string.find(route.v, 'RELAY')) then
+		conn.flags['relay'] = true;
+	end
 
-	-----------------
-	-- SMTP Banner --
-	-----------------
+	-- Log point
+	syslog.info(string.format('start i=%s p="%s" f="%s"', ip, ptr, table_concat_keys(conn.flags)))
+
+	-- SMTP Banner
 	local banner
 	-- Send a single line banner if the host is known good
-	banner = string.format('220 %s BarricadeMX ESMTP engine (%s)', smtpe.host, client.id_sess)
-	-- TODO: expand this list
-	if net.is_ip_reserved(ip, (net.is_ip.LAN + net.is_ip.LOCAL)) or 
-	   conn.flags['dns_wl'] or 
-	   conn.flags['dns_yl'] or
-	   conn.flags['passed_greylist']
+	banner = string.format('220 %s ESMTP (%s)', smtpe.host, client.id_sess)
+	if net.is_ip_reserved(ip, (net.is_ip.LAN + net.is_ip.LOCAL))
+	or conn.flags['white'] or conn.flags['content'] or conn.flags['relay'] 
+	or conn.flags['dns_wl']	or conn.flags['dns_yl'] or conn.flags['passed_greylist']
 	then
 		return banner
 	end
 	-- Send a multi-line banner to attempt to confuse some SMTP clients
 	-- We also check for input between each line to catch earlytalkers.
 	banner = string.format(
-		[[220-%s BarricadeMX SMTP engine (%s)]].."\r\n"..
-		[[220-Spam is not welcome, accepted or tolerated here. You have been warned...]].."\r\n"..
-		[[220 http://www.fsl.com/barricademx]],
+		[[220-%s ESMTP (%s)]].."\r\n"..
+		[[220 Spam is not welcome, accepted or tolerated here. You have been warned...]].."\r\n",
 		smtpe.host, client.id_sess
 	)
 	return banner
@@ -354,29 +428,39 @@ function hook.reset()
 	-- This is done in hook.reset to guarantee that any changes to
 	-- the tranport file have been completed by the content fiters.
 	-- This hook is run just prior to the file being unlinked.
-	if txn.quarantine and client.msg_file then
-		local new_path = conf.quarantine_path .. '/' .. txn.date
+	-- TODO: check to make sure that client.msg_file is not zero length
+	local quarantine = false
+	local quarantine_type = nil
+	if conn and conn.quarantine then
+		quarantine = conn.quarantine
+		if conn.quarantine_type then
+			quarantine_type = conn.quarantine_type
+		end
+	end
+	if txn and txn.quarantine then
+		quarantine = txn.quarantine
 		if txn.quarantine_type then
-			new_path = new_path .. '/' .. txn.quarantine_type
+			quarantine_type = txn.quarantine_type
+		end
+	end
+	if quarantine and client.msg_file then
+		local new_path = conf.quarantine_path .. '/' .. txn.date
+		if quarantine_type then
+			new_path = new_path .. '/' .. quarantine_type
 		end
 		-- Create path if necessary
 		local bool = util.mkpath(new_path)
 		-- Add in transaction ID
 		new_path = new_path .. '/' .. client.id_trans;
 		local success, err = os.rename(client.msg_file, new_path);
-		debug('quarantined message: path='..new_path)
+		debug(string.format('quarantined message: path=%s', new_path))
 		if success then
 			-- TODO: store pointer in datastore?
 		else
-			syslog.error('error quarantining file: '..err)
+			syslog.error(string.format('error quarantining file: %s', err))
 		end
 	end
 
-	-- Reset our transaction state
-	if txn.sender then
-		-- print(table.show(txn))
-		conn.txn_count = conn.txn_count + 1
-	end
 	init_txn_table()
 end
 
@@ -384,27 +468,21 @@ function hook.ehlo(arg)
 	debug('hook.ehlo: arg='..arg)
 
 	-- Check for pipelining
-	if not conn.flags['pipelining'] and client.is_pipelining 
-	then
-		debug('hook.ehlo: pipelining detected!')
-		conn.flags['pipelining'] = true
-		table.insert(conn.rejectables, {
-			name = 'pipelining',
-			output = '550 5.3.3 pipelining not allowed'
-		})
-	end
-
+	check_for_pipelining(client.is_pipelining, false)
 	-- Check command case
-	local case = check_command_case(client.input)
-	if case then 
-		conn.flags[case] = true;
-	end
-
-	-- Store
+	check_command_case(client.input)
+	-- Store HELO argument
 	conn.helo = arg
-	-- TODO: Allow localhost, relays, known servers
-	if client.address == '127.0.0.1' then
-		conn.esmtp = true
+
+	-- TODO: Access Map lookup
+
+	-- Allow localhost, private IPs, relays and known servers
+	if net.is_ip_reserved(client.address, (net.is_ip.LAN + net.is_ip.LOCAL))
+	or conn.flags['white'] or conn.flags['dns_wl'] 
+	or conn.flags['content'] or conn.flags['dns_yl']
+	or conn.flags['relay'] or conn.flags['passed_greylist']
+	then
+		conn.flags['esmtp'] = true
 	else
 		-- Track hosts that QUIT if we reject EHLO
 		conn.ehlo_no_helo = true
@@ -425,7 +503,7 @@ function verify_helo(arg)
 		local _,_,ip = string.find(arg, '^(%d+%.%d+%.%d+%.%d+)$') 
 		if ip then
 			-- TODO: Make sure this isn't one of *our* interface IP addresses
-			table.insert(conn.rejectables, {
+			add_rejectable(conn.rejectables, {
 				name = 'strict_helo',
 				sub_test = 'bare_ip',
 				output = '550 Invalid HELO; argument cannot be a bare IP address'
@@ -440,7 +518,7 @@ function verify_helo(arg)
 				return nil
 			else
 				-- Mismatch
-				table.insert(conn.rejectables, {
+				add_rejectable(conn.rejectables, {
 					name = 'strict_helo',
 					sub_test = 'ip_mismatch',
 					output = '550 Invalid HELO; address literal does not match client address'
@@ -452,7 +530,7 @@ function verify_helo(arg)
 		if string.find(arg, '^[a-zA-Z0-9%-%._]+$') then
 			-- Check for double-dots
 			if string.find(arg, '%.%.') then
-				table.insert(conn.rejectables {
+				add_rejectable(conn.rejectables {
 					name = 'strict_helo',
 					sub_test = 'double_dots',
 					output = '550 Invalid HELO; argument contains invalid host/domain'
@@ -464,7 +542,7 @@ function verify_helo(arg)
 			if domain then 
 				if host then
 					if arg:lower() == client.host:lower() then
-						conn.flags['helo_matches_ptr'] = true;
+						conn.flags['helo_matches_rdns'] = true;
 					end
 					return nil;
 				else
@@ -476,23 +554,21 @@ function verify_helo(arg)
 			-- Check TLD and make some exceptions
 			local _,_,tld = string.find(arg:lower(), '%.([^%.]+)$')
 			if tld then
-				if tld == 'localdomain' and net.is_ip_reserved(client.address, net.is_ip.LOCAL) then
-					return nil
-				elseif tld == 'lan' then
-					return nil
-				elseif tld == 'local' then
+				if (tld == 'localdomain' and net.is_ip_reserved(client.address, net.is_ip.LOCAL))
+				or tld == 'lan' or tld == 'local' 
+				then
 					return nil
 				else 
-					table.insert(conn.rejectables, {
+					add_rejectable(conn.rejectables, {
 						name = 'strict_helo',
 						sub_test = 'invalid_tld',
-						output = '550 Invalid HELO; domain contains invalid TLD ('..tld..')'
+						output = string.format('550 Invalid HELO; domain contains invalid TLD (%s)', tld)
 					})
 					return nil
 				end
 			end -- if tld
 		else 
-			table.insert(conn.rejectables, {
+			add_rejectable(conn.rejectables, {
 				name = 'strict_helo',
 				sub_test = 'invalid_chars',
 				output = '550 Invalid HELO; argument contains invalid characters'
@@ -505,7 +581,7 @@ function verify_helo(arg)
 			return nil
 		end
 		-- No dots; can't be valid
-		table.insert(conn.rejectables, {
+		add_rejectable(conn.rejectables, {
 			name = 'strict_helo',
 			sub_test = 'not_dots',
 			output = '550 Invalid HELO; argument must be host/domain or address literal'
@@ -513,7 +589,7 @@ function verify_helo(arg)
 		return nil
 	end -- if string.find(arg, '%.')
 	-- Catch all..
-	table.insert(conn.rejectables, {
+	add_rejectable(conn.rejectables, {
 		name = 'strict_helo',
 		sub_test = 'unknown',
 		output = '550 Invalid HELO'
@@ -525,28 +601,18 @@ function hook.helo(arg)
 	conn.ehlo_no_helo = false;
 
 	-- Check for pipelining
-	if not conn.flags['pipelining'] and client.is_pipelining then 
-		debug('hook.helo: pipelining detected!')
-		conn.flags['pipelining'] = true
-		table.insert(conn.rejectables, {
-			name = 'pipelining',
-			output = '550 5.3.3 pipelining not allowed'
-		})
-	end
-
+	check_for_pipelining(client.is_pipelining, false)
 	-- Check command case
-	local case = check_command_case(client.input)
-	if case then
-		conn.flags[case] = true;
-	end
+	check_command_case(client.input)
+
+	-- TODO: Access Map lookup
 
 	-- Check for schizophrenia
 	if conn.helo and conn.helo ~= arg then
-		conn.flags['helo_schizophrenic'] = true;
-		table.insert(conn.rejectables, {
+		add_rejectable(conn.rejectables, {
 			name = 'helo_schizophrenic',
 			sub_test = 'short_term',
-			output = '550 5.7.1 Host '..client.host..' is schizophrenic (1)'
+			output = string.format('550 5.7.1 Host %s [%s] is schizophrenic (1)', client.host, client.address)
 		})
 	else
 		-- Store
@@ -568,10 +634,10 @@ function hook.helo(arg)
 	local stored_helo = redis:get(helo_key)
 	if stored_helo then
 		if stored_helo ~= arg then
-			table.insert(conn.rejectables, {
+			add_rejectable(conn.rejectables, {
 				name = 'helo_schizophrenic',
 				sub_test = 'long_term',
-				output = '550 5.7.1 Host '..client.host..' is schizophrenic (2)'
+				output = string.format('550 5.7.1 Host %s [%s] is schizophrenic (2)', client.host, client.address)
 			})
 			-- Update stored record
 			redis:set(helo_key, arg)
@@ -587,23 +653,19 @@ end
 function hook.auth(arg)
 	debug('hook.auth: arg='..arg)
 	-- Check command case
-	local case = check_command_case(client.input)
-	if case then
-		conn.flags[case] = true;
-	end
+	check_command_case(client.input)
 
 	-- TODO: implement AUTH proxy
 	-- TODO: how to report capabilities?
+
+	return '550 AUTH rejected'
 end
 
 function hook.unknown(input)
 	-- TODO: Check for pipelining
 
 	-- Check command case
-	local case = check_command_case(client.input)
-	if case then
-		conn.flags[case] = true;
-	end
+	check_command_case(client.input)
 
 	-- OTHER IMPLEMENTED COMMANDS HERE
 	local _,_,cmd = string.find(input:lower(), '^([^ ]+)')
@@ -617,7 +679,6 @@ function hook.unknown(input)
 	elseif cmd == 'test' then
 		return '250 Testing 1..2..3..4..5..'
 	elseif cmd == 'stat' and args == 'dnslists' then
-		-- TODO: STAT: buffer overflow in engine
 		local output = ''
 		for _,key in pairs(redis:keys('dns-list-stat:*')) do
 			for rcode, count in pairs(redis:hgetall(key)) do
@@ -631,35 +692,30 @@ function hook.unknown(input)
 
 	-- Increment unknown command counter
 	conn.unknown_count = conn.unknown_count + 1;
-	debug('hook.unknown: arg='..input..', count='..conn.unknown_count)
+	debug(string.format('hook.unknown: arg=%s count=%d', input, conn.unknown_count))
+	-- TODO: log line
 end
 
-function hook.mail(sender) 
-	debug('hook.mail: sender='..sender..' id='..client.id_sess)
+function hook.mail(sender, domain) 
+	debug(string.format('hook.mail: sender="%s" domain="%s"', sender, domain))
+	txn.id = client.id_trans
 
+	local sender_flags = {}
+
+	-- Increment transaction counter
+	conn.txn_count = conn.txn_count + 1
 	-- Check for pipelining
-	if not conn.flags['pipelining'] and (client.is_pipelining and not conn.esmtp) then
-		debug('hook.mail: pipelining detected!')
-		conn.flags['pipelining'] = true
-		table.insert(conn.rejectables, {
-			name = 'pipelining',
-			output = '550 5.3.3 pipelining not allowed'
-		})
-	end
-
+	check_for_pipelining(client.is_pipelining, conn.flags['esmtp'])
 	-- Record data
-	txn.sender = sender:lower()
-
+	txn.sender = sender
 	-- Check command case
-	local case = check_command_case(client.input)
-	if case then
-		conn.flags[case] = true;
-	end
+	check_command_case(client.input)
 
 	-- Check for extra spaces
 	if string.find(client.input, ': <') then
 		conn.flags['cmd_mail_extra_spaces'] = true
 		txn.flags['cmd_mail_exta_spaces'] = true
+		sender_flags['extra_spaces'] = true
 		debug('hook.mail: found extra spaces')
 	end
 
@@ -668,11 +724,11 @@ function hook.mail(sender)
 	if params then
 		debug('hook.mail: extra parameters found: '..params)
 		-- Check that we are in SMTP mode...
-		if not conn.esmtp then
-			conn.flags['cmd_mail_extra_params'] = true
-			txn.flags['cmd_mail_extra_params'] = true
-			table.insert(txn.rejectables, {
-				name = 'mail_extra_params',
+		if not conn.flags['esmtp'] then
+			sender_flags['extra_params'] = true
+			add_rejectable(txn.rejectables, {
+				name = 'invalid_params',
+				sub_name = 'mail',
 				output = '555 Unsupported MAIL parameters sent'
 			})
 		else
@@ -682,7 +738,7 @@ function hook.mail(sender)
 				-- Check parameter pairs
 				for k, v in param:gmatch('([^= ]+)=([^= ]+)') do
 					if string.upper(k) == 'SIZE' then
-						txn.size = v
+						txn.size = tonumber(v) or 0
 						match = true
 					elseif string.upper(k) == 'BODY' then
 					else
@@ -693,19 +749,62 @@ function hook.mail(sender)
 				-- that is not in key=value format and reject accordingly.
 				if not match then
 					-- Invalid parameter
-					table.insert(txn.rejectables, {
-						name = 'mail_extra_params',
-						output = '555 Unsupported MAIL parameter \''..param..'\''
+					add_rejectable(txn.rejectables, {
+						name = 'invalid_params',
+						sub_test = 'mail:'..param,
+						output = string.format('555 Unsupported MAIL parameter \'%s\'', param)
 					})
 				end
 			end
 		end
 	end
 
+	-- Access Map
+	local access = accessMail(client.address, client.host, sender)
+	if access and access.action then
+		if access.action == 'OK' then 
+			txn.flags['white'] = true
+		elseif access.action == 'CONTENT' then
+			txn.flags['content'] = true
+		elseif access.action == 'REJECT' then
+			add_rejectable(txn.rejectables, {
+				name = 'black',
+				output = ternary(access.action_text, access.action_text, string.format('550 sender <%s> black listed', sender))
+			})
+		elseif access.action == 'IREJECT' then
+			return true, ternary(access.action_text, access.action_text, string.format('550 sender <%s> black listed', sender))
+		elseif access.action == 'DISCARD' then
+			txn.flags['discard'] = true
+		elseif access.action == 'TAG' then
+			txn.flags['tag'] = true
+		elseif access.action == 'SAVE' then
+			txn.flags['save'] = true
+			txn.quarantine = true
+			if access.action_text then
+				txn.quarantine_type = access.action_text
+			else
+				txn.quarantine_type = 'save'
+			end
+		elseif access.action == 'TRAP' then
+			txn.flags['trap'] = true
+			txn.quarantine = true
+			if access.action_text then
+				txn.quarantine_type = access.action_text
+			else
+				txn.quarantine_type = 'trap'
+			end
+		else
+			syslog.error(string.format('access-map unknown action \'%s\'', access.action))
+		end
+	end
+
+	-- Lookup domain in route-map if necessary
+	if not domains[domain] then
+		domains[domain] = routeGetHosts(sender)
+	end
+
 	-- Strip domain
-	local _,_,domain = string.find(txn.sender, '@(.+)')
-	if domain and not domains[domain] then    -- Don't run these check for our own domains!
-		debug('hook.mail: found domain: '..domain)
+	if domain and domain ~= '' and not domains[domain] then    -- Don't run these check for our own domains!
 		-- Store
 		if not conn.domain then
 			conn.domain = domain
@@ -718,75 +817,94 @@ function hook.mail(sender)
 		dns.close()
 		local mx_answer = mx_result['IN,MX,'..domain..'.']
 		if mx_answer then
-			local rcodename = dns.rcodename(mx_answer.rcode)
-			if rcodename == 'OK' then
+			if mx_answer.rcode == dns.rcode.OK then
 				local mx_count = 0
 				for host, ip in pairs(get_mx_list(domain)) do
 					-- Client is MX?
 					if client.address == ip then
-						conn.flags['client_is_mx'] = true;
+						txn.flags['host_is_mx'] = true;
+						sender_flags['host_is_mx'] = true;
 					end
 					mx_count = mx_count + 1
 				end
 				-- Did we find any valid MX records that correctly resolved?
 				if mx_count == 0 then
-					table.insert(txn.rejectables, {
+					add_rejectable(txn.rejectables, {
 						name = 'mail_mx_required',
-						output = '550 Domain \''..domain..'\' does not have any valid MX records'
+						output = string.format('550 Domain \'%s\' does not have any valid MX records', domain)
 					}) 
 				end	
-			elseif rcodename == 'NXDOMAIN' then
-				table.insert(txn.rejectables, {
+			elseif mx_answer.rcode == dns.rcode.NXDOMAIN then
+				add_rejectable(txn.rejectables, {
 					name = 'mail_mx_required',
-					output = '550 Domain \''..domain..'\' does not resolve'
+					output = string.format('550 Domain \'%s\' does not resolve', domain)
 				})
 			else
 				-- Some other DNS error = TEMPFAIL
-				table.insert(txn.rejectables, {
+				add_rejectable(txn.rejectables, {
 					name = 'mail_mx_required',
-					output = '451 Error resolving MX records for domain \''..domain..'\' ('..dns.rcodename(mx_result.rcode)..')'
+					output = string.format('451 Error resolving MX records for domain \'%s\' (%s)', domain, dns.rcodename(mx_result.rcode))
 				})	
 			end
 		else
 			-- Unknown DNS result = TEMPFAIL
-			table.insert(txn.rejectables, {
+			add_rejectable(txn.rejectables, {
 				name = 'mail_mx_required',
-				output = '451 Error resolving MX records for domain \''..domain..'\''
+				output = string.format('451 Error resolving MX records for domain \'%s\'', domain)
 			})
 		end
 		-- TODO: SPF
 	end
 
+	-- Quick hack check for SPF record existance
+	dns.open()
+	dns.query(dns.class.IN, dns.type.TXT, domain..'.')
+	local spf_result = dns.wait(1)
+	dns.close()
+	local spf_answer = spf_result['IN,TXT,'..domain..'.']
+	if spf_answer and spf_answer.answer then
+		local answers = spf_answer.answer
+		for answer, rr in pairs(answers) do
+			local _,_,spf_record = string.find(rr.value, '^(v=spf.+)')
+			if spf_record then
+				debug('found spf record: '..spf_record)
+				-- Store SPF record for later testing
+				txn.spf_record = spf_record
+				txn.flags['mail_has_spf'] = true
+				sender_flags['mail_has_spf'] = true
+			end
+		end
+	end
+
 	-- One domain per connection
-	-- TODO: exclude localhost, relays etc.
-	if domain and conn.domain ~= domain then
-		table.insert(conn.rejectables, {
-			name = 'single_domain_per_conn',
+	if (domain and (conn.domain and conn.domain ~= domain)) and 
+	not (net.is_ip_reserved(client.address, net.is_ip.LOCAL) or conn.flags['relay'])
+	then
+		add_rejectable(conn.rejectables, {
+			name = 'one_domain_per_conn',
 			output = '450 Only one sender domain per connection is allowed from your host'
 		})
 	end
 
 	-- TODO: strict 'freemail' e.g. from domain must appear in rDNS
+
+	-- Log point
+	syslog.info(
+		string.format(
+			'sender <%s> f="%s"',
+			sender, table_concat_keys(sender_flags) 
+		)
+	)
 end
 
-function hook.rcpt(rcpt)
-	debug('hook.rcpt: rcpt='..rcpt)
-	
+function hook.rcpt(rcpt, domain)
+	debug(string.format('hook.rcpt: rcpt="%s" domain="%s"', rcpt, domain))
+	local rcpt_rejectables = {}
+
 	-- Check for pipelining
-	if not conn.flags['pipelining'] and (client.is_pipelining and not conn.esmtp) then
-		debug('hook.rcpt: pipelining detected!')
-		conn.flags['pipelining'] = true
-		table.insert(conn.rejectables, {
-			name = 'pipelining',
-			output = '550 5.3.3 pipelining not allowed'
-		})
-	end
-	
+	check_for_pipelining(client.is_pipelining, conn.flags['esmtp'])
 	-- Check command case
-	local case = check_command_case(client.input)
-	if case then
-		conn.flags[case] = true;
-	end
+	check_command_case(client.input)
 
 	-- Check for extra spaces
 	if string.find(client.input, ': <') then
@@ -797,14 +915,14 @@ function hook.rcpt(rcpt)
 
 	-- Check for extra parameters
 	_,_,params = string.find(client.input, '> (.+)$')
+	
 	if params then
 		debug('hook.rcpt: extra parameters found: '..params)
 		-- Check that we are in SMTP mode...
-		if not conn.esmtp then
-			conn.flags['cmd_rcpt_extra_params'] = true
-			txn.flags['cmd_rcpt_extra_params'] = true
-			table.insert(txn.rejectables, {
-				name = 'rcpt_extra_params',
+		if not conn.flags['esmtp'] then
+			add_rejectable(txn.rejectables, {
+				name = 'invalid_params',
+				sub_test = 'rcpt',
 				output = '555 Unsupported RCPT parameters sent'
 			})
 		else
@@ -822,163 +940,242 @@ function hook.rcpt(rcpt)
 				-- that is not in key=value format and reject accordingly.
 				if not match then
 					-- Invalid parameter
-					table.insert(txn.rejectables, {
-						name = 'rcpt_extra_params',
-						output = '555 Unsupported RCPT parameter \''..param..'\''
+					add_rejectable(txn.rejectables, {
+						name = 'invalid_params',
+						sub_test = 'rcpt:'..param,
+						output = string.format('555 Unsupported RCPT parameter \'%s\'', param)
 					})
 				end
 			end
 		end
 	end
 
+	-- Access Map
+	local access = accessRcpt(client.address, client.host, txn.sender, rcpt)
+	if access and access.action then
+		if access.action == 'OK' or access.action == 'CONTENT' then
+			return rcpt_action(rcpt, string.format('250 2.1.0 recipient <%s> OK', rcpt), 'rcpt_white')
+		elseif access.action == 'REJECT' or access.action == 'IREJECT' then
+			return rcpt_action(rcpt, string.format('550 recipient <%s> rejected; black listed', rcpt), 'rcpt_black')
+		elseif access.action == 'DISCARD' then
+			txn.flags['discard'] = true
+		elseif access.action == 'TAG' then
+			txn.flags['tag'] = true
+		elseif access.action == 'SAVE' then
+			txn.flags['save'] = true
+			txn.quarantine = true
+			if access.action_text then
+				txn.quarantine_type = access.action_text
+			else
+				txn.quarantine_type = 'save'
+			end
+		elseif access.action == 'TRAP' then
+			txn.flags['trap'] = true
+			txn.quarantine = true
+			if access.action_text then
+				txn.quarantine_type = access.action_text
+			else
+				txn.quarantine_type = 'trap'
+			end
+		else
+			syslog.error(string.format('access-map unknown action \'%s\'', access.action))
+		end
+	end
+
 	-- One recipient per null
-	if (txn.sender and txn.sender == '') and #txn.rcpts > 0 then
-		table.insert(txn.rejectables, {
+	if (txn.sender and txn.sender == '') and #txn.rcpts_accepted > 0 then
+		add_rejectable(txn.rejectables, {
 			name = 'one_rcpt_per_null',
 			output = '550 Only one recipient is allowed for messages with a null reverse path'
 		})
 	end
 
-	-- Check message size; might have been passed
-	-- as SIZE= parameter to MAIL command.
-	if tonumber(txn.size) > 0 then
-		-- TODO:
+	-- Lookup domain in route-map if necessary
+	-- TODO: turn this into a function...
+	if not domains[domain] then
+		domains[domain] = routeGetHosts(rcpt)
 	end
 
-	-- Is the message to one of our domains?
-	local _,_,domain = string.find(rcpt, '@(.+)$')
+	-- Is the recipient in one of our domains?
 	if domains[domain] then
 		-- Inbound message
 
 		-- Verify recipient
-		local verify = verify_rcpt(rcpt)
+		local verify = verify_rcpt(rcpt, domains[domain][1])
 		if verify == 5 then
-			return '550 recipient <'..rcpt..'> unknown'
+			return rcpt_action(rcpt, string.format('550 recipient <%s> unknown', rcpt), 'rcpt_unknown')
 		elseif not verify or verify == 4 then
-			return '450 recipient <'..rcpt..'> verification error'
+			return rcpt_action(rcpt, string.format('450 recipient <%s> verification error', rcpt), 'rcpt_verify_error')
 		end
 
-		-- Apply any whitelisting
-		if conn.flags['dns_wl'] or
-		   conn.flags['dns_gl'] or
-		   redis:sismember('abook:'..rcpt:lower(), txn.sender)  -- AWL
-		then
-			return rcpt_accept(rcpt)
+		-- Check message size; might have been passed
+		-- as SIZE= parameter to MAIL command.
+		if txn.size > 0 and (conf.message_max_size and tonumber(txn.size) > conf.message_max_size) then
+			-- TODO: preference limits
+			return rcpt_action(rcpt, string.format('550 recipient <%s> message size %d bytes exceeds limit (%d bytes)', rcpt, txn.size, conf.message_max_size), 'max_message_size')
 		end
 
-		-- Greylisting
-		local grey_key = 'grey:'..conn.host_id..','..txn.sender..','..rcpt:lower()
-		debug('greylisting: key='..grey_key)
-conn.flags['passed_greylist'] = true
-		if not conn.flags['passed_greylist'] then
-			-- Check for previous entry
-			local grey_result = redis:get(grey_key)
-			local time_now = os.time(os.date('!*t'))	-- NOTE: UTC
-			if grey_result then
-				if time_now > (grey_result + conf.greylist_delay) then
-					-- Total delay
-					local delay = (time_now - grey_result)
-					-- Create pass record
-					redis:set('grey-pass:'..conn.host_id, delay)
-					redis:expire('grey-pass:'..conn.host_id, conf.greylist_pass_ttl)
-					-- Delete old record
-					redis:del(grey_key)
-					-- Skip further greylisting for this connection
-					conn.flags['passed_greylist'] = true
-				else
-					local time_left = (grey_result + conf.greylist_delay) - time_now
-					-- Extend expiry
-					redis:expire(grey_key, conf.greylist_key_ttl) -- 25 hours
-					return '451 recipient <'..rcpt..'> greylisted for '..time_left..' seconds'
-				end
-			else
-				-- Create greylist record
-				redis:set(grey_key, time_now)
-				redis:expire(grey_key, conf.greylist_delay)
-				return '451 recipient <'..rcpt..'> greylisted for '..conf.greylist_delay..' seconds'
-			end
-		else
-			-- Tidy-up any remaining greylist keys
-			redis:del(grey_key)
-			-- Update key expiry time on pass record
-			redis:expire('grey-pass:'..conn.host_id, conf.greylist_pass_ttl)
+		-- Address book pre-DATA whitelist?	
+		if redis:sismember('abook:'..rcpt:lower(), string.lower(txn.sender)) then
+			txn.flags['abook_wl'] = true
 		end
 	else
 		-- Outbound message
 
 		-- Is this host allowed to relay?
-		-- TODO: lookup relay
-		if not net.is_ip_reserved(client.address, net.is_ip.LOCAL) then
-			return '550 <'..rcpt..'> relaying denied'
+		if not conn.flags['relay'] or not net.is_ip_reserved(client.address, net.is_ip.LOCAL) then
+			return rcpt_action(rcpt, string.format('550 <%s> relaying denied', rcpt), 'relay')
 		end
 
 		-- Strict relay rules?
-		local _,_,sdomain = string.find(txn.sender,'@(.+)$')
+		local _,_,sdomain = string.find(string.lower(txn.sender),'@(.+)$')
 		-- We only allow outbound domains that we allow inbound
-		if sdomain and not domains[sdomain] then
-			return '550 <'..rcpt..'> relaying denied from domain \''..sdomain..'\''
+		if not domains[sdomain] then
+			domains[sdomain] = routeGetHosts(sdomain)
+		end
+		if conf.rejectables['strict_relay'] and (sdomain and not domains[sdomain]) then
+			return rcpt_action(rcpt, string.format('550 <%s> relaying denied from domain \'%s\'', rcpt, sdomain), 'strict_relay')
 		end
 
 		txn.flags['outbound'] = true
 	end
 
---[[
+	-- Bypass any rejections as necessary
+	if (conn.flags['white'] or txn.flags['white'])
+	or (conn.flags['content'] or txn.flags['content'])
+	or (conn.flags['dns_wl'] or conn.flags['dns_yl'])
+	or txn.flags['abook_wl']
+	or (conn.flags['discard'] or txn.flags['discard'])  -- DISCARD
+	or (conn.flags['tag'] or txn.flags['tag']) -- TAG
+	or (conn.flags['trap'] or txn.flags['trap']) -- TRAP
+	then
+		return rcpt_action(rcpt, string.format('250 2.1.0 recipient <%s> OK', rcpt))
+	end
+
 	-- Apply any rejectables
 	if conn.rejectables and #conn.rejectables > 0 then
-		if string.sub(conn.rejectables[1].output,1,1) == '4' then
-			conn.rcpts_tempfail = conn.rcpts_tempfail + 1
-		else
-			conn.rcpts_rejected = conn.rcpts_rejected + 1
+		for _,reject in ipairs(conn.rejectables) do
+			if conf.rejectables[reject.name] ~= false then
+				return rcpt_action(rcpt, reject.output, reject.name)
+			else
+				debug(string.format('skipping disabled rejectable: %s', reject.name))
+			end
 		end
-		return conn.rejectables[1].output
 	end
 	if txn.rejectables and #txn.rejectables > 0 then
-		if string.sub(txn.rejectables[1].output,1,1) == '4' then
-			conn.rcpts_tempfail = conn.rcpts_tempfail + 1
-		else
-			conn.rcpts_rejected = conn.rcpts_rejected + 1
+		for _,reject in ipairs(txn.rejectables) do
+			if conf.rejectables[reject.name] ~= false then
+				return rcpt_action(rcpt, reject.output, reject.name)
+			else
+				debug(string.format('skipping disabled rejectable: %s', reject.name))
+			end
 		end
-		return txn.rejectables[1].output
 	end
-]]--
+
+	-- If not outbound; apply greylisting here if it is enabled
+	-- Greylisting
+	local grey_key = string.format('grey:%s,%s,%s', conn.host_id, txn.sender, rcpt:lower())
+	debug(string.format('greylisting: key=%s', grey_key))
+	if conf.rejectables['greylisting'] ~= false and (not (txn.flags['outbound'] or conn.flags['passed_greylist'])) then
+		-- Check for previous entry
+		local grey_result = redis:get(grey_key)
+		local time_now = os.time(os.date('!*t'))	-- NOTE: UTC
+		if grey_result then
+			if time_now > (grey_result + conf.greylist_delay) then
+				-- Total delay
+				local delay = (time_now - grey_result)
+				-- Create pass record
+				redis:set('grey-pass:'..conn.host_id, delay)
+				redis:expire('grey-pass:'..conn.host_id, conf.greylist_pass_ttl)
+				-- Delete old record
+				redis:del(grey_key)
+				-- Skip further greylisting for this connection
+				conn.flags['passed_greylist'] = true
+			else
+				local time_left = (grey_result + conf.greylist_delay) - time_now
+				-- Extend expiry
+				redis:expire(grey_key, conf.greylist_key_ttl) -- 25 hours
+				return rcpt_action(rcpt, string.format('451 recipient <%s> greylisted for %d seconds', rcpt, time_left), 'greylisting')
+			end
+		else
+			-- Create greylist record
+			redis:set(grey_key, time_now)
+			redis:expire(grey_key, conf.greylist_delay)
+			return rcpt_action(rcpt, string.format('451 recipient <%s> greylisted for %d seconds', rcpt, conf.greylist_delay), 'greylisting')
+		end
+	else
+		-- Tidy-up any remaining greylist keys
+		redis:del(grey_key)
+		-- Update key expiry time on pass record
+		redis:expire('grey-pass:'..conn.host_id, conf.greylist_pass_ttl)
+	end
 
 	-- If we get to here, then accept the recipient
-	return rcpt_accept(rcpt)
+	return rcpt_action(rcpt, string.format('250 2.1.0 recipient <%s> OK', rcpt))
 end
 
-function rcpt_accept(rcpt)
-	-- Add recipient to valid recipient table and accept
-	table.insert(txn.rcpts, rcpt:lower())
-	conn.rcpts_accepted = conn.rcpts_accepted + 1
-	return '250 2.1.0 recipient <'..rcpt..'> OK'
+function rcpt_action(rcpt,msg,name)
+	local code = tonumber(string.sub(msg,1,1))
+	if code == 2 then
+		-- ACCEPT
+		table.insert(txn.rcpts_accepted, rcpt)
+		conn.rcpts_accepted = conn.rcpts_accepted + 1
+		redis:hincrby('stats:'..txn.date, 'rcpt_accept', 1)
+		if name then
+			redis:hincrby('stats:'..txn.date, 'rcpt_accept:'..name, 1)
+		end
+	elseif code == 4 then
+		-- TEMPFAIL
+		table.insert(txn.rcpts_tempfail, rcpt)
+		conn.rcpts_tempfail = conn.rcpts_tempfail + 1
+		redis:hincrby('stats:'..txn.date, 'rcpt_tempfail', 1)
+		if name then
+			redis:hincrby('stats:'..txn.date, 'rcpt_tempfail:'..name, 1)
+		end
+	elseif code == 5 then
+		-- REJECT
+		table.insert(txn.rcpts_rejected, rcpt)
+		conn.rcpts_rejected = conn.rcpts_rejected + 1
+		redis:hincrby('stats:'..txn.date, 'rcpt_reject', 1)
+		if name then
+			redis:hincrby('stats:'..txn.date, 'rcpt_reject:'..name, 1)
+		end
+	else
+		-- ERROR
+		syslog.error(string.format('rcpt_action: unhandled code (%d)', code))
+		redis:hincrby('stats:'..txn.date, 'rcpt_error', 1)
+		return '450 Internal error'
+	end
+	-- Log point
+	syslog.info(string.format(
+		'recipient <%s> cr="%s" tr="%s" x="%s"',
+		rcpt,
+		table_concat_keys(conn.rejectables),
+		table_concat_keys(txn.rejectables),
+		msg
+		)
+	)	
+	return msg
 end
 
 function hook.data()
 	debug('hook.data')
 
 	-- Check for pipelining
-	if not conn.flags['pipelining'] and (client.is_pipelining and not conn.esmtp) then
-		debug('hook.data: pipelining detected!')
-		conn.flags['pipelining'] = true
-		table.insert(conn.rejectables, {
-			name = 'pipelining',
-			output = '550 5.3.3 pipelining not allowed'
-		})
-	end
-
+	check_for_pipelining(client.is_pipelining, conn.flags['esmtp'])
 	-- Check command case
-	local case = check_command_case(client.input)
-	if case then
-		conn.flags[case] = true;
-	end
+	check_command_case(client.input)
 	-- Check for extra parameters
-	_,_,params = string.find(client.input, "^%w+ (.+)$")
+	_,_,params = string.find(client.input, "^[Dd][Aa][Tt][Aa] (.+)$")
 	if params then
 		debug('hook.data found extra parameters: '..params)
 	end
 
-	-- TODO: Preferences
-	for i, rcpt in ipairs(txn.rcpts) do
+	-----------------
+	-- Preferences --
+	-----------------
+	-- TODO: Complete 
+	for i, rcpt in ipairs(txn.rcpts_accepted) do
 		local _,_,domain = rcpt:find('@(.+)$')
 		if domain and not txn.rcpt_domains[domain] then
 			txn.rcpt_domains[domain] = 1
@@ -987,8 +1184,8 @@ function hook.data()
 	end
 	
 	-- Work out what level of post-DATA preferences can be used
-	if #txn.rcpts == 1 then
-		txn.prefs = txn.rcpts[1];
+	if #txn.rcpts_accepted == 1 then
+		txn.prefs = txn.rcpts_accepted[1];
 	elseif #txn.rcpt_domains == 1 then
 		-- Domain
 		txn.prefs = txn.rcpt_domains[1]
@@ -996,13 +1193,23 @@ function hook.data()
 		-- Global
 		txn.prefs = 'GLOBAL'
 	end
-	syslog.info('post-DATA preferences: '..txn.prefs)
+
+	-- Log Point
+	syslog.info(string.format(
+		'DATA rcpts=(a=%d,t=%d,r=%s) prefs="%s"',
+		#txn.rcpts_accepted or 0,
+		#txn.rcpts_tempfail or 0,
+		#txn.rcpts_rejected or 0,
+		txn.prefs
+		)
+	)
+
 end
 
 function hook.header(line)
 	_,_,name,value = string.find(line, "^([^ ]+):%s+(.+)")
 	if name and value then
-		debug('found header: header='..name..', value='..value)
+		-- debug(string.format('found header: header="%s" value="%s"', name, value))
 		-- Lower-case the header name
 		name = name:lower()
 		if not txn.headers[name] then
@@ -1026,14 +1233,14 @@ function hook.eoh()
 	if txn.headers['date'] and txn.headers['date'][1]  then
 		-- TODO: parse date header
 	else
-		table.insert(txn.dot_rejectables, {
+		add_rejectable(txn.dot_rejectables, {
 			name = 'rfc5322_min_headers',
 			sub_test = 'date_required',
 			output = '550 Message rejected; no \'Date\' header found'
 		})
 	end
 	if not txn.headers['from'] or (txn.headers['from'] and not txn.headers['from'][1]) then
-		table.insert(txn.dot_rejectables, {
+		add_rejectable(txn.dot_rejectables, {
 			name = 'rfc5322_min_headers',
 			sub_test = 'from_required',
 			output = '550 Message rejected; no \'From\' header found'
@@ -1051,35 +1258,41 @@ function hook.eoh()
 	   (txn.headers['in-reply-to'] and #txn.headers['in-reply-to'] > 1) or
 	   (txn.headers['references'] and #txn.headers['references'] > 1) or
 	   (txn.headers['subject'] and #txn.headers['subject'] > 1) then
-		table.insert(txn.dot_rejectables, {
+		add_rejectable(txn.dot_rejectables, {
 			name = 'rfc5322_max_headers',
 			output = '550 Message rejected; contains non-unique message headers that should be unique'
 		})
 	end
 
 	-- Already marked as spam?
-	if txn.headers['x-spam-flag'] and string.match(txn.headers['x-spam-flag'][1], '[Yy][Ee][Ss]$') then
-		table.insert(txn.dot_rejectables, {
+	if (txn.headers['x-spam-flag'] and string.match(txn.headers['x-spam-flag'][1], '^[Yy][Ee][Ss]$'))
+	or (txn.headers['x-spam-status']  and string.match(txn.headers['x-spam-status'][1], '^[Yy][Ee][Ss]'))
+	then
+		add_rejectable(txn.dot_rejectables, {
 			name = 'already_spam',
 			output = '550 Message rejected; already marked as spam by an upstream host'
 		})
 	end
 
-	local _,_,domain = string.find(txn.sender, '@(.+)$')
-	if txn.flags['outbound'] and (domain and domains[domain]) then	-- Only for our inbound domains
+	local _,_,sdomain = string.find(string.lower(txn.sender), '@(.+)$')
+	if sdomain and not domains[sdomain] then
+		domains[sdomain] = routeGetHosts(sdomain)
+	end
+	if txn.flags['outbound'] and (sdomain and domains[sdomain]) then	-- Only for our inbound domains
 		-- TODO: Electronic watermarks
 
 		-- Addressbook auto-whitelist
 		-- Only add to addressbook if message was not auto-generated
-		if (txn.headers['auto-submitted'] and string.lower(txn.headers['auto-submitted'][1]) ~= 'no') or
-		   (txn.headers['precedence'] and 
+		if not (txn.headers['auto-submitted'] and string.lower(txn.headers['auto-submitted'][1]) ~= 'no') and
+		   not (txn.headers['precedence'] and 
 		     (string.format(txn.headers['precedence'][1]) ~= 'bulk' or
 		      string.format(txn.headers['precedence'][1]) ~= 'list' or
 		      string.format(txn.headers['precedence'][1]) ~= 'junk')
 		   )
                 then
 			for _, rcpt in ipairs(rcpts) do
-				redis:sadd('abook:'..txn.sender, rcpt)
+				redis:sadd('abook:'..string.lower(txn.sender), rcpt:lower())
+				debug(string.format('abook: adding %s to %s address book', txn.sender, rcpt))
 			end
 			-- Touch expire time on addressbook
 			redis:expire('abook:'..txn.sender, conf.abook_ttl)
@@ -1095,7 +1308,7 @@ function hook.eoh()
 			'\tby %s ([%s]) envelope-from <%s> with %s\r\n' ..
 			'\tid %s ret-id %s; %s',
 	  	conn.helo, client.host, client.address, 
-		smtpe.host, client.local_address, txn.sender, ternary(conn.esmtp, 'ESMTP', 'SMTP'), 
+		smtpe.host, client.local_address, txn.sender, ternary(conn.flags['esmtp'], 'ESMTP', 'SMTP'), 
 		client.id_trans, 'none', os.date('%a, %d %b %Y %H:%M:%S %z'))
 	, 1)
 end
@@ -1107,7 +1320,14 @@ end
 function hook.dot()
 	debug('hook.dot')
 
-	-- Check message (excluding headers) length
+	-- Check message size
+	if txn.size > 0 and (conf.message_max_size and tonumber(txn.size) > conf.message_max_size) then
+		-- TODO: preference limits
+		add_rejectable(txn.dot_rejectables, {
+			name = 'max_message_size',
+			output = string.format('550 message rejected; message size %d bytes exceeds limit (%d bytes)', txn.size, conf.message_max_size)
+		})
+	end
 
 	-- MIME
 	txn.mime_types = {}
@@ -1121,7 +1341,7 @@ function hook.dot()
 				local _,_,mtype = string.find(part.content_type:lower(),'^content%-type:%s*([^; ]+)')
 				if mtype then
 					debug('Found MIME type: '..mtype)
-					table.insert(txn.mime_types, mtype)
+					table_insert_nodup(txn.mime_types, mtype)
 				end
 				-- Filename
 				local _,_,file = string.find(part.content_type,'[Nn][Aa][Mm][Ee]="?([^;"]+)"?')
@@ -1130,18 +1350,16 @@ function hook.dot()
 					file = file:lower()
 					debug('Found attachment: '..file)
 					local _,_,extn = file:find('%.([^%.]+)$')
-					if extn and not txn.fileextns[extn] then
-						table.insert(txn.fileextns, extn)
-						txn.fileextns[extn] = 1
+					if extn then
+						table_insert_nodup(txn.fileextns, extn)
 						debug('Found attached file extension: '..extn)
 					end
 					-- TODO: dispositions
 				end
 				-- Charset
 				local _,_,charset = string.find(part.content_type:lower(),'charset="?([^;"]+)"?')
-				if charset and not txn.charsets[charset] then
-					table.insert(txn.charsets, charset)
-					txn.charsets[charset] = 1
+				if charset then
+					table_insert_nodup(txn.charsets, charset)
 					debug('Found charset: '..charset)
 				end
 			end
@@ -1151,29 +1369,57 @@ function hook.dot()
 	-- Get other potential charsets from Content-Type and Subject headers
 	if txn.headers['content-type'] then
 		local _,_,charset = string.find(string.lower(txn.headers['content-type'][1]), 'charset="?([^;"]+)"?')
-		if charset and not txn.charsets[charset] then
-			table.insert(txn.charsets, charset)
-			txn.charsets[charset] = 1
-			debug('Found charset: '..charset)
+		if charset then
+			table_insert_nodup(txn.charsets, charset)
+			debug(string.format('Found charset: \'%s\' in Content-Type header', charset))
 		end
 	end
 	if txn.headers['subject'] then
 		local _,_,charset = string.find(string.lower(txn.headers['subject'][1]), '^=%?([^%s]+)%?[BQ]%?')
-		if charset and not txn.charsets[charset] then
-			table.insert(txn.charsets, charset)
-			txn.charsets[charset] = 1
-			debug('Found charset: '..charset)
+		if charset then
+			table_insert_nodup(txn.charsets, charset)
+			debug(string.format('Found charset \'%s\' in Subject header', charset))
 		end
 	end
 
-	-- TODO: Message size
 	-- TODO: Filename/Filetype checks
 
 	lua_content_filters()
 
-	-- TODO: URIBL/Domain BL
 	-- TODO: Custom Bayes?
+
+--[[
 	-- TODO: OSBF-Lua
+	local osbf_start = socket.gettime()
+	if not file_exists(conf.osbf_dbset.classes[1]) or not file_exists(conf.osbf_dbset.classes[2]) then
+		-- Create databases
+		syslog.info('OSBF: creating new databases')
+		osbf.remove_db(conf.osbf_dbset.classes)
+		local r, err = osbf.create_db(conf.osbf_dbset.classes, 94321)
+		if not r then
+			syslog.error('OSBF: error creating databases ('..err..')')
+		end
+	end
+	local h = io.open(client.msg_file, 'r')
+	if h then
+		local msg = h:read('*all')
+		h:close()
+		-- Trim to .5Mb max
+		msg = msg:sub(1, 500000)
+		syslog.info('OSBF: message size is '..msg:len())
+		-- Run classify
+		local pR, p_array, i_pmax = osbf.classify(msg, conf.osbf_dbset, 0)
+		if pR == nil then
+			syslog.error('OSBF: classify error ('..p_array..')')
+		else
+			local osbf_elapsed = socket.gettime() - osbf_start
+			syslog.info(string.format('OSBF: elapsed=%.2f pR=%f', osbf_elapsed, pR))
+		end
+		msg = nil
+	else
+		syslog.error('OSBF: error opening transport file')
+	end
+]]--
 
 	-- URI checks
 	-- TODO: limit number of URIs that can be checked
@@ -1188,21 +1434,15 @@ function hook.dot()
 				local uri_host = string.lower(current_uri.host)
 				local uri_domain = hostname_to_domain(uri_host)
 				local uri_raw = string.lower(current_uri.uri_raw)
-				if not uri_hosts_to_check[uri_host] then
-					table.insert(uri_hosts_to_check, uri_host)
-					uri_hosts_to_check[uri_host] = #uri_hosts_to_check
+				table_insert_nodup(uri_hosts_to_check, uri_host)
+				if uri_domain then
+					table_insert_nodup(uri_domains_to_check, uri_domain)
 				end
-				if uri_domain and not uri_domains_to_check[uri_domain] then
-					table.insert(uri_domains_to_check, uri_domain)
-					uri_domains_to_check[uri_domain] = #uri_domains_to_check
+				if current_uri.scheme == 'mailto' then
+					table_insert_nodup(uri_mailto_to_check, uri_raw)
 				end
-				if current_uri.scheme == 'mailto' and not uri_mailto_to_check[uri_raw] then
-					table.insert(uri_mailto_to_check, uri_raw)
-					uri_mailto_to_check[uri_raw] = #uri_mailto_to_check
-				end
-				if uri_domain and (url_shorteners[uri_domain] and (current_uri.path and current_uri.path ~= '/') and not uri_shortened_to_check[uri_raw]) then
-					table.insert(uri_shortened_to_check, current_uri.uri_raw)
-					uri_shortened_to_check[current_uri.uri_raw] = #uri_shortened_to_check
+				if uri_domain and (url_shorteners[uri_domain] and (current_uri.path and current_uri.path ~= '/')) then
+					table_insert_nodup(uri_shortened_to_check, current_uri.uri_raw)
 				end
 				-- TODO: resolve names to IP addresses and look-up in SBL
 				-- TODO: resolve names to authoratative namservers
@@ -1225,12 +1465,12 @@ function hook.dot()
 	trim_table_to_limit(uri_shortened_to_check, conf.uri_max_limit)
 	trim_table_to_limit(uri_mailto_to_check, conf.uri_max_limit)
 
-	-- Run list queries
+	-- URIBL queries
 	dns_list_lookup_uri(uri_domains_to_check, conf.uribl_domains)
 	dns_list_lookup_uri(uri_hosts_to_check, conf.uribl_hosts)
 	-- Unset
 	uri_hosts_to_check = {}
-        uri_domains_to_check = {}
+	uri_domains_to_check = {}
 
 	-- Resolve shortened URLs
 	if uri_shortened_to_check and #uri_shortened_to_check > 0 then
@@ -1244,27 +1484,21 @@ function hook.dot()
 					-- Try and parse location header
 					local _,_,location = string.find(http.headers, '[Ll]ocation:%s+([^\r\n ]+)')
 					if location then
-						syslog.info('Found shortened URL: '..http.url..' -> '..location)
+						syslog.info(string.format('Found shortened URL: %s -> %s', http.url, location))
 						-- TODO: check for ToS violation pages
 						local parsed_uri = uri.parse(location)
 						local uri_host = string.lower(parsed_uri.host)
 						local uri_domain = string.lower(hostname_to_domain(uri_host))
 						-- Make sure this isn't another shortener
 						if not url_shorteners[uri_domain] then
-							if not uri_hosts_to_check[uri_host] then
-								table.insert(uri_hosts_to_check, uri_host)
-                        	       	         		uri_hosts_to_check[uri_host] = #uri_hosts_to_check
-							end
-							if not uri_domains_to_check[uri_domain] then
-								table.insert(uri_domains_to_check, uri_domain)
-								uri_domains_to_check[uri_domain] = #uri_domains_to_check
-							end
+							table_insert_nodup(uri_hosts_to_check, uri_host)
+							table_insert_nodup(uri_domains_to_check, uri_domain)
 						else
 							-- Make sure it's not a redirection to the *same* shortener.
 							local check = uri.parse(http.url)
 							if not uri_domain == string.lower(check.host) then
 								-- TODO: found shortener chain
-								syslog.info('Found shortener chain: '..check.uri_raw..' -> '..location)
+								syslog.info(string.format('Found shortener chain: %s -> %s', check.uri_raw, location))
 								-- What to do here... recurse to a certain level?
 								-- Reject the message? (apparently some geniune cases...)
 							end
@@ -1273,7 +1507,7 @@ function hook.dot()
 				elseif http.rcode == 404 then
 					-- TODO: resolves to a 404 page.
 				else
-					syslog.error('URI shortener returned unhandled rcode ('..http.rcode..') for URI '..http.url)
+					syslog.error(string.format('URI shortener returned unhandled rcode (%s) for URI %s', http.rcode, http.url))
 				end
 			end
 			-- Redo DNS queries
@@ -1303,14 +1537,16 @@ function hook.dot()
 			if result ~= 'OK' then
 				-- Result contains the virus name
 				local _,_,virus = result:find('^([^%s]+) FOUND')
-				table.insert(txn.dot_rejectables, {
+				add_rejectable(txn.dot_rejectables, {
 					name = 'virus',
 					sub_test = 'clamd',
-					output = '550 Message rejected; infected with virus \''..virus..'\''
+					output = string.format('550 Message rejected; infected with virus \'%s\'', virus)
 				})
 					
 			end
-			syslog.info(string.format('clamd: elapsed=%.2f host="%s" result="%s"', sres.clamd.elapsed_time, sres.clamd.service_host, result))
+			local clamd_report = string.format('elapsed=%.2f host="%s" result="%s"', sres.clamd.elapsed_time, sres.clamd.service_host, result)
+			syslog.info('clamd: '..clamd_report)
+			header.modify('X-BarricadeMX-Clamd-Report', 1, clamd_report)
 		else
 			syslog.error('error parsing clamd result')
 		end	
@@ -1321,7 +1557,7 @@ function hook.dot()
 	-- TODO: optionally only send text/* and message/* parts to spamd
 	if sres['spamd'] then
 		-- Parse reply
-		local found,_,is_spam,score,threshold = sres.spamd.reply:find("Spam:%s+([^%s]+)%s+;%s+([%d.]+)%s+/%s+([%d.]+)\r?\n")
+		local found,_,is_spam,score,threshold = sres.spamd.reply:find("Spam:%s+([^%s]+)%s+;%s+([%d%.]+)%s+/%s+([%d%.]+)\r?\n")
 		local _,_,body = sres.spamd.reply:find("\r?\n\r?\n(.+)\r?\n$")
 		if found and body then
 			txn.spamd_score = score
@@ -1336,31 +1572,51 @@ function hook.dot()
 			if is_spam:lower() == 'true' then
 				-- See if score exceeds the rejection threshold
 				if conf.spamd_score_reject and tonumber(score) >= conf.spamd_score_reject then
-					table.insert(txn.dot_rejectables, {
+					add_rejectable(txn.dot_rejectables, {
 						name = 'spamd',
-						output = '550 Message rejected; spam score ('..score..') exceeds threshold'
+						output = string.format('550 Message rejected; spam score (%.1f) exceeds threshold', score)
 					})
 				else
-					-- TODO: expand header additions
-					header.add('X-Spam-Flag: YES')
-					-- Modify subject
-					local sub_idx, subject = header.find('subject', 1)
-					if subject then
-						header.modify('Subject', 1, '[SPAM] '..subject)
-					end
-					-- Set 'Precedence' header to junk (or add if not already present)
-					header.modify('Precedence', 1, 'junk')
+					txn.msg_needs_tagging = true
 				end
 			end
-			syslog.info(string.format('spamd: elapsed=%.2f host="%s" score=%.1f tests="%s"', sres.spamd.elapsed_time, sres.spamd.service_host, score, table_concat_keys(txn.spamd_rules_hit))) 		
+			local spamd_header = string.format('elapsed=%.2f host="%s" score=%.1f tests="%s"', sres.spamd.elapsed_time, sres.spamd.service_host, score, table_concat_keys(txn.spamd_rules_hit))
+			syslog.info('spamd: '..spamd_header)
+			header.modify('X-BarricadeMX-Spamd-Report', 1, spamd_header)
 		else
-			syslog.error('error parsing spamd output')
+			syslog.error(string.format('error parsing spamd output: %s', sres.spamd.reply))
 		end
 	end
 
-	-- Quarantine
-	txn.quarantine = true 
-	-- txn.quarantine_type = 'nonspam'
+	-- Finally add a status header
+	local report_header = string.format(
+		'id=%s cr="%s" tr="%s" dr="%s" rcpts=(a=%d,t=%d,r=%d) msgs=(a=%d,t=%d,r=%d)',
+		txn.id,
+		table_concat_keys(conn.rejectables),
+		table_concat_keys(txn.rejectables),
+		table_concat_keys(txn.dot_rejectables),
+		conn.rcpts_accepted,
+		conn.rcpts_tempfail,
+		conn.rcpts_rejected,
+		conn.msgs_accepted,
+		conn.msgs_tempfail,
+		conn.msgs_rejected
+	)
+	header.modify('X-BarricadeMX-Report', 1, report_header)
+
+	-- Handle message tagging
+	if txn.msg_needs_tagging or conn.flags['tag'] or txn.flags['tag'] then
+		debug('tagging message')
+		-- TODO: expand header additions
+		header.modify('X-Spam-Flag', 1, 'YES')
+		-- Modify subject
+		local sub_idx, subject = header.find('subject', 1)
+		if subject then
+			header.modify('Subject', 1, '[SPAM] '..subject)
+		end
+		-- Set 'Precedence' header to junk (or add if not already present)
+		header.modify('Precedence', 1, 'junk')
+	end
 
 	-- hook.forward returns response
 end
@@ -1369,15 +1625,15 @@ function hook.error(errno, error_text)
 	-- Connection timed out (110)
 	if errno == 110 then
 		conn.timed_out = true
-	else 
 		conn.conn_error = true
 	end
-	debug('hook.error: errno:'..errno..', error_text='..error_text)
+	debug(string.format('hook.error: errno=%d error_text="%s"', errno, error_text))
 end
 
 function hook.close(was_dropped)
 	debug('hook.close: was_dropped='..was_dropped)
 	if was_dropped and was_dropped == 1 then
+		conn.flags['dropped'] = true
 		debug('hook.close: connection was dropped')
 	end
 	if conn.conn_error then
@@ -1393,22 +1649,25 @@ function hook.close(was_dropped)
 	end
 	local end_time = socket.gettime()
 	conn.total_time = end_time - conn.start_time
-	--print (table.show(conn,'conn'))
-	--if txn.sender then print (table.show(txn,'txn')) end
 
 	-- Log point
 	syslog.info(
 		string.format(
-			'end i=%s p="%s" f="%s" rcpts=(a=%d,t=%d,r=%d) msgs=(a=%d,t=%d,r=%d) ct=%.2f', 
+			'end i=%s p="%s" h="%s" f="%s" r="%s" rcpts=(a=%d,t=%d,r=%d) msgs=(a=%d,t=%d,r=%d) le="%s" bytes(in/out)=%d/%d ct=%.2f', 
 			client.address, 
-			client.host, 
-			table_concat_keys(conn.flags), 
+			client.host,
+			conn.helo or "",
+			table_concat_keys(conn.flags),
+			table_concat_keys(conn.rejectables),
 			conn.rcpts_accepted, 
 			conn.rcpts_tempfail, 
 			conn.rcpts_rejected, 
 			conn.msgs_accepted, 
 			conn.msgs_tempfail, 
-			conn.msgs_rejected, 
+			conn.msgs_rejected,
+			conn.last_error or '',
+			conn.bytes_in,
+			conn.bytes_out,
 			conn.total_time
 		)
 	)	
@@ -1417,40 +1676,135 @@ end
 function hook.forward(path, sender, rcpts)
 	debug('hook.forward: path='..path)
 
-	-- Reject message
-	if txn.dot_rejectables and #txn.dot_rejectables > 0 then
-		-- Count
-		if string.sub(txn.dot_rejectables[1].output, 1, 1) == '4' then
-			conn.msgs_tempfail = conn.msgs_tempfail + 1
-		else 
-			conn.msgs_rejected = conn.msgs_rejected + 1
+	-- Handle TRAP
+	if conn.flags['trap'] or txn.flags['trap'] then
+		return msg_action('550 message rejected; unspecified reasons', 'trap')
+	end
+
+	-- Handle DISCARD
+	if conn.flags['discard'] or txn.flags['discard'] then
+		return msg_action(string.format('250 message <%s> accepted', txn.id), 'discard')
+	end 
+
+	-- Handle infected messages separately to prevent whitelisting
+	if txn.dot_rejectables['virus'] then
+		reject = txn.dot_rejectables[txn.dot_rejectables['virus']]
+		return msg_action(reject.output, reject.name)
+	end
+
+	-- Check rejectables 
+	if not (conn.flags['white'] or txn.flags['white'] or conn.flags['dns_wl'])
+	and txn.dot_rejectables and #txn.dot_rejectables > 0 then
+		for _,reject in ipairs(txn.dot_rejectables) do
+			if conf.rejectables[reject.name] ~= false then
+				-- Handle TAG
+				if not (conn.flags['tag'] or txn.flags['tag']) then
+					return msg_action(reject.output, reject.name)
+				end
+			else
+				debug(string.format('skipping disabled rejectable: %s', reject.name))
+			end
 		end
-		return txn.dot_rejectables[1].output
+--[[
+-- Train OSBF
+
+        local h = io.open(client.msg_file, 'r')
+        if h then
+                local msg = h:read('*all')
+                h:close()
+                -- Trim to .5Mb max
+                msg = msg:sub(1, 500000)
+                -- Train as spam
+		local r, err = osbf.learn(msg, conf.osbf_dbset, 2, 0)
+		if not r then
+			syslog.error('OSBF: training error ('..err..')')
+		end
+                msg = nil
+        else
+                syslog.error('OSBF: error opening transport file')
+        end
+]]--
 	end
 
 	-- Record message details
 	local log = {
 		["date"] = os.time(os.date('!*t')),
+		["sess_id"] = conn.id,
+		["txn_id" ] = txn.id,
 		["clientip"] = client.address,
-		-- Client PTR
-		-- Session ID
-		-- Transaction ID
-		-- 
+		["clientptr"] = client.host,
 		["from"] = txn.sender,
-		["rcpts"] = txn.rcpts,
+		["rcpts"] = txn.rcpts_accepted,
 		["size"] = nil,
-
+		["subject"] = nil,
+		["spamd_score"] = txn.spamd_score or 0,
+		["spamd_rules_hit"] = table_concat_keys(txn.spamd_rules_hit) or nil,
+		-- Connection flags
+		-- Transaction flags
 	}
-	-- Add in subject header
+	-- Un-fold and add in subject header
 	if txn.headers['subject'] and #txn.headers['subject'] > 0 then
-		log["subject"] = txn.headers['subject'][1]
+		log["subject"] = string.gsub(txn.headers['subject'][1],"%?=\r?\n\t=%?[^%? ]+%?[QqBb]%?","")
 	end 
 	redis:lpush('log', json.encode(log))
 	redis:ltrim('log', 0, 99)
 
-	-- Sink
-	conn.msgs_accepted = conn.msgs_accepted + 1
-	return '250 message '..client.id_trans..' accepted'
+	-- Forward the message onward
+	if smtp.sendfile({'127.0.0.1:26'}, txn.sender, txn.rcpts_accepted, client.msg_file) then
+		return msg_action(string.format('250 message <%s> accepted', txn.id))
+	else
+		-- Error
+		return msg_action('450 internal error', 'msg_error')
+	end
+end
+
+function msg_action(msg,name)
+	local code = tonumber(string.sub(msg,1,1))
+	if code == 2 then
+		-- ACCEPT
+		conn.msgs_accepted = conn.msgs_accepted + 1
+		redis:hincrby('stats:'..txn.date, 'msg_accept', 1)
+		if name then
+			redis:hincrby('stats:'..txn.date, 'msg_accept:'..name, 1)
+		end
+	elseif code == 4 then
+		-- TEMPFAIL
+		conn.msgs_tempfail = conn.msgs_tempfail + 1
+		redis:hincrby('stats:'..txn.date, 'msg_tempfail', 1)
+		if name then
+			redis:hincrby('stats:'..txn.date, 'msg_tempfail:'..name, 1)
+		end
+	elseif code == 5 then
+		-- REJECT
+		conn.msgs_rejected = conn.msgs_rejected + 1
+		redis:hincrby('stats:'..txn.date, 'msg_reject', 1)
+		if name then
+			redis:hincrby('stats:'..txn.date, 'msg_reject:'..name, 1)
+		end
+	else
+		-- ERROR
+		syslog.error(string.format('msg_action: unhandled code (%d)', code))
+		redis:hincrby('stats:'..txn.date, 'msg_error', 1)
+		return '450 Internal error'
+	end
+
+	local mid = ""
+	if txn.headers and txn.headers['message-id'] then
+		mid = txn.headers['message-id'][1]
+	end
+
+	-- Log point
+	syslog.info(string.format(
+		'message from="<%s>" nrcpts=%d mid="%s" size=%d dr="%s" x="%s"',
+		txn.sender,
+		#txn.rcpts_accepted or 0,
+		mid,
+		txn.size or 0,
+		table_concat_keys(txn.dot_rejectables),
+		msg
+		)
+	)
+	return msg
 end
 
 function hook.noop()
@@ -1458,20 +1812,14 @@ function hook.noop()
 	conn.noop_count = conn.noop_count + 1
 	debug('hook.noop: count='..conn.noop_count)
 	-- Check command case
-	local case = check_command_case(client.input)
-	if case then
-		conn.flags[case] = true;
-	end
+	check_command_case(client.input)
 end
 
 function hook.help()
 	debug('hook.help')
 	-- Check command case
-	local case = check_command_case(client.input)
-	if case then
-		conn.flags[case] = true;
-	end
-	return '214 2.0.0 Read the fucking manual you cunt!' 
+	check_command_case(client.input)
+	return '214 2.0.0 Read the manual' 
 end
 
 function hook.rset()
@@ -1480,10 +1828,7 @@ function hook.rset()
 	debug('hook.rset: count='..conn.rset_count)
 
 	-- Check command case
-	local case = check_command_case(client.input)
-	if case then
-		conn.flags[case] = true;
-	end
+	check_command_case(client.input)
 
 	-- Check for extra parameters
 	_,_,params = string.find(client.input, "^%w+ (.+)$")
@@ -1494,10 +1839,7 @@ end
 
 function hook.quit()
 	-- Check command case
-	local case = check_command_case(client.input)
-	if case then
-		conn.flags[case] = true;
-	end
+	check_command_case(client.input)
 
 	-- Check for extra parameters
 	_,_,params = string.find(client.input, "^%w+ (.+)$")
@@ -1508,7 +1850,7 @@ function hook.quit()
 	-- Note
 	conn.clean_quit = true
 	-- Send a multi-line reply because we're evil
-	-- This might detect some pipelining...
+	-- and this might detect some pipelining.
 	quit_msg = 
 		[[221-2.0.0 Why stop now just when I'm hating it?]].."\r\n"..
 		[[221 2.0.0 %s closing connection]].."\r\n"
@@ -1516,14 +1858,12 @@ function hook.quit()
 end
 
 function hook.reply(reply)
-	conn.bytes_out = conn.bytes_out + reply:len()
+	-- Byte counters
 	if client.input then
-		redis:hmset('conn:'..client.id_sess, 
-			'lc', client.input,
-			'idle', socket.gettime()
-		)
-		conn.bytes_in = conn.bytes_in + client.input:len()
+		conn.bytes_in = conn.bytes_in + string.len(client.input)
 	end
+	conn.bytes_out = conn.bytes_out + reply:len()
+
 	local code = reply:sub(1,1)
 	if not conn.reply_stats[code] then
 		conn.reply_stats[code] = 0
@@ -1533,7 +1873,7 @@ function hook.reply(reply)
 	conn.last_reply = reply
 	conn.last_reply_time = socket.gettime()
 	if code == '5' then
-		conn.last_error = reply
+		conn.last_error = reply:sub(1,reply:len()-2)
 	end
 end
 
@@ -1662,15 +2002,26 @@ function check_command_case(cmd)
 	end
 	if cmdstr then 
 		if string.find(cmdstr,'^[A-Z ]+$') then
-			return 'cmd_case_upper'
+			conn.flags['cmd_case_upper'] = true
 		elseif string.find(cmdstr,'^[a-z ]+$') then
-			return 'cmd_case_lower'
+			conn.flags['cmd_case_lower'] = true
 		else
-			return 'cmd_case_mixed'
+			conn.flags['cmd_case_mixed'] = true
 		end
 	end
 	-- Error?
 	return nil
+end
+
+function check_for_pipelining(bool, is_esmtp)
+	if bool and not is_esmtp then
+		debug('pipelining detected: '..client.input)
+		add_rejectable(conn.rejectables, {
+			name = 'pipelining',
+			output = '550 5.3.3 pipelining not allowed'
+		})              
+        end
+	return nil      
 end
 
 function md5_hexdigest(string)
@@ -1706,11 +2057,13 @@ function file_to_kv_table(file)
 	return t
 end
 
-function verify_rcpt(rcpt)
+function verify_rcpt(rcpt, host)
+	-- TODO: allow multiple hosts
+	-- TODO: record verified recipients
 	local _,_,domain = string.find(rcpt, '@(.+)$')
 
 	-- Check cache
-	local host_key = 'dumb:'..domains[domain]..','..domain
+	local host_key = 'dumb:'..host..','..domain
 	local dumb = redis:get(host_key)
 	if dumb == '2' or			-- Dumb host
 	   redis:get('rcpt:'..rcpt) == '2'	-- Cached good
@@ -1722,7 +2075,7 @@ function verify_rcpt(rcpt)
 	if not dumb or dumb == '5' then
 		-- Server rejects invalid users; or we haven't checked it yet
 		local fake_rcpt = md5_hexdigest(rcpt)..'_'..rcpt
-		local _,_,rcpt_result = smtp.sendfile({domains[domain]}, txn.sender, {fake_rcpt, rcpt}, nil)
+		local _,_,rcpt_result = smtp.sendfile({host}, txn.sender, {fake_rcpt, rcpt}, nil)
 		if #rcpt_result > 0 then
 			if rcpt_result[1]:sub(1,1) == '2' then
 				-- Dumb host, cache dumb result and accept recipient
@@ -1731,7 +2084,7 @@ function verify_rcpt(rcpt)
 				return 2
 			elseif rcpt_result[1]:sub(1,1) == '5' then
 				-- Host rejects invalid users, cache result
-				if not dumb then redis:set('dumb:'..host_key, '5') end
+				if not dumb then redis:set(host_key, '5') end
 				redis:expire(host_key, 86400) -- Touch expire time
 				-- Check real recipient result
 				if rcpt_result[2]:sub(1,1) == '5' then
@@ -1813,10 +2166,10 @@ function dns_list_lookup_uri(domains, lists)
 		for uri, uri_t in pairs(results) do
 			if type(uri_t) == 'table' then
 				for uri_list, uri_res in pairs(uri_t) do
-					table.insert(txn.dot_rejectables, {
+					add_rejectable(txn.dot_rejectables, {
 						name = 'uri_checks',
 						sub_test = uri_list,
-						output = '550 Message rejected; URI '..uri..' blacklisted ('..uri_list..')'
+						output = string.format('550 Message rejected; URI \'%s\' blacklisted (%s)', uri, uri_list)
 					})
 				end
 			end
@@ -1827,16 +2180,40 @@ end
 
 function lua_content_filters()
 	if txn.headers['x-mimeole'] and #txn.headers['x-mimeole'] > 1 then
-		table.insert(txn.dot_rejectables, {
+		add_rejectable(txn.dot_rejectables, {
 			name = 'lua_content_filters',
 			sub_test = 'MULTIPLE_XMIMEOLE',
 			output = '550 Message rejected by content filtering'
 		})
 	end
+
+	-- Check for obviously bogus SPF records 
+	if txn.spf_record then
+		if string.find(txn.spf_record, 'ip4:0.0.0.0/0') and string.find(txn.spf_record, '%?all') then
+			add_rejectable(txn.dot_rejectables, {
+				name = 'lua_content_filters',
+				sub_test = 'SPF_BOGUS',
+				output = '550 Message rejected by content filtering'
+			})
+		end
+	end
+
+	-- Check for from == to
+	if not conn.flags['relay'] and routeGetHosts(txn.sender) then
+		for _,rcpt in ipairs(txn.rcpts_accepted) do
+			if rcpt == txn.sender then
+				add_rejectable(txn.dot_rejectables, {
+					name = 'lua_content_filters',
+					sub_test = 'FROM_EQ_TO',
+					output = '550 Message rejected by content filtering'
+				})
+			end
+		end
+	end	
 end
 
 function ternary(if_true, true_value, default)
-	if if_true then
+	if if_true ~= nil then
 		return true_value
 	end
 	return default
@@ -1867,10 +2244,71 @@ function trim_table_to_limit(t, limit)
 	end
 end
 
+function add_rejectable(t, rejt)
+	if (not t or (t and type(t) ~= 'table'))
+	or (not rejt or (rejt and not rejt.name))
+	then
+		return nil
+	else
+		if rejt.sub_test and not t[rejt.name..':'..rejt.sub_test] then
+			table.insert(t, rejt)
+			t[rejt.name..':'..rejt.sub_test] = #t
+			t[rejt.name] = #t
+		elseif not t[rejt.name] then
+			table.insert(t, rejt)
+			t[rejt.name] = #t
+		end
+	end
+end
+
+function table_insert_nodup(t, v)
+	if (t and type(t) == 'table') and v then
+		if not t[v] then
+			table.insert(t, v)
+			t[v] = #t
+		end
+	end
+end
+
 function debug(text)
 	if conf.debug and conf.debug == 1 then
 		syslog.debug(text)
 	end
+end
+
+function file_exists(path)
+	local f = io.open(path, 'r')
+	if f ~= nil then
+		f:close()
+		return true
+	end
+	return false
+end
+
+function split(str, delim)
+	local vals = {}
+	local word = nil
+	-- Add trailing delim to catch the last value
+	str = str .. delim
+	for i=1, str:len() do
+		char = str:sub(i,i)
+		if char ~= delim then
+			if word then
+				word = word .. char
+			else
+				word = char
+			end
+		else
+			if word then
+				table.insert(vals, word)
+				word = nil
+			else
+				-- line with no data
+				break
+			end
+		end
+	end
+	return vals
 end
 
 -- Load URL shortener list
