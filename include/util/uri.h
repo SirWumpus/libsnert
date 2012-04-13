@@ -64,10 +64,10 @@ extern int isCharURI(int octet);
  *	but excluding, the first invalid character following it; otherwise
  *	zero (0) for a parse error.
  */
-extern int spanQuery(const char *query);
-extern int spanFragment(const char *fragment);
-extern int spanScheme(const char *scheme);
-extern int spanURI(const char *uri);
+extern int spanQuery(const unsigned char *query);
+extern int spanFragment(const unsigned char *fragment);
+extern int spanScheme(const unsigned char *scheme);
+extern int spanURI(const unsigned char *uri);
 
 extern void uriSetDebug(int flag);
 

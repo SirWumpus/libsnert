@@ -29,11 +29,11 @@
  *	parse error.
  */
 int
-spanIPv4(const char *ip)
+spanIPv4(const unsigned char *ip)
 {
 	int dots;
 	long octet;
-	const char *start, *stop;
+	const unsigned char *start, *stop;
 
 	if (ip == NULL)
 		return 0;
@@ -41,7 +41,7 @@ spanIPv4(const char *ip)
 	dots = 0;
 
 	for (start = ip; *ip != '\0'; ip = stop) {
-		octet = strtol(ip, (char **) &stop, 10);
+		octet = strtol((char *)ip, (char **) &stop, 10);
 
 		/* Did we advance? */
 		if (ip == stop)
@@ -107,17 +107,17 @@ spanIPv4(const char *ip)
  *	parse error.
  */
 int
-spanIPv6(const char *ip)
+spanIPv6(const unsigned char *ip)
 {
 	long length, word;
 	int groups, compressed;
-	const char *start, *stop;
+	const unsigned char *start, *stop;
 
 	if (ip == NULL)
 		return 0;
 
 	for (start = ip, compressed = 0, groups = 0; ; ip = stop + 1) {
-		word = strtol(ip, (char **) &stop, 16);
+		word = strtol((char *)ip, (char **) &stop, 16);
 		if (word < 0 || 0xffff < word)
 			return 0;
 
@@ -171,14 +171,14 @@ spanIPv6(const char *ip)
  *	parse error.
  */
 int
-spanIP(const char *ip)
+spanIP(const unsigned char *ip)
 {
 	int span;
 
 	if (ip == NULL)
 		return 0;
 
-	if (0 < TextInsensitiveStartsWith(ip, "IPv6:"))
+	if (0 < TextInsensitiveStartsWith((char *)ip, "IPv6:"))
 		return spanIPv6(ip + sizeof ("IPv6:") - 1);
 
 	if (*ip == '[' && (span = spanIPv6(ip+1)) && ip[1+span] == ']')

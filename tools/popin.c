@@ -113,7 +113,7 @@ static char *cert_dir = CERT_DIR;
 
 static char line[INPUT_LINE_SIZE+1];
 static unsigned char data[INPUT_LINE_SIZE * 10];
-static Buf buffer = { NULL, data, sizeof (data), 0, 0 };
+static Buf buffer = { NULL, sizeof (data), 0, 0, data };
 
 #ifdef HAVE_OPENSSL_SSL_H
 static char options[] = "dlmrsuvxXc:C:h:p:t:";
@@ -292,7 +292,7 @@ socket3_read_line(SOCKET fd, Buf *readbuf, char *line, size_t size, long ms)
 
 			/* Find length of line. */
 			readbuf->bytes[readbuf->length] = 0;
-			if ((nl = strchr(readbuf->bytes, '\n')) != NULL)
+			if ((nl = (unsigned char *)strchr((char *)readbuf->bytes, '\n')) != NULL)
 				readbuf->length = nl - readbuf->bytes + 1;
 
 			/* Read only the line. */

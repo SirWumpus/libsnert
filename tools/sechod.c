@@ -85,9 +85,7 @@ static char *key_crt_pem = KEY_CRT_PEM;
 static char *key_pass = NULL;
 static char *dh_pem = NULL;
 
-static char line[INPUT_LINE_SIZE+1];
 static unsigned char data[INPUT_LINE_SIZE * 10];
-static Buf buffer = { NULL, data, sizeof (data), 0, 0 };
 
 static const char log_io[] = "socket error %s(%d): %s (%d)";
 static const char log_internal[] = "%s(%d): %s (%d)";

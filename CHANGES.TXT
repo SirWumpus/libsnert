@@ -57,6 +57,23 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.12--
+
+   !	Fixed URI parsing of strings with junk high-bit bytes prefixing
+   	a URI scheme. For example the following od(1) dump:
+
+
+	e2  85  bf  c6  b4   h   t   t   p   :   /   /  e2  84  8f
+	.   p   a   f   l   a   g   .   r   u   /   /   6   s   n   b
+	n   4   3   .   x   v   r
+
+
+	The spanScheme(), spanQuery(), spanFragment(), and spanURI() took
+	a "const char *" argument, but the ctype functions like isalnum()
+	take an "int" type. C type protomotion rules here would treat 0xE2
+	as -30 and so return undefined values outside the input range of
+	-1 to 255. To correct this, the span*() functions now take an
+	"const unsigned char *".
 
 --1.75.11--
 

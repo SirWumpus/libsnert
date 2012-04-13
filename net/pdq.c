@@ -1603,7 +1603,7 @@ pdqLog(PDQ_rr *record)
 			LOG_DEBUG, PDQ_LOG_FMT "%lu:\"%s\"" PDQ_LOG_FMT_END,
 			PDQ_LOG_ARG(record),
 			((PDQ_TXT *) record)->text.length,
-			TextNull(((PDQ_TXT *) record)->text.value),
+			TextNull((char *)((PDQ_TXT *) record)->text.value),
 			PDQ_LOG_ARG_END(record)
 		);
 		break;
@@ -4614,7 +4614,7 @@ main(int argc, char **argv)
 			if (prune_list)
 				list = pdqListPrune(list, IS_IP_RESTRICTED|IS_IP_LAN);
 		} else {
-			if (spanIP(argv[i+1]) == 0)
+			if (spanIP((unsigned char *)argv[i+1]) == 0)
 				(void) TextCopy(buffer, sizeof (buffer), argv[i+1]);
 			else
 				(void) reverseIp(argv[i+1], buffer, sizeof (buffer), 0);

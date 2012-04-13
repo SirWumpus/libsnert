@@ -26,9 +26,9 @@
  * as 123.com, so are permitted.
  */
 int
-spanDomain(const char *domain, int minDots)
+spanDomain(const unsigned char *domain, int minDots)
 {
-	const char *start;
+	const unsigned char *start;
 	int dots, previous, label_is_alpha;
 
 	if (domain == NULL)
@@ -106,7 +106,7 @@ stop:
 
 
 int
-spanHost(const char *host, int minDots)
+spanHost(const unsigned char *host, int minDots)
 {
 	int span;
 

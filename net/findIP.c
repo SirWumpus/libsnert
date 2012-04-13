@@ -56,7 +56,7 @@ findIPv4(const char *string, int *offsetp, int *spanp)
 		 * IP address, then check if what follows makes
 		 * a complete address.
 		 */
-		if (ip < delim && 0 < (span = spanIPv4(ip))) {
+		if (ip < delim && 0 < (span = spanIPv4((unsigned char *)ip))) {
 			if (offsetp != NULL)
 				*offsetp = ip - string;
 			if (spanp != NULL)
@@ -116,7 +116,7 @@ findIPv6(const char *string, int *offsetp, int *spanp)
 		 * IP address, then check if what follows makes
 		 * a complete address.
 		 */
-		if (ip < delim && 0 < (span = spanIPv6(ip))) {
+		if (ip < delim && 0 < (span = spanIPv6((unsigned char *)ip))) {
 			if (offsetp != NULL)
 				*offsetp = ip - string;
 			if (spanp != NULL)

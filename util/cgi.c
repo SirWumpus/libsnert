@@ -563,7 +563,7 @@ cgiReadHeader(Socket2 *client, Buf *input)
 		&&  BufSetSize(input, offset + CGI_CHUNK_SIZE))
 			return -1;
 
-		hdr = BufBytes(input) + offset;
+		hdr = (char *) BufBytes(input) + offset;
 		if ((length = socketReadLine2(client, hdr, BufSize(input)-offset, 1)) < 0)
 			return -1;
 
@@ -627,7 +627,7 @@ cgiReadChunk(Socket2 *client, Buf *input)
 	if (cgiReadHeader(client, input))
 		return -1;
 
-	length = (size_t) strtol(BufBytes(input), NULL, 16);
+	length = (size_t) strtol((char *)BufBytes(input), NULL, 16);
 
 	/* Reset buffer length for reuse. */
 	(void) BufSetLength(input, offset);
@@ -690,7 +690,7 @@ cgiReadRequest(CGI *cgi, Socket2 *client)
 			return -1;
 		}
 
-		if (!isPrintableASCII(BufBytes(cgi->_RAW)+length)) {
+		if (!isPrintableASCII((char *)BufBytes(cgi->_RAW)+length)) {
 			cgiSendBadRequest(cgi, "Non-printable ASCII characters in header.\r\n");
 			return -1;
 		}
@@ -707,7 +707,7 @@ cgiParseHeaders(CGI *cgi)
 	CgiMap *out;
 
 	/* Parse HTTP request line. */
-	cgi->request_method = s = BufBytes(cgi->_RAW);
+	cgi->request_method = s = (char *)BufBytes(cgi->_RAW);
 	if ((s = strchr(s, ' ')) == NULL) {
 		cgiSendBadRequest(cgi, "Malformed HTTP request line.\r\n");
 		return -1;

@@ -440,7 +440,7 @@ dnsListQueryString(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *n
 const char *
 dnsListQueryName(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name)
 {
-	if (name != NULL && 0 < spanIP(name))
+	if (name != NULL && 0 < spanIP((unsigned char *)name))
 		return NULL;
 
 	return dnsListQueryString(dns_list, pdq, names_seen, name);
@@ -598,7 +598,7 @@ dnsListQueryDomain(DnsList *dns_list, PDQ *pdq, Vector names_seen, int test_sub_
 	offset = indexValidTLD(name);
 
 	if (offset < 0) {
-		if (spanIP(name) <= 0)
+		if (spanIP((unsigned char *)name) <= 0)
 			return NULL;
 		return dnsListQueryIP(dns_list, pdq, names_seen, name);
 	}

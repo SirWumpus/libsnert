@@ -484,7 +484,7 @@ extern const char *findIPv6(const char *string, int *offsetp, int *spanp);
  *	first invalid character following it; otherwise zero (0) for a
  *	parse error.
  */
-extern int spanIP(const char *ip);
+extern int spanIP(const unsigned char *ip);
 
 /**
  * RFC 2821 section 4.1.3 IPv4 address literals
@@ -497,7 +497,7 @@ extern int spanIP(const char *ip);
  *	first invalid character following it; otherwise zero (0) for a
  *	parse error.
  */
-extern int spanIPv4(const char *ip);
+extern int spanIPv4(const unsigned char *ip);
 
 /**
  * RFC 2821 section 4.1.3 IPv6 address literals
@@ -510,7 +510,7 @@ extern int spanIPv4(const char *ip);
  *	first invalid character following it; otherwise zero (0) for a
  *	parse error.
  */
-extern int spanIPv6(const char *ip);
+extern int spanIPv6(const unsigned char *ip);
 
 /**
  * @param host
@@ -523,7 +523,7 @@ extern int spanIPv6(const char *ip);
  *	The length of the host name upto, but excluding, the first
  *	invalid character.
  */
-extern int spanHost(const char *host, int minDots);
+extern int spanHost(const unsigned char *host, int minDots);
 
 /**
  * RFC 2821 domain syntax excluding address-literal.
@@ -543,7 +543,7 @@ extern int spanHost(const char *host, int minDots);
  *	The length of the domain upto, but excluding, the first
  *	invalid character.
  */
-extern int spanDomain(const char *domain, int minDots);
+extern int spanDomain(const unsigned char *domain, int minDots);
 
 /**
  * RFC 2821 section 4.1.2 Local-part and RFC 2822 section 3.2.4 Atom
@@ -562,7 +562,7 @@ extern int spanDomain(const char *domain, int minDots);
  *	The length of the local-part upto, but excluding, the first
  *	invalid character.
  */
-extern int spanLocalPart(const char *s);
+extern int spanLocalPart(const unsigned char *s);
 
 /***********************************************************************
  ***

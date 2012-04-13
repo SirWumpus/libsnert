@@ -154,10 +154,10 @@ spanUriEncode(const char *uri)
  * RFC 2396
  */
 int
-spanURI(const char *uri)
+spanURI(const unsigned char *uri)
 {
 	int a, b;
-	const char *start;
+	const unsigned char *start;
 
 	if (uri == NULL)
 		return 0;
@@ -192,9 +192,9 @@ spanURI(const char *uri)
  *	RFC 3986 section 3.1
  */
 int
-spanScheme(const char *scheme)
+spanScheme(const unsigned char *scheme)
 {
-	const char *start;
+	const unsigned char *start;
 
 	if (scheme == NULL)
 		return 0;
@@ -220,9 +220,9 @@ spanScheme(const char *scheme)
  * RFC 2396
  */
 int
-spanQuery(const char *query)
+spanQuery(const unsigned char *query)
 {
-	const char *start;
+	const unsigned char *start;
 
 	for (start = query; *query != '\0'; query++) {
 		if (isalnum(*query))
@@ -244,7 +244,7 @@ spanQuery(const char *query)
  * RFC 2396
  */
 int
-spanFragment(const char *fragment)
+spanFragment(const unsigned char *fragment)
 {
 	return spanQuery(fragment);
 }
@@ -441,7 +441,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	 */
 	(void) TextCopy(mark = uri->uriDecoded + length + 2, length+1, uri->uriDecoded);
 
-	if (0 < (span = spanScheme(uri->uriDecoded)) && uri->uriDecoded[span] == ':' && spanIPv6(uri->uriDecoded) == 0) {
+	if (0 < (span = spanScheme((unsigned char *)uri->uriDecoded)) && uri->uriDecoded[span] == ':' && spanIPv6((unsigned char *)uri->uriDecoded) == 0) {
 		/* We have a scheme that does not look like the
 		 * first word of an IPv6 address.
 		 */
@@ -505,9 +505,9 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	 *	http://213.210.237.83/webscr/cmd/protect_files/yassino-file.php
 	 */
 	if (uri->scheme != NULL && (str = strstr(u, uri->scheme)) == NULL) {
-		span = spanURI(uri->uriDecoded);
+		span = spanURI((unsigned char *)uri->uriDecoded);
 		uri->uriDecoded[span] = '\0';
-		span = spanURI(value);
+		span = spanURI((unsigned char *)value);
 		value[span] = '\0';
 	}
 
@@ -530,7 +530,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 
 		uriDecodeSelf(uri->host);
 
-		if (0 < (span = alt_spanHost(uri->host, 0))) {
+		if (0 < (span = alt_spanHost((unsigned char *)uri->host, 0))) {
 			if ((uri->path = strchr(uri->host + span, '/')) != NULL) {
 				/* Shift the scheme & authority left one byte to retain
 				 * the leading slash in path and to make room for a null
@@ -573,10 +573,10 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	else if ((uri->scheme == NULL || uriGetSchemePort(uri) == 25) && (uri->host = strchr(value, '@')) != NULL && value < uri->host) {
 		*uri->host++ = '\0';
 
-		for (uri->userInfo = value; *uri->userInfo != '\0' && spanLocalPart(uri->userInfo) <= 0; uri->userInfo++)
+		for (uri->userInfo = value; *uri->userInfo != '\0' && spanLocalPart((unsigned char *)uri->userInfo) <= 0; uri->userInfo++)
 			;
 
-		if (*uri->userInfo == '\0' || (span = alt_spanDomain(uri->host, 1)) <= 0)
+		if (*uri->userInfo == '\0' || (span = alt_spanDomain((unsigned char *)uri->host, 1)) <= 0)
 			goto error1;
 
 		uri->host[span] = '\0';
@@ -589,14 +589,14 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	 * try and find either IPv4 or IPv6 addresses.
 	 */
 	else if (uri->scheme == NULL) {
-		if (0 < (span = spanIP(value))) {
+		if (0 < (span = spanIP((unsigned char *)value))) {
 			uri->scheme = "ip";
 			if (value[span-1] == ']')
 				value[span-1] = '\0';
 			if (*value == '[')
 				value++;
 			uri->host = value;
-		} else if (0 < (span = alt_spanDomain(value, implicit_domain_min_dots))) {
+		} else if (0 < (span = alt_spanDomain((unsigned char *)value, implicit_domain_min_dots))) {
 			if (value[span] == '/') {
 				/* Shift the host left one byte to retain the
 				 * leading slash in path and to make room for
@@ -950,7 +950,7 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 				 * Does it have a leading scheme or not?
 				 * Without a scheme, assume relative URL.
 				 */
-				if (!(0 < (span = spanScheme(url)) && url[span] == ':')) {
+				if (!(0 < (span = spanScheme((unsigned char *)url)) && url[span] == ':')) {
 					/* Use the upper portion of the buffer
 					 * just past the end of the line to
 					 * construct a new URL.

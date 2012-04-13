@@ -939,7 +939,7 @@ socketReadLine2(Socket2 *s, char *line, long size, int keep_nl)
 
 			/* Find length of line. */
 			s->readBuffer[s->readLength] = 0;
-			if ((nl = strchr(s->readBuffer, '\n')) != NULL)
+			if ((nl = (unsigned char *)strchr((char *)s->readBuffer, '\n')) != NULL)
 				s->readLength = nl - s->readBuffer + 1;
 
 			/* Read only the line. */

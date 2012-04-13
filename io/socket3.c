@@ -510,7 +510,7 @@ socket3_connect(const char *host, unsigned port, long timeout)
 		return fd;
 
 	/* We have a host[:port] where the host might be multi-homed. */
-	if ((span = spanHost(host, 1)) <= 0)
+	if ((span = spanHost((unsigned char *)host, 1)) <= 0)
 		return SOCKET_ERROR;
 
 	/* Find the optional port. */

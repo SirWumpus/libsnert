@@ -85,7 +85,7 @@ uriIsDomainBL(const char *host, const char *dnsbl_suffix, unsigned long mask, in
 	mask &= 0x00fffffe;
 
 	/* If host is an IP address, then we have to reverse it first. */
-	if (0 < spanIP(host)) {
+	if (0 < spanIP((unsigned char *)host)) {
 		if ((length = reverseIp(host, buffer, sizeof (buffer), 0)) == 0) {
 			errno = EINVAL;
 			return 0;

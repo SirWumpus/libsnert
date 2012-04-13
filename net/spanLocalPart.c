@@ -35,9 +35,9 @@
  *	invalid character.
  */
 int
-spanLocalPart(const char *s)
+spanLocalPart(const unsigned char *s)
 {
-	const char *t;
+	const unsigned char *t;
 	/*@-type@*/
 	char x[2] = { 0, 0 };
 	/*@-type@*/
