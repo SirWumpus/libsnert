@@ -65,6 +65,10 @@ extern void cipher_dump_chain(FILE *fp, const char *chain);
  */
 extern void cipher_dump_grouping(FILE *fp, int grouping, const char *text);
 
+extern void cipher_dump_grouped(FILE *fp, int grouping, int indent, int width, const char *text);
+
+extern void cipher_dump_indent(FILE *fp, int width);
+
 /**
  * @param fp
  *	An output FILE pointer.

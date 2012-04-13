@@ -19,6 +19,8 @@
 #include <string.h>
 
 #define STRLEN(s)		(sizeof (s)-1)
+#define QUOTE(x)		QUOTE_THIS(x)
+#define QUOTE_THIS(x)		#x
 
 #ifdef WIPE_MEMORY
 #define MEM_WIPE(p, n)		if ((p) != NULL) (void) memset((p), 0, n)
@@ -28,8 +30,24 @@
 #define STR_WIPE(p)
 #endif
 
-#if !defined(NUMERIC_SEED)
+#ifndef DEFAULT_CT
+#define DEFAULT_CT		46
+#endif
+
+#ifndef NUMERIC_SEED
 #define NUMERIC_SEED		"3141592653"	/* PI to 9 decimal places. */
+#endif
+
+#ifndef TAB_WIDTH
+#define TAB_WIDTH		8
+#endif
+
+#ifndef GROUP_WIDTH
+#define GROUP_WIDTH		5
+#endif
+
+#ifndef OUTPUT_WIDTH
+#define OUTPUT_WIDTH		(50+50/GROUP_WIDTH)
 #endif
 
 /*
@@ -71,28 +89,28 @@
  * CT-28 ASCII Subset
  *
  * The initial shift state is the SI table. The original source
- * messsage does not specify SI or SU; they are added during
+ * messsage does not specify SI or SO; they are added during
  * encryption and removed during decryption.
  *
  * The actual straddling checkerboard codes used are determined
  * by the key specification rules applied.
  *
  *	SI	0  1  2  3  4  5  6  7  8  9
- *		E  S  T  O  N  I  A  SP
+ *		A  T  O  E  I  N  SP SO
  *	     8  B  C  D  F  G  H  J  K  L  M
- *	     9  P  Q  R  U  V  W  X  Y  Z  SU
+ *	     9  P  Q  R  S  U  V  W  X  Y  Z
  *
  *
- *	SU	0  1  2  3  4  5  6  7  8  9
- *		LF .  ,  ;  :  ?  @  "
- *	     8  (  )  *  /  +  -  =  <  >  %	(BOMDAS, relations, percent)
+ *	SO	0  1  2  3  4  5  6  7  8  9
+ *		.  ,  ;  :  ?  @  "  SI
+ *	     8  (  )  *  /  +  -  <  =  >  %	(BOMDAS, relations, percent)
  *	     9  0  1  2  3  4  5  6  7  8  9
  */
-#define FREQUENT8_SI		"ESTONIA "
-#define CT28_SI			FREQUENT8_SI "BCDFGHJKLMPQRUVWXYZ\032"
+#define FREQUENT8_SI		"ATOEIN \016"
+#define CT28_SI			FREQUENT8_SI "BCDFGHJKLMPQRSUVWXYZ"
 
-#define FREQUENT8_SU		"\n.,;:?@\""
-#define CT28_SU			FREQUENT8_SU "()*/+-=<>%0123456789"
+#define FREQUENT8_SO		".,;:?@\"\017"
+#define CT28_SO			FREQUENT8_SO "()*/+-<=>%0123456789"
 
 /*
  * CT-37 Printable ASCII
@@ -126,8 +144,8 @@
  *
  *	SU	0  1  2  3  4  5  6  7  8  9
  *		!  #  &  @  |  '  "
- *	     7  {  }  ^  \  ~  _  `  [  ]  $
- *	     8  (  )  *  /  +  -  =  <  >  %	(BOMDAS, relations, percent)
+ *	     7  {  }  ^  \  `  _  [  ~  ]  $
+ *	     8  (  )  *  /  +  -  <  =  >  %	(BOMDAS, relations, percent)
  *	     9  0  1  2  3  4  5  6  7  8  9
  */
 #define FREQUENT7_SI		"ESTONIA"
@@ -137,16 +155,10 @@
 #define CT37_SO			FREQUENT7_SO "bcdfghjklmpqruvwxyz\017 \t\r\n.,;:?\032"
 
 #define FREQUENT7_SU		"!#&@|'\""
-#define CT37_SU			FREQUENT7_SU "()*/+-=<>%{}^\\~_`[]$0123456789"
+#define CT37_SU			FREQUENT7_SU "()*/+-<=>%{}^\\`_[~]$0123456789"
 
 /*
  * CT-46
- *
- * The initial shift state is the SI table. The original source
- * messsage does not specify SI or SU; they are added during
- * encryption and removed during decryption. The SU prefix
- * introduces a code for a predefined word or phrase. The actual
- * words or phrases attributed are defined by the users.
  *
  * The actual straddling checkerboard codes used are determined
  * by the key specification rules applied.
@@ -161,6 +173,9 @@
  */
 #define FREQUENT6		"REANOI"
 #define CT46			FREQUENT6 "BCDFGHJKLMPQSTUVWXYZ .,:?/()\"#0123456789"
+
+#define FREQUENT6_ALT		"ATOEIN"
+#define CT46_ALT		FREQUENT6_ALT "BCDFGHJKLMPQRSUVWXYZ .,:?/()\"#0123456789"
 
 typedef struct {
 	const char *name;
@@ -194,7 +209,7 @@ static cipher_ct ct46 = {
 static const char ct28_ascii_name[] = "CT28 ASCII Subset";
 static cipher_ct ct28_ascii = {
 	ct28_ascii_name, STRLEN(CT28_SI), STRLEN(FREQUENT8_SI),
-	{ -1, -1, 27 }, { CT28_SI, empty, CT28_SU }
+	{ 7, 7, -1 }, { CT28_SI, CT28_SO, empty }
 };
 
 static const char ct37_ascii_name[] = "CT37 Printable ASCII";
@@ -277,7 +292,7 @@ cipher_dump_table(FILE *fp, cipher_ct *table, int shift)
 
 	for (i = table->length-10; i < table->length; i++)
 		fprintf(fp, " %c ", table->code[1][i]);
-	fprintf(fp, "\n\n\t  ");
+	fprintf(fp, "\n\n\t   ");
 
 	for (i = 0; i < k; i++) {
 		if (table->ct[shift][i] <= 32)
@@ -287,7 +302,7 @@ cipher_dump_table(FILE *fp, cipher_ct *table, int shift)
 	}
 
 	for (j = k; j < 10; j++, k += 10) {
-		fprintf(fp, "\n\t%c ", table->code[0][k]);
+		fprintf(fp, "\n\t%c  ", table->code[0][k]);
 		for (i = 0; i < 10; i++) {
 			if (table->ct[shift][i+k] <= 32)
 				fprintf(fp, " %s", ascii_control[table->ct[shift][i+k]]);
@@ -314,41 +329,67 @@ cipher_dump_ct(FILE *fp, cipher_ct *table)
 
 	if (0 <= table->shift[0])
 		fprintf(fp, "SI");
-	fprintf(fp, "\t  ");
+	fprintf(fp, "\t   ");
 	cipher_dump_table(fp, table, 0);
 
 	if (0 <= table->shift[1]) {
-		fprintf(fp, "\nSO\t  ");
+		fprintf(fp, "\nSO\t   ");
 		cipher_dump_table(fp, table, 1);
 	}
 
 	if (0 <= table->shift[2]) {
-		fprintf(fp, "\nSU\t  ");
+		fprintf(fp, "\nSU\t   ");
 		cipher_dump_table(fp, table, 2);
 	}
 
 	fprintf(fp, "\n");
 }
 
+void
+cipher_dump_indent(FILE *fp, int width)
+{
+	int n, col = 0;
+
+	for (n = width / 8; 0 < n--; ) {
+		fputc('\t', fp);
+		col += 8;
+	}
+	for (n = width % 8; 0 < n--; ) {
+		fputc(' ', fp);
+		col++;
+	}
+}
+
 /**
  * @param fp
  *	An output FILE pointer.
  *
- * @param chain
- *	A chain addition table.
+ * @param text
+ *	A C string to output in space separated groups.
  */
 void
-cipher_dump_chain(FILE *fp, const char *chain)
+cipher_dump_grouped(FILE *fp, int grouping, int indent, int width, const char *text)
 {
-	int i;
+	int group, col;
 
-	while (*chain != '\0') {
-		fputc('\t', fp);
-		for (i = 0; i < 10 && *chain != '\0'; i++)
-			fputc(*chain++, fp);
+	if (grouping < 1)
+		grouping = 1;
+
+	while (*text != '\0') {
+		group = 0;
+		cipher_dump_indent(fp, indent);
+		for (col = 0; col < width && *text != '\0'; text++) {
+			fputc(isspace(*text) ? '_' : *text, fp);
+			col++;
+
+			if ((++group % grouping) == 0) {
+				fputc(' ', fp);
+				group = 0;
+				col++;
+			}
+		}
 		fputc('\n', fp);
 	}
-	fputc('\n', fp);
 }
 
 /**
@@ -361,26 +402,21 @@ cipher_dump_chain(FILE *fp, const char *chain)
 void
 cipher_dump_grouping(FILE *fp, int grouping, const char *text)
 {
-	int group, col;
+	cipher_dump_grouped(fp, grouping, TAB_WIDTH, OUTPUT_WIDTH, text);
+	fputc('\n', fp);
+}
 
-	if (grouping < 1)
-		grouping = 1;
-
-	while (*text != '\0') {
-		group = 0;
-		fputc('\t', fp);
-		for (col = 0; col < 60 && *text != '\0'; text++) {
-			fputc(isspace(*text) ? '_' : *text, fp);
-			col++;
-
-			if ((++group % grouping) == 0) {
-				fputc(' ', fp);
-				group = 0;
-				col++;
-			}
-		}
-		fputc('\n', fp);
-	}
+/**
+ * @param fp
+ *	An output FILE pointer.
+ *
+ * @param chain
+ *	A chain addition table.
+ */
+void
+cipher_dump_chain(FILE *fp, const char *chain)
+{
+	cipher_dump_grouped(fp, GROUP_WIDTH, TAB_WIDTH, (10+10/GROUP_WIDTH), chain);
 	fputc('\n', fp);
 }
 
@@ -398,31 +434,21 @@ void
 cipher_dump_transposition(FILE *fp, const char *key, const char *data)
 {
 	int col;
-	const char *dp;
 	size_t key_len;
 
 	if (key == NULL)
 		key = NUMERIC_SEED;
 
 	key_len = strlen(key);
-	fprintf(fp, "\t%s\n\t", key);
+	key_len += key_len / GROUP_WIDTH;
+	cipher_dump_grouped(fp, GROUP_WIDTH, TAB_WIDTH, key_len, key);
+
+	fputc('\t', fp);
 	for (col = 0; col < key_len; col++)
 		fputc('-', fp);
 	fputc('\n', fp);
 
-	col = 0;
-	for (dp = data; *dp != '\0'; dp++) {
-		if (col++ == 0)
-			fputc('\t', fp);
-		fputc(*dp, fp);
-		if (key_len <= col) {
-			fputc('\n', fp);
-			col = 0;
-		}
-	}
-
-	if (col < key_len)
-		fputc('\n', fp);
+	cipher_dump_grouped(fp, GROUP_WIDTH, TAB_WIDTH, key_len, data);
 	fputc('\n', fp);
 }
 
@@ -703,7 +729,7 @@ cipher_columnar_transposition_encode(const char *key, const char *in)
 		fprintf(stderr, "Columnar Transposition\n\n");
 		cipher_dump_transposition(stderr, key, in);
 		fprintf(stderr, "Output string:\n\n");
-		cipher_dump_grouping(stderr, 5, out);
+		cipher_dump_grouping(stderr, GROUP_WIDTH, out);
 	}
 	return out;
 }
@@ -728,7 +754,7 @@ cipher_columnar_transposition_decode(const char *key, const char *in)
 		fprintf(stderr, "Columnar Transposition\n\n");
 		cipher_dump_transposition(stderr, key, out);
 		fprintf(stderr, "Output string:\n\n");
-		cipher_dump_grouping(stderr, 5, out);
+		cipher_dump_grouping(stderr, GROUP_WIDTH, out);
 	}
 	return out;
 }
@@ -833,7 +859,7 @@ cipher_disrupted_transposition_encode(const char *key, const char *in)
 	out = columnar_transposition(key, in = out, columnar_encode);
 	if (odebug) {
 		fprintf(stderr, "Output string:\n\n");
-		cipher_dump_grouping(stderr, 5, out);
+		cipher_dump_grouping(stderr, GROUP_WIDTH, out);
 	}
 	STR_WIPE(in);
 	free((void *)in);
@@ -867,7 +893,7 @@ cipher_disrupted_transposition_decode(const char *key, const char *in)
 		fprintf(stderr, "Disrupted Transposition\n\n");
 		cipher_dump_transposition(stderr, key, in);
 		fprintf(stderr, "Output string:\n\n");
-		cipher_dump_grouping(stderr, 5, out);
+		cipher_dump_grouping(stderr, GROUP_WIDTH, out);
 	}
 	STR_WIPE(in);
 	free((void *)in);
@@ -1081,7 +1107,7 @@ cipher_char_to_code(cipher_ct *table, const char *in, int pad)
 		}
 
 		/* Enough room for a shift, code, and null byte? */
-		if (length <= x+5) {
+		if (length <= x+GROUP_WIDTH) {
 			if ((copy = realloc(out, length += 1000)) == NULL) {
 				free(out);
 				return NULL;
@@ -1102,13 +1128,13 @@ cipher_char_to_code(cipher_ct *table, const char *in, int pad)
 			out[x++] = table->code[1][offset];
 	}
 
-	if (pad && 0 < x % 5) {
-		if (length <= x+5 && (out = realloc(out, length += 6)) == NULL) {
+	if (pad && 0 < x % GROUP_WIDTH) {
+		if (length <= x+GROUP_WIDTH && (out = realloc(out, length += 6)) == NULL) {
 			free(out);
 			return NULL;
 		}
 
-		for (i = 5 - x % 5; 0 < i; i--)
+		for (i = GROUP_WIDTH - x % GROUP_WIDTH; 0 < i; i--)
 			out[x++] = '0';
 	}
 
@@ -1116,8 +1142,8 @@ cipher_char_to_code(cipher_ct *table, const char *in, int pad)
 
 	if (debug) {
 		fprintf(stderr, "To numeric:\n\n");
-		cipher_dump_grouping(stderr, 2, in);
-		cipher_dump_grouping(stderr, 5, out);
+		cipher_dump_grouping(stderr, GROUP_WIDTH, in);
+		cipher_dump_grouping(stderr, GROUP_WIDTH, out);
 	}
 
 	return out;
@@ -1146,7 +1172,7 @@ cipher_mask_code(const char *key_mask, char *out)
 
 	if (debug) {
 		fprintf(stderr, "Column Addition MOD 10:\n\n");
-		cipher_dump_grouping(stderr, 5, out);
+		cipher_dump_grouping(stderr, GROUP_WIDTH, out);
 	}
 }
 
@@ -1199,7 +1225,7 @@ cipher_code_to_char(cipher_ct *table, char *out)
 
 	if (debug) {
 		fprintf(stderr, "From numeric:\n\n");
-		cipher_dump_grouping(stderr, 2, out);
+		cipher_dump_grouping(stderr, GROUP_WIDTH, out);
 	}
 }
 
@@ -1215,6 +1241,7 @@ typedef struct {
 	/* Public */
 	size_t ct_size;		/* Conversion table 28 or 37. */
 	const char *key;
+	size_t min_columns;
 	size_t chain_length;
 
 	/* Private */
@@ -1229,8 +1256,8 @@ cipher_transponse_key(Cipher *ctx, size_t *offset)
 	char *cp, *key;
 	size_t key_len;
 
-	if (*offset < 10)
-		*offset = ctx->chain_length;
+	if (*offset < ctx->min_columns)
+		*offset = ctx->min_columns;
 
 	/* Find a column length for the key summing the tail
 	 * of the chain addition table until the sum is greater
@@ -1239,7 +1266,7 @@ cipher_transponse_key(Cipher *ctx, size_t *offset)
 	key_len = 0;
 	for (cp = ctx->chain + *offset-1; ctx->chain <= cp; cp--) {
 		key_len += *cp - '0';
-		if (9 < key_len)
+		if (ctx->min_columns < key_len)
 			break;
 	}
 
@@ -1267,8 +1294,11 @@ cipher_init(Cipher *ctx)
 {
 	char *k, *digit;
 
-	if (ctx->chain_length < 10)
-		ctx->chain_length = 10;
+	if (ctx->min_columns < 10)
+		ctx->min_columns = 10;
+
+	if (ctx->chain_length < ctx->min_columns)
+		ctx->chain_length = ctx->min_columns;
 
 	/* Convert alpha-numeric key into ASCII digit form for chain addition. */
 	if (ctx->key != NULL) {
@@ -1363,20 +1393,24 @@ cipher_decode(Cipher *ctx, const char *message)
 
 #include <getopt.h>
 
-static char options[] = "c:dvk:l:s:IT:U:";
+static char options[] = "c:dvk:l:t:BCIT:U:";
 
 static char usage[] =
-"usage: cipher [-dv][-c size][-l length][-k key] . | < message\n"
-"       cipher -I string\n"
-"       cipher -T c|d [-k key] string\n"
-"       cipher -U c|d [-k key] string\n"
+"usage:\tcipher [-Cdv][-c size][-l length][-k key][-t min] < message\n"
+"\tcipher -B\n"
+"\tcipher -I string\n"
+"\tcipher -T c|d [-k key] string\n"
+"\tcipher -U c|d [-k key] string\n"
 "\n"
-"-c size\t\tconversion table 28, 37, 46, or 111 (CT37-PA); default 37\n"
+"-c size\t\tconversion table 28, 37, 46, 56, 111; default " QUOTE(DEFAULT_CT) "\n"
 "-d\t\tdecode message\n"
 "-k key\t\talpha-numeric string for transpostion or chain addition\n"
 "-l length\tchain addition length; default 100\n"
+"-t min\t\tminimum transposition key length; default 10\n"
 "-v\t\tverbose debug\n"
 "\n"
+"-B\t\tdump maximum message size.\n"
+"-C\t\tdump the chain addition and conversion table\n"
 "-I\t\tdump the indices of the ordinal order of characters\n"
 "-T c|d\t\tdump the encoded columnar or disrupted transposition\n"
 "-U c|d\t\tdump the decoded columnar or disrupted transposition\n"
@@ -1402,13 +1436,20 @@ main(int argc, char **argv)
 	memset(&ctx, 0, sizeof (ctx));
 
 	dump = 0;
-	ctx.ct_size = 37;
+	ctx.ct_size = DEFAULT_CT;
+	ctx.min_columns = 10;
 	ctx.chain_length = 100;
 	fn = cipher_encode;
 	transposition = 0;
 
 	while ((ch = getopt(argc, argv, options)) != -1) {
 		switch (ch) {
+		case 'C':
+			debug++;
+			/*@fallthrough@*/
+		case 'B':
+			dump = ch;
+			break;
 		case 'c':
 			ctx.ct_size = strtol(optarg, NULL, 10);
 			break;
@@ -1420,6 +1461,9 @@ main(int argc, char **argv)
 			break;
 		case 'l':
 			ctx.chain_length = strtol(optarg, NULL, 10);
+			break;
+		case 't':
+			ctx.min_columns = strtol(optarg, NULL, 10);
 			break;
 		case 'v':
 			debug++;
@@ -1443,6 +1487,9 @@ main(int argc, char **argv)
 	}
 
 	switch (dump) {
+	case 'B':
+		printf("%u\n", sizeof (input));
+		return EXIT_SUCCESS;
 	case 'I':
 		debug = 1;
 		free(cipher_ordinal_order(argv[optind]));
@@ -1472,31 +1519,36 @@ main(int argc, char **argv)
 			return EXIT_FAILURE;
 		}
 
-		if (optind < argc && argv[optind][0] == '.')
+		if (dump == 'C')
 			break;
 
 		/*** TODO handle read/write of "block" units when
 		 *** processing input files larger than the input
 		 *** buffer.
 		 ***/
+		n = sizeof (input);
+		if (fn == cipher_encode)
+			n /= 2;
 
-		while (0 < (n = fread(input, 1, sizeof (input), stdin))) {
+		if (0 < (n = fread(input, 1, n-1, stdin))) {
+			input[n] = '\0';
 			if ((out = (*fn)(&ctx, input)) == NULL) {
 				cipher_fini(&ctx);
 				return EXIT_FAILURE;
 			}
 			MEM_WIPE(input, sizeof (input));
-			fputs(out, stdout);
+			cipher_dump_grouped(stdout, GROUP_WIDTH, 0, OUTPUT_WIDTH, out);
 			STR_WIPE(out);
 			free(out);
 		}
-
+#ifdef OFF
 		/* When using CT37-PA, accuracy is very important;
-		 * what goes must be what comes out, particularly
+		 * what goes in must be what comes out, particularly
 		 * when encrypting printable text files.
 		 */
 		if (ctx.table.name != ct37_ascii_name || fn == cipher_encode)
 			fputc('\n', stdout);
+#endif
 	}
 
 	cipher_fini(&ctx);
