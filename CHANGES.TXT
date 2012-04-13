@@ -75,6 +75,8 @@ is no set schedule for releases.
 	-1 to 255. To correct this, the span*() functions now take an
 	"const unsigned char *".
 
+   	Reported by Alex Broens.
+
 --1.75.11--
 
    !	Enhanced cipher API and CLI to support CT46 (-c 46), CT28 ASCII
