@@ -74,9 +74,25 @@ spanDomain(const unsigned char *domain, int minDots)
 #endif
 			break;
 		default:
+#ifdef RFC_1035_STRICT
 			if (!isalnum(*domain))
 				goto stop;
-
+#else
+/*** Similar arguement to below; AlexB has supplied examples of
+ *** URI with high-bit bytes in the host name. The issue here is
+ *** by weakening some of the restrictions applied to names, then
+ *** the boundaries between text and URI strings blur, making
+ *** identification more complicated.
+ ***
+ ***      h   t   t   p   :   /   /  e1  bd  9f  e1  ba  8e  e1  bd
+ *** 8b  e1  bc  9d  c9  b2   .  e1  bc  99  ce  91  e1  bf  a9  c3
+ *** 8c  d1  90   .   l   h   r   s   .   t   e   p   d   t   .   c
+ ***  o   m   /  c8  99  e1  b8  b3  e1  be  8f   -  e1  bf  ab   G
+ *** K  c4  a1   +   m   w   m   g
+ ***/
+			if (!isalnum(*domain) && *domain < 128)
+				goto stop;
+#endif
 #ifndef RFC_1035_STRICT
 		/* RFC 1035 section 2.3.1. Preferred name syntax grammar
 		 * only allows for alphanumeric, hyphen, and dot in domain
