@@ -57,6 +57,23 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+
+--1.75.13--
+
+   !	Weakened spanHost() and spanDomain() to allow high-bit bytes in
+	the host / domain name based on spam samples from Alex Broens.
+
+	     h   t   t   p   :   /   /  e1  bd  9f  e1  ba  8e  e1  bd
+	8b  e1  bc  9d  c9  b2   .  e1  bc  99  ce  91  e1  bf  a9  c3
+	8c  d1  90   .   l   h   r   s   .   t   e   p   d   t   .   c
+	 o   m   /  c8  99  e1  b8  b3  e1  be  8f   -  e1  bf  ab   G
+	K  c4  a1   +   m   w   m   g
+
+	This change raises some concerns about the bluring of boundaries
+	between text and URI strings through weakened application of RFC
+	definitions of DNS names and URI strings (see similar issue with
+	isCharURI()).
+
 --1.75.12--
 
    !	Fixed URI parsing of strings with junk high-bit bytes prefixing
