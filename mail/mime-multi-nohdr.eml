@@ -1,0 +1,44 @@
+Date: Sat, 08 Mar 2008 10:50:38 +0100
+Message-ID: <47D2616E.2080401@snert.com>
+From: Anthony Howe <achowe@snert.com>
+To: achowe@fsg.com
+Subject: mime-multi-nohdr.eml
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="--=_part_"
+
+Prolog. Test the following cases:
+
+A. Headers,		EOH,		content
+
+B. Headers,		no EOH,		content
+
+C. No headers,		EOH,		content
+
+D. No headers,		no EOH,		content
+
+E. No headers,		EOH,		no content (empty part)
+
+F. No headers,		no EOH,		no content (empty part)
+
+----=_part_
+Content-Type: text/plain
+
+A. Headers,		EOH,		content
+
+----=_part_
+Content-Type: text/plain
+B. Headers,		no EOH,		content
+
+----=_part_
+
+C. No headers,		EOH,		content
+
+----=_part_
+D. No headers,		no EOH,		content
+
+----=_part_
+
+----=_part_
+----=_part_--
+
+Epilogue. Typically empty.

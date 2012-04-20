@@ -1,18 +1,23 @@
-#!/bin/sh
+#!/bin/ksh
+echo $KSH_VERSION
 
 make mime >/dev/null
 
-if which md5 >/dev/null; then
-	MD5=`which md5`
-elif which md5sum >/dev/null; then
-	MD5=`which md5sum`
-#else
-#	cd ../util
-#	make md5
-#	cd -
-#	MD5='../util/md5'
-fi
+for i in md5 md5sum ; do
+	if which $i >/dev/null ; then
+		MD5=`which $i`
+		break;
+	fi
+done
+if test ${MD5:-no} = 'no' ; then
+#	echo "No md5 file checksum tool found."
+#	exit 1
 
+	cd ../util
+	make md5
+	cd -
+	MD5='../util/md5'
+fi
 echo "MD5=${MD5}"
 
 function check_mime
@@ -25,36 +30,52 @@ function check_mime
 	fi
 
 	i=0
-	while test $i -lt ${num_parts} ; do
+	while test $i -le ${num_parts} ; do
 		encoded=`./mime -l ${file} | sed -n -e "/^${i}: X-MD5-Encoded:/s/^${i}: X-MD5-Encoded: //p" | tr -d '[:space:]'`
 		decoded=`./mime -l ${file} | sed -n -e "/^${i}: X-MD5-Decoded:/s/^${i}: X-MD5-Decoded: //p" | tr -d '[:space:]'`
 
 		echo "$ ./mime -p${i} ${file} " >>${file}.out
 		computed=`./mime -p${i} ${file} | tee -a ${file}.out | tee $$.tmp | $MD5`
-		if test ${computed} != ${encoded} ; then
+		if test -n "${encoded}" -a ${computed} != ${encoded:-undef} ; then
 			echo "${file}: part $i encoded $encoded computed $computed" | tee -a ${file}.out
 			echo ---- | tee -a ${file}.out
 			cat $$.tmp | od -c | tee -a ${file}.out
 			echo ---- | tee -a ${file}.out
 		fi
 
-		echo "$ ./mime -d -p${i} ${file} " >>${file}.out
-		computed=`./mime -d -p${i} ${file} | tee -a ${file}.out | tee $$.tmp  | $MD5`
-		if test ${computed} != ${decoded} ; then
-			echo "${file}: part $i decoded $decoded computed $computed"| tee -a ${file}.out
-			echo ---- | tee -a ${file}.out
-			cat $$.tmp | od -c | tee -a ${file}.out
-			echo ---- | tee -a ${file}.out
+		if test -n "${decoded}" ; then
+			echo "$ ./mime -d -p${i} ${file} " >>${file}.out
+			computed=`./mime -d -p${i} ${file} | tee -a ${file}.out | tee $$.tmp  | $MD5`
+			if test ${computed} != ${decoded:-undef} ; then
+				echo "${file}: part $i decoded $decoded computed $computed"| tee -a ${file}.out
+				echo ---- | tee -a ${file}.out
+				cat $$.tmp | od -c | tee -a ${file}.out
+				echo ---- | tee -a ${file}.out
+			fi
 		fi
 
 		i=`expr $i + 1`
 	done
+	echo '$' >>${file}.out
 	rm -f $$.tmp
 
 	return 0
 }
 
-echo "Checking mime-7bit-crlf.eml ..." | tee " mime-7bit-crlf.eml.out"
+file="mime-stdin"
+echo "Checking stdin ..." | tee ${file}.out
+echo "Hello world!" "Hello world!"| ./mime -l >>${file}.out
+computed=`echo "Hello world!" | ./mime -p0 | tee -a ${file}.out | tee $$.tmp | $MD5`
+expected=`echo "Hello world!" | $MD5`
+if test ${computed} !=  ${expected}; then
+	echo "stdin: part 0 expected $expected computed $computed" | tee -a ${file}.out
+	echo ---- | tee -a ${file}.out
+	cat $$.tmp | od -c | tee -a ${file}.out
+	echo ---- | tee -a ${file}.out
+fi
+rm -f $$.tmp
+
+echo "Checking mime-7bit-crlf.eml ..." | tee "mime-7bit-crlf.eml.out"
 check_mime "mime-7bit-crlf.eml"
 
 echo "Checking mime-qp-crlf.eml ..." | tee  "mime-qp-crlf.eml.out"
@@ -71,5 +92,8 @@ check_mime "mime-gtube-lf.eml"
 
 echo "Checking mime-multi-crlf.eml with NO preamble text ..." | tee  "mime-multi-crlf.eml.out"
 check_mime "mime-multi-crlf.eml"
+
+echo "Checking mime-multi-nohdr.eml ..." | tee "mime-multi-nohdr.eml.out"
+check_mime "mime-multi-nohdr.eml"
 
 exit 0

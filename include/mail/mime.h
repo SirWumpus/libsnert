@@ -14,6 +14,9 @@ extern "C" {
 #endif
 
 #include <stddef.h>
+#ifdef HAVE_SETJMP_H
+# include <setjmp.h>
+#endif
 #include <com/snert/lib/util/b64.h>
 
 #ifndef MIME_BUFFER_SIZE
@@ -72,11 +75,26 @@ typedef struct mime_hooks {
 	struct mime_hooks *next;
 } MimeHooks;
 
+typedef enum {
+	MIME_ERROR_OK,
+	MIME_ERROR_BREAK,
+	MIME_ERROR_NULL,
+	MIME_ERROR_INVALID,
+	MIME_ERROR_HDR_NAME,
+	MIME_ERROR_NO_EOH
+} MimeErrorCode;
+
+typedef struct mime_error {
+	int ready;				/* Caller sets true if jmp_buf set. */
+	JMP_BUF error;				/* Caller sets if required. */
+} MimeError;
+
 struct mime {
 	/* Private. */
 	MimeState state;
 
 	/* Public data. */
+	MimeError throw;
 	MimeBuffer source;			/* Original encoded source data. */
 	MimeBuffer decode;			/* Decoded data based on source. */
 	unsigned mime_part_number;		/* Number of boundary lines crossed. */
@@ -117,9 +135,9 @@ extern void mimeFree(Mime *);
  *	Next input octet to parse.
  *
  * @return
- *	Zero to continue, otherwise -1 on error.
+ *	Zero to continue, otherwise non-zero on error.
  */
-extern int mimeNextCh(Mime *, int);
+extern MimeErrorCode mimeNextCh(Mime *, int);
 
 #ifdef GONE
 /**
@@ -155,7 +173,16 @@ extern void mimeHeadersFirst(Mime *m, int flag);
  *	Pointer to a Mime context structure.
  *
  * @return
- *	True if the parsing is still in the message headers.
+ *	True if the parsing is still in message or MIME headers.
+ */
+extern int mimeIsAnyHeader(Mime *m);
+
+/**
+ * @param m
+ *	Pointer to a Mime context structure.
+ *
+ * @return
+ *	True if the parsing is still in the message headers only.
  */
 extern int mimeIsHeaders(Mime *m);
 

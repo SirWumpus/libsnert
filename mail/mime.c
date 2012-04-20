@@ -29,6 +29,7 @@
 static int mimeStateHdr(Mime *m, int ch);
 static int mimeStateBdy(Mime *m, int ch);
 static int mimeStateQpEqual(Mime *m, int ch);
+static int mimeStateHdrValue(Mime *m, int ch);
 
 /**
  * @param octet
@@ -64,13 +65,13 @@ mimeDecodeFlush(Mime *m)
 	MimeHooks *hook;
 
 	if (0 < m->decode.length) {
-		if (m->state.source_state != mimeStateHdr) {
+		if (!mimeIsAnyHeader(m)) {
 			for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
 				if (hook->decode_flush != NULL)
 					(*hook->decode_flush)(m, hook->data);
 			}
 		}
-		MEMSET(m->decode.buffer, 0, sizeof (m->decode.buffer));
+		MEMSET(m->decode.buffer, 0, m->decode.length);
 		m->decode.length = 0;
 	}
 }
@@ -210,15 +211,26 @@ mimeSourceFlush(Mime *m)
 	MimeHooks *hook;
 
 	if (0 < m->source.length) {
-		if (m->state.source_state != mimeStateHdr) {
+		if (!mimeIsAnyHeader(m)) {
 			m->source.buffer[m->source.length] = '\0';
 			for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
 				if (hook->source_flush != NULL)
 					(*hook->source_flush)(m, hook->data);
 			}
 		}
-		MEMSET(m->source.buffer, 0, sizeof (m->source.buffer));
+		MEMSET(m->source.buffer, 0, m->source.length);
 		m->source.length = 0;
+	}
+}
+
+void
+mimeBodyStart(Mime *m)
+{
+	MimeHooks *hook;
+
+	for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
+		if (hook->body_start != NULL)
+			(*hook->body_start)(m, hook->data);
 	}
 }
 
@@ -227,7 +239,7 @@ mimeBodyFinish(Mime *m)
 {
 	MimeHooks *hook;
 
-	if (m->state.source_state != mimeStateHdr) {
+	if (!mimeIsAnyHeader(m)) {
 		for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
 			if (hook->body_finish != NULL)
 				(*hook->body_finish)(m, hook->data);
@@ -481,8 +493,6 @@ mimeStateHdrBdy(Mime *m, int ch)
 static int
 mimeStateEOH(Mime *m, int ch)
 {
-	MimeHooks *hook;
-
 	/* End of headers. */
 	mimeDecodeFlush(m);
 	m->mime_body_length = 0;
@@ -490,10 +500,7 @@ mimeStateEOH(Mime *m, int ch)
 	m->source.buffer[0] = '\0';
 	m->source.length = 0;
 
-	for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
-		if (hook->body_start != NULL)
-			(*hook->body_start)(m, hook->data);
-	}
+	mimeBodyStart(m);
 
 	/* HACK for uri.c:
 	 *
@@ -523,15 +530,13 @@ mimeStateHdrLF(Mime *m, int ch)
 	MimeHooks *hook;
 
 	if (ch == ASCII_CR) {
-		/* For single CR, remain in this state waiting for the
-		 * LF that marks end-of-headers. If we see CRCR, then
-		 * treat as a folded header; though illegal, this
-		 * should be safer.
+		/* Remain in this state waiting for the
+		 * LF that marks end-of-headers.
 		 */
 		m->source.length--;
 	} else if (ch == ASCII_SPACE || ch == ASCII_TAB) {
 		/* Folded header, resume header gathering. */
-		m->state.source_state = mimeStateHdr;
+		m->state.source_state = mimeStateHdrValue;
 	} else {
 		if (0 < m->source.length) {
 			/* End of unfolded header line less newline. */
@@ -586,7 +591,7 @@ mimeStateHdrLF(Mime *m, int ch)
 }
 
 static int
-mimeStateHdr(Mime *m, int ch)
+mimeStateHdrValue(Mime *m, int ch)
 {
 	if (ch == ASCII_LF) {
 		/* Remove trailing newline (LF or CRLF). */
@@ -598,6 +603,36 @@ mimeStateHdr(Mime *m, int ch)
 		 * header line, or end-of-headers with next octet.
 		 */
 		m->state.source_state = mimeStateHdrLF;
+	}
+
+	return ch;
+}
+
+static int
+mimeStateHdr(Mime *m, int ch)
+{
+	int i;
+
+	if (ch == ':') {
+		m->state.source_state = mimeStateHdrValue;
+	} else if (ch == ASCII_CR) {
+		;
+	} else if (isspace(ch) || iscntrl(ch)) {
+		if (ch == ASCII_LF) {
+			if (m->source.length == 1)
+				m->source.length--;
+			else if (m->source.length == 2 && *m->source.buffer == ASCII_CR)
+				m->source.length -= 2;
+			else if (m->throw.ready)
+				LONGJMP(m->throw.error, MIME_ERROR_NO_EOH);
+		} else if (m->throw.ready) {
+			LONGJMP(m->throw.error, MIME_ERROR_HDR_NAME);
+		}
+
+		mimeBodyStart(m);
+		m->state.source_state = mimeStateHdrBdy;
+		for (i = 0; i < m->source.length; i++)
+			(void) (*m->state.source_state)(m,  m->source.buffer[i]);
 	}
 
 	return ch;
@@ -700,12 +735,27 @@ mimeHeadersFirst(Mime *m, int flag)
  *	Pointer to a Mime context structure.
  *
  * @return
+ *	True if the parsing is still in message or MIME headers.
+ */
+int
+mimeIsAnyHeader(Mime *m)
+{
+	return	m->state.source_state == mimeStateHdr
+		|| m->state.source_state == mimeStateHdrValue
+	;
+}
+
+/**
+ * @param m
+ *	Pointer to a Mime context structure.
+ *
+ * @return
  *	True if the parsing is still in the message headers.
  */
 int
 mimeIsHeaders(Mime *m)
 {
-	return m->mime_part_number == 0 && m->state.source_state == mimeStateHdr;
+	return m->mime_part_number == 0 && mimeIsAnyHeader(m);
 }
 
 /**
@@ -716,20 +766,24 @@ mimeIsHeaders(Mime *m)
  *	Next input octet to parse or EOF.
  *
  * @return
- *	Zero on success; otherwise EOF on error.
+ *	Zero on success; otherwise non-zero on error.
  */
-int
+MimeErrorCode
 mimeNextCh(Mime *m, int ch)
 {
 	if (m == NULL) {
+		if (m->throw.ready)
+			LONGJMP(m->throw.error, MIME_ERROR_NULL);
 		errno = EFAULT;
-		return EOF;
+		return MIME_ERROR_NULL;
 	}
 
 	if (ch != EOF) {
 		if (ch < 0 || 255 < ch) {
+			if (m->throw.ready)
+				LONGJMP(m->throw.error, MIME_ERROR_INVALID);
 			errno = EINVAL;
-			return EOF;
+			return MIME_ERROR_INVALID;
 		}
 
 		m->mime_part_length++;
@@ -751,7 +805,7 @@ mimeNextCh(Mime *m, int ch)
 	if (ch == EOF)
 		mimeBodyFinish(m);
 
-	return 0;
+	return MIME_ERROR_OK;
 }
 
 /***********************************************************************
@@ -774,6 +828,7 @@ mimeNextCh(Mime *m, int ch)
 int list_parts;
 int extract_part = -1;
 int enable_decode;
+int enable_throw;
 int generate_md5;
 
 Mime *mime;
@@ -781,9 +836,10 @@ Mime *mime;
 
 static char usage[] =
 "usage: mime -l < message\n"
-"       mime -p num [-dm] < message\n"
+"       mime -p num [-dem] < message\n"
 "\n"
 "-d\t\tdecode base64 or quoted-printable\n"
+"-e\t\treport parsing errors\n"
 "-l\t\tlist MIME part headers\n"
 "-m\t\tgenerate MD5s for MIME part\n"
 "-p num\t\textract MIME part\n"
@@ -868,12 +924,18 @@ md5_decode_flush(Mime *m, void *data)
 void
 listHeaders(Mime *m, void *_data)
 {
-	if (m->source.length == 0
-	|| 0 <= TextFind((char *) m->source.buffer, "Content-*", m->source.length, 1)
-	|| 0 <= TextFind((char *) m->source.buffer, "X-MD5-*", m->source.length, 1)
+	if (0 <= TextFind((char *) m->source.buffer, "Content-*", m->source.length, 1)
+	||  0 <= TextFind((char *) m->source.buffer, "X-MD5-*", m->source.length, 1)
 	)
 		printf("%u: %s\r\n", m->mime_part_number, m->source.buffer);
 }
+
+void
+listEndHeaders(Mime *m, void *_data)
+{
+	printf("%u:\r\n", m->mime_part_number);
+}
+
 
 void
 printSource(Mime *m, void *_data)
@@ -887,6 +949,13 @@ printDecode(Mime *m, void *_data)
 {
 	if (m->mime_part_number == extract_part)
 		fwrite(m->decode.buffer, 1, m->decode.length, stdout);
+}
+
+void
+printFinish(Mime *m, void *_data)
+{
+	if (m->mime_part_number == extract_part && m->throw.ready)
+		LONGJMP(m->throw.error, MIME_ERROR_BREAK);
 }
 
 void
@@ -927,10 +996,13 @@ main(int argc, char **argv)
 	md5_mime_state md5;
 	MimeHooks md5_hook = { (void *)&md5, NULL, NULL, md5_body_start, md5_body_finish, md5_source_flush, md5_decode_flush };
 
-	while ((ch = getopt(argc, argv, "dlmp:")) != -1) {
+	while ((ch = getopt(argc, argv, "delmp:")) != -1) {
 		switch (ch) {
 		case 'd':
 			enable_decode = 1;
+			break;
+		case 'e':
+			enable_throw = 1;
 			break;
 		case 'l':
 			list_parts = 1;
@@ -961,11 +1033,13 @@ main(int argc, char **argv)
 
 	if (list_parts) {
 		hook.header = listHeaders;
-		hook.body_start = listHeaders;
+		hook.body_start = listEndHeaders;
 	} else if (enable_decode) {
 		hook.decode_flush = printDecode;
+		hook.body_finish = printFinish;
 	} else {
 		hook.source_flush = printSource;
+		hook.body_finish = printFinish;
 	}
 
 	mimeHooksAdd(mime, &hook);
@@ -973,12 +1047,23 @@ main(int argc, char **argv)
 	if (generate_md5)
 		mimeHooksAdd(mime, &md5_hook);
 
+	if (enable_throw) {
+		if ((ch = SETJMP(mime->throw.error)) != MIME_ERROR_OK) {
+			if (ch != MIME_ERROR_BREAK) {
+				fprintf(stderr, "mime error: %d\n", ch);
+				exit(1);
+			}
+			goto done;
+		}
+		mime->throw.ready = 1;
+	}
+
 	if (optind + 1 == argc) {
 		processFile(mime, argv[optind]);
 	} else {
 		processInput(mime, stdin);
 	}
-
+done:
 	mimeFree(mime);
 
 	return 0;

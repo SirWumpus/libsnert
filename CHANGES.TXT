@@ -57,6 +57,34 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.14--
+
+   !	Fixed MIME API parsing of MIME parts. Five of the following
+   	six cases had to be fixed. Despite three of these case being
+   	invalid, support for them was added.
+
+   	A. With headers, end-of-header (EOH) line, and with content;
+   	   most common case, always worked, no change.
+
+   	B. With headers, no EOH (invalid), and with content; fixed.
+	   Thunderbird 11 will not parse these parts. Reported spam
+	   samples from Alex Broens.
+
+   	C. No headers (allowed, RFC 2046 section 5.1.1 paragraph 6),
+   	   with EOH, and with content; fixed.
+
+	D. No headers, no EOH (invalid), and with content; fixed. This
+	   used to be a bug in Lotus Notes as I recall several years
+	   ago and so had to be supported
+
+   	E. No headers, with EOH, no content (empty part); fixed.
+
+   	F. No headers, no EOH (invalid), no content (empty part); fixed.
+
+	Also added optional means to throw an error for invalid cases
+	that an application can detect if desired. Requested by Alex
+	Broens.
+
 
 --1.75.13--
 

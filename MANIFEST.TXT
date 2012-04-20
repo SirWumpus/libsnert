@@ -67,6 +67,7 @@ com/snert/src/lib/mail/mime-b64-crlf.eml
 com/snert/src/lib/mail/mime-gtube-lf.eml
 com/snert/src/lib/mail/mime-gtube-crlf.eml
 com/snert/src/lib/mail/mime-multi-crlf.eml
+com/snert/src/lib/mail/mime-multi-nohdr.eml
 com/snert/src/lib/mail/digestbl.c
 com/snert/src/lib/mail/mfReply.c
 com/snert/src/lib/mail/smf.c
