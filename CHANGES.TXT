@@ -57,6 +57,12 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.15--
+
+   !	Fixes for FreeBSD detecting POSIX Semaphore API and Berkeley DB
+	after changes in the configure script since 1.75.0. Reported by
+	Panagiotis Christias.
+
 --1.75.14--
 
    !	Fixed MIME API parsing of MIME parts. Five of the following

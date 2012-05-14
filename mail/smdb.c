@@ -39,7 +39,7 @@
 
 static const char usage_smdb_key_has_nul[] =
   "Key lookups must include the terminating NUL byte. Intended for\n"
-"# Postfix with postmap(1) generated .db files; experimental.\n"
+"# Postfix with postmap(1) generated .db files.\n"
 "#"
 ;
 

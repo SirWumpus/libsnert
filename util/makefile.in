@@ -49,6 +49,10 @@ LIB_WS2_32	= @HAVE_LIB_WS2_32@
 LIB_IPHLPAPI	= @HAVE_LIB_IPHLPAPI@
 NETWORK_LIBS	= @NETWORK_LIBS@
 
+LIB_DB		= @HAVE_LIB_DB@
+CFLAGS_DB	= @CFLAGS_DB@
+LDFLAGS_DB	= @LDFLAGS_DB@
+
 LIB_PTHREAD	= @HAVE_LIB_PTHREAD@
 CFLAGS_PTHREAD	= @CFLAGS_PTHREAD@
 LDFLAGS_PTHREAD	= @LDFLAGS_PTHREAD@
@@ -169,6 +173,9 @@ urid$E : ../include/mail/mime.h ../mail/mime$O \
 
 sqlite3$O : sqlite3.c
 	${CC} ${CFLAGS_SQLITE3} ${CFLAGS} -c $*.c
+
+Cache$O : Cache.c
+	${CC} ${CFLAGS_DB} $(CFLAGS) -c $*.c
 
 TextC$E: TextC.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextC$E TextC.c $(LIB)

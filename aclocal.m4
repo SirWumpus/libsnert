@@ -302,7 +302,7 @@ AS_IF([test ${with_db:-default} != 'no'],[
 	for d in $BDB_BASE_DIRS ; do
 		if test -d "$d/include" ; then
 			bdb_dir_list="$bdb_dir_list $d"
-			bdb_i_dirs=`ls -d $d/include/db[[0-9]] $d/include/db $d/include 2>/dev/null | sort -r`
+			bdb_i_dirs=`ls -d $d/include/db[[0-9]]* $d/include/db $d/include 2>/dev/null | sort -r`
 
 			for BDB_I_DIR in $bdb_i_dirs ; do
 				AC_MSG_CHECKING([for db.h in $BDB_I_DIR])
@@ -383,6 +383,11 @@ main(int argc, char **argv)
 								AC_SUBST(HAVE_LIB_DB, "-l$l")
 								AC_SUBST(CFLAGS_DB, "-I$BDB_I_DIR")
 								AC_SUBST(LDFLAGS_DB, "-L$BDB_L_DIR")
+
+								AC_DEFINE_UNQUOTED(HAVE_LIB_DB, "-l$l")
+								AC_DEFINE_UNQUOTED(LDFLAGS_DB, "-I$BDB_I_DIR")
+								AC_DEFINE_UNQUOTED(CFLAGS_DB, "-L$BDB_L_DIR")
+
 							fi
 						])
 						AC_MSG_RESULT($bdb_found)
@@ -1240,7 +1245,13 @@ AC_DEFUN(SNERT_POSIX_SEMAPHORES,[
 		saved_libs=$LIBS
 		LIBS=''
 
-		AC_SEARCH_LIBS([sem_init],[rt pthread],[AC_DEFINE_UNQUOTED(HAVE_LIB_SEM, "${ac_cv_search_sem_init}") AC_SUBST(HAVE_LIB_SEM, ${ac_cv_search_sem_init}) NETWORK_LIBS="${ac_cv_search_sem_init} $NETWORK_LIBS"])
+		AC_SEARCH_LIBS([sem_init],[rt pthread],[
+			AS_IF([test "${ac_cv_search_sem_init}" = 'none required'],[ac_cv_search_sem_init=''])
+
+			AC_DEFINE_UNQUOTED(HAVE_LIB_SEM, "${ac_cv_search_sem_init}")
+			AC_SUBST(HAVE_LIB_SEM, ${ac_cv_search_sem_init})
+			NETWORK_LIBS="${ac_cv_search_sem_init} $NETWORK_LIBS"]
+		)
 		AC_CHECK_TYPES([sem_t],[],[],[
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>

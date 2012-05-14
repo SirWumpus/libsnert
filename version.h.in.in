@@ -868,6 +868,9 @@ typedef int socklen_t;
 #undef HAVE_DB_CREATE
 #undef HAVE_DBOPEN
 #undef HAVE_DB_H
+#undef HAVE_LIB_DB
+#undef LDFLAGS_DB
+#undef CFLAGS_DB
 
 /*
  * Define the flock() constants separately, since some systems

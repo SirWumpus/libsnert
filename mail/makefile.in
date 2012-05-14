@@ -203,4 +203,4 @@ mfReply$O : mfReply.c
 	${CC} ${CFLAGS_MILTER} ${CFLAGS} -c $*.c
 
 smf$O : smf.c
-	${CC} ${CFLAGS_SQLITE3} ${CFLAGS_MILTER} ${CFLAGS} -c $*.c
+	${CC} ${CFLAGS_DB} ${CFLAGS_SQLITE3} ${CFLAGS_MILTER} ${CFLAGS} -c $*.c
