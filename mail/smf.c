@@ -278,8 +278,9 @@ Option *smfOptTable[] = {
 	&smfOptRunUser,
 	SMDB_OPTIONS_TABLE,
 	&smfOptSmtpAuthOk,
-	&tldOptLevelOne,
-	&tldOptLevelTwo,
+	&tldOptLevel1,
+	&tldOptLevel2,
+//	&tldOptLevel3,
 	&smfOptVerbose,
 	&smfOptWorkDir,
 	NULL

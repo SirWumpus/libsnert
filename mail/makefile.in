@@ -124,7 +124,7 @@ add-lib:
 clean : title
 	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.stackdump core *.core core.* *.log
 	-rm -f parsePath$E smdb$E smtp$E smtp2$E spf$E siq$E tlds$E digestbl$E mime$E
-	-rm -f tlds-alpha-by-domain.c two-level-tlds.c
+	-rm -f tlds-alpha-by-domain.c two-level-tlds.c three-level-tlds.c
 
 distclean: clean
 	-rm makefile
@@ -139,7 +139,7 @@ backup-tlds:
 	-mv two-level-tlds.txt two-level-tlds.txt.bak
 	-mv tlds-alpha-by-domain.txt tlds-alpha-by-domain.txt.bak
 
-update-tlds: backup-tlds tlds-alpha-by-domain.txt two-level-tlds.txt
+update-tlds: backup-tlds tlds-alpha-by-domain.txt two-level-tlds.txt three-level-tlds.txt
 
 tlds-alpha-by-domain.txt:
 	wget -r -O tlds-alpha-by-domain.txt http://data.iana.org/TLD/tlds-alpha-by-domain.txt
@@ -147,23 +147,28 @@ tlds-alpha-by-domain.txt:
 tlds-alpha-by-domain.c : tlds.sed tlds-alpha-by-domain.txt
 	sed -f tlds.sed tlds-alpha-by-domain.txt >tlds-alpha-by-domain.c
 
-#http://www.surbl.org/tld/two-level-tlds
+# Disabled. New reliable source of "offical" 2-level country TLDs maintained
+# by AlexB as part of SpamAssassin has to be updated by hand, but not expected
+# to change regularly. Not included are "vanity" domains.
+# https://svn.apache.org/repos/asf/spamassassin/trunk/lib/Mail/SpamAssassin/Util/RegistrarBoundaries.pm
+#two-level-tlds.txt:
+#	wget -r -O two-level-tlds.txt http://www.surbl.org/tld/two-level-tlds
+
+# Managed by hand.
+# https://svn.apache.org/repos/asf/spamassassin/trunk/lib/Mail/SpamAssassin/Util/RegistrarBoundaries.pm
 two-level-tlds.txt:
-	wget -r -O two-level-tlds.txt http://spamcheck.freeapp.net/two-level-tlds
-
-# Has a more detailed two-level TLD list, which I don't agree within many cases.
-# http://svn.apache.org/repos/asf/spamassassin/trunk/lib/Mail/SpamAssassin/Util/RegistrarBoundaries.pm
-
-# Alex Broens maintains
-# http://www.rulesemporium.com/rules/90_2tld.cf
-
-# There is also the URIBL hosters list
-# http://rss.uribl.com/hosters/hosters.txt
+	true
 
 two-level-tlds.c : tlds.sed two-level-tlds.txt
 	sed -e '/^#/d' -e '/[^A-Za-z0-9.-]/d' -e 's/.*/"&",/' two-level-tlds.txt >two-level-tlds.c
 
-tlds$O : tlds-alpha-by-domain.c two-level-tlds.c tlds.c
+three-level-tlds.txt:
+	wget -r -O three-level-tlds.txt http://www.surbl.org/tld/three-level-tlds
+
+three-level-tlds.c : tlds.sed three-level-tlds.txt
+	sed -e '/^#/d' -e '/[^A-Za-z0-9.-]/d' -e 's/.*/"&",/' three-level-tlds.txt >three-level-tlds.c
+
+tlds$O : tlds-alpha-by-domain.c two-level-tlds.c three-level-tlds.c tlds.c
 	$(CC) $(CFLAGS) -c tlds.c
 
 lint: title

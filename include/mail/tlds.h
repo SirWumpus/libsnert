@@ -13,18 +13,31 @@ extern "C" {
 
 #include <com/snert/lib/util/option.h>
 
-extern Option tldOptLevelOne;
-extern Option tldOptLevelTwo;
+#define MAX_TLD_LEVELS	3
+
+extern Option tldOptLevel1;
+extern Option tldOptLevel2;
+extern Option tldOptLevel3;
+
+#define tldOptLevelOne	tldOptLevel1		/* deprecated */
+#define tldOptLevelTwo	tldOptLevel2		/* deprecated */
 
 /**
  * List of global top level domains.
  */
-extern const char *tlds_level_one[];
+extern const char *tlds_level_1[];
+#define tlds_level_one tlds_level_1		/* deprecated */
 
 /**
- * List of two-level domains, commonly found under some country TLDs.
+ * List of 2-level domains, commonly found under some country TLDs.
  */
-extern const char *tlds_level_two[];
+extern const char *tlds_level_2[];
+#define tlds_level_two tlds_level_2		/* deprecated */
+
+/**
+ * List of 3-level domains, commonly found under some country TLDs.
+ */
+extern const char *tlds_level_3[];
 
 /**
  * @return

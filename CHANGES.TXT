@@ -57,6 +57,11 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.16--
+
+   !	Update the gTLD, ccTLD, and 2-level TLD lists. Added the 3-level
+   	TLD list supplied by SURBL and updated tlds CLI to test 3 levels.
+
 --1.75.15--
 
    !	Fixes for FreeBSD detecting POSIX Semaphore API and Berkeley DB

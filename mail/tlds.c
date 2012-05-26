@@ -43,31 +43,45 @@ static const char usage_tld_level_two[] =
 "# the built-in list.\n"
 "#"
 ;
+static const char usage_tld_level_three[] =
+  "The absolute file path of a text file, containing white space\n"
+"# separated list of three-level domains (without any leading dot),\n"
+"# eg. act.edu.au bo.nordland.no co.at.lv. This list will override\n"
+"# the built-in list.\n"
+"#"
+;
 
-Option tldOptLevelOne	= { "tld-level-one-file", "", usage_tld_level_one };
-Option tldOptLevelTwo	= { "tld-level-two-file", "", usage_tld_level_two };
+Option tldOptLevel1	= { "tld-level-one-file", "", usage_tld_level_one };
+Option tldOptLevel2	= { "tld-level-two-file", "", usage_tld_level_two };
+Option tldOptLevel3	= { "tld-level-three-file", "", usage_tld_level_three };
 
 static int tld_init_done;
 
-static const char *tld_root[] = {
+static const char *tld_0[] = {
 	NULL
 };
 
-static const char *tld_one[] = {
+static const char *tld_1[] = {
 #include "tlds-alpha-by-domain.c"
 	NULL
 };
 
-static const char *tld_two[] = {
+static const char *tld_2[] = {
 #include "two-level-tlds.c"
 	NULL
 };
 
-const char **tld_level_one = tld_one;
-const char **tld_level_two = tld_two;
+static const char *tld_3[] = {
+#include "three-level-tlds.c"
+	NULL
+};
 
-static const char **tld_level_root = tld_root;
-static const char ***nth_tld[] = { &tld_level_root, &tld_level_one, &tld_level_two, NULL };
+const char **tld_level_1 = tld_1;
+const char **tld_level_2 = tld_2;
+const char **tld_level_3 = tld_3;
+
+static const char **tld_level_0 = tld_0;
+static const char ***nth_tld[] = { &tld_level_0, &tld_level_1, &tld_level_2, &tld_level_3, NULL };
 
 /***********************************************************************
  *** Routines
@@ -89,7 +103,7 @@ tldLoadTable(const char *filepath, const char ***table)
 	if (filepath == NULL || *filepath == '\0' || table == NULL)
 		return -1;
 
-	if (*table != tld_one && *table != tld_two)
+	if (*table != tld_1 && *table != tld_2 && *table != tld_3)
 		free(*table);
 	*table = NULL;
 
@@ -175,15 +189,21 @@ tldInit(void)
 	int rc;
 
 	if (!tld_init_done) {
-		if (*tldOptLevelOne.string != '\0'
-		&& (rc = tldLoadTable(tldOptLevelOne.string, &tld_level_one))) {
-			syslog(LOG_ERR, "%s load error: %s (%d)", tldOptLevelOne.string, strerror(errno), errno);
+		if (*tldOptLevel1.string != '\0'
+		&& (rc = tldLoadTable(tldOptLevel1.string, &tld_level_1))) {
+			syslog(LOG_ERR, "%s load error: %s (%d)", tldOptLevel1.string, strerror(errno), errno);
 			return -1;
 		}
 
-		if (*tldOptLevelTwo.string != '\0'
-		&& (rc = tldLoadTable(tldOptLevelTwo.string, &tld_level_two))){
-			syslog(LOG_ERR, "%s load error: %s (%d)", tldOptLevelTwo.string, strerror(errno), errno);
+		if (*tldOptLevel2.string != '\0'
+		&& (rc = tldLoadTable(tldOptLevel2.string, &tld_level_2))){
+			syslog(LOG_ERR, "%s load error: %s (%d)", tldOptLevel2.string, strerror(errno), errno);
+			return -1;
+		}
+
+		if (*tldOptLevel3.string != '\0'
+		&& (rc = tldLoadTable(tldOptLevel3.string, &tld_level_3))){
+			syslog(LOG_ERR, "%s load error: %s (%d)", tldOptLevel3.string, strerror(errno), errno);
 			return -1;
 		}
 
@@ -216,7 +236,7 @@ indexValidNthTLD(const char *domain, int level)
 		return -1;
 	}
 
-	if (*domain == '\0' || level < 1 || 2 < level) {
+	if (*domain == '\0' || level < 1 || MAX_TLD_LEVELS < level) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -260,7 +280,7 @@ indexValidTLD(const char *domain)
 	int offset, level;
 
 	if (domain != NULL && *domain != '\0') {
-		for (level = 2; 0 < level; level--) {
+		for (level = MAX_TLD_LEVELS; 0 < level; level--) {
 			if (0 <= (offset = indexValidNthTLD(domain, level)))
 				return offset;
 		}
@@ -306,11 +326,12 @@ hasValidTLD(const char *domain)
 # include <stdio.h>
 # include <com/snert/lib/util/getopt.h>
 
-static char usage[] = "usage: tlds [-1 file][-2 file][-l 1|2] domain ...\n";
+static char usage[] = "usage: tlds [-1 file][-2 file][-3 file][-l 1|2|3] domain ...\n";
 
 static Option *optTable[] = {
-	&tldOptLevelOne,
-	&tldOptLevelTwo,
+	&tldOptLevel1,
+	&tldOptLevel2,
+	&tldOptLevel3,
 	NULL
 };
 
@@ -321,13 +342,16 @@ main(int argc, char **argv)
 
 	optionInit(optTable, NULL);
 
-	while ((ch = getopt(argc, argv, "l:1:2:")) != -1) {
+	while ((ch = getopt(argc, argv, "l:1:2:3:")) != -1) {
 		switch (ch) {
 		case '1':
-			optionSet(&tldOptLevelOne, optarg);
+			optionSet(&tldOptLevel1, optarg);
 			break;
 		case '2':
-			optionSet(&tldOptLevelTwo, optarg);
+			optionSet(&tldOptLevel2, optarg);
+			break;
+		case '3':
+			optionSet(&tldOptLevel3, optarg);
 			break;
 		case 'l':
 			level = strtol(optarg, NULL, 10);
