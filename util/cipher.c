@@ -1235,7 +1235,7 @@ cipher_code_to_char(cipher_ct *table, char *out)
 
 #ifdef TEST
 
-static const char base36[] = "0123456789ABCDEFGHIJKLMNOPQRSYUVWXYZ";
+static const char base36[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 typedef struct {
 	/* Public */
@@ -1488,7 +1488,7 @@ main(int argc, char **argv)
 
 	switch (dump) {
 	case 'B':
-		printf("%u\n", sizeof (input));
+		printf("%lu\n", sizeof (input));
 		return EXIT_SUCCESS;
 	case 'I':
 		debug = 1;

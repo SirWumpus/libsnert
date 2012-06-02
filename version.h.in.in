@@ -812,7 +812,7 @@ typedef int socklen_t;
  */
 #undef USE_LIBEV
 #undef HAVE_EV_H
-#undef HAVE_LIB LIBEV
+#undef HAVE_LIB_LIBEV
 #undef CFLAGS_LIBEV
 #undef LDFLAGS_LIBEV
 
