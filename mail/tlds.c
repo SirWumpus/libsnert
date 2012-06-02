@@ -189,19 +189,19 @@ tldInit(void)
 	int rc;
 
 	if (!tld_init_done) {
-		if (*tldOptLevel1.string != '\0'
+		if (tldOptLevel1.string != NULL && *tldOptLevel1.string != '\0'
 		&& (rc = tldLoadTable(tldOptLevel1.string, &tld_level_1))) {
 			syslog(LOG_ERR, "%s load error: %s (%d)", tldOptLevel1.string, strerror(errno), errno);
 			return -1;
 		}
 
-		if (*tldOptLevel2.string != '\0'
+		if (tldOptLevel2.string != NULL && *tldOptLevel2.string != '\0'
 		&& (rc = tldLoadTable(tldOptLevel2.string, &tld_level_2))){
 			syslog(LOG_ERR, "%s load error: %s (%d)", tldOptLevel2.string, strerror(errno), errno);
 			return -1;
 		}
 
-		if (*tldOptLevel3.string != '\0'
+		if (tldOptLevel3.string != NULL && *tldOptLevel3.string != '\0'
 		&& (rc = tldLoadTable(tldOptLevel3.string, &tld_level_3))){
 			syslog(LOG_ERR, "%s load error: %s (%d)", tldOptLevel3.string, strerror(errno), errno);
 			return -1;
