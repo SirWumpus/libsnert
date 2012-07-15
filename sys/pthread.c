@@ -73,6 +73,7 @@ pthread_create(pthread_t *pthread, const pthread_attr_t *attr, void *(*start_rou
  ***********************************************************************/
 
 struct _pthread_thread {
+	ListItem node;
 	long thread_id;
 #ifdef NOT_YET
 	int cancel_enable;
@@ -111,20 +112,15 @@ _pthread_cleanup_push(struct _pthread_cleanup_buffer *buffer, void (*fn)(void *)
 
 	if (item == NULL) {
 		/* Keep track of threads with cleanup routines. */
-		if ((item = calloc(1, sizeof (*item))) == NULL)
+		if ((thread = malloc(sizeof (*thread))) == NULL)
 			goto error0;
 
-		if ((thread = malloc(sizeof (*thread))) == NULL) {
-			free(item);
-			goto error0;
-		}
-
-		item->data = thread;
-		item->free = thread_free;
+		thread->node->data = thread;
+		thread->node->free = thread_free;
 		thread->cleanup_list = NULL;
 		thread->thread_id = GetCurrentThreadId();
 
-		listInsertAfter(&thread_list, NULL, item);
+		listInsertAfter(&thread_list, NULL, &thread->node);
 	} else {
 		thread = item->data;
 	}
@@ -177,6 +173,7 @@ pthread_exit(void *valuep)
 	}
 
 	listDelete(&thread_list, item);
+	thread_free(item->data);
 	LeaveCriticalSection(&thread_mutex);
 
 	/* Note that we are casting a pointer to a DWORD. This is fine

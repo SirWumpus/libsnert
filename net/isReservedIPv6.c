@@ -27,7 +27,7 @@
  *
  * @return
  *	True if the IP address string matches a reserved IP address.
- *	See RFC 3330, 3513, 3849, 4048
+ *	See RFC 3330, 3513, 3849, 4048, 4291
  */
 int
 isReservedIPv6(unsigned char ipv6[IPV6_BYTE_LENGTH], is_ip_t mask)
@@ -43,7 +43,7 @@ isReservedIPv6(unsigned char ipv6[IPV6_BYTE_LENGTH], is_ip_t mask)
 		if (ipv6[zeros] != 0)
 			break;
 
-	/* RFC 3513, 3330 */
+	/* RFC 3513, 3330, 4291 */
 	if ((mask & IS_IP_THIS_HOST) && zeros == IPV6_BYTE_LENGTH)
 		return 1;
 
@@ -51,13 +51,14 @@ isReservedIPv6(unsigned char ipv6[IPV6_BYTE_LENGTH], is_ip_t mask)
 	if ((mask & IS_IP_THIS_NET) && zeros >= IPV6_BYTE_LENGTH - 3)
 		return 1;
 
-	/* RFC 3513 */
+	/* RFC 3513, 4291 */
 	if ((mask & IS_IP_LOCALHOST) && zeros == 15 && ipv6[15] == 0x01)
 		return 1;
 
 	/* IPv4-compatible IPv6 address and IPv4-mapped IPv6 address */
 	if (zeros == IPV6_OFFSET_IPV4 || (zeros == 10 && ipv6[10] == 0xff && ipv6[11] == 0xff)) {
-		if ((mask & IS_IP_V4_COMPATIBLE) && zeros == IPV6_OFFSET_IPV4)
+		/* RFC 4291 deprecates IPv4-Compatible IPv6 address, now reserved space. */
+		if ((mask & IS_IP_V6_RESERVED) && zeros == IPV6_OFFSET_IPV4)
 			return 1;
 
 		if ((mask & IS_IP_V4_MAPPED))
@@ -73,20 +74,12 @@ isReservedIPv6(unsigned char ipv6[IPV6_BYTE_LENGTH], is_ip_t mask)
 	if ((mask & IS_IP_TEST_NET)   && NET_GET_LONG(ipv6) == 0x20010DB8)
 		return 1;
 
-	/* RFC 3513 */
+	/* RFC 3513, 4291 */
 	if ((mask & IS_IP_LINK_LOCAL) && ipv6[0] == 0xFE && (ipv6[1] & 0xC0) == 0x80)
 		return 1;
 
-	/* RFC 3513 */
-	if ((mask & IS_IP_SITE_LOCAL) && ipv6[0] == 0xFE && (ipv6[1] & 0xC0) == 0xC0)
-		return 1;
-
-	/* RFC 3513 */
+	/* RFC 3513, 4291 */
 	if ((mask & IS_IP_MULTICAST)  && ipv6[0] == 0xFF)
-		return 1;
-
-	/* RFC 3513 */
-	if ((mask & IS_IP_RESERVED)   && (ipv6[0] & 0xE0) != 0x20)
 		return 1;
 
 	return 0;

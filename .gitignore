@@ -81,6 +81,7 @@ tools/sendform
 tools/show
 tools/secho
 tools/sechod
+tools/sift
 tools/socketsink
 tools/sqlargs
 tools/strings

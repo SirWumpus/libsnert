@@ -81,6 +81,7 @@ extern "C" {
 /*
  * RFC 2821 4.5.3.2 Timeouts in seconds
  */
+#define SMTP_CONNECT_TO			30
 #define SMTP_WELCOME_TO			300
 #define SMTP_COMMAND_TO			300
 #define SMTP_DATA_REPLY_TO		120

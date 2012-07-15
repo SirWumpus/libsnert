@@ -33,8 +33,11 @@
  * @param delims
  *	A set of delimiter characters.
  *
- * @param returnEmptyToken
- *	If false then a run of one or more delimeters is treated as a
+ * @param flags
+ *
+ *	TOKEN_KEEP_EMPTY
+ *
+ *	If false, then a run of one or more delimeters is treated as a
  *	single delimeter separating tokens. Otherwise each delimeter
  *	separates a token that may be empty.
  *
@@ -46,13 +49,25 @@
  *	[,,]		[] [] []	(null)
  *	[]		[]		(null)
  *
+ *	TOKEN_KEEP_QUOTES
+ *	
+ *	If set, then do not strip quotes.
+ *
+ *	TOKEN_KEEP_BACKSLASH
+ *	
+ *	If set, then do not strip backslash escape.
+ *
+ *	TOKEN_KEEP_ESCAPES
+ *	
+ *	If set, then do not strip backslash escape nor quotes.
+ *
  * @return
- *	An allocated token.
+ *	An allocated token string.
  *
  * @see #TextBackslash(char)
  */
 char *
-TokenNext(const char *string, const char **stop, const char *delims, int returnEmptyToken)
+TokenNext(const char *string, const char **stop, const char *delims, int flags)
 {
 	char *token, *t;
 	const char *s;
@@ -69,7 +84,7 @@ TokenNext(const char *string, const char **stop, const char *delims, int returnE
 		delims = " \t\r\n\f";
 
 	/* Skip leading delimiters? */
-	if (!returnEmptyToken) {
+	if (!(flags & TOKEN_KEEP_EMPTY)) {
 		/* Find start of next token. */
 		string += strspn(string, delims);
 
@@ -117,14 +132,18 @@ TokenNext(const char *string, const char **stop, const char *delims, int returnE
 
 		switch (*string) {
 		case '"': case '\'':
+			if (flags & TOKEN_KEEP_QUOTES)
+				*t++ = *string;
 			if (quote == 0)
 				quote = *string;
 			else if (*string == quote)
 				quote = 0;
-			else
+			else if (!(flags & TOKEN_KEEP_QUOTES))
 				*t++ = *string;
 			continue;
 		case '\\':
+			if (flags & TOKEN_KEEP_BACKSLASH)
+				*t++ = *string;
 			escape = 1;
 			continue;
 		}
@@ -143,7 +162,7 @@ TokenNext(const char *string, const char **stop, const char *delims, int returnE
 		s = NULL;
 	} else {
 		length = strspn(s, delims);
-		if (returnEmptyToken) {
+		if (flags & TOKEN_KEEP_EMPTY) {
 			/* Consume only a single delimter. */
 			s += length <= 0 ? 0 : 1;
 		} else {

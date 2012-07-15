@@ -253,7 +253,7 @@ extern int cipher_ct_init(int ct_size, const unsigned char *order, cipher_ct *ta
  *	string. It is the caller's responsibility to free this
  *	memory when done.
  */
-extern char *cipher_char_to_code(cipher_ct *table, const char *message, int pad);
+extern char *cipher_string_to_ct(cipher_ct *table, const char *message, int pad);
 
 /**
  * @param table
@@ -263,7 +263,7 @@ extern char *cipher_char_to_code(cipher_ct *table, const char *message, int pad)
  *	A numeric C string that is converted back into an
  *	alpha-numeric string in place.
  */
-extern void cipher_code_to_char(cipher_ct *table, char *out);
+extern void cipher_ct_to_string(cipher_ct *table, char *out);
 
 /**
  * @param key_mask

@@ -21,6 +21,8 @@
 
 #include <string.h>
 
+#include <com/snert/lib/util/Token.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -145,8 +147,11 @@ extern int TextBackslash(char);
  * @param delims
  *	A set of delimiter characters.
  *
- * @param returnEmptyTokens
- *	If false then a run of one or more delimeters is treated as a
+ * @param flags
+ *
+ *	TOKEN_KEEP_EMPTY
+ *
+ *	If false, then a run of one or more delimeters is treated as a
  *	single delimeter separating tokens. Otherwise each delimeter
  *	separates a token that may be empty.
  *
@@ -157,6 +162,18 @@ extern int TextBackslash(char);
  *	[a,,]		[a] [] [] 	[a]
  *	[,,]		[] [] []	(empty vector)
  *	[]		[]		(empty vector)
+ *
+ *	TOKEN_KEEP_QUOTES
+ *	
+ *	If set, then do not strip quotes.
+ *
+ *	TOKEN_KEEP_BACKSLASH
+ *	
+ *	If set, then do not strip backslash escape.
+ *
+ *	TOKEN_KEEP_ESCAPES
+ *	
+ *	If set, then do not strip backslash escape nor quotes.
  *
  * @return
  *	A vector of C strings.

@@ -3,7 +3,7 @@
  *
  * Internet Date & Time parsing functions based on RFC 2822.
  *
- * Copyright 2003, 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2003, 2012 by Anthony Howe.  All rights reserved.
  */
 
 /***********************************************************************
@@ -231,8 +231,6 @@ static tzEntry tzList[] = {
 int
 isLeapYear(long year)
 {
-	if (year % 4000 == 0)
-		return 0;
 	if (year % 400 == 0)
 		return 1;
 	if (year % 100 == 0)
@@ -341,16 +339,21 @@ convertMonth(const char *month_string, long *month_value, const char **stop)
 /*
  * Find day of the week.
  *
- * The day of the week is passed back as a value between -1 and 6,
- * where -1 indicates no day of the week, 0 to 6 correspond to
- * Mon. to Sun.
+ * @param day_string
+ *	The day name.
+ *
+ * @param day_index
+ *	Day of the week between 0 to 6 (Mon. to Sun.) passed back to caller.
+ *
+ * @return
+ *	Zero (0) on success, otherwise -1 on error.
  */
 int
-convertWeekDay(const char *day_string, long *day_value, const char **stop)
+convertWeekDay(const char *day_string, long *day_index, const char **stop)
 {
 	long abbrev, day;
 
-	if (day_string == NULL || day_value == NULL)
+	if (day_string == NULL || day_index == NULL)
 		return -1;
 
 	day_string = skipCommentWhitespace(day_string);
@@ -375,7 +378,7 @@ convertWeekDay(const char *day_string, long *day_value, const char **stop)
 	if (stop != NULL && day < 7)
 		*stop = day_string + 3;
 
-	*day_value = day;
+	*day_index = day;
 
 	return -(7 <= day);
 }
@@ -415,22 +418,22 @@ convertDayOfYear(long year, long month, long day, long *yday)
 }
 
 int
-convertDMY(const char *dmy_string, long *day, long *month, long *year, const char **stop)
+convertYMD(const char *date_string, long *year, long *month, long *day, const char **stop)
 {
-	const char *next = dmy_string;
+	const char *next = date_string;
 
-	dmy_string = skipCommentWhitespace(next);
-	*day = strtol(dmy_string, (char **) &next, 10);
-	if (dmy_string == next)
+	date_string = skipCommentWhitespace(next);
+	*day = strtol(date_string, (char **) &next, 10);
+	if (date_string == next)
 		return -1;
 
-	dmy_string = skipCommentWhitespace(next);
-	if (convertMonth(dmy_string, month, &next))
+	date_string = skipCommentWhitespace(next);
+	if (convertMonth(date_string, month, &next))
 		return -1;
 
-	dmy_string = skipCommentWhitespace(next);
-	*year = strtol(dmy_string, (char **) &next, 10);
-	if (dmy_string == next)
+	date_string = skipCommentWhitespace(next);
+	*year = strtol(date_string, (char **) &next, 10);
+	if (date_string == next)
 		return -1;
 
 	if (stop != NULL)
@@ -440,24 +443,24 @@ convertDMY(const char *dmy_string, long *day, long *month, long *year, const cha
 }
 
 int
-convertHMS(const char *hms_string, long *hours, long *minutes, long *seconds, const char **stop)
+convertHMS(const char *time_string, long *hours, long *minutes, long *seconds, const char **stop)
 {
 	char *next;
 
-	hms_string = skipCommentWhitespace(hms_string);
-	*hours = strtol(hms_string, &next, 10);
-	if (hms_string == next || *next != ':')
+	time_string = skipCommentWhitespace(time_string);
+	*hours = strtol(time_string, &next, 10);
+	if (time_string == next || *next != ':')
 		return -1;
 
-	hms_string = skipCommentWhitespace(next+1);
-	*minutes = strtol(hms_string, &next, 10);
-	if (hms_string == next)
+	time_string = skipCommentWhitespace(next+1);
+	*minutes = strtol(time_string, &next, 10);
+	if (time_string == next)
 		return -1;
 
 	if (*next == ':') {
-		hms_string = skipCommentWhitespace(next+1);
-		*seconds = strtol(hms_string, &next, 10);
-		if (hms_string == next)
+		time_string = skipCommentWhitespace(next+1);
+		*seconds = strtol(time_string, &next, 10);
+		if (time_string == next)
 			return -1;
 	} else if (!isspace(*next)) {
 		return -1;
@@ -473,26 +476,84 @@ convertHMS(const char *hms_string, long *hours, long *minutes, long *seconds, co
 	return 0;
 }
 
-static int
-convertFromCtime(const char *dmy_string, long *day, long *month, long *year, long *hours, long *minutes, long *seconds, const char **stop)
+/**
+ * @param year
+ *	Year greater than or equal to 1970.
+ *
+ * @param month
+ *	Month from 0 to 30.
+ *
+ * @param day
+ *	Day of month from 1 to 31. 1-based for compactibility with "struct tm".
+ *
+ * @param hour
+ *	Hour from 0 to 23.
+ *
+ * @param min
+ *	Minute from 0 to 59.
+ *
+ * @param sec
+ *	Second from 0 to 59.
+ *
+ * @param zone
+ *	Time zone bwteen -1200 and +1200.
+ *
+ * @param gmt_seconds
+ *	Pointer to a time_t value that will be passed back to the caller.
+ *
+ * @return
+ *	Zero (0) on success, otherwise -1 on error.
+ */
+int
+convertToGmt(long year, long month, long day, long hour, long minute, long second, long zone, time_t *gmt_seconds)
 {
-	const char *next = dmy_string;
+	long yday;
 
-	dmy_string = skipCommentWhitespace(next);
-	if (convertMonth(dmy_string, month, &next))
+	if (year < 1970 || convertDayOfYear(year, month, day, &yday))
 		return -1;
 
-	dmy_string = skipCommentWhitespace(next);
-	*day = strtol(dmy_string, (char **) &next, 10);
-	if (dmy_string == next)
+	/* Compute GMT time. The epoch is 1 Jan 1970 00:00:00 +0000
+	 *
+	 * POSIX.1 B.2.2.2:
+	 *
+	 *	536 457 599 seconds since the epoch is
+	 *	31 Dec 1986 23:59:59 +0000
+	 *
+	 *	                59 =          59
+	 *                 59 * 60 =       3 540
+	 *               23 * 3600 =      82 800
+	 *	       364 * 86400 =  31 449 600
+	 *	(86-70) * 31536000 = 504 576 000
+	 *     ((86-69)/4) * 86400 =     345 600
+	 *			    ------------
+	 *			     536 457 599
+	 */
+	*gmt_seconds =
+		second + minute * 60 + hour * 3600
+		+ yday * 86400 + (year - 1970) * 31536000
+		+ ((year - 1969) / 4) * 86400 - zone;
+
+	return 0;
+}
+
+/*
+ * syslog format is "mmm dd HH:MM:SS", a substring of ctime().
+ */
+int
+convertSyslog(const char *tstamp, long *month, long *day, long *hour, long *minute, long *second, const char **stop)
+{
+	const char *next = tstamp;
+
+	tstamp = skipCommentWhitespace(next);
+	if (convertMonth(tstamp, month, &next))
 		return -1;
 
-	if (convertHMS(next, hours, minutes, seconds, &next))
+	tstamp = skipCommentWhitespace(next);
+	*day = strtol(tstamp, (char **) &next, 10);
+	if (tstamp == next)
 		return -1;
 
-	dmy_string = skipCommentWhitespace(next);
-	*year = strtol(dmy_string, (char **) &next, 10);
-	if (dmy_string == next)
+	if (convertHMS(next, hour, minute, second, &next))
 		return -1;
 
 	if (stop != NULL)
@@ -502,6 +563,28 @@ convertFromCtime(const char *dmy_string, long *day, long *month, long *year, lon
 }
 
 /*
+ * ctime() format is "mmm dd HH:MM:SS yyyy".
+ */
+int
+convertCtime(const char *tstamp, long *month, long *day, long *year, long *hour, long *minute, long *second, const char **stop)
+{
+	const char *next;
+
+	if (convertSyslog(tstamp, month, day, hour, minute, second, &next))
+		return -1;
+
+	tstamp = skipCommentWhitespace(next);
+	*year = strtol(tstamp, (char **) &next, 10);
+	if (tstamp == next)
+		return -1;
+
+	if (stop != NULL)
+		*stop = next;
+
+	return 0;
+}
+
+/**
  * Convert an RFC 2822 Date & Time string into seconds from the epoch.
  *
  * This conforms:	Sun, 21 Sep 2003 22:04:27 +0200
@@ -539,7 +622,7 @@ convertFromCtime(const char *dmy_string, long *day, long *month, long *year, lon
 int
 convertDate(const char *date_string, time_t *gmt_seconds_since_epoch, const char **stop)
 {
-	long day, month, year, hour, minute, second, zone, yday;
+	long day, month, year, hour, minute, second, zone;
 
 	if (date_string == NULL || gmt_seconds_since_epoch == NULL)
 		return -1;
@@ -556,7 +639,7 @@ convertDate(const char *date_string, time_t *gmt_seconds_since_epoch, const char
 	 *
 	 * date +'%a %b %d %H:%M:%S %Y %Z'
 	 */
-	if (convertFromCtime(date_string, &day, &month, &year, &hour, &minute, &second, &date_string) == 0) {
+	if (convertCtime(date_string, &year, &month, &day, &hour, &minute, &second, &date_string) == 0) {
 		if (*date_string != '\0' && convertTimeZone(date_string, &zone, &date_string))
 			return -1;
 	} else {
@@ -564,7 +647,7 @@ convertDate(const char *date_string, time_t *gmt_seconds_since_epoch, const char
 		 *
 		 * date +'%a, %d %b %Y %H:%M:%S %Z'
 		 */
-		if (convertDMY(date_string, &day, &month, &year, &date_string))
+		if (convertYMD(date_string, &year, &month, &day, &date_string))
 			return -1;
 
 		if (*date_string != '\0') {
@@ -583,37 +666,10 @@ convertDate(const char *date_string, time_t *gmt_seconds_since_epoch, const char
 	else if (70 <= year && year <= 999)
 		year += 1900;
 
-	if (convertDayOfYear(year, month, day, &yday))
-		return -1;
-
-	if (year < 1970)
-		return -1;
-
-	/* Compute GMT time. The epoch is 1 Jan 1970 00:00:00 +0000
-	 *
-	 * POSIX.1 B.2.2.2:
-	 *
-	 *	536 457 599 seconds since the epoch is
-	 *	31 Dec 1986 23:59:59 +0000
-	 *
-	 *	                59 =          59
-	 *                 59 * 60 =       3 540
-	 *               23 * 3600 =      82 800
-	 *	       364 * 86400 =  31 449 600
-	 *	(86-70) * 31536000 = 504 576 000
-	 *     ((86-69)/4) * 86400 =     345 600
-	 *			    ------------
-	 *			     536 457 599
-	 */
-	*gmt_seconds_since_epoch =
-		second + minute * 60 + hour * 3600
-		+ yday * 86400 + (year - 1970) * 31536000
-		+ ((year - 1969) / 4) * 86400 - zone;
-
 	if (stop != NULL)
 		*stop = date_string;
 
-	return 0;
+	return convertToGmt(year, month, day, hour, minute, second, zone, gmt_seconds_since_epoch);
 }
 
 #ifdef TEST

@@ -381,12 +381,14 @@ BufAddBuf(Buf *a, Buf *b, size_t offset, size_t len)
 int
 BufAddUnsigned(Buf *a, unsigned long value, int base)
 {
+	unsigned long digit;
 	static char digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-	if (0 < value && BufAddUnsigned(a, value / base, base))
+	if (base < 2 && 36 < base)
 		return -1;
 
-	if (base < 2 && 36 < base)
+	digit = value / base;
+	if (0 < digit && BufAddUnsigned(a, digit, base))
 		return -1;
 
 	return BufAddByte(a, digits[value % base]);

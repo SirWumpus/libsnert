@@ -169,7 +169,7 @@ authorised partners.
 Support for the Package obtained from authorised partners, such as
 value-added resllers or appliance manufacturers, will be supplied by
 those partners. SnertSoft will not support the Package without proof
-of purchase from SnertSoft, such as an Order N° or Invoice N°.
+of purchase from SnertSoft, such as an Order No. or Invoice No.
 
 Package enhancements requests and product suggestions are always
 welcome. A community mailing list is available; please refer to

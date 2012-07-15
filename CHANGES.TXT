@@ -63,6 +63,31 @@ is no set schedule for releases.
 
    !	Fix typos in cipher.c base36[] and version.h.in.in.
 
+   !	Updated isReservedIP functions for changes given by RFC 4291, 5735. 
+
+   !	Modified MCC to be broadcast-only protocol for improved performance.
+	Not finished yet; mcc_listener() to do. See USE_MCC2 blocks.
+
+   +	Added convertSyslog(), convertCtime(), convertToGmt().
+
+   +	Added token_bucket API.
+
+   !	Replaced TextSplit() and TokenNext() returnEmptyToken parameter
+	with OR'ed set of flags: TOKEN_KEEP_EMPTY, TOKEN_KEEP_ESCAPES.
+
+   !	Modifed LogOpen() and LogClose() to support standard output.
+
+   !	Fixed potential memory leak in _pthread_cleanup_push() for Windows.
+  
+   !	Fixed leading zero bug in BufAddUnsigned().
+
+   !	Renamed HTTP API's internal HTTP_CONTINUE with HTTP_GO, since
+	HTTP/1.1 has a 100 CONTINUE status code. Added two missing 
+	status codes 100 and 101.
+
+   !	Modified cipher to support block encrypting of a text file. Also
+	remove -B option; added -A option.
+
 --1.75.16--
 
    !	Update the gTLD, ccTLD, and 2-level TLD lists. Added the 3-level

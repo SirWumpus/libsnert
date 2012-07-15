@@ -1,7 +1,7 @@
 /*
  * TextSplit.c
  *
- * Copyright 2001, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2001, 2012 by Anthony Howe. All rights reserved.
  */
 
 #include <stdlib.h>
@@ -28,8 +28,11 @@
  * @param delims
  *	A set of delimiter characters.
  *
- * @param returnEmptyTokens
- *	If false then a run of one or more delimeters is treated as a
+ * @param flags
+ *
+ *	TOKEN_KEEP_EMPTY
+ *
+ *	If false, then a run of one or more delimeters is treated as a
  *	single delimeter separating tokens. Otherwise each delimeter
  *	separates a token that may be empty.
  *
@@ -38,14 +41,26 @@
  *	[a,b,c]		[a] [b] [c]	[a] [b] [c]
  *	[a,,c]		[a] [] [c]	[a] [c]
  *	[a,,]		[a] [] [] 	[a]
- *	[,,]		[] [] []	(empty vector)
- *	[]		[]		(empty vector)
+ *	[,,]		[] [] []	(null)
+ *	[]		[]		(null)
+ *
+ *	TOKEN_KEEP_QUOTES
+ *	
+ *	If set, then do not strip quotes.
+ *
+ *	TOKEN_KEEP_BACKSLASH
+ *	
+ *	If set, then do not strip backslash escape.
+ *
+ *	TOKEN_KEEP_ESCAPES
+ *	
+ *	If set, then do not strip backslash escape nor quotes.
  *
  * @return
  *	A vector of C strings.
  */
 Vector
-TextSplit(const char *string, const char *delims, int returnEmptyTokens)
+TextSplit(const char *string, const char *delims, int flags)
 {
 	char *token;
 	Vector list;
@@ -55,8 +70,8 @@ TextSplit(const char *string, const char *delims, int returnEmptyTokens)
 
 	VectorSetDestroyEntry(list, free);
 
-	while ((token = TokenNext(string, &string, delims, returnEmptyTokens)) != NULL)
-		VectorAdd(list, token);
+	while ((token = TokenNext(string, &string, delims, flags)) != NULL)
+		(void) VectorAdd(list, token);
 
 	return list;
 }

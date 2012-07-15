@@ -31,8 +31,11 @@ extern "C" {
  * @param delims
  *	A set of delimiter characters.
  *
- * @param returnEmptyToken
- *	If false then a run of one or more delimeters is treated as a
+ * @param flags
+ *
+ *	TOKEN_KEEP_EMPTY
+ *
+ *	If not set, then a run of one or more delimeters is treated as a
  *	single delimeter separating tokens. Otherwise each delimeter
  *	separates a token that may be empty.
  *
@@ -44,12 +47,29 @@ extern "C" {
  *	[,,]		[] [] []	(null)
  *	[]		[]		(null)
  *
+ *	TOKEN_KEEP_QUOTES
+ *	
+ *	If set, then do not strip quotes.
+ *
+ *	TOKEN_KEEP_BACKSLASH
+ *	
+ *	If set, then do not strip backslash escape.
+ *
+ *	TOKEN_KEEP_ESCAPES
+ *	
+ *	If set, then do not strip backslash escape nor quotes.
+ *
  * @return
  *	An allocated token.
  *
  * @see #TextBackslash(char)
  */
 extern char *TokenNext(const char *, const char **, const char *, int);
+
+#define TOKEN_KEEP_EMPTY	0x0001
+#define TOKEN_KEEP_QUOTES	0x0002
+#define TOKEN_KEEP_BACKSLASH	0x0004
+#define TOKEN_KEEP_ESCAPES	(TOKEN_KEEP_QUOTES|TOKEN_KEEP_BACKSLASH)
 
 /**
  * <p>

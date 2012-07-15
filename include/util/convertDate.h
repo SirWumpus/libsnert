@@ -3,7 +3,7 @@
  *
  * Internet Date & Time parsing functions based on RFC 2822.
  *
- * Copyright 2003, 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2003, 2012 by Anthony Howe.  All rights reserved.
  */
 
 #ifndef __com_snert_lib_util_convertDate_h__
@@ -17,10 +17,12 @@ extern int isLeapYear(long year);
 extern int convertTimeZone(const char *zone_string, long *zone_value, const char **stop);
 extern int convertMonth(const char *month_string, long *month_value, const char **stop);
 extern int convertWeekDay(const char *day_string, long *day_value, const char **stop);
-extern int convertDMY(const char *dmy_string, long *day, long *month, long *year, const char **stop);
-extern int convertHMS(const char *hms_string, long *hours, long *minutes, long *seconds, const char **stop);
+extern int convertYMD(const char *date_string, long *year, long *month, long *day, const char **stop);
+extern int convertHMS(const char *time_string, long *hour, long *min, long *sec, const char **stop);
+extern int convertSyslog(const char *tstamp, long *month, long *day, long *hour, long *min, long *sec, const char **stop);
+extern int convertCtime(const char *str, long *year, long *month, long *day, long *hour, long *min, long *sec, const char **stop);
 
-/*
+/**
  * @param year
  *	The current year.
  *
@@ -39,15 +41,48 @@ extern int convertHMS(const char *hms_string, long *hours, long *minutes, long *
  */
 extern int convertDayOfYear(long year, long month, long day, long *yday);
 
-/*
+/**
+ * @param year
+ *	Year greater than or equal to 1970.
+ *
+ * @param month
+ *	Month from 0 to 30.
+ *
+ * @param day
+ *	Day of month from 1 to 31.
+ *
+ * @param hour
+ *	Hour from 0 to 23.
+ *
+ * @param min
+ *	Minute from 0 to 59.
+ *
+ * @param sec
+ *	Second from 0 to 59.
+ *
+ * @param zone
+ *	Time zone bwteen -1200 and +1200.
+ *
+ * @param gmt_seconds
+ *	Pointer to a time_t value that will be passed back to the caller.
+ *
+ * @return
+ *	Zero (0) on success, otherwise -1 on error.
+ */
+extern int convertToGmt(long year, long month, long day, long hour, long min, long sec, long zone, time_t *gmt_seconds);
+
+/**
  * Convert an RFC 2822 Date & Time string into seconds from the epoch.
  *
  * This conforms:	Sun, 21 Sep 2003 22:04:27 +0200
  *
  * Obsolete form:	Sun, 21 Sep 03 11:30:38 GMT
  *
- * These do NOT:	Mon Sep 22 01:39:09 2003 -0000	(ctime() + zone)
- *			Mon,22 Sep 2003 20:02:33 PM	(AM/PM not zones)
+ * Bad, but supported:	Mon Sep 22 01:39:09 2003 -0000	(ctime() + zone)
+ *
+ * Not supported:	Mon, 22 Sep 2003 20:02:33 PM	(AM/PM not zones)
+ *
+ * Not supported:	Mon 22 Sep 20:02:33 CDT 2003	(year & zone out of order)
  *
  * The following formats are supported:
  *

@@ -60,9 +60,6 @@ static int debug;
 static mcc_data cache;
 static const char log_error[] = "%s(%u): %s (%d)";
 
-#define MCC_KEY_FMT	" key={%." MCC_MAX_KEY_SIZE_S "s}"
-#define MCC_VALUE_FMT	" value={%." MCC_MAX_VALUE_SIZE_S "s}"
-
 /***********************************************************************
  ***
  ***********************************************************************/
@@ -339,22 +336,29 @@ int
 mccSend(mcc_handle *mcc, mcc_row *row, uint8_t command)
 {
 	int rc;
+	time_t now;
 	md5_state_t md5;
 	SocketAddress **unicast;
 
 	if (!cache.multicast.is_running && !cache.unicast.is_running)
 		return MCC_OK;
 
-	row->command = command;
-
-	mccUpdateActive("127.0.0.1", &row->touched);
+	(void) time(&now);
+	mccUpdateActive("127.0.0.1", &now);
 
 	/* Covert some of the values to network byte order. */
+#ifdef USE_MCC2
+	MCC_SET_COMMAND(row, command);
+	row->ttl = htonl(row->ttl);
+	row->k_size = htons(row->k_size);
+	row->v_size = htons(row->v_size);
+#else
+	row->command = command;
 	row->hits = htonl(row->hits);
 	row->created = htonl(row->created);
 	row->touched = htonl(row->touched);
 	row->expires = htonl(row->expires);
-
+#endif
 	md5_init(&md5);
 	md5_append(&md5, (md5_byte_t *) row+sizeof (row->digest), sizeof (*row)-sizeof (row->digest));
 	md5_append(&md5, (md5_byte_t *) cache.secret, cache.secret_length);
@@ -364,7 +368,7 @@ mccSend(mcc_handle *mcc, mcc_row *row, uint8_t command)
 
 	if (cache.multicast.socket != NULL) {
 		if (1 < debug)
-			syslog(LOG_DEBUG, "mccSend multicast command=%c" MCC_KEY_FMT, row->command, row->key_data);
+			syslog(LOG_DEBUG, "mccSend multicast command=%c key=%.*s", MCC_GET_COMMAND(row), MCC_GET_K_SIZE(row), MCC_K_PTR(row));
 		PTHREAD_MUTEX_LOCK(&cache.mutex);
 		if (socketWriteTo(cache.multicast.socket, (unsigned char *) row, sizeof (*row), cache.multicast_ip) != sizeof (*row))
 			rc = MCC_ERROR;
@@ -373,7 +377,7 @@ mccSend(mcc_handle *mcc, mcc_row *row, uint8_t command)
 
 	if (cache.unicast.socket != NULL) {
 		if (1 < debug)
-			syslog(LOG_DEBUG, "mccSend unicast command=%c" MCC_KEY_FMT, row->command, row->key_data);
+			syslog(LOG_DEBUG, "mccSend unicast command=%c key=%.*s", MCC_GET_COMMAND(row), MCC_GET_K_SIZE(row), MCC_K_PTR(row));
 		PTHREAD_MUTEX_LOCK(&cache.mutex);
 		for (unicast = cache.unicast_ip; *unicast != NULL; unicast++) {
 			if (socketWriteTo(cache.unicast.socket, (unsigned char *) row, sizeof (*row), *unicast) != sizeof (*row))
@@ -383,11 +387,16 @@ mccSend(mcc_handle *mcc, mcc_row *row, uint8_t command)
 	}
 
 	/* Restore our record. */
+#ifdef USE_MCC2
+	row->ttl = ntohl(row->ttl);
+	row->k_size = ntohs(row->k_size);
+	row->v_size = ntohs(row->v_size);
+#else
 	row->hits = ntohl(row->hits);
 	row->created = ntohl(row->created);
 	row->touched = ntohl(row->touched);
 	row->expires = ntohl(row->expires);
-
+#endif
 	return rc;
 }
 
@@ -623,20 +632,29 @@ mccPutRowLocal(mcc_handle *mcc, mcc_row *row, int touch)
 	if (mcc == NULL || row == NULL)
 		goto error0;
 
+#ifndef USE_MCC2
 	if (touch) {
 		row->hits++;
 		row->touched = (uint32_t) time(NULL);
 	}
-
+#endif
 	if (1 < debug)
-		syslog(LOG_DEBUG, "mccPutRowLocal" MCC_KEY_FMT MCC_VALUE_FMT, row->key_data, row->value_data);
+		syslog(
+			LOG_DEBUG, "mccPutRowLocal key=%.*s value=\"%.*s\"", 
+			MCC_GET_K_SIZE(row), MCC_K_PTR(row), 
+			MCC_GET_V_SIZE(row), MCC_V_PTR(row)
+		);
 
-	if (sqlite3_bind_text(mcc->replace, 1, (const char *) row->key_data, row->key_size, SQLITE_TRANSIENT) != SQLITE_OK)
+	if (sqlite3_bind_text(mcc->replace, 1, (const char *) MCC_K_PTR(row), MCC_GET_K_SIZE(row), SQLITE_TRANSIENT) != SQLITE_OK)
 		goto error0;
 
-	if (sqlite3_bind_text(mcc->replace, 2, (const char *) row->value_data, row->value_size, SQLITE_TRANSIENT) != SQLITE_OK)
+	if (sqlite3_bind_text(mcc->replace, 2, (const char *) MCC_V_PTR(row), MCC_GET_V_SIZE(row), SQLITE_TRANSIENT) != SQLITE_OK)
 		goto error1;
 
+#ifdef USE_MCC2
+	if (sqlite3_bind_int(mcc->replace, 3, (int) row->ttl) != SQLITE_OK)
+		goto error1;
+#else
 	if (sqlite3_bind_int(mcc->replace, 3, (int) row->hits) != SQLITE_OK)
 		goto error1;
 
@@ -648,7 +666,7 @@ mccPutRowLocal(mcc_handle *mcc, mcc_row *row, int touch)
 
 	if (sqlite3_bind_int(mcc->replace, 6, (int) row->expires) != SQLITE_OK)
 		goto error1;
-
+#endif
 	if (mccSqlStep(mcc, mcc->replace, MCC_SQL_REPLACE) == SQLITE_DONE)
 		rc = MCC_OK;
 error1:
@@ -660,6 +678,16 @@ error0:
 /*
  * This function is generic for both UDP unicast and multicast.
  */
+#ifdef USE_MCC2
+
+static void *
+mcc_listener_thread(void *data)
+{
+	return NULL;
+}
+
+#else
+
 static void *
 mcc_listener_thread(void *data)
 {
@@ -733,7 +761,11 @@ mcc_listener_thread(void *data)
 		if (1 < debug) {
 			if (new_row.key_size < MCC_MAX_KEY_SIZE)
 				new_row.key_data[new_row.key_size] = '\0';
-			syslog(LOG_DEBUG, "%s cache packet [%s] command=%c" MCC_KEY_FMT, cast_name, ip, new_row.command, new_row.key_data);
+			syslog(
+				LOG_DEBUG, "%s cache packet [%s] command=%c key=%.*s", 
+				cast_name, ip, new_row.command, 
+				MCC_GET_K_SIZE(&new_row), MCC_K_PTR(&new_row)
+			);
 		}
 
 		switch (new_row.command) {
@@ -801,7 +833,7 @@ mcc_listener_thread(void *data)
 #endif
 					if (0 < debug) {
 						old_row.key_data[old_row.key_size] = '\0';
-						syslog(LOG_DEBUG, "%s ignore" MCC_KEY_FMT, cast_name, old_row.key_data);
+						syslog(LOG_DEBUG, "%s ignore key=%.*s", cast_name, MCC_GET_K_SIZE(&old_row), MCC_K_PTR(&old_row));
 					}
 					continue;
 				}
@@ -814,7 +846,7 @@ mcc_listener_thread(void *data)
 #endif
 					if (mccSend(mcc, &old_row, MCC_CMD_PUT) && 0 < debug) {
 						old_row.key_data[old_row.key_size] = '\0';
-						syslog(LOG_DEBUG, "%s broadcast correction" MCC_KEY_FMT, cast_name, old_row.key_data);
+						syslog(LOG_DEBUG, "%s broadcast correction key=%.*s", cast_name, MCC_GET_K_SIZE(&old_row), MCC_K_PTR(&old_row));
 					}
 					continue;
 				}
@@ -831,7 +863,7 @@ mcc_listener_thread(void *data)
 			}
 
 			if (mccPutRowLocal(mcc, &new_row, 0) != MCC_OK) {
-				syslog(LOG_ERR, "%s put error" MCC_KEY_FMT, cast_name, new_row.key_data);
+				syslog(LOG_ERR, "%s put error key=%.*s", cast_name, MCC_GET_K_SIZE(&new_row), MCC_K_PTR(&new_row));
 #ifdef MCC_CMD_PUT_TRANSACTION
 				(void) mccSqlStep(mcc, mcc->rollback, MCC_SQL_ROLLBACK);
 #endif
@@ -849,7 +881,7 @@ mcc_listener_thread(void *data)
 				continue;
 			}
 			if (mccDeleteKey(mcc, new_row.key_data, new_row.key_size) != MCC_OK) {
-				syslog(LOG_ERR, "%s remove error" MCC_KEY_FMT, cast_name, new_row.key_data);
+				syslog(LOG_ERR, "%s remove error key=%.*s", cast_name, MCC_GET_K_SIZE(&new_row), MCC_K_PTR(&new_row));
 				continue;
 			}
 			break;
@@ -884,6 +916,8 @@ mcc_listener_thread(void *data)
 error0:
 	PTHREAD_END(NULL);
 }
+
+#endif /* not USE_MCC2 */
 
 void
 mccStopUnicast(void)
@@ -1152,11 +1186,11 @@ mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *r
 
 	rc = MCC_ERROR;
 
-	if (mcc == NULL || key == NULL || row == NULL || sizeof (row->key_data) <= length)
+	if (mcc == NULL || key == NULL || row == NULL)
 		goto error0;
 
 	if (1 < debug)
-		syslog(LOG_DEBUG, "mccGetKey" MCC_KEY_FMT, key);
+		syslog(LOG_DEBUG, "mccGetKey key=%s", key);
 
 	if (sqlite3_bind_text(mcc->select_one, 1, (const char *) key, length, SQLITE_STATIC) != SQLITE_OK)
 		goto error0;
@@ -1166,6 +1200,22 @@ mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *r
 		rc = MCC_NOT_FOUND;
 		break;
 	case SQLITE_ROW:
+#ifdef USE_MCC2
+{
+		time_t now;
+		uint32_t expires;
+
+		MCC_SET_K_SIZE(row, sqlite3_column_bytes(mcc->select_one, 0));
+		(void) memcpy(MCC_K_PTR(row), sqlite3_column_text(mcc->select_one, 0), MCC_GET_K_SIZE(row));
+
+		MCC_SET_V_SIZE(row, sqlite3_column_bytes(mcc->select_one, 1));
+		(void) memcpy(MCC_V_PTR(row), sqlite3_column_text(mcc->select_one, 1), MCC_GET_V_SIZE(row));
+
+		(void) time(&now);
+		expires = (uint32_t) sqlite3_column_int(mcc->select_one, 2);
+		row->ttl = now < expires ? now - expires : 0;
+}
+#else
 		if (row->key_data != key)
 			memcpy(row->key_data, key, length);
 		row->key_size = (uint16_t) length;
@@ -1182,6 +1232,7 @@ mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *r
 		row->created = (uint32_t) sqlite3_column_int(mcc->select_one, 3);
 		row->touched = (uint32_t) sqlite3_column_int(mcc->select_one, 4);
 		row->expires = (uint32_t) sqlite3_column_int(mcc->select_one, 5);
+#endif
 		rc = MCC_OK;
 
 		/* There should be only one row for the key so we
@@ -1197,7 +1248,7 @@ error0:
 int
 mccGetRow(mcc_handle *mcc, mcc_row *row)
 {
-	return mccGetKey(mcc, (const unsigned char *) row->key_data, row->key_size, row);
+	return mccGetKey(mcc, (const unsigned char *) MCC_K_PTR(row), MCC_GET_K_SIZE(row), row);
 }
 
 int
@@ -1215,7 +1266,7 @@ mccPutRow(mcc_handle *mcc, mcc_row *row)
 int
 mccDeleteRowLocal(mcc_handle *mcc, mcc_row *row)
 {
-	return mccDeleteKey(mcc, row->key_data, row->key_size);
+	return mccDeleteKey(mcc, MCC_K_PTR(row), MCC_GET_K_SIZE(row));
 }
 
 int

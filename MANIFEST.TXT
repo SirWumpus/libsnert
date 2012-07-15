@@ -1,5 +1,5 @@
 org/sqlite/makefile
-org/sqlite/sqlite-autoconf-3071201.tar.gz
+org/sqlite/sqlite-autoconf-3071300.tar.gz
 com/snert/lib/Log.pm
 com/snert/include/com/snert/lib
 com/snert/include/org/valgrind
@@ -212,6 +212,7 @@ com/snert/src/lib/util/strlrcspn.c
 com/snert/src/lib/util/strlrspn.c
 com/snert/src/lib/util/strtolTest.c
 com/snert/src/lib/util/strnatcmp.c
+com/snert/src/lib/util/token_bucket.c
 com/snert/src/lib/util/uri.c
 com/snert/src/lib/util/uriIsDomainBL.c
 com/snert/src/lib/util/uri.txt
@@ -304,6 +305,7 @@ com/snert/src/lib/include/util/md5.h
 com/snert/src/lib/include/util/cipher.h
 com/snert/src/lib/include/util/playfair.h
 com/snert/src/lib/include/util/setBitWord.h
+com/snert/src/lib/include/util/token_bucket.h
 com/snert/src/lib/include/util/uri.h
 com/snert/src/lib/include/util/option.h
 com/snert/src/lib/include/util/sqlite3.h
@@ -358,6 +360,8 @@ com/snert/src/lib/tools/sendform.cfg
 com/snert/src/lib/tools/sendform.example
 com/snert/src/lib/tools/sendform.html
 com/snert/src/lib/tools/show.c
+com/snert/src/lib/tools/sift.c
+com/snert/src/lib/tools/sift.cf
 com/snert/src/lib/tools/socketsink.c
 com/snert/src/lib/tools/sqlargs.c
 com/snert/src/lib/tools/ssi.c

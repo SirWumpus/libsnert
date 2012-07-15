@@ -4,6 +4,12 @@
  * RFC 2616 HTTP/1.1 Support Functions
  *
  * Copyright 2009, 2011 by Anthony Howe. All rights reserved.
+ *
+ * TODO
+ *  -	Add support for redirections.
+ *  -	Allow for extra headers in request.
+ *  -	Add HTTP/1.1 support for chunked reads.
+ *  -	Add HTTP/1.1 support for 100 CONTINUE, see RFC 2616 section 8.2.3.
  */
 
 /***********************************************************************
@@ -153,7 +159,7 @@ httpParseHeaderEnd(HttpResponse *response, unsigned char *input, size_t length)
 		free(string);
 	}
 
-	return HTTP_CONTINUE;
+	return HTTP_GO;
 }
 
 int
@@ -398,7 +404,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 		syslog(LOG_DEBUG, "%s < %d:%.*s", response->id_log, span, span, buf->bytes);
 
 	if (response->hook.status != NULL
-	&& (*response->hook.status)(response, buf->bytes, span) != HTTP_CONTINUE)
+	&& (*response->hook.status)(response, buf->bytes, span) != HTTP_GO)
 		goto error1;
 
 	/* Read HTTP response headers. */
@@ -443,7 +449,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 		}
 
 		if (response->hook.header != NULL
-		&& (*response->hook.header)(response, buf->bytes+buf->offset, span) != HTTP_CONTINUE)
+		&& (*response->hook.header)(response, buf->bytes+buf->offset, span) != HTTP_GO)
 			goto error1;
 	}
 
@@ -452,7 +458,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 		syslog(LOG_DEBUG, "%s eoh=%u", response->id_log, (unsigned) response->eoh);
 
 	if (response->hook.header_end != NULL
-	&& (*response->hook.header_end)(response, buf->bytes, response->eoh) != HTTP_CONTINUE)
+	&& (*response->hook.header_end)(response, buf->bytes, response->eoh) != HTTP_GO)
 		goto error1;
 
 	/* Read HTTP body content. */
@@ -475,7 +481,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 			syslog(LOG_DEBUG, "%s < %d:%.*s", response->id_log, span, span, buf->bytes+buf->offset);
 
 		if (response->hook.body != NULL
-		&& (*response->hook.body)(response, buf->bytes+buf->offset, span) != HTTP_CONTINUE)
+		&& (*response->hook.body)(response, buf->bytes+buf->offset, span) != HTTP_GO)
 			goto error1;
 	}
 
@@ -483,7 +489,7 @@ PT_THREAD(httpReadPt(HttpResponse *response))
 		syslog(LOG_DEBUG, "%s content-length=%lu", response->id_log, (unsigned long) buf->length-response->eoh);
 
 	if (response->hook.body_end != NULL
-	&& (*response->hook.body_end)(response, buf->bytes+response->eoh, buf->length-response->eoh) != HTTP_CONTINUE)
+	&& (*response->hook.body_end)(response, buf->bytes+response->eoh, buf->length-response->eoh) != HTTP_GO)
 		goto error1;
 error1:
 	socket3_close(response->socket);
@@ -611,7 +617,7 @@ response_body_end(HttpResponse *response, unsigned char *input, size_t length)
 {
 	md5_append((md5_state_t *) response->data, input, length);
 
-	return HTTP_CONTINUE;
+	return HTTP_GO;
 }
 
 void

@@ -4103,8 +4103,11 @@ lua_define_text(lua_State *L)
  ***********************************************************************/
 
 static struct map_integer http_code_constants[] = {
-	{ "CONTINUE",			/* 0 */		HTTP_CONTINUE },
+	{ "GO",				/* 0 */		HTTP_GO },
 	{ "DROP",			/* 10 */	HTTP_DROP },
+
+	{ "CONTINUE",			/* 100 */	HTTP_CONTINUE },
+	{ "SWITCH_PROTOCOL",		/* 101 */	HTTP_SWITCH_PROTOCOL },
 
 	{ "OK",				/* 200 */	HTTP_OK },
 	{ "CREATED",			/* 201 */	HTTP_CREATED },

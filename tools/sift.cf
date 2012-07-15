@@ -1,0 +1,60 @@
+#
+# sift.cf
+#
+# Example pattern rules for differnet log files and processes.
+#
+
+# UW IMAP login failure (authlog)
+#	#1 service
+#	#2 type of failure
+#	#3 connecting host
+
+/(imapd|ipop3d).+Login (disabled|failed).+host=(.+)/ t=3; l=1,3,5/2m; c='echo "Repeated #1 login attempts from #3"' 
+
+# UW IMAP login success (maillog)
+#	#1 service
+#	#2 user-name
+#	#3 connecting host
+
+/(imapd|ipop3d).+Authenticated user=(.+) host=(.* \[.+\]) mech=/ t=2
+
+# Sendmail threading (maillog)
+#	#1 message thread
+#	#2 sender
+
+/sendmail.+: ([^:]+): from=(.+),/ t=1
+
+# Sendmail temp.failed / rejected recipients (maillog)
+#	#1 message thread
+#	#2 recipient
+#	#3 destination host
+#	#4 extend reply code
+#	#5 reason
+
+/sendmail.+: ([^:]+): to=(.+),.+ replay=(^[,]+), dsn=([45][^,]+), stat=(.*)/ t=1; l=3,10/15m
+
+# Sendmail DSN generated (maillog)
+#	#1 original message thread
+#	#2 DSN message thread
+#	#3 reason
+
+/sendmail.+: ([^:]+): ([^:]+): DSN: (.*)/ t=1
+
+# Sendmail bad recipient (maillog)
+#	#1 message thread
+#	#2 recipient
+#	#3 reason
+
+/sendmail.+: ([^:]+): (<.*>)... (.*)/ t=1
+
+# OpenSSH (authlog)
+#	#1 result
+#	#2 login type (password, publickey, ...)
+#	#3 user-name
+#	#4 connecting host
+
+/sshd\[.+\]: (Accepted|Failed) ([^ ]+) for (.+) from (.+) port [0-9]+/ t=3
+
+#
+# END
+#

@@ -88,31 +88,38 @@ extern "C" {
  * IP test flags for isReservedIPv4(), isReservedIPv6(), isReservedIP().
  */
 typedef enum {
-	IS_IP_BENCHMARK		= 0x0001,	/* 198.18.0.0/15   RFC 2544       */
-	IS_IP_LINK_LOCAL	= 0x0002,	/* 169.254.0.0/16  link local (private use) */
-	IS_IP_LOCALHOST		= 0x0004,	/* 127.0.0.1/32    localhost      */
-	IS_IP_LOOPBACK		= 0x0008,	/* 127.0.0.0/8     loopback, excluding 127.0.0.1 */
-	IS_IP_MULTICAST		= 0x0010,	/* 224.0.0.0/4     RFC 3171       */
-	IS_IP_PRIVATE_A		= 0x0020,	/* 10.0.0.0/8      private use    */
-	IS_IP_PRIVATE_B		= 0x0040,	/* 172.16.0.0/12   private use    */
-	IS_IP_PRIVATE_C		= 0x0080,	/* 192.168.0.0/16  private use    */
-	IS_IP_RESERVED		= 0x0100,	/* IPv6 reserved prefix (not global unicast) */
-	IS_IP_SITE_LOCAL	= 0x0200, 	/* IPv6 site local autoconfiguration */
-	IS_IP_TEST_NET		= 0x0400,	/* 192.0.2.0/24    test network   */
-	IS_IP_THIS_HOST		= 0x0800,	/* 0.0.0.0/32      "this" host */
-	IS_IP_THIS_NET		= 0x1000,	/* 0.0.0.0/8       "this" network */
-	IS_IP_V4_COMPATIBLE	= 0x2000,  	/* is this an IPv4-compatible IPv6 address */
-	IS_IP_V4_MAPPED		= 0x4000,  	/* is this an IPv4-mapped IPv6 address */
-	IS_IP_V6		= 0x8000,
+	IS_IP_BENCHMARK		= 0x00000001,	/* 198.18.0.0/15   	RFC 2544 */
+	IS_IP_LINK_LOCAL	= 0x00000002,	/* 169.254.0.0/16  link local (private use) */
+	IS_IP_LOCALHOST		= 0x00000004,	/* 127.0.0.1/32    localhost      */
+	IS_IP_LOOPBACK		= 0x00000008,	/* 127.0.0.0/8     loopback, excluding 127.0.0.1 */
+	IS_IP_MULTICAST		= 0x00000010,	/* 224.0.0.0/4     	RFC 3171 */
+	IS_IP_PRIVATE_A		= 0x00000020,	/* 10.0.0.0/8      private use    */
+	IS_IP_PRIVATE_B		= 0x00000040,	/* 172.16.0.0/12   private use    */
+	IS_IP_PRIVATE_C		= 0x00000080,	/* 192.168.0.0/16  private use    */
+	IS_IP_CLASS_E		= 0x00000100,  	/* 240.0.0.0/4          RFC 1112 */
+	IS_IP_PROTOCOL		= 0x00000200, 	/* 192.0.0.0/24         RFC 5736 */
+	IS_IP_TEST_NET		= 0x00000400,	/* 192.0.2.0/24		RFC 5737 */
+	IS_IP_THIS_HOST		= 0x00000800,	/* 0.0.0.0/32      "this" host */
+	IS_IP_THIS_NET		= 0x00001000,	/* 0.0.0.0/8       "this" network */
+	IS_IP_V6_RESERVED	= 0x00002000,	/* 0000::/8		RFC 4291 section 4 */
+	IS_IP_V4_MAPPED		= 0x00004000,  	/* IPv4-mapped IPv6 	RFC 4291 */
+	IS_IP_V6		= 0x00008000,
+
+	IS_IP_BROADCAST		= 0x00010000,	/* 255.255.255.255/32	RFC 5735 */
+	IS_IP_6TO4_ANYCAST	= 0x00020000,	/* 192.88.99.0/24	RFC 3068 */
+	IS_IP_TEST_NET_2	= 0x00040000,	/* 198.51.100.0/24	RFC 5737 */
+	IS_IP_TEST_NET_3	= 0x00080000,	/* 203.0.113.0/24	RFC 5737 */
+	IS_IP_SHARED		= 0x00100000,	/* 100.64.0.0/10	RFC 6598 */
 } is_ip_t;
 
-#define IS_IP_V4		(IS_IP_V4_COMPATIBLE|IS_IP_V4_MAPPED) /* not a special reserved address; just a classification */
+#define IS_IP_V4		(IS_IP_V6_RESERVED | IS_IP_V4_MAPPED) 
 #define IS_IP_ANY		(0xffff & ~IS_IP_V4 & ~IS_IP_V6)
 
-#define IS_IP_TEST		(IS_IP_BENCHMARK|IS_IP_TEST_NET)
-#define IS_IP_LOCAL		(IS_IP_THIS_HOST|IS_IP_LOCALHOST|IS_IP_LOOPBACK)
-#define IS_IP_LAN		(IS_IP_PRIVATE_A|IS_IP_PRIVATE_B|IS_IP_PRIVATE_C|IS_IP_LINK_LOCAL|IS_IP_SITE_LOCAL)
-#define IS_IP_RESTRICTED	(IS_IP_BENCHMARK|IS_IP_LINK_LOCAL|IS_IP_SITE_LOCAL|IS_IP_LOCALHOST|IS_IP_LOOPBACK|IS_IP_MULTICAST|IS_IP_RESERVED|IS_IP_TEST_NET|IS_IP_THIS_NET)
+#define IS_IP_TEST		(IS_IP_BENCHMARK | IS_IP_TEST_NET | IS_IP_TEST_NET_2 | IS_IP_TEST_NET_3)
+#define IS_IP_LOCAL		(IS_IP_THIS_HOST | IS_IP_LOCALHOST | IS_IP_LOOPBACK)
+#define IS_IP_LAN		(IS_IP_PRIVATE_A | IS_IP_PRIVATE_B | IS_IP_PRIVATE_C | IS_IP_LINK_LOCAL )
+#define IS_IP_ISP		(IS_IP_SHARED | IS_IP_LAN)
+#define IS_IP_RESTRICTED	(IS_IP_LOCAL | IS_IP_TEST | IS_IP_LINK_LOCAL | IS_IP_MULTICAST | IS_IP_V6_RESERVED | IS_IP_CLASS_E | IS_IP_BROADCAST)
 
 /**
  * @param ip

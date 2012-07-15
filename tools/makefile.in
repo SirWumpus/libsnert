@@ -222,7 +222,7 @@ mimepart$E : mimepart.c
 	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)mimepart$E mimepart.c ${LIBSNERT} ${LIBS}
 
 sqlargs$E: sqlargs.c
-	$(CC) ${CFLAGS_SQLITE3} ${LDFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)sqlargs$E sqlargs.c ${LIBSNERT} ${LIBS} ${LIB_SQLITE3} ${LIB_PTHREAD}
+	$(CC) ${CFLAGS_SQLITE3} ${CFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_SQLITE3} ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)sqlargs$E sqlargs.c ${LIBSNERT} ${LIBS} ${LIB_SQLITE3} ${LIB_PTHREAD}
 
 ziplist$E : ziplist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)ziplist$E ziplist.c ${LIBS_PREFIX}
@@ -256,3 +256,6 @@ tee$E: tee.c
 
 d-tee$E: ${top_srcdir}/sys/lockpick$O tee.c
 	$(CC) -DTEST $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)d-tee$E tee.c ${top_srcdir}/sys/lockpick$O $(LIBSNERT) $(LIBS)
+
+sift$E: sift.c
+	${CC} ${CFLAGS_SQLITE3} ${CFLAGS_PTHREAD} ${CFLAGS} ${LDFLAGS_SQLITE3} ${LDFLAGS_PTHREAD} ${LDFLAGS} ${CC_E}sift$E sift.c ${LIBSNERT} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIBS}

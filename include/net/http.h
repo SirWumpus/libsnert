@@ -37,8 +37,11 @@ extern "C" {
 #define HTTP_BUFFER_SIZE		8192
 
 typedef enum {
-	HTTP_CONTINUE			= 0,
+	HTTP_GO				= 0,
 	HTTP_DROP			= 10,
+
+	HTTP_CONTINUE			= 100,
+	HTTP_SWITCH_PROTOCOL		= 101,
 
 	HTTP_OK				= 200,
 	HTTP_CREATED			= 201,

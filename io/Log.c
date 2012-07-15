@@ -280,11 +280,13 @@ LogFatal(const char *msg, ...)
 int
 LogOpen(const char *fname)
 {
-	if (logFile != stderr)
-		LogClose();
+	LogClose();
 
-	if (strcmp("(standard error)", fname) == 0)
+	if (fname == NULL || strcmp("(standard error)", fname) == 0)
 		logFile = stderr;
+
+	else if (strcmp("(standard output)", fname) == 0)
+		logFile = stdout;
 
 	else if ((logFile = fopen(fname, "ab")) == NULL) {
 		LogError("failed to open log file \"%s\"", fname);
@@ -300,7 +302,10 @@ void
 LogClose(void)
 {
 	if (logFile != NULL) {
-		(void) fclose(logFile);
+		if (logFile == stderr || logFile == stdout)
+			(void) fflush(logFile);
+		else
+			(void) fclose(logFile);
 	}
 }
 

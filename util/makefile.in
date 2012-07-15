@@ -94,7 +94,8 @@ OBJS = \
 	TextInsensitiveStartsWith$O TextSensitiveStartsWith$O TextHash$O TextDelim$O TextEmpty$O \
 	TextNull$O TextC$O setBitWord$O strlrcspn$O strlrspn$O strnatcmp$O bs$O Base64$O \
 	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O html$O htmlEntity$O \
-	uriIsDomainBL$O uri$O option$O sqlite3$O time62$O timespec$O timeval$O timer$O
+	uriIsDomainBL$O uri$O option$O sqlite3$O time62$O timespec$O timeval$O timer$O \
+	token_bucket$O
 
 TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
        DebugMallocTest$E ixhash$E md4$E md5$E htmlstrip$E TextCopy$E TextMatch$E \
@@ -215,6 +216,9 @@ TextMatch$E: TextMatch.c
 
 TextFind$E: TextFind.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextFind$E TextFind.c $(LIBSNERT) ${LIBS}
+
+text_find$E: text_find.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)text_find$E text_find.c $(LIBSNERT) ${LIBS}
 
 option$E: option.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)option$E option.c $(LIBSNERT) ${LIBS}

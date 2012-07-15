@@ -1,9 +1,9 @@
 /*
  * mcc.h
  *
- * Multicast Cache
+ * Multicast / Unicast Cache
  *
- * Copyright 2006, 2010 by Anthony Howe.  All rights reserved.
+ * Copyright 2006, 2012 by Anthony Howe.  All rights reserved.
  */
 
 #ifndef __com_snert_lib_type_mcc_h__
@@ -36,7 +36,7 @@ extern "C" {
  * Must be a power of two.
  */
 #ifndef MCC_HASH_TABLE_SIZE
-#define MCC_HASH_TABLE_SIZE	256
+#define MCC_HASH_TABLE_SIZE	512
 #endif
 
 #ifndef MCC_MAX_LINEAR_PROBE
@@ -63,6 +63,45 @@ typedef enum {
 	MCC_ERROR	= -1,
 	MCC_NOT_FOUND	= -2,
 } mcc_return;
+
+#ifdef USE_MCC2 /* Newer broadcast only version */
+
+#define MCC_HEAD_SIZE		24
+#define MCC_DATA_SIZE		(512 - MCC_HEAD_SIZE)
+
+/*
+ * A multicast cache packet cannot be more than 512 bytes.
+ */
+typedef struct {
+	uint8_t  digest[16];				/* +0  */
+	uint32_t ttl;					/* +16 time-to-live relative a host's system clock */
+	uint16_t k_size;				/* +20 command & key size: cccc ccc k kkkk kkkk */
+	uint16_t v_size;				/* +22 zero & value size : 0000 000 v vvvv vvvv */
+	uint8_t  data[MCC_DATA_SIZE];			/* +24 = MCC_HEAD_SIZE */
+} mcc_row;
+
+#define MCC_MASK_SIZE		0x01FF
+#define MCC_MASK_EXTRA		0xFE00
+
+#define MCC_SET_K_SIZE(p, s)	(p)->k_size = ((p)->k_size & MCC_MASK_EXTRA) | ((s) & MCC_MASK_SIZE)
+#define MCC_SET_V_SIZE(p, s)	(p)->v_size = (s) & MCC_MASK_SIZE
+
+#define MCC_GET_K_SIZE(p)	((p)->k_size & MCC_MASK_SIZE)
+#define MCC_GET_V_SIZE(p)	((p)->v_size & MCC_MASK_SIZE)
+
+#define MCC_SET_COMMAND(p, c)	(p)->k_size = ((c) << 9) | MCC_GET_K_SIZE(p)
+#define MCC_GET_COMMAND(p)	((p)->k_size >> 9)
+
+#define MCC_K_PTR(x)		((x)->data)
+#define MCC_V_PTR(x)		((x)->data + MCC_GET_K_SIZE(x))
+
+#define MCC_SQL_CREATE_TABLE	\
+"CREATE TABLE mcc( k TEXT PRIMARY KEY, d TEXT, e INTEGER );"
+
+#define MCC_SQL_REPLACE		\
+"INSERT OR REPLACE INTO mcc (k,d,e) VALUES(?1,?2,?3);"
+
+#else /* Older broadcast & correct version */
 
 /*
  * The key size was derived from the need to be able to save long
@@ -105,6 +144,26 @@ typedef struct {
 	uint8_t  value_data[MCC_MAX_VALUE_SIZE];
 } mcc_row;
 
+#define MCC_SET_K_SIZE(p, s)	(p)->key_size = (s)
+#define MCC_SET_V_SIZE(p, s)	(p)->value_size = (s)
+
+#define MCC_GET_K_SIZE(p)	(p)->key_size
+#define MCC_GET_V_SIZE(p)	(p)->value_size
+
+#define MCC_SET_COMMAND(p, c)	(p)->command = (c)
+#define MCC_GET_COMMAND(p)	(p)->command
+
+#define MCC_K_PTR(x)		(x)->key_data
+#define MCC_V_PTR(x)		(x)->value_data
+
+#define MCC_SQL_CREATE_TABLE	\
+"CREATE TABLE mcc( k VARCHAR(" QUOTE(MCC_MAX_KEY_SIZE) ") PRIMARY KEY, d VARCHAR(" QUOTE(MCC_MAX_VALUE_SIZE) "), h INTEGER DEFAULT 1, c INTEGER, t INTEGER, e INTEGER );"
+
+#define MCC_SQL_REPLACE		\
+"INSERT OR REPLACE INTO mcc (k,d,h,c,t,e) VALUES(?1,?2,?3,?4,?5,?6);"
+
+#endif /* USE_MCC2 */
+
 #define MCC_SQL_BEGIN		\
 "BEGIN IMMEDIATE;"
 
@@ -114,20 +173,17 @@ typedef struct {
 #define MCC_SQL_ROLLBACK	\
 "ROLLBACK;"
 
+#define MCC_SQL_SELECT_ONE	\
+"SELECT * FROM mcc WHERE k=?1;"
+
 #define MCC_SQL_TABLE_EXISTS	\
 "SELECT name FROM sqlite_master WHERE type='table' AND name='mcc';"
-
-#define MCC_SQL_CREATE_TABLE	\
-"CREATE TABLE mcc( k VARCHAR(" QUOTE(MCC_MAX_KEY_SIZE) ") PRIMARY KEY, d VARCHAR(" QUOTE(MCC_MAX_VALUE_SIZE) "), h INTEGER DEFAULT 1, c INTEGER, t INTEGER, e INTEGER );"
 
 #define MCC_SQL_INDEX_EXISTS	\
 "SELECT name FROM sqlite_master WHERE type='index' AND name='mcc_expire';"
 
 #define MCC_SQL_CREATE_INDEX	\
 "CREATE INDEX mcc_expire ON mcc(e);"
-
-#define MCC_SQL_SELECT_ONE	\
-"SELECT k,d,h,c,t,e FROM mcc WHERE k=?1;"
 
 #define MCC_SQL_EXPIRE		\
 "DELETE FROM mcc WHERE e<=?1;"
@@ -137,9 +193,6 @@ typedef struct {
 
 #define MCC_SQL_TRUNCATE	\
 "DELETE FROM mcc;"
-
-#define MCC_SQL_REPLACE		\
-"INSERT OR REPLACE INTO mcc (k,d,h,c,t,e) VALUES(?1,?2,?3,?4,?5,?6);"
 
 #define MCC_SQL_PRAGMA_SYNC_OFF		\
 "PRAGMA synchronous = OFF;"
@@ -300,6 +353,10 @@ struct mcc_ctx {
 
 extern int mccSetSync(mcc_handle *mcc, int level);
 
+#ifdef USE_MCC2
+# define MCC_CMD_DEC		'd'
+# define MCC_CMD_INC		'i'
+#endif
 #define MCC_CMD_PUT		'p'
 #define MCC_CMD_REMOVE		'r'
 #define MCC_CMD_OTHER		'?'
