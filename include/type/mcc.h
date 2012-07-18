@@ -13,6 +13,8 @@
 extern "C" {
 #endif
 
+#undef USE_MCC2
+
 /***********************************************************************
  ***
  ***********************************************************************/
@@ -64,10 +66,13 @@ typedef enum {
 	MCC_NOT_FOUND	= -2,
 } mcc_return;
 
+#define MCC_PACKET_SIZE		512
+#define MCC_DATA_SIZE		(MCC_PACKET_SIZE - MCC_HEAD_SIZE)
+
 #ifdef USE_MCC2 /* Newer broadcast only version */
 
 #define MCC_HEAD_SIZE		24
-#define MCC_DATA_SIZE		(512 - MCC_HEAD_SIZE)
+#define MCC_PACKET_LENGTH(p)	(MCC_HEAD_SIZE + MCC_GET_K_SIZE(p) + MCC_GET_V_SIZE(p))
 
 /*
  * A multicast cache packet cannot be more than 512 bytes.
@@ -78,19 +83,24 @@ typedef struct {
 	uint16_t k_size;				/* +20 command & key size: cccc ccc k kkkk kkkk */
 	uint16_t v_size;				/* +22 zero & value size : 0000 000 v vvvv vvvv */
 	uint8_t  data[MCC_DATA_SIZE];			/* +24 = MCC_HEAD_SIZE */
+
+	time_t	expires;				/* Not part of the packet. */
 } mcc_row;
 
 #define MCC_MASK_SIZE		0x01FF
 #define MCC_MASK_EXTRA		0xFE00
 
 #define MCC_SET_K_SIZE(p, s)	(p)->k_size = ((p)->k_size & MCC_MASK_EXTRA) | ((s) & MCC_MASK_SIZE)
-#define MCC_SET_V_SIZE(p, s)	(p)->v_size = (s) & MCC_MASK_SIZE
+#define MCC_SET_V_SIZE(p, s)	(p)->v_size = ((p)->v_size & MCC_MASK_EXTRA) | ((s) & MCC_MASK_SIZE)
 
 #define MCC_GET_K_SIZE(p)	((p)->k_size & MCC_MASK_SIZE)
 #define MCC_GET_V_SIZE(p)	((p)->v_size & MCC_MASK_SIZE)
+#define MCC_GET_V_SPACE(p)	(MCC_DATA_SIZE - MCC_GET_K_SIZE(p))
 
 #define MCC_SET_COMMAND(p, c)	(p)->k_size = ((c) << 9) | MCC_GET_K_SIZE(p)
 #define MCC_GET_COMMAND(p)	((p)->k_size >> 9)
+#define MCC_SET_EXTRA(p, c)	(p)->v_size = ((c) << 9) | MCC_GET_V_SIZE(p)
+#define MCC_GET_EXTRA(p)	((p)->v_size >> 9)
 
 #define MCC_K_PTR(x)		((x)->data)
 #define MCC_V_PTR(x)		((x)->data + MCC_GET_K_SIZE(x))
@@ -128,6 +138,8 @@ typedef struct {
 #define MCC_MAX_VALUE_SIZE			92
 #define MCC_MAX_VALUE_SIZE_S			"91"	/* allow for terminating NUL byte */
 
+#define MCC_HEAD_SIZE				36
+
 /*
  * A multicast cache packet cannot be more than 512 bytes.
  */
@@ -152,6 +164,8 @@ typedef struct {
 
 #define MCC_SET_COMMAND(p, c)	(p)->command = (c)
 #define MCC_GET_COMMAND(p)	(p)->command
+#define MCC_SET_EXTRA(p, c)	
+#define MCC_GET_EXTRA(p)
 
 #define MCC_K_PTR(x)		(x)->key_data
 #define MCC_V_PTR(x)		(x)->value_data
@@ -207,13 +221,6 @@ typedef struct {
  *** Global Operations
  ***********************************************************************/
 
-typedef struct {
-	int port;
-	Socket2 *socket;
-	pthread_t thread;
-	volatile int is_running;
-} mcc_network;
-
 typedef struct mcc_ctx mcc_handle;
 typedef struct mcc_ctx mcc_context;
 typedef int (*mcc_hook)(mcc_context *, void *data);
@@ -264,6 +271,73 @@ typedef struct {
 	mcc_string *notes;
 } mcc_active_host;
 
+#define MCC_ON_CORRUPT_EXIT			0
+#define MCC_ON_CORRUPT_RENAME			1
+#define MCC_ON_CORRUPT_REPLACE			2
+
+extern void mccSetOnCorrupt(int level);
+
+extern void mccSetDebug(int level);
+extern int mccSetSecret(const char *secret);
+
+extern int mccInit(const char *path, mcc_hooks *hooks);
+extern void mccFini(void);
+
+extern void mccStopGc(void);
+extern int mccStartGc(unsigned seconds);
+
+#ifdef USE_MCC2
+
+typedef struct {
+	char *path;
+	char *secret;
+	size_t secret_length;
+	pthread_mutex_t mutex;
+
+	mcc_hooks hook;
+	Vector key_hooks;
+
+	Socket2 *server;
+	pthread_t listener;
+	volatile int is_running;
+	SocketAddress **unicast_ip;
+
+	time_t gc_next;
+	unsigned gc_period;
+	pthread_t gc_thread;
+
+	pthread_mutex_t active_mutex;
+	mcc_active_host active[MCC_HASH_TABLE_SIZE];
+} mcc_data;
+
+extern int mccSetMulticastTTL(int ttl);
+
+/**
+ * @param ip_array
+ *	One or more multicast and/or unicast IP addresses.
+ *
+ * @param port
+ *	The port to listen on for broadcasts.
+ *
+ * @return 
+ *	MCC_OK or MCC_ERROR.
+ */
+extern int mccStartListener(const char **ip_array, int port);
+
+/**
+ * Stop the listener thread.
+ */
+extern void mccStopListener(void);
+
+#else
+
+typedef struct {
+	int port;
+	Socket2 *socket;
+	pthread_t thread;
+	volatile int is_running;
+} mcc_network;
+
 typedef struct {
 	char *path;
 	char *secret;
@@ -287,27 +361,14 @@ typedef struct {
 	mcc_active_host active[MCC_HASH_TABLE_SIZE];
 } mcc_data;
 
-#define MCC_ON_CORRUPT_EXIT			0
-#define MCC_ON_CORRUPT_RENAME			1
-#define MCC_ON_CORRUPT_REPLACE			2
-
-extern void mccSetOnCorrupt(int level);
-
-extern void mccSetDebug(int level);
-extern int mccSetSecret(const char *secret);
-
-extern int mccInit(const char *path, mcc_hooks *hooks);
-extern void mccFini(void);
-
-extern void mccStopGc(void);
-extern int mccStartGc(unsigned seconds);
-
 extern void mccStopMulticast(void);
 extern int mccSetMulticastTTL(int ttl);
 extern int mccStartMulticast(const char *ip_group, int port);
 
 extern void mccStopUnicast(void);
 extern int mccStartUnicast(const char **ip_array, int port);
+
+#endif /* USE_MCC2 */
 
 extern Vector mccGetActive(void);
 extern mcc_active_host *mccFindActive(const char *ip);

@@ -251,7 +251,7 @@ static char usage[] =
 "\n"
 "-y year\t\tYear when log_file was create. Default current year.\n"
 "\n"
-"-z gmtoff\tGMT offset when log_file was create. Default current time zone.\n"
+"-z gmtoff\tGMT offset when log_file was created. Default current time zone.\n"
 "\n"
 "One or more log files can be examined. When none are specified, then\n"
 "standard input is used. When using -f only one log file may be given\n"

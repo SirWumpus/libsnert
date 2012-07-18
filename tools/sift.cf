@@ -1,7 +1,7 @@
 #
 # sift.cf
 #
-# Example pattern rules for differnet log files and processes.
+# Example pattern rules for different log files and processes.
 #
 
 # UW IMAP login failure (authlog)
