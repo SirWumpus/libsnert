@@ -963,18 +963,25 @@ socket3_multicast(SOCKET fd, SocketAddress *group, int join)
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
 int
-socket3_multicast_loopback(SOCKET fd, int flag)
+socket3_multicast_loopback(SOCKET fd, int family, int flag)
 {
-#ifdef IP_MULTICAST_LOOP
 	int rc;
 	char byte = flag;
+	unsigned word = flag;
 
-	rc = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, (char *) &byte, sizeof (byte));
+	switch (family) {
+	case AF_INET:
+		rc = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, (char *) &byte, sizeof (byte));
+		break;
+
+#ifdef HAVE_STRUCT_SOCKADDR_IN6
+	case AF_INET6:
+		rc = setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &word, sizeof (word));
+		break;
+#endif
+	}
 	UPDATE_ERRNO;
 	return rc;
-#else
-	return 0;
-#endif
 }
 
 /**
@@ -989,15 +996,23 @@ socket3_multicast_loopback(SOCKET fd, int flag)
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
 int
-socket3_multicast_ttl(SOCKET fd, int ttl)
+socket3_multicast_ttl(SOCKET fd, int family, int ttl)
 {
-#ifdef IP_MULTICAST_TTL
-	int rc = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, (char *) &ttl, sizeof (ttl));
+	int rc;
+
+	switch (family) {
+	case AF_INET:
+		rc = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, (char *) &ttl, sizeof (ttl));
+		break;
+
+#ifdef HAVE_STRUCT_SOCKADDR_IN6
+	case AF_INET6:
+		rc = setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, (char *) &ttl, sizeof (ttl));
+		break;
+#endif
+	}
 	UPDATE_ERRNO;
 	return rc;
-#else
-	return 0;
-#endif
 }
 
 #if defined(HAVE_KQUEUE)

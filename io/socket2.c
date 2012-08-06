@@ -1039,50 +1039,12 @@ main(int argc, char **argv)
 int
 socketMulticast(Socket2 *s, SocketAddress *group, int join)
 {
-	int rc = SOCKET_ERROR;
-
 	if (s == NULL) {
 		errno = EFAULT;
 		return SOCKET_ERROR;
 	}
 
-#ifdef NOT_USED
-	if (join) {
-		SOCKET fd = WSAJoinLeaf(
-			socketGetFd(s), (const struct sockaddr *) &group->in.sin_addr,
-			sizeof (group->in), NULL, NULL, NULL, NULL, JL_BOTH
-		);
-
-		UPDATE_ERRNO;
-
-		rc = fd == INVALID_SOCKET ? SOCKET_ERROR : 0;
-	}
-#else
-	switch (group->sa.sa_family) {
-		int option;
-		SocketMulticast mr;
-
-	case AF_INET:
-		option = join ? IP_ADD_MEMBERSHIP : IP_DROP_MEMBERSHIP;
-		mr.mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-		mr.mreq.imr_multiaddr = group->in.sin_addr;
-		rc = setsockopt(socketGetFd(s), IPPROTO_IP, option, (void *) &mr, sizeof (mr.mreq));
-		UPDATE_ERRNO;
-		break;
-
-#ifdef HAVE_STRUCT_SOCKADDR_IN6
-	case AF_INET6:
-		option = join ? IPV6_JOIN_GROUP : IPV6_LEAVE_GROUP;
-		mr.mreq6.ipv6mr_multiaddr = group->in6.sin6_addr;
-		mr.mreq6.ipv6mr_interface = 0;
-		rc = setsockopt(socketGetFd(s), IPPROTO_IPV6, option, (void *) &mr, sizeof (mr.mreq6));
-		UPDATE_ERRNO;
-		break;
-#endif
-	}
-#endif
-
-	return rc;
+	return socket3_multicast(socketGetFd(s), group, join);
 }
 
 /**
@@ -1099,21 +1061,12 @@ socketMulticast(Socket2 *s, SocketAddress *group, int join)
 int
 socketMulticastLoopback(Socket2 *s, int flag)
 {
-#ifdef IP_MULTICAST_LOOP
-	int rc;
-	char byte = flag;
-
 	if (s == NULL) {
 		errno = EFAULT;
 		return SOCKET_ERROR;
 	}
 
-	rc = setsockopt(socketGetFd(s), IPPROTO_IP, IP_MULTICAST_LOOP, (char *) &byte, sizeof (byte));
-	UPDATE_ERRNO;
-	return rc;
-#else
-	return 0;
-#endif
+	return socket3_multicast_loopback(socketGetFd(s), s->address.sa.sa_family, flag);
 }
 
 /**
@@ -1130,20 +1083,12 @@ socketMulticastLoopback(Socket2 *s, int flag)
 int
 socketMulticastTTL(Socket2 *s, int ttl)
 {
-#ifdef IP_MULTICAST_TTL
-	int rc;
-
 	if (s == NULL) {
 		errno = EFAULT;
 		return SOCKET_ERROR;
 	}
 
-	rc = setsockopt(socketGetFd(s), IPPROTO_IP, IP_MULTICAST_TTL, (char *) &ttl, sizeof (ttl));
-	UPDATE_ERRNO;
-	return rc;
-#else
-	return 0;
-#endif
+	return socket3_multicast_ttl(socketGetFd(s), s->address.sa.sa_family, ttl);
 }
 
 

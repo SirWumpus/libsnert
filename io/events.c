@@ -124,15 +124,16 @@ eventResetExpire(Event *event, const time_t *now)
  * @param event
  *	A pointer to Event structure.
  *
- * @note The original design of the Snert IO Events API was based on
- * a paper about implementing Haskell Event IO and how IO typically
- * always needs a timeout, so the Snert version always assumed that
- * both an IO event and timeout event for the same file descriptor.
- * The timeout event would automatically reset if there was an IO
- * event.
+ * @note 
+ *	The original design of the Snert IO Events API was based on
+ *	a paper about implementing Haskell Event IO and how IO typically
+ *	always needs a timeout, so the Snert version always assumes that
+ *	both an IO event and timeout event for the same file descriptor.
+ *	The timeout event would automatically reset if there was an IO
+ * 	event.
  *
- * libev design decouples the two and leaves it upto the application
- * to reset the timeout if necessary.
+ *	libev design decouples the two and leaves it upto the application
+ *	to reset the timeout if necessary.
  */
 void
 eventResetTimeout(Event *event)
@@ -144,7 +145,7 @@ eventResetTimeout(Event *event)
 			ev_timer_again(event->loop, &event->on.timeout);
 		}
 #else
-		time_t *now;
+		time_t now;
 		(void) time(&now);
 		eventResetExpire(event, &now);
 #endif
@@ -351,7 +352,7 @@ events_wait_kqueue(Events *loop, long ms)
 			io_want = (event->io_type & EVENT_READ) ? EVFILT_READ : EVFILT_WRITE;
 			EV_SET(
 				&((struct kevent *)loop->set)[fd_active], event->fd,
-				io_want, EV_ADD|EV_ENABLE, 0, 0, (intptr_t) event
+				io_want, EV_ADD|EV_ENABLE, 0, 0, event
 			);
 			fd_active++;
 		}

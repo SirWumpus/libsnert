@@ -13,8 +13,6 @@
 extern "C" {
 #endif
 
-#undef USE_MCC2
-
 /***********************************************************************
  ***
  ***********************************************************************/
@@ -69,8 +67,6 @@ typedef enum {
 #define MCC_PACKET_SIZE		512
 #define MCC_DATA_SIZE		(MCC_PACKET_SIZE - MCC_HEAD_SIZE)
 
-#ifdef USE_MCC2 /* Newer broadcast only version */
-
 #define MCC_HEAD_SIZE		24
 #define MCC_PACKET_LENGTH(p)	(MCC_HEAD_SIZE + MCC_GET_K_SIZE(p) + MCC_GET_V_SIZE(p))
 
@@ -78,13 +74,16 @@ typedef enum {
  * A multicast cache packet cannot be more than 512 bytes.
  */
 typedef struct {
+	/* Packet data. */
 	uint8_t  digest[16];				/* +0  */
 	uint32_t ttl;					/* +16 time-to-live relative a host's system clock */
 	uint16_t k_size;				/* +20 command & key size: cccc ccc k kkkk kkkk */
 	uint16_t v_size;				/* +22 zero & value size : 0000 000 v vvvv vvvv */
 	uint8_t  data[MCC_DATA_SIZE];			/* +24 = MCC_HEAD_SIZE */
 
-	time_t	expires;				/* Not part of the packet. */
+	/* Not part of the packet. */
+	time_t created;
+	time_t expires;
 } mcc_row;
 
 #define MCC_MASK_SIZE		0x01FF
@@ -102,81 +101,19 @@ typedef struct {
 #define MCC_SET_EXTRA(p, c)	(p)->v_size = ((c) << 9) | MCC_GET_V_SIZE(p)
 #define MCC_GET_EXTRA(p)	((p)->v_size >> 9)
 
-#define MCC_K_PTR(x)		((x)->data)
-#define MCC_V_PTR(x)		((x)->data + MCC_GET_K_SIZE(x))
+#define MCC_PTR_K(x)		((x)->data)
+#define MCC_PTR_V(x)		((x)->data + MCC_GET_K_SIZE(x))
+
+#define MCC_FMT_K		"%.*s"
+#define MCC_FMT_K_ARG(p)	MCC_GET_K_SIZE(p), MCC_PTR_K(p)
+#define MCC_FMT_V		"%.*s"
+#define MCC_FMT_V_ARG(p)	MCC_GET_V_SIZE(p), MCC_PTR_V(p)
 
 #define MCC_SQL_CREATE_TABLE	\
-"CREATE TABLE mcc( k TEXT PRIMARY KEY, d TEXT, e INTEGER );"
+"CREATE TABLE mcc( k TEXT PRIMARY KEY, v TEXT, e INTEGER, c INTEGER DEFAULT (strftime('%s', 'now')) );"
 
 #define MCC_SQL_REPLACE		\
-"INSERT OR REPLACE INTO mcc (k,d,e) VALUES(?1,?2,?3);"
-
-#else /* Older broadcast & correct version */
-
-/*
- * The key size was derived from the need to be able to save long
- * keys typically found with grey-listing.
- *
- * For the traditional grey-list tuple of { IP, sender, recipient }
- * that meant { IPV4_STRING_LENGTH (16) + SMTP_PATH_LENGTH (256) * 2 }
- * equals 528 bytes which exceeds the size of a UDP packet.
- *
- * Since typical mail addresses never use the max. possible, a more
- * conservative value was used { IPV6_STRING_LENGTH (40) + 128 * 2 }
- * equals 296. However, with configurable grey-listing keys (see
- * BarricadeMX), instead of an IP, a PTR might appear and/or a HELO
- * argumenent both, which are FQDN that could each be 256 bytes long.
- * Again PTR and HELO values seldom use the max. possible length,
- *
- * A comprimise was required in order to support large keys, yet still
- * fit in a UDP packet, leave some room for a value field, and extra
- * supporting data. The value 384 = 3 * 128 was used.
- */
-#define MCC_MAX_KEY_SIZE			383
-#define MCC_MAX_KEY_SIZE_S			"382"	/* allow for terminating NUL byte */
-
-#define MCC_MAX_VALUE_SIZE			92
-#define MCC_MAX_VALUE_SIZE_S			"91"	/* allow for terminating NUL byte */
-
-#define MCC_HEAD_SIZE				36
-
-/*
- * A multicast cache packet cannot be more than 512 bytes.
- */
-typedef struct {
-	uint8_t  digest[16];				/* +0  */
-	uint32_t created;				/* +16 assumes sizeof time_t == 4 */
-	uint32_t touched;				/* +20 assumes sizeof time_t == 4 */
-	uint32_t expires;				/* +24 assumes sizeof time_t == 4 */
-	uint32_t hits;					/* +28 assumes sizeof int == 4 */
-	uint16_t key_size;				/* +32 assumes sizeof short == 2 */
-	uint8_t  value_size;				/* +34 */
-	uint8_t  command;				/* +35 */
-	uint8_t  key_data[MCC_MAX_KEY_SIZE];		/* +36 */
-	uint8_t  value_data[MCC_MAX_VALUE_SIZE];
-} mcc_row;
-
-#define MCC_SET_K_SIZE(p, s)	(p)->key_size = (s)
-#define MCC_SET_V_SIZE(p, s)	(p)->value_size = (s)
-
-#define MCC_GET_K_SIZE(p)	(p)->key_size
-#define MCC_GET_V_SIZE(p)	(p)->value_size
-
-#define MCC_SET_COMMAND(p, c)	(p)->command = (c)
-#define MCC_GET_COMMAND(p)	(p)->command
-#define MCC_SET_EXTRA(p, c)	
-#define MCC_GET_EXTRA(p)
-
-#define MCC_K_PTR(x)		(x)->key_data
-#define MCC_V_PTR(x)		(x)->value_data
-
-#define MCC_SQL_CREATE_TABLE	\
-"CREATE TABLE mcc( k VARCHAR(" QUOTE(MCC_MAX_KEY_SIZE) ") PRIMARY KEY, d VARCHAR(" QUOTE(MCC_MAX_VALUE_SIZE) "), h INTEGER DEFAULT 1, c INTEGER, t INTEGER, e INTEGER );"
-
-#define MCC_SQL_REPLACE		\
-"INSERT OR REPLACE INTO mcc (k,d,h,c,t,e) VALUES(?1,?2,?3,?4,?5,?6);"
-
-#endif /* USE_MCC2 */
+"INSERT OR REPLACE INTO mcc (k,v,e) VALUES(?1,?2,?3);"
 
 #define MCC_SQL_BEGIN		\
 "BEGIN IMMEDIATE;"
@@ -286,8 +223,6 @@ extern void mccFini(void);
 extern void mccStopGc(void);
 extern int mccStartGc(unsigned seconds);
 
-#ifdef USE_MCC2
-
 typedef struct {
 	char *path;
 	char *secret;
@@ -328,47 +263,6 @@ extern int mccStartListener(const char **ip_array, int port);
  * Stop the listener thread.
  */
 extern void mccStopListener(void);
-
-#else
-
-typedef struct {
-	int port;
-	Socket2 *socket;
-	pthread_t thread;
-	volatile int is_running;
-} mcc_network;
-
-typedef struct {
-	char *path;
-	char *secret;
-	size_t secret_length;
-	pthread_mutex_t mutex;
-
-	mcc_hooks hook;
-	Vector key_hooks;
-
-	mcc_network unicast;
-	SocketAddress **unicast_ip;
-
-	mcc_network multicast;
-	SocketAddress *multicast_ip;
-
-	time_t gc_next;
-	unsigned gc_period;
-	pthread_t gc_thread;
-
-	pthread_mutex_t active_mutex;
-	mcc_active_host active[MCC_HASH_TABLE_SIZE];
-} mcc_data;
-
-extern void mccStopMulticast(void);
-extern int mccSetMulticastTTL(int ttl);
-extern int mccStartMulticast(const char *ip_group, int port);
-
-extern void mccStopUnicast(void);
-extern int mccStartUnicast(const char **ip_array, int port);
-
-#endif /* USE_MCC2 */
 
 extern Vector mccGetActive(void);
 extern mcc_active_host *mccFindActive(const char *ip);
@@ -414,10 +308,9 @@ struct mcc_ctx {
 
 extern int mccSetSync(mcc_handle *mcc, int level);
 
-#ifdef USE_MCC2
-# define MCC_CMD_DEC		'd'
-# define MCC_CMD_INC		'i'
-#endif
+#define MCC_CMD_ADD		'a'
+#define MCC_CMD_DEC		'd'
+#define MCC_CMD_INC		'i'
 #define MCC_CMD_PUT		'p'
 #define MCC_CMD_REMOVE		'r'
 #define MCC_CMD_OTHER		'?'
@@ -428,16 +321,27 @@ extern mcc_handle *mccCreate(void);
 extern void mccDestroy(void *mcc);
 
 extern int mccSetSyncByName(mcc_handle *mcc, const char *name);
-extern int mccGetRow(mcc_handle *mcc, mcc_row *row);
-extern int mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *row);
+extern int mccExpireRows(mcc_handle *mcc, time_t *when);
+extern int mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text);
+
+extern void mccSetExpires(mcc_row *row, unsigned long ttl);
+extern void mccSetKey(mcc_row *row, const char *fmt, ...);
+extern void mccSetValue(mcc_row *row, const char *fmt, ...);
+
+extern int mccAddRow(mcc_handle *mcc, long add, mcc_row *row);
+extern int mccAddRowLocal(mcc_handle *mcc, long add, mcc_row *row);
+
+extern int mccDeleteAll(mcc_handle *mcc);
 extern int mccDeleteRow(mcc_handle *mcc, mcc_row *row);
 extern int mccDeleteRowLocal(mcc_handle *mcc, mcc_row *row);
 extern int mccDeleteKey(mcc_handle *mcc, const unsigned char *key, unsigned length);
+
+extern int mccGetRow(mcc_handle *mcc, mcc_row *row);
+extern int mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *row);
+
 extern int mccPutRow(mcc_handle *mcc, mcc_row *row);
-extern int mccPutRowLocal(mcc_handle *mcc, mcc_row *row, int touch);
-extern int mccExpireRows(mcc_handle *mcc, time_t *when);
-extern int mccDeleteAll(mcc_handle *mcc);
-extern int mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text);
+extern int mccPutRowLocal(mcc_handle *mcc, mcc_row *row);
+extern int mccPutKeyValue(mcc_handle *mcc, const char *key, const char *value, unsigned long ttl);
 
 #endif /* HAVE_SQLITE3_H */
 

@@ -57,6 +57,16 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.18--
+
+   !	Finish modifications to MCC broadcast-only protocol to support
+	update in smtpf. Remove need for two listener threads (multicast
+	and unicast) since it possible for one socket to handle both.
+
+   !	Modify socket2 and socket3 APIs to support IPv6 multicasting
+	used by multicast cache API. Note Linux and FreeBSD support
+	hybrid IP stack allows one sokcet to handle both IPv6 and IPv4. 
+
 --1.75.17--
 
    *    Upgraded SQLite to 3.7.12.1

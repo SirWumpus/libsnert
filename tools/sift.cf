@@ -7,9 +7,14 @@
 # UW IMAP login failure (authlog)
 #	#1 service
 #	#2 type of failure
-#	#3 connecting host
+#	#3 connecting host name
+#	#4 connecting host IP
 
-/(imapd|ipop3d).+Login (disabled|failed).+host=(.+)/ t=3; l=1,3,5/2m; c='echo "Repeated #1 login attempts from #3"' 
+/(imapd|ipop3d).+Login (disabled|failed).+host=(.+ )\[(.+)\]/ t=4; l=1,4,5/2m; c='echo "Repeated #1 login attempts from #3#4"' 
+
+# Alternative version that blocks IP by adding to firewall block list.
+#/(imapd|ipop3d).+Login (disabled|failed).+host=(.+ )\[(.+)\]/ t=4; l=1,4,5/2m; c='pfctl -t deny -T add #4' 
+
 
 # UW IMAP login success (maillog)
 #	#1 service

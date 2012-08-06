@@ -622,18 +622,24 @@ extern int socket3_multicast(SOCKET fd, SocketAddress *group, int join);
  *	A SOCKET returned by socket3_open(). This socket is assumed
  *	to be a multicast socket previously joined by socketMulticast().
  *
+ * @oaram family
+ *	The protocol / address family (AF_INET, AF_INET6) of the socket.
+ *
  * @param flag
  *	True to enable multicast loopback (default), false to disable.
  *
  * @return
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
-extern int socket3_multicast_loopback(SOCKET fd, int flag);
+extern int socket3_multicast_loopback(SOCKET fd, int family, int flag);
 
 /**
  * @param fd
  *	A SOCKET returned by socket3_open(). This socket is assumed
  *	to be a multicast socket previously joined by socketMulticast().
+ *
+ * @oaram family
+ *	The protocol / address family (AF_INET, AF_INET6) of the socket.
  *
  * @param ttl
  *	The multicast TTL to assign.
@@ -641,7 +647,7 @@ extern int socket3_multicast_loopback(SOCKET fd, int flag);
  * @return
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
  */
-extern int socket3_multicast_ttl(SOCKET fd, int ttl);
+extern int socket3_multicast_ttl(SOCKET fd, int family, int ttl);
 
 /**
  * @param fd

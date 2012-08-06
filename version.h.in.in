@@ -589,6 +589,11 @@ union semun {
 #undef HAVE_IFADDRS_H
 #undef HAVE_GETIFADDRS
 #undef HAVE_FREEIFADDRS
+#undef HAVE_NET_IF_H
+#undef HAVE_IF_NAMEINDEX
+#undef HAVE_IF_FREENAMEINDEX
+#undef HAVE_IF_NAMETOINDEX
+#undef HAVE_IF_INDEXTONAME
 
 /*
  * Sockets

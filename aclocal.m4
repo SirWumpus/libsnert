@@ -1838,6 +1838,11 @@ dnl #endif
 				getifaddrs freeifaddrs
 			])
 		])
+		AC_CHECK_HEADERS([net/if.h],[
+			AC_CHECK_FUNCS([ \
+				if_nameindex if_freenameindex if_nametoindex if_indextoname
+			])
+		])
 	else
 		AC_CHECK_HEADERS(windows.h io.h)
 		AC_CHECK_HEADER(winsock2.h,[
