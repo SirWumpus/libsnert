@@ -809,13 +809,16 @@ disrupted_transposition(const char *key, const char *in, int (*fn)(char *, const
 		out[out_len] = '\0';
 		key_len = indices[0];
 
+		if (debug)
+			memset(out, ' ', out_len);
+
 		/* Create one or more triangles in output table. */
 		r = 0;
 		for (k = 1; ; k = k % key_len + 1) {
 			/* Fill triangle area. */
-			for (j = indices[k]; j <= key_len; j++, r += key_len) {
+			for (j = indices[k]; j < key_len; j++, r += key_len) {
 				/* Fill row of triangle. */
-				for (i = 0; i < j; i++) {
+				for (i = 0; i <= j; i++) {
 					if (out_len <= r + i)
 						goto stop1;
 					x = (*fn)(out, in, r + i, x);
@@ -823,11 +826,14 @@ disrupted_transposition(const char *key, const char *in, int (*fn)(char *, const
 			}
 		}
 stop1:
+		if (debug)
+			cipher_dump_transposition(stderr, key, out);
+
 		/* Fill in empty triangle space. */
 		r = 0;
 		for (k = 1; ; k = k % key_len + 1) {
-			for (j = indices[k]; j <= key_len; j++, r += key_len) {
-				for (i = j; i < key_len; i++) {
+			for (j = indices[k]; j < key_len; j++, r += key_len) {
+				for (i = j+1; i < key_len; i++) {
 					if (out_len <= r + i)
 						goto stop2;
 					x = (*fn)(out, in, r + i, x);
@@ -835,7 +841,8 @@ stop1:
 			}
 		}
 stop2:
-		;
+		if (debug)
+			cipher_dump_transposition(stderr, key, out);
 	}
 
 	MEM_WIPE(indices, indices[0]);
