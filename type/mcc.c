@@ -1119,7 +1119,7 @@ mccSetExpires(mcc_row *row, unsigned long ttl)
 	row->expires = time(NULL) + ttl;
 }
 
-void
+int
 mccSetKey(mcc_row *row, const char *fmt, ...)
 {
 	int length;
@@ -1129,9 +1129,11 @@ mccSetKey(mcc_row *row, const char *fmt, ...)
 	length = vsnprintf(MCC_PTR_K(row), MCC_DATA_SIZE, fmt, args);
 	MCC_SET_K_SIZE(row, length);
 	va_end(args);
+
+	return length;
 }
 
-void
+int
 mccSetValue(mcc_row *row, const char *fmt, ...)
 {
 	int length;
@@ -1141,6 +1143,8 @@ mccSetValue(mcc_row *row, const char *fmt, ...)
 	length = vsnprintf(MCC_PTR_V(row), MCC_GET_V_SPACE(row), fmt, args);
 	MCC_SET_V_SIZE(row, length);
 	va_end(args);
+
+	return length;
 }
 
 int

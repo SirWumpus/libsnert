@@ -15,7 +15,7 @@
 #endif
 
 #ifndef DB_PATH_FMT
-#define DB_PATH_FMT		"/tmp/sift-%d.sq3"
+#define DB_PATH_FMT		"/var/tmp/sift-%d.sq3"
 #endif
 
 #ifndef DB_BUSY_MS
@@ -102,6 +102,8 @@
 " updated INTEGER DEFAULT 0," \
 " reported INTEGER DEFAULT 0," \
 " counter INTEGER DEFAULT 1," \
+" lifetime INTEGER DEFAULT 1," \
+" highwater INTEGER DEFAULT 1," \
 " token TEXT," \
 " PRIMARY KEY(id_pattern, token)" \
 ");" \
@@ -136,7 +138,7 @@
 "SELECT * FROM log WHERE thread=?1 ORDER BY created ASC;"
 
 #define INSERT_LIMIT	\
-"INSERT INTO limits VALUES(?1,?2,?3,0,0,1,?4);"
+"INSERT INTO limits VALUES(?1,?2,?3,0,0,1,1,1,?4);"
 
 #define UPDATE_LIMIT	\
 "UPDATE limits SET expires=?3, updated=?4, reported=?5, counter=?6 WHERE id_pattern=?1 AND token=?2;"
@@ -145,7 +147,7 @@
 "SELECT oid,* FROM limits WHERE id_pattern=?1 AND token=?2;"
 
 #define INCREMENT_LIMIT \
-"UPDATE limits SET counter=counter+1 WHERE id_pattern=?1 AND token=?2;"
+"UPDATE limits SET counter=counter+1, lifetime=lifetime+1, highwater=max(highwater, counter+1) WHERE id_pattern=?1 AND token=?2;"
 
 #define INSERT_PATTERN	\
 "INSERT INTO patterns VALUES(?1);"
@@ -157,7 +159,7 @@
 "SELECT oid FROM patterns WHERE pattern=?1;"
 
 #define SELECT_LIMIT_TO_LOG \
-"SELECT line FROM limit_to_log, log WHERE limit_to_log.id_limit=?1 AND log.created>?2 AND limit_to_log.id_log=log.oid;"
+"SELECT line FROM limit_to_log, log WHERE limit_to_log.id_limit=?1 AND log.created >= ?2 AND limit_to_log.id_log=log.oid;"
 
 struct sift_ctx {
 	sqlite3 *db;
@@ -194,12 +196,14 @@ struct limit {
 	time_t updated;
 	int reported;
 	int counter;
+	int lifetime;
+	int highwater;
 };
 
 static int debug;
 static int assumed_tz;
 static int assumed_year;
-
+static int first_match_only;
 static int follow_flag;
 
 static Vector report;
@@ -217,14 +221,16 @@ static const char *pattern_path;
 
 static const char *smtp_host = "127.0.0.1:25";
 
-static const char options[] = "fF:vDRd:r:s:y:z:";
+static const char options[] = "1fF:vDRd:r:s:y:z:";
 static char usage[] =
-"usage: sift [-fvD][-d db_path][-F mail][-r mail,...][-s host:ip][-y year]\n"
+"usage: sift [-1fvD][-d db_path][-F mail][-r mail,...][-s host:ip][-y year]\n"
 "            [-z gmtoff] pattern_file [log_file ...]\n"
+"\n"
+"-1\t\tSkip remaining patterns after first matching pattern rule.\n"
 "\n"
 "-d filepath\tFile path of the sift database used for tracking and\n"
 "\t\tcollecting threaded log lines. The default path is\n"
-"\t\t/tmp/sift-$UID.sq3\n"
+"\t\t/var/tmp/sift-$UID.sq3\n"
 "\n"
 "-D\t\tDelete the database before processing the log-files.\n"
 "\n"
@@ -492,9 +498,15 @@ free_rule(void *_rule)
  * 
  * action := thread | limit | report | command
  * 
- * thread := "t=" index
+ * quote := "'" | '"'
+ *
+ * index := number | quote text quote
+ *
+ * indices := index [ "," index ]
+ *
+ * thread := "t=" indices
  * 
- * limit := "l=" 1*[ index "," ] max "/" period [ unit ]
+ * limit := "l=" indices "," max "/" period [ unit ]
  * 
  * report := "r=" mail *[ "," mail ]
  * 
@@ -665,6 +677,8 @@ limit_select(sqlite3_int64 id_pattern, const char *token, int length, struct lim
 	limit->updated = (time_t) sqlite3_column_int(ctx.select_limit, 4);
 	limit->reported = sqlite3_column_int(ctx.select_limit, 5);
 	limit->counter = sqlite3_column_int(ctx.select_limit, 6);
+	limit->lifetime = sqlite3_column_int(ctx.select_limit, 7);
+	limit->highwater = sqlite3_column_int(ctx.select_limit, 8);
 
 	(void) sqlite3_clear_bindings(ctx.select_limit);
 	sqlite3_reset(ctx.select_limit);
@@ -915,7 +929,11 @@ error0:
 /* 
  * Parse and check a limit. Malformed limit actions are ignored.
  *
- * limit := "l=" 1*[ index "," ] max "/" period [ unit ]
+ * limit := "l=" indices "," max "/" period [ unit ]
+ *
+ * indices := index [ "," index ]
+ *
+ * index := number | quote text quote
  */ 
 static void
 check_limit(const char *action, const char *line, struct pattern_rule *rule, regmatch_t *parens, time_t tstamp)
@@ -932,8 +950,30 @@ check_limit(const char *action, const char *line, struct pattern_rule *rule, reg
 		return;
 	}
 
-	/* Join selected limit sub-expressions into a token. */
+	/* Join selected limit sub-expressions or quoted strings into a token. */
 	for (lp = (char *) action+2, offset = 0; offset < sizeof (token)-1; offset += length, lp = stop+1) {
+		if (*lp == '"' || *lp == '\'') {
+			/* Find end of quoted string. */
+			if ((stop = strchr(lp+1, *lp)) == NULL) {
+				(void) fprintf(
+					stderr, "/%s/ %s: missing closing quote (%c)\n", 
+					rule->pattern, action, *lp
+				);
+				return;
+			}
+
+			/* Append quoted string and delimter to token. */
+			length = stop - lp - 1;
+			(void) memcpy(token+offset, lp+1, length);
+			token[offset+length++] = TOKEN_DELIMITER;
+
+			/* Next character following end quote. */
+			stop++;
+			if (*stop == ',')
+				continue;
+			break;
+		}
+
 		/* Get sub-expression index or limit max. */
 		number = strtol(lp, &stop, 10);
 
@@ -1093,7 +1133,8 @@ process_rules(char *line)
 			(void) append_log(line, rule, parens, tstamp);
 			if (rule->limits[0] != NULL)
 				check_limits(line, rule, parens, tstamp);
-			break;
+			if (first_match_only)
+				break;
 		}
 	}
 }
@@ -1180,6 +1221,10 @@ main(int argc, char **argv)
 
 	while ((ch = getopt(argc, argv, options)) != -1) {
 		switch (ch) {
+		case '1':
+			first_match_only = 1;
+			break;
+
 		case 'f':
 			follow_flag = 1;
 			break;

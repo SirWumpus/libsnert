@@ -1014,9 +1014,9 @@ pdqListPruneMatch(PDQ_rr *list)
 		next = rr->next;
 
 		/* Discard failed queries we can't use. */
-		if (rr->section == PDQ_SECTION_QUERY
-		&& ((PDQ_QUERY *)rr)->rcode != PDQ_RCODE_OK) {
-			*prev = next = pdqListPruneQuery(rr);
+		if (rr->section == PDQ_SECTION_QUERY) {
+			if (((PDQ_QUERY *)rr)->rcode != PDQ_RCODE_OK) 
+				*prev = next = pdqListPruneQuery(rr);
 			continue;
 		}
 
@@ -3427,7 +3427,7 @@ pdqListHasValidSOA(PDQ_rr *list, const char *name)
 PDQ_rr *
 pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *ns)
 {
-	PDQ_rr *rr;
+	PDQ_rr *rr, *chain;
 	PDQ_QUERY *answer;
 
 	answer = NULL;
@@ -3455,9 +3455,28 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 	if (answer != NULL && answer->rcode == PDQ_RCODE_OK && !pdq->short_query
 	&& (type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA)) {
 		if (debug)
-			syslog(LOG_DEBUG, "pdqGet() related A/AAAA records...");
+			syslog(LOG_DEBUG, "pdqGet() related CNAME, A/AAAA records...");
 		for (rr = answer->rr.next; rr != NULL; rr = rr->next) {
-			if (rr->type == type) {
+			if (rr->section == PDQ_SECTION_QUERY)
+				continue;
+			if (rr->type == PDQ_TYPE_CNAME) {
+				/* "domain IN MX ." is a short hand to indicate
+				 * that a domain has no MX records. No point in
+				 * looking up A/AAAA records. Like wise for NS
+				 * and SOA records.
+				 */
+				if (strcmp(".", ((PDQ_MX *) rr)->host.string.value) == 0)
+					continue;
+
+				if (pdqListFindName(rr->next, class, type, ((PDQ_MX *) rr)->host.string.value) == NULL) {
+					if (0 < debug)
+						syslog(LOG_DEBUG, "follow CNAME %s ...", ((PDQ_MX *) rr)->host.string.value);
+					chain = pdqGet(pdq, class, type, ((PDQ_MX *) rr)->host.string.value, ns);
+					if (0 < debug) 
+						syslog(LOG_DEBUG, "done CNAME %s", ((PDQ_MX *) rr)->host.string.value);
+					rr->next = pdqListAppend(rr->next, chain);
+				}
+			} else if (rr->type == type) {
 				/* "domain IN MX ." is a short hand to indicate
 				 * that a domain has no MX records. No point in
 				 * looking up A/AAAA records. Like wise for NS
@@ -3476,6 +3495,7 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 		answer->rr.next = pdqListAppend(answer->rr.next, pdqWaitAll(pdq));
 		answer->rr.next = pdqListPruneDup(answer->rr.next);
 	}
+
 	if (0 < debug)
 		pdqListLog((PDQ_rr *) answer);
 error0:

@@ -57,6 +57,30 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.19--
+
+   !	Add highwater and lifetime counters to "sift" database.
+
+   !	Fix parseIPv6() for "1:2:3:4:5:6:7::".
+
+   !	Fix formatIP() compact formatting of "1:2:3:4:5:6:7:0".
+ 
+   !    Fix formatIP() buffer overflow by one when the buffer size is
+        IPV6_STRING_LENGTH for a full length IPv6 address that cannot
+	be compressed, eg. 1234:5678:9ABC:DEF0:1234:5678:9ABC:DEF0.
+
+   !	Fix off-by-one bugs in in disrupted_transposition().
+
+   !	uri now includes data: in scheme-to-port table.
+
+   !	Added more HTTP_ API status codes.
+
+   !    Fixed isReservedIPv6() handling of IS_IP_V6_RESERVED, introduced
+        in 1.75.17, as being part of IS_IP_RESTRICTED; broke pdq pruning
+        code. Restored IS_IP_V6_COMPATIBLE.
+
+   !	Fixed pdq handling of MX/CNAME lookup per RFC 5321 section 5.1.
+
 --1.75.18--
 
    !	Finish modifications to MCC broadcast-only protocol to support

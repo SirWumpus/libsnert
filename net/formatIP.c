@@ -67,7 +67,7 @@ formatIP(unsigned char *ip, int ip_length, int compact, char *buffer, long size)
 		return 0;
 
 	length = 0;
-	word_fmt = compact == 2 ? "%04x:" : "%x:";
+	word_fmt = compact == 2 ? "%04x" : "%x";
 
 	z = 0;
 	for (i = 0; i < IPV6_BYTE_LENGTH; i += 2) {
@@ -80,6 +80,10 @@ formatIP(unsigned char *ip, int ip_length, int compact, char *buffer, long size)
 		if (compact == 1 && word == 0) {
 			compact = 0;
 			length += snprintf(buffer+length, size-length, 0 < i ? ":" : "::");
+
+			/* 1:2:3:4:5:6:7:0 compacting trailing zeros 1:2:3:4:5:6:7:: */
+			if (i == IPV6_BYTE_LENGTH-2)
+				break;
 
 			for (i += 2; i < IPV6_BYTE_LENGTH; i += 2) {
 				word = NET_GET_SHORT(&ip[i]);
@@ -97,19 +101,19 @@ formatIP(unsigned char *ip, int ip_length, int compact, char *buffer, long size)
 			break;
 
 		length += snprintf(buffer+length, size-length, word_fmt, word);
+		if (i < IPV6_BYTE_LENGTH-2 && length+1 < size)
+			buffer[length++] = ':';
 
 		/* IPv4-mapped-IPv6  == 0:0:0:0:0:ffff:123.45.67.89 */
 		if (z == 5 && i == 10 && word == 0xFFFF)
 			break;
 	}
+	if (length < size)
+		buffer[length] = '\0';
 
-	/* IPv4-compatibile-IPv6 and IPv4-mapped-IPv6 */
+	/* IPv4-compatibile-IPv6 or IPv4-mapped-IPv6 */
 	if ((z == 6 && i == 12) || (z == 5 && i == 10))
 		length += snprintf(buffer+length, size-length, "%d.%d.%d.%d", ip[12],ip[13],ip[14],ip[15]);
-
-	/* Remove trailing colon. */
-	if (0 < length && buffer[length-1] == ':')
-		buffer[--length] = '\0';
 
 	return length;
 }
@@ -206,19 +210,40 @@ socketAddressFormatIp(const struct sockaddr *sa, int flags, char *buffer, size_t
 
 char *test_list[] = {
 	"TEST",
+
+	/* This host */
 	"::",
 	"::0",
+
+	/* Local host */
 	"::1",
+
+	/* Link local */
 	"fe80::",
 	"fe80::1",
 	"fe80::230:18ff:fef8:707d",
+
+	/* IPv4-compatibile-IPv6 */
 	"::123.45.67.89",
+
+	/* IPv4-mapped-IPv6 */
 	"::FFFF:123.45.67.89",
 	"::beef:123.45.67.89",
+
 	"2001::123.45.67.89",
-	"2001:db8::",
 	"2001::1",
 	"2001::1234:0",
+
+	/* Test net */
+	"2001:db8::",
+
+	/* Last word is a zero. */
+	"1:2:3:4:5:6:7::",
+	"1:2:3:4:5:6:7:0",
+
+	/* Check for no buffer overflow. */
+	"1234:5678:9ABC:DEF0:1234:5678:9ABC:DEF0",
+
 	NULL
 };
 
@@ -240,9 +265,19 @@ main(int argc, char **argv)
 			printf("%s does not parse\n", argv[argi]);
 		else {
 			printf("%s\t", argv[argi]);
-			formatIP(ipv6, sizeof (ipv6), 0, string, sizeof (string));
+
+			length = formatIP(ipv6, sizeof (ipv6), 0, string, sizeof (string));
+			if (sizeof (string) <= length) {
+				printf("buffer overflow!\n");
+				return 1;
+			}
 			printf("full=%s\t", string);
-			formatIP(ipv6, sizeof (ipv6), 1, string, sizeof (string));
+
+			length = formatIP(ipv6, sizeof (ipv6), 1, string, sizeof (string));
+			if (sizeof (string) <= length) {
+				printf("buffer overflow!\n");
+				return 1;
+			}
 			printf("compact=%s\n", string);
 		}
 	}

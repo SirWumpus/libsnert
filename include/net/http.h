@@ -36,6 +36,10 @@ extern "C" {
 #define HTTP_LINE_SIZE			2048
 #define HTTP_BUFFER_SIZE		8192
 
+/* 
+ * List of HTTP status codes.
+ * https://www.iana.org/assignments/http-status-codes/http-status-codes.xml
+ */
 typedef enum {
 	HTTP_GO				= 0,
 	HTTP_DROP			= 10,
@@ -50,6 +54,8 @@ typedef enum {
 	HTTP_NO_CONTENT			= 204,
 	HTTP_RESET_CONTENT		= 205,
 	HTTP_PARTIAL_CONTENT		= 206,
+	HTTP_MULTI_STATUS		= 207,	/* RFC 4918 */
+	HTTP_ALREADY_REPORTED		= 209,	/* RFC 5842 */
 
 	HTTP_MULTIPLE_CHOICES		= 300,
 	HTTP_MOVED_PERMANENTLY		= 301,
@@ -58,6 +64,8 @@ typedef enum {
 	HTTP_NOT_MODIFIED		= 304,
 	HTTP_USE_PROXY			= 305,
 	HTTP_TEMPORARY_REDIRECT		= 307,
+	HTTP_PERMANENT_REDIRECT		= 308,	/* https://tools.ietf.org/html/draft-reschke-http-status-308-07 */
+	HTTP_UNSAFE_REDIRECT		= 311,	/* Google Chrome: redirect to data: URI */
 
 	HTTP_BAD_REQUEST		= 400,
 	HTTP_UNAUTHORIZED		= 401,

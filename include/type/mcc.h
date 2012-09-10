@@ -325,8 +325,8 @@ extern int mccExpireRows(mcc_handle *mcc, time_t *when);
 extern int mccSqlStep(mcc_handle *mcc, sqlite3_stmt *sql_stmt, const char *sql_stmt_text);
 
 extern void mccSetExpires(mcc_row *row, unsigned long ttl);
-extern void mccSetKey(mcc_row *row, const char *fmt, ...);
-extern void mccSetValue(mcc_row *row, const char *fmt, ...);
+extern int mccSetKey(mcc_row *row, const char *fmt, ...);
+extern int mccSetValue(mcc_row *row, const char *fmt, ...);
 
 extern int mccAddRow(mcc_handle *mcc, long add, mcc_row *row);
 extern int mccAddRowLocal(mcc_handle *mcc, long add, mcc_row *row);

@@ -143,7 +143,7 @@ parseIPv6(const char *ip, unsigned char ipv6[IPV6_BYTE_LENGTH])
 		return stop - start + (*stop == ']');
 
 	/* IPv6-comp */
-	if (compressed && groups <= 6)
+	if (compressed && groups <= 7)
 		return stop - start + (*stop == ']');
 
 	return 0;

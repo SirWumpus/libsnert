@@ -10,12 +10,22 @@
 #	#3 connecting host name
 #	#4 connecting host IP
 
-/(imapd|ipop3d).+Login (disabled|failed).+host=(.+ )\[(.+)\]/ t=4; l=1,4,5/2m; c='echo "Repeated #1 login attempts from #3#4"' 
+#/(imapd|ipop3d).+Login (disabled|failed).+host=(.+ )?\[(.+)\]/ t=4; l=1,4,5/2m; c='echo "Repeated #1 login attempts from #3#4"' 
+/(imapd|ipop3d).+Login (disabled|failed).+host=(.+ )?\[(.+)\]/ t=4; l=1,4,10/1w; c='echo "Repeated #1 login attempts from #3#4"' 
 
 # Alternative version that blocks IP by adding to firewall block list.
-#/(imapd|ipop3d).+Login (disabled|failed).+host=(.+ )\[(.+)\]/ t=4; l=1,4,5/2m; c='pfctl -t deny -T add #4' 
+#/(imapd|ipop3d).+Login (disabled|failed).+host=.*\[(.+)\]/ t=4; l=1,3,5/2m; c='pfctl -t deny -T add #3' 
 
+# UW IMAP login failure (authlog)
+#	#1 service
+#	#2 type of failure
+#	#3 login name
+#	#4 connecting host name
+#	#5 connecting host IP
 
+/(imapd|ipop3d).+Login (disabled|failed).+user=([^ ]+).+host=(.+ )?\[(.+)\]/ t=5 ; l='user',3,1000/1h
+
+# Alternative version that blocks IP by adding to firewall block list.
 # UW IMAP login success (maillog)
 #	#1 service
 #	#2 user-name
@@ -50,7 +60,7 @@
 #	#2 recipient
 #	#3 reason
 
-/sendmail.+: ([^:]+): (<.*>)... (.*)/ t=1
+/sendmail.+: ([^:]+): (<.*>)\.\.\. (.*)/ t=1
 
 # OpenSSH (authlog)
 #	#1 result
@@ -59,6 +69,33 @@
 #	#4 connecting host
 
 /sshd\[.+\]: (Accepted|Failed) ([^ ]+) for (.+) from (.+) port [0-9]+/ t=3
+
+# smtpf end summary line (maillog)
+#	#1 session thread
+#	#2 client IP
+
+/smtpf.+: ([^ ]+) #721 end i=([^ ]+)/ t=1
+
+
+# ftpd successful login (xferlog)
+#	#1 process ID
+#	#2 host name/IP
+#	#3 user name
+
+#/ftpd[([0-9]+)]: FTP LOGIN FROM (.+) as (.+)/ t=2
+
+# ftpd failed login (xferlog)
+#	#1 process ID
+#	#2 host name/IP
+#	#3 user name
+
+#/ftpd[([0-9]+)]: FTP LOGIN FAILED FROM (.+), (.+)/ t=2; l=2,5/m; c='kill -9 #1'
+
+# tcpd ftpd wrapper (authlog)
+#	#1 process ID
+#	#2 host name/IP
+
+#/ftpd[([0-9]+)]: refused connect from (.+)/ t=2
 
 #
 # END

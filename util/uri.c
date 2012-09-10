@@ -269,6 +269,7 @@ struct mapping {
 static struct mapping schemeTable[] = {
 	{ "ip",		sizeof ("ip")-1, 		0 },
 	{ "cid",	sizeof ("cid")-1, 		0 },
+	{ "data",	sizeof ("data")-1, 		0 },	/* RFC 2397 */
 	{ "file",	sizeof ("file")-1,		0 },
 	{ "about",	sizeof ("about")-1,		0 },
 	{ "javascript",	sizeof ("javascript")-1,	0 },
@@ -839,6 +840,11 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 		/* We won't bother with https: nor anything that didn't
 		 * default to the http: port 80 nor explicitly specify
 		 * a port.
+		 *
+		 * This also covers use of RFC 2397 data: scheme that can
+		 * be used for hostless spam and phishing attacks. See
+		 * paper "Phishing by data URI" henning@klevjers.com. 
+		 * Chrome reports "311 Unsafe Redirect".
 		 */
 		if (port == 443 || (port != 80 && uri->port == NULL)) {
 			error = uriErrorNotHttp;
