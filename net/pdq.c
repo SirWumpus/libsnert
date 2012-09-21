@@ -1015,7 +1015,7 @@ pdqListPruneMatch(PDQ_rr *list)
 
 		/* Discard failed queries we can't use. */
 		if (rr->section == PDQ_SECTION_QUERY) {
-			if (((PDQ_QUERY *)rr)->rcode != PDQ_RCODE_OK) 
+			if (((PDQ_QUERY *)rr)->rcode != PDQ_RCODE_OK)
 				*prev = next = pdqListPruneQuery(rr);
 			continue;
 		}
@@ -3472,7 +3472,7 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 					if (0 < debug)
 						syslog(LOG_DEBUG, "follow CNAME %s ...", ((PDQ_MX *) rr)->host.string.value);
 					chain = pdqGet(pdq, class, type, ((PDQ_MX *) rr)->host.string.value, ns);
-					if (0 < debug) 
+					if (0 < debug)
 						syslog(LOG_DEBUG, "done CNAME %s", ((PDQ_MX *) rr)->host.string.value);
 					rr->next = pdqListAppend(rr->next, chain);
 				}
@@ -4149,7 +4149,13 @@ pdq_get_name_servers(const char *cf)
 	servers = NULL;
 
 	if (cf == NULL) {
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
+# if !defined(_WINDOWS_H)
+#  include <windows.h>
+# endif
+# if !defined(_IPHLPAPI_H)
+#  include <Iphlpapi.h>
+# endif
 		IP_ADDR_STRING *ip;
 		ULONG netinfo_size;
 		FIXED_INFO *netinfo;
@@ -4220,7 +4226,7 @@ pdq_get_name_servers(const char *cf)
 
 	if (!feof(fp))
 		goto error3;
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 empty_list_check:
 #endif
 	if (VectorLength(servers) <= 0) {

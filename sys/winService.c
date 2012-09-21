@@ -10,7 +10,7 @@
  *** No configuration below this point.
  ***********************************************************************/
 
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(CYGWIN)
 
 #include <com/snert/lib/version.h>
 

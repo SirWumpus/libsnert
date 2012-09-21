@@ -82,7 +82,7 @@ $O$E :
 #######################################################################
 
 ORIGINAL	= ansi$E flip$E popin$E uue$E show$E range$E sqlargs$E \
-		  counter$E  mimepart$E clamstream$E dnsd$E secho sechod
+		  counter$E  mimepart$E clamstream$E dnsd$E secho$E sechod$E
 MEH_TOOLS	= sendform$E nph-download.cgi here-i-am$E where-are-you$E \
 		  ziplist$E rarlist$E taglengths$E rsleep$E
 MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E echod$E

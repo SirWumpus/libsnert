@@ -30,7 +30,7 @@
 
 #include <com/snert/lib/sys/process.h>
 
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 # include <windows.h>
 #endif
 

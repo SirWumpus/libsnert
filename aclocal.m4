@@ -41,9 +41,10 @@ dnl		AS_IF([test $GCC_MAJOR -ge 4],[CFLAGS="-Wno-pointer-sign $CFLAGS"])
 	])
 
 	if test ${platform:-UNKNOWN} = 'CYGWIN'; then
-		if test ${enable_debug:-no} = 'no'; then
-			CFLAGS="-s ${CFLAGS}"
-		fi
+		AS_IF([test ${enable_debug:-no} = 'no'],[CFLAGS="-s ${CFLAGS}"])
+		CFLAGS="-I/usr/include/w32api ${CFLAGS}"
+		LDFLAGS="-L/usr/lib/w32api ${LDFLAGS}"
+
 dnl 		if test ${enable_win32:-no} = 'yes'; then
 dnl 			dnl -s		strip, no symbols
 dnl 			dnl -mno-cygwin	native windows console app
@@ -475,7 +476,7 @@ main(int argc, char **argv)
 				]])
 			],[
 				libpath=[`$ldd_tool ./conftest$ac_exeext | sed -n -e "/lib$1/s/.* \([^ ]*lib$1[^ ]*\).*/\1/p"`]
-				if ./conftest$ac_exeext $libpath ; then
+				if ./conftest$ac_exeext ${libpath:-unknown} ; then
 					AS_VAR_SET([snert_lib], [${libpath}])
 				else
 					AS_VAR_SET([snert_lib], 'no')
@@ -490,45 +491,6 @@ main(int argc, char **argv)
 
 AC_DEFUN(SNERT_FIND_LIBC,[
 	SNERT_FIND_LIB([c],[AC_DEFINE_UNQUOTED(LIBC_PATH, ["$snert_find_lib_c"])], [])
-dnl 	echo
-dnl 	echo "Finding version of libc..."
-dnl 	echo
-dnl
-dnl 	AC_CHECK_HEADER([dlfcn.h], [
-dnl 		AC_DEFINE_UNQUOTED(HAVE_DLFCN_H)
-dnl 		AC_CHECK_TOOL(ldd_tool, ldd)
-dnl 		if test ${ldd_tool:-no} != 'no'	; then
-dnl 			AC_CHECK_LIB([dl],[dlopen])
-dnl 			AC_MSG_CHECKING([for libc])
-dnl 			AC_RUN_IFELSE([
-dnl 				AC_LANG_SOURCE([[
-dnl #include <stdio.h>
-dnl #include <stdlib.h>
-dnl #ifdef HAVE_DLFCN_H
-dnl # include <dlfcn.h>
-dnl #endif
-dnl
-dnl int
-dnl main(int argc, char **argv)
-dnl {
-dnl 	void *handle;
-dnl 	handle = dlopen(argv[1], RTLD_NOW);
-dnl 	return dlerror() != NULL;
-dnl }
-dnl 				]])
-dnl 			],[
-dnl 				libc=[`$ldd_tool ./conftest$ac_exeext | sed -n -e '/libc/s/.* \([^ ]*libc[^ ]*\).*/\1/p'`]
-dnl 				if ./conftest$ac_exeext $libc ; then
-dnl 					AC_DEFINE_UNQUOTED(LIBC_PATH, ["$libc"])
-dnl 				else
-dnl 					libc='not found'
-dnl 				fi
-dnl 			],[
-dnl 				libc='not found'
-dnl 			])
-dnl 			AC_MSG_RESULT($libc)
-dnl 		fi
-dnl 	])
 ])
 
 
@@ -1902,6 +1864,9 @@ dnl #endif
 			AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_]$i))
 			AC_MSG_RESULT([assumed in winsock2.h & ws2tcpip.h])
 		done
+	fi
+
+	if test ${platform:-UNKNOWN} = 'CYGWIN' -o ${ac_cv_define___WIN32__:-no} != 'no'; then
 		AC_SUBST(HAVE_LIB_WS2_32, '-lws2_32')
 		AC_SUBST(HAVE_LIB_IPHLPAPI, '-lIphlpapi')
 		NETWORK_LIBS="-lws2_32 -lIphlpapi $NETWORK_LIBS"

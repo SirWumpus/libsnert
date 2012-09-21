@@ -28,6 +28,10 @@ static pthread_cond_t thread_sleep_cv;
 static pthread_mutex_t thread_sleep_mutex;
 
 #if defined(HAVE_PTHREAD_ATFORK)
+# if defined(__CYGWIN__)
+extern int pthread_atfork(void (*prepare)(void), void (*parent)(void), void (*child)(void));
+# endif
+
 static void
 pthreadSleepAtForkChild(void)
 {

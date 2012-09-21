@@ -50,33 +50,55 @@ extern int h_error;
  */
 # define WINVER		0x0501
 
-# include <windows.h>
-# include <winsock2.h>
-# include <ws2tcpip.h>
+# include <ws2tcpip.h>	/* includes winsock2.h -> windows.h */
 # include <Iphlpapi.h>
 
-# define ETIMEDOUT			WSAETIMEDOUT
-# define EISCONN        		WSAEISCONN
-# define ESHUTDOWN			WSAESHUTDOWN
-# define EINPROGRESS			WSAEINPROGRESS
-# define EWOULDBLOCK			WSAEWOULDBLOCK
-# define ENOTCONN			WSAENOTCONN
-# define EADDRINUSE			WSAEADDRINUSE
-# define EPFNOSUPPORT			WSAEPFNOSUPPORT
-# define ECONNABORTED			WSAECONNABORTED
-# define UPDATE_ERRNO			(errno = WSAGetLastError())
+# ifndef ETIMEDOUT
+#  define ETIMEDOUT			WSAETIMEDOUT
+# endif
+# ifndef EISCONN
+#  define EISCONN        		WSAEISCONN
+# endif
+# ifndef ESHUTDOWN
+#  define ESHUTDOWN			WSAESHUTDOWN
+# endif
+# ifndef EINPROGRESS
+#  define EINPROGRESS			WSAEINPROGRESS
+# endif
+# ifndef EWOULDBLOCK
+#  define EWOULDBLOCK			WSAEWOULDBLOCK
+# endif
+# ifndef ENOTCONN
+#  define ENOTCONN			WSAENOTCONN
+# endif
+# ifndef EADDRINUSE
+#  define EADDRINUSE			WSAEADDRINUSE
+# endif
+# ifndef EPFNOSUPPORT
+#  define EPFNOSUPPORT			WSAEPFNOSUPPORT
+# endif
+# ifndef ECONNABORTED
+#  define ECONNABORTED			WSAECONNABORTED
+# endif
+# ifndef UPDATE_ERRNO
+#  define UPDATE_ERRNO			(errno = WSAGetLastError())
+# endif
 
-# define SHUT_RD			SD_RECEIVE
-# define SHUT_WR			SD_SEND
-# define SHUT_RDWR			SD_BOTH
-
+# ifndef SHUT_RDWR
+#  define SHUT_RD			SD_RECEIVE
+#  define SHUT_WR			SD_SEND
+#  define SHUT_RDWR			SD_BOTH
+# endif
 #endif /* __WIN32__ */
 
+#ifndef INVALID_SOCKET
+# define INVALID_SOCKET			(-1)
+#endif
 # define ERROR_SOCKET			(-2)
 
 #ifdef __unix__
-# define INVALID_SOCKET			(-1)
 # define closesocket			close
+# undef UPDATE_ERRNO
 # define UPDATE_ERRNO
 
 # ifndef SOCKET
