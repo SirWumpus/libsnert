@@ -81,6 +81,8 @@ is no set schedule for releases.
 
    !	Fixed pdq handling of MX/CNAME lookup per RFC 5321 section 5.1.
 
+   !	Fix berkeley_db.h related macros for DB 5.x. Reported by Ben Parker.
+
 --1.75.18--
 
    !	Finish modifications to MCC broadcast-only protocol to support

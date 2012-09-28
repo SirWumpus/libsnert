@@ -1,7 +1,7 @@
 /*
  * berkeley_db.h
  *
- * Copyright 2005, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2005, 2012 by Anthony Howe. All rights reserved.
  */
 
 #ifndef __com_snert_lib_berkeley_db_h__
@@ -17,13 +17,16 @@ extern "C" {
 # include <db.h>
 #endif
 
-#if   DB_VERSION_MAJOR == 4 && DB_VERSION_MINOR >= 1
+#if   DB_VERSION_MAJOR >= 5
 # define DBTXN          (DB_TXN *) 0,
-/* DB->associate, open, rename, remove require DBTXN *. */
 # define DBTXN_ROAR     (DB_TXN *) 0,
-#elif   DB_VERSION_MAJOR == 4 && DB_VERSION_MINOR == 0
+#elif DB_VERSION_MAJOR == 4 && DB_VERSION_MINOR >= 1
 # define DBTXN          (DB_TXN *) 0,
-/* DB->associate, open, rename, remove do not require DBTXN *. */
+/* DB->associate, open, rename, remove require DBTXN */
+# define DBTXN_ROAR     (DB_TXN *) 0,
+#elif DB_VERSION_MAJOR == 4 && DB_VERSION_MINOR == 0
+# define DBTXN          (DB_TXN *) 0,
+/* DB->associate, open, rename, remove do not require DBTXN */
 # define DBTXN_ROAR
 #elif DB_VERSION_MAJOR == 3
 # define DBTXN
