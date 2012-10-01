@@ -75,6 +75,7 @@
 
 static int debug;
 static int running;
+static char *wait_fn_name;
 static long echo_port = ECHO_PORT;
 static char *echo_host = ECHO_HOST;
 static long socket_timeout = SOCKET_TIMEOUT;
@@ -93,7 +94,7 @@ static const char log_internal[] = "%s(%d): %s (%d)";
 
 static char usage[] =
 "usage: " _NAME " [-v][-c ca_pem][-C ca_dir][-d dh_pem][-k key_crt_pem][-K key_pass]\n"
-"             [-h host[:port]][-p port][-t seconds]\n"
+"             [-h host[:port]][-p port][-t seconds][-w wait]\n"
 "\n"
 "-c ca_pem\tCertificate Authority root certificate chain file\n"
 "-C dir\t\tCertificate Authority root certificate directory\n"
@@ -104,6 +105,7 @@ static char usage[] =
 "-p port\t\tECHO port to connect to; default " QUOTE(ECHO_PORT) "\n"
 "-t seconds\tsocket timeout in seconds; default " QUOTE(SOCKET_TIMEOUT) "\n"
 "-v\t\tverbose debug messages to standard error\n"
+"-w wait\t\tI/O wait function: kqueue, epoll, poll, select\n"
 "\n"
 LIBSNERT_COPYRIGHT "\n"
 ;
@@ -238,6 +240,9 @@ char **argv;
 		case 'v':
 			debug++;
 			break;
+		case 'w':
+			wait_fn_name = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			break;
 		default:
 			fprintf(stderr, "invalid option -%c\n%s", argv[argi][1], usage);
 			return EX_USAGE;
@@ -283,7 +288,13 @@ char **argv;
 		syslog(LOG_ERR, log_internal, __F_L__, strerror(errno), errno);
 		goto error1;
 	}
-	if (socket3_set_cert_key_chain(key_crt_pem, key_pass)) {
+	if (key_crt_pem == NULL) {
+		syslog(LOG_WARN, "missing server private key and certificate file; see -k option");
+	} else if (socket3_set_cert_key_chain(key_crt_pem, key_pass)) {
+		syslog(LOG_ERR, log_internal, __F_L__, strerror(errno), errno);
+		goto error1;
+	}
+	if (socket3_wait_fn_set(wait_fn_name)) {
 		syslog(LOG_ERR, log_internal, __F_L__, strerror(errno), errno);
 		goto error1;
 	}

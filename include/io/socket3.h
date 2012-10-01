@@ -730,8 +730,18 @@ extern int socket3_wait_select(SOCKET fd, long ms, unsigned rw_flags);
 #define socket3_has_input(fd, ms)	(socket3_wait(fd, ms, SOCKET_WAIT_READ) == 0)
 #define socket3_can_send(fd, ms)	(socket3_wait(fd, ms, SOCKET_WAIT_WRITE) == 0)
 
+/**
+ * @param name
+ *	A C string specifying the I/O wait function name. Possible values
+ *	are: kqueue, epoll, poll, select. Specifying NULL sets the default
+ *	suitable for the operating system.
+ *
+ * @return
+ *	Zero (0) on success; otherwise SOCKET_ERROR.
+ */
+extern int socket3_wait_fn_set(const char *name);
+
 extern int (*socket3_wait_fn)(SOCKET, long, unsigned);
-extern void socket3_wait_fn_set(const char *name);
 
 /***********************************************************************
  ***

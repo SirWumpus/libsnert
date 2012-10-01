@@ -1247,19 +1247,32 @@ static socket3_wait_mapping wait_mapping[] = {
 	{ NULL, NULL }
 };
 
-void
+int
 socket3_wait_fn_set(const char *name)
 {
 	socket3_wait_mapping *mapping;
 
+	if (name == NULL) {
+#if defined(HAVE_KQUEUE)
+		name = "kqueue";
+#elif defined(HAVE_EPOLL_CREATE)
+		name = "epoll";
+#elif defined(HAVE_POLL)
+		name = "poll";
+#elif defined(HAVE_SELECT)
+		name = "select";
+#endif
+	}
 	for (mapping = wait_mapping; mapping->name != NULL; mapping++) {
 		if (TextInsensitiveCompare(mapping->name, name) == 0) {
 			socket3_wait_fn = mapping->wait_fn;
 			if (0 < socket3_debug)
 				syslog(LOG_DEBUG, "socket3_wait_fn=%s", mapping->name);
-			break;
+			return 0;
 		}
 	}
+
+	return SOCKET_ERROR;
 }
 
 void *
