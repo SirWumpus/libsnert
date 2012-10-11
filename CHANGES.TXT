@@ -64,7 +64,7 @@ is no set schedule for releases.
    !	Fix parseIPv6() for "1:2:3:4:5:6:7::".
 
    !	Fix formatIP() compact formatting of "1:2:3:4:5:6:7:0".
- 
+
    !    Fix formatIP() buffer overflow by one when the buffer size is
         IPV6_STRING_LENGTH for a full length IPv6 address that cannot
 	be compressed, eg. 1234:5678:9ABC:DEF0:1234:5678:9ABC:DEF0.
@@ -83,6 +83,15 @@ is no set schedule for releases.
 
    !	Fix berkeley_db.h related macros for DB 5.x. Reported by Ben Parker.
 
+   !	Relaxed the handling of MIME boundaries to allow any printable
+	ASCII character to be used following the initial "--". RFC 2046
+	section 5.1.1 limits the set of boundary characters to those
+	that are safe for mail gateways. However, Thunderbird MTA is
+	permissive about boundary characters and possibly other	MUAs.
+	So milter-link or smtpf failing to parse a message with unusual
+	MIME boundaries could mean failing to detect spam messages that
+	would go on to be displayed by an MUA. Reported by Alex Broens.
+
 --1.75.18--
 
    !	Finish modifications to MCC broadcast-only protocol to support
@@ -91,7 +100,7 @@ is no set schedule for releases.
 
    !	Modify socket2 and socket3 APIs to support IPv6 multicasting
 	used by multicast cache API. Note Linux and FreeBSD support
-	hybrid IP stack allows one sokcet to handle both IPv6 and IPv4. 
+	hybrid IP stack allows one sokcet to handle both IPv6 and IPv4.
 
 --1.75.17--
 
@@ -99,7 +108,7 @@ is no set schedule for releases.
 
    !	Fix typos in cipher.c base36[] and version.h.in.in.
 
-   !	Updated isReservedIP functions for changes given by RFC 4291, 5735. 
+   !	Updated isReservedIP functions for changes given by RFC 4291, 5735.
 
    !	Modified MCC to be broadcast-only protocol for improved performance.
 	Not finished yet; mcc_listener() to do. See USE_MCC2 blocks.
@@ -114,11 +123,11 @@ is no set schedule for releases.
    !	Modifed LogOpen() and LogClose() to support standard output.
 
    !	Fixed potential memory leak in _pthread_cleanup_push() for Windows.
-  
+
    !	Fixed leading zero bug in BufAddUnsigned().
 
    !	Renamed HTTP API's internal HTTP_CONTINUE with HTTP_GO, since
-	HTTP/1.1 has a 100 CONTINUE status code. Added two missing 
+	HTTP/1.1 has a 100 CONTINUE status code. Added two missing
 	status codes 100 and 101.
 
    !	Modified cipher to support block encrypting of a text file. Also

@@ -1,10 +1,10 @@
-#!/bin/ksh
+#!/bin/sh
 echo $KSH_VERSION
 
 make mime >/dev/null
 
 for i in md5 md5sum ; do
-	if which $i >/dev/null ; then
+	if which $i >/dev/null 2>&1 ; then
 		MD5=`which $i`
 		break;
 	fi
@@ -35,7 +35,8 @@ function check_mime
 		decoded=`./mime -l ${file} | sed -n -e "/^${i}: X-MD5-Decoded:/s/^${i}: X-MD5-Decoded: //p" | tr -d '[:space:]'`
 
 		echo "$ ./mime -p${i} ${file} " >>${file}.out
-		computed=`./mime -p${i} ${file} | tee -a ${file}.out | tee $$.tmp | $MD5`
+		computed=`./mime -p${i} ${file} | tee -a ${file}.out | tee $$.tmp | $MD5 | sed -e 's/ \*-//'`
+
 		if test -n "${encoded}" -a ${computed} != ${encoded:-undef} ; then
 			echo "${file}: part $i encoded $encoded computed $computed" | tee -a ${file}.out
 			echo ---- | tee -a ${file}.out
@@ -45,7 +46,7 @@ function check_mime
 
 		if test -n "${decoded}" ; then
 			echo "$ ./mime -d -p${i} ${file} " >>${file}.out
-			computed=`./mime -d -p${i} ${file} | tee -a ${file}.out | tee $$.tmp  | $MD5`
+			computed=`./mime -d -p${i} ${file} | tee -a ${file}.out | tee $$.tmp  | $MD5 | sed -e 's/ \*-//'`
 			if test ${computed} != ${decoded:-undef} ; then
 				echo "${file}: part $i decoded $decoded computed $computed"| tee -a ${file}.out
 				echo ---- | tee -a ${file}.out
@@ -65,8 +66,8 @@ function check_mime
 file="mime-stdin"
 echo "Checking stdin ..." | tee ${file}.out
 echo "Hello world!" "Hello world!"| ./mime -l >>${file}.out
-computed=`echo "Hello world!" | ./mime -p0 | tee -a ${file}.out | tee $$.tmp | $MD5`
-expected=`echo "Hello world!" | $MD5`
+computed=`echo "Hello world!" | ./mime -p0 | tee -a ${file}.out | tee $$.tmp | $MD5 | sed -e 's/ \*-//'`
+expected=`echo "Hello world!" | $MD5 | sed -e 's/ \*-//'`
 if test ${computed} !=  ${expected}; then
 	echo "stdin: part 0 expected $expected computed $computed" | tee -a ${file}.out
 	echo ---- | tee -a ${file}.out
@@ -95,5 +96,8 @@ check_mime "mime-multi-crlf.eml"
 
 echo "Checking mime-multi-nohdr.eml ..." | tee "mime-multi-nohdr.eml.out"
 check_mime "mime-multi-nohdr.eml"
+
+echo "Checking mime-multi-open-boundary.eml ..." | tee "mime-multi-open-boundary.eml.out"
+check_mime "mime-multi-open-boundary.eml"
 
 exit 0
