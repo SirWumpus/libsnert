@@ -38,13 +38,13 @@
 	LOGVOL(0, __VA_ARGS__)
 
 #define LOGHOOK(m) \
-	LOGVOL(1, "%s(0x%lX)", __func__, m)
+	LOGVOL(1, "%s(0x%lX)", __func__, (long) m)
 
 #define LOGCB(m, data) \
-	LOGVOL(1, "%s(0x%lX, 0x%lX)", __func__, m, data)
+	LOGVOL(1, "%s(0x%lX, 0x%lX)", __func__, (long) m, (long) data)
 
 #define LOGSTATE(m, ch) \
-	LOGVOL(2, "%s(0x%lX, 0x%X '%c')", __func__, m, ch, isprint(ch) ? ch : ' ')
+	LOGVOL(2, "%s(0x%lX, 0x%X '%c')", __func__, (long) m, ch, isprint(ch) ? ch : ' ')
 
 #define LOGTRACE() \
 	LOGVOL(3, "%s:%d", __func__, __LINE__)
