@@ -7,8 +7,8 @@ MIME-Version: 1.0
 Subject: simple quoted printable message
 Content-Type: text/plain
 Content-Transfer-Encoding: quoted-printable
-X-MD5-Encoded: 4c4c0db48491ffec51c6f68e90cb43ef
-X-MD5-Decoded: 0d64afa2946b7eb6ac6295b2e2547da7
+X-MD5-Encoded: fc53bfdc1ce985348de96b45db80496f
+X-MD5-Decoded: 4c97bb4244b556f2354801dcec392aa4
 
 Three blank lines.
 
@@ -16,7 +16,7 @@ Three blank lines.
 
 There is a space after=
  the -- below.
---
+--=20
 Anthony C Howe          Skype: SirWumpus                    SnertSoft
 +33 6 11 89 73 78         ICQ: 7116561          BarricadeMX & Milters
 http://www.snert.com/                       http://www.snertsoft.com/
