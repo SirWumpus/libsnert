@@ -24,6 +24,7 @@ A chain1.snert.net		# CNAME > CNAME > CNAME > A
 MX root1.snert.net
 MX root2.snert.net
 A gateway01.websitewelcome.com	# multihomed, requires TCP
+PTR 216.163.249.229		# multi PTR, TCP
 MX handstu.com   		# huge MX list, TCP lookup
 MX brandtconsolidated.com	# long server names, TCP lookup
 NS ibm.com			# has AAAA record

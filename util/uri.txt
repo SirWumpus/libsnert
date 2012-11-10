@@ -44,57 +44,53 @@ The following test cases
 
 -p -l -u -q	text
 --------------------------------------------------------
- N  -  -  -	<>
+ N  -  -  -	<>	Null address.
 
  N  -  -  -	This is not a domain.
 
  Y  U  -  -	This sentence ends with the domain example.com. Is a reserved domain, not blacklisted (yet).
 
- Y  Y  N  -	"www.123.com."
+ Y -  -  -	www.-123.com	Labels cannot start with a hyphen. RFC 1035 section 2.3.1 grammar.
 
- N  -  -  -	www.-123.com	Labels cannot start with a hyphen.
+ Y  -  -  -	www.123-.com	Labels cannot end with a hyphen. RFC 1035 section 2.3.1 grammar.
 
- N  -  -  -	www.123-.com	Labels cannot end with a hyphen.
+ Y  U  N  -	'www.singlequote.com'	Implicit domain within single quotes.
 
- Y  U  N  -	'host.abc.com'
+ Y  U  N  -	"www.doublequote.com."	Implicit domain within double quotes.
 
- Y  U  N  -	(smtp.abc.com)
+ Y  U  N  -	(www.parenthesis.com)	Implicit domain within parenthesis.
 
- Y  U  N  -	'www.singlequote.com'
+ Y  -  N  -	There are no numeric top-level-domains like www.example.123
 
- Y  U  N  -	(www.parenthesis.com)
+ Y  -  N  -	foo.bar.-123		Invalid top-level-domain. RFC 1035 section 2.3.1 grammar.
 
- N  -  -  -	There are no numeric top-level-domains like foo.bar.123
+ Y  -  N  -	foo.bar.123-		Invalid top-level-domain. RFC 1035 section 2.3.1 grammar.
 
- N  -  -  -	foo.bar.-123		Invalid top-level-domain.
+ Y  -  N  -	foo.bar.1a2		Invalid top-level-domain. RFC 1035 section 2.3.1 grammar.
 
- N  -  -  -	foo.bar.123-		Invalid top-level-domain.
+ Y  U  -  -	cid:12345.67890@snert.com	Found in MIME headers.
 
- N  -  -  -	foo.bar.1a2		Invalid top-level-domain.
+ N  N  N  -	www.fail.test		Invalid top-level-domain. RFC 2606 reserved.
 
- Y  U  -  -	cid:12345.67890@snert.com
+ N  N  N  -	www.pass.example	Invalid top-level-domain. RFC 2606 reserved.
 
- N  N  N  -	www.fail.test		Invalid top-level-domain.
+ N  N  N  -	www.anything.invalid	Invalid top-level-domain. RFC 2606 reserved.
 
- N  N  Y  -	www.pass.test		Invalid top-level-domain.
+ N  N  N  -	www.anything.localhost	Invalid top-level-domain. RFC 2606 reserved.
 
- N  N  N  -	www.anything.invalid	Invalid top-level-domain.
+ Y  ?  N  -	http://127.0.0.1/	IPv4 localhost common.
 
- N  N  N  -	www.anything.localhost	Invalid top-level-domain.
-
- Y  ?  N  -	http://127.0.0.1/
-
- Y  ?  Y  -	http://127.0.0.2/
+ Y  ?  Y  -	http://127.0.0.2/	IPv4 localhost uncommon, remember localhost is 127.0.0.0/8.
 
  Y  N  N  -	https://www.snert.com/
 
  Y  N  N  -	http://samba.snert.com:901/
 
- Y  N  N  -	http://snert/  Many broswes and mail clients try default TLDs.
+ Y  N  N  -	http://snert/  		Many broswers and mail clients try default TLDs for unqualified names.
 
  Y  N  N  -	mailto:achowe@snert.com
 
- Y  U  N  -	remove@goldrush411.biz
+ Y  U  N  -	remove@goldrush411.biz		Implicit email address.
 
  Y  U  N  -	fbfhbj5df33sdvbn8tg.com		Implicit short domain
 
@@ -122,15 +118,15 @@ The following test cases
 
  Y  -  -  Y	http://www.google.com/pagead/iclk?sa=l&ai=EJVqDJ&num=65520&adurl=http://%73%6B%69%6E%61%70%70%6C%65%2E%63%6F%6D
 
- Y  -  -  -	192.0.2.99
+ Y  -  -  -	192.0.2.99			Implicit IPv4 address.
 
- Y  -  -  -	2001:0DB8::1234
+ Y  -  -  -	2001:0DB8::1234			Implicit IPv6 address.
 
- Y  -  -  -	2001:0DB8::192.0.2.99
+ Y  -  -  -	2001:0DB8::192.0.2.99		Implicit IPv6/IPv4 combo address. RFC 4291 section 2.2.
 
- Y  -  -  -	http://[2001:0DB8::1234]:8008
+ Y  -  -  -	http://[2001:0DB8::1234]:8008		URL with IPv6 domain-literal and port.
 
- Y  -  -  -	http://[2001:0DB8::192.0.2.99]:8008
+ Y  -  -  -	http://[2001:0DB8::192.0.2.99]:8008	URL with IPv6/IPv4 combo domain-literal and port.
 
  Y  -  N  -	file://host/path/some/where
 
@@ -142,17 +138,21 @@ The following test cases
 
  Y  -  N  -	file:path/not/rooted
 
- Y  -  -  -	about:
+ Y  -  N  -	about:				Used by browers for information and configuration.
 
  N  -  -  - 	email:
 
- Y  -  -  - 	email:achowe@snert.com
+ Y  -  N  - 	email:achowe@snert.com
 
- Y  -  -  -	mailto:scam@uribl.com
+ Y  -  N  -	mailto:scam@uribl.com
 
- Y  -  -  -	mailto:abuse@snert.com
+ Y  -  N  -	mailto:abuse@snert.com?subject=Whip+Me
 
  Y  -  N  -	&lt;wumpus@snert.org&gt;
+
+ Y  -  -  -	data:,A%20brief%20note				RFC 2397 data: URI
+
+ Y  -  -  -	data:text/plain;charset=iso-8859-7,%be%fg%be	RFC 2397 data: URI
 
 ----=_test_boundary
 Content-Type: text/html
@@ -331,17 +331,25 @@ http://e&shy;&shy;x&shy;&shy;a&shy;&shy;m&shy;p&shy;l&shy;e&shy;&shy;.&shy;&shy;
 ----=_test_boundary
 Content-Type: text/html; charset="big5"
 Content-Transfer-Encoding: 8bit
+Comment: Dot separator encoded using 8bit Big5 codes.
 
 <HTML>
 <BODY>
-<A href="http://cheng-xia5¡Cinfo/">link</A>
-<A href="http://cheng-xia5¡Dinfo/">link</A>
-<A href="http://cheng-xia5¡Oinfo/">link</A>
+<A href="http://cheng-xia5¡Cinfo/">link</A>	0xA143	dot
+<A href="http://cheng-xia5¡Dinfo/">link</A>	0xA144	dot
+<A href="http://cheng-xia5¡Oinfo/">link</A>	0xA14F	dot
 </BODY>
 </HTML>
+
+----=_test_boundary
+Content-type: text/plain
+Comment: RFC 2397 data: URI contains GTUBE sample.
+
+TODO uri CLI should handle large data schemes over multiple lines.
+
+data:text/plain;base64,WEpTKkM0SkRCUUFETjEuTlNCTjMqMklETkVOKkdUVUJFLVNUQU5EQVJELUFOVEktVUJFLVRFU1QtRU1BSUwqQy4zNFg=
 
 ----=_test_boundary
 Comment: This should the last test, no end boundary, no last newline.
 
  Y  -  N  -	URI at EOF without a newline http://no-newline.com/
-

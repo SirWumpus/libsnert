@@ -3,15 +3,13 @@
  *
  * RFC 2821, 2396 Support Routines
  *
- * Copyright 2006, 2010 by Anthony Howe. All rights reserved.
+ * Copyright 2006, 2012 by Anthony Howe. All rights reserved.
  */
 
 #ifndef IMPLICIT_DOMAIN_MIN_DOTS
 #define IMPLICIT_DOMAIN_MIN_DOTS	1
 #endif
 
-#define TEXT_VS_INLINE
-#define TEST_MESSAGE_PARTS
 #define URI_HTTP_ORIGIN_QUERY_FIRST
 
 /***********************************************************************
@@ -108,6 +106,14 @@ isCharURI(int octet)
 {
 	/* Throw away the ASCII controls, space, and high-bit octets.
 	 *
+	 *** Attempt to find a possible URI when the scheme might be
+	 *** invalid or unknown, but is followed by an identifiable
+	 *** "://" used in a URI. Reported by Jim Hermann. This should
+	 *** allow a URI prefixed by multibyte character sequences to
+	 *** be found, for example:
+	 ***
+   	 ***	$B%Q%=%3%s!&7HBS!!(Bhttp://www.c-evian.com
+	 ***
 	 *** AlexB reports instances of spam with URLs containing 8-bit
 	 *** octets in some character encoding, like "big5". RFC 3986
 	 *** section 2 "Characters" appears to allow for this.
@@ -116,7 +122,7 @@ isCharURI(int octet)
 	 ***	"http://cheng-xia5¡Dinfo/"	0xA144	dot
 	 ***	"http://cheng-xia5¡Oinfo/"	0xA14F	dot
 	 ***/
-	if (octet <= 0x20 /* || 0x7F <= octet */)
+	if (isspace(octet) || octet == EOF)
 		return 0;
 
 	/* uri_excluded is the inverse set of unreserved and
@@ -610,6 +616,16 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 
 			}
 
+			/* We really shouldn't make a judgement about
+			 * the content of a domain name WRT RFC 2606
+			 * and the IANA TLD list, until we actually
+			 * consider performing a DNS lookup, we're just
+			 * a parser at this point.
+			 *
+			 * However in order to distinguish 2 label
+			 * implicit domains we rely on the IANA TLD
+			 * list.
+			 */
 			if (0 < indexValidTLD(value)) {
 #ifdef NOT_YET
 				uri->schemeInfo = uri->uriDecoded;
@@ -843,7 +859,7 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 		 *
 		 * This also covers use of RFC 2397 data: scheme that can
 		 * be used for hostless spam and phishing attacks. See
-		 * paper "Phishing by data URI" henning@klevjers.com. 
+		 * paper "Phishing by data URI" henning@klevjers.com.
 		 * Chrome reports "311 Unsafe Redirect".
 		 */
 		if (port == 443 || (port != 80 && uri->port == NULL)) {
@@ -1210,7 +1226,8 @@ uri_mime_decoded_octet(Mime *m, int ch, void *_data)
 			hold->length--;
 
 		/* RFC 3986 and 1035 does not allow underscore in a URI scheme
-		 * nor in a domain/host name.
+		 * nor in a domain/host name. This relaxed by 2181; used by
+		 * 4408 (SPF) and 6376 (DKIM).
 		 */
 		while (hold->buffer[hold->length-1] == '_') {
 			hold->length--;
@@ -2070,8 +2087,9 @@ main(int argc, char **argv)
 	optionInit(opt_table, NULL);
 
 	if (getenv("GATEWAY_INTERFACE") == NULL) {
-//		optind = optionArrayL(argc, argv, opt_table, NULL);
-
+		/* The opt_*.string values need to be strdup() from
+		 * optarg so that optFreeL() doesn't crash on exit.
+		 */
 		while ((ch = getopt(argc, argv, "fabA:d:m:M:i:n:N:u:UlLmpP:qQ:RsT:t:v")) != -1) {
 			switch (ch) {
 			case 'f':
@@ -2087,27 +2105,27 @@ main(int argc, char **argv)
 				at_sign_delim = *optarg;
 				break;
 			case 'd':
-				opt_domain_bl.string = optarg;
+				opt_domain_bl.string = strdup(optarg);
 				break;
 			/* case 'D': reserved for possible future domain exception list. */
 
 			case 'i':
-				opt_uri_a_bl.string = optarg;
+				opt_uri_a_bl.string = strdup(optarg);
 				break;
 			case 'n':
-				opt_uri_ns_bl.string = optarg;
+				opt_uri_ns_bl.string = strdup(optarg);
 				break;
 			case 'N':
-				opt_uri_ns_a_bl.string = optarg;
+				opt_uri_ns_a_bl.string = strdup(optarg);
 				break;
 			case 'u':
-				opt_uri_bl.string = optarg;
+				opt_uri_bl.string = strdup(optarg);
 				break;
 			case 'm':
-				opt_mail_bl.string = optarg;
+				opt_mail_bl.string = strdup(optarg);
 				break;
 			case 'M':
-				opt_mail_bl_domains.string = optarg;
+				opt_mail_bl_domains.string = strdup(optarg);
 				break;
 			case 'U':
 				check_subdomains = 1;

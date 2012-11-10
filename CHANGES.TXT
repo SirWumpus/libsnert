@@ -92,6 +92,19 @@ is no set schedule for releases.
 	MIME boundaries could mean failing to detect spam messages that
 	would go on to be displayed by an MUA. Reported by Alex Broens.
 
+   !	Fix isCharURI() by weakening the set of bytes allowed in a URI
+	in order to handle URI within a non-english multibyte string,
+	which was originally fixed in 1.66. For example:
+
+   		^[$B%Q%=%3%s!&7HBS!!^[(Bhttp://www.c-evian.com
+
+	Suspect this has been broken for some time.
+
+   !	Fixed uri seg.fault on exit due to some short-name CLI options,
+	which mapped onto long-name CGI options, that needed to be
+	dynamic strings, instead of static, so that at_exit_cleanup()
+	would work correctly.
+
 --1.75.18--
 
    !	Finish modifications to MCC broadcast-only protocol to support
