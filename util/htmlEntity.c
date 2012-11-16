@@ -23,6 +23,13 @@
  ***
  ***********************************************************************/
 
+#define HTML_ENTITY_NBSP	0xA0
+
+/* About soft-hyphen:
+ *
+ * http://www.symantec.com/connect/blogs/soft-hyphen-new-url-obfuscation-technique
+ * http://www.cs.tut.fi/~jkorpela/shy.html
+ */
 #define HTML_ENTITY_SHY		0xAD
 
 struct mapping {
@@ -39,7 +46,7 @@ static struct mapping entities[] = {
 	{ "&apos;",	sizeof ("&apos;")-1,	'\''	},
 
 	/* ISO-8859-1 character set */
-	{ "&euro;",	sizeof ("&euro;")-1,	0x80	},
+	{ "&euro;",	sizeof ("&euro;")-1,	0x80	}, /* 0x20AC */
 	{ "&nbsp;",	sizeof ("&nbsp;")-1,	0xA0	},
 	{ "&iexcl;",	sizeof ("&iexcl;")-1,	0xA1	},
 	{ "&cent;",	sizeof ("&cent;")-1,	0xA2	},
@@ -53,7 +60,7 @@ static struct mapping entities[] = {
 	{ "&ordf;",	sizeof ("&ordf;")-1,	0xAA	},
 	{ "&laquo;",	sizeof ("&laquo;")-1,	0xAB	},
 	{ "&not;",	sizeof ("&not;")-1,	0xAC	},
-	{ "&shy;",	sizeof ("&shy;")-1,	0xAD 	},
+	{ "&shy;",	sizeof ("&shy;")-1,	0xAD 	}, /* 0xAD */
 	{ "&reg;",	sizeof ("&reg;")-1,	0xAE	},
 	{ "&macr;",	sizeof ("&macr;")-1,	0xAF	},
 	{ "&deg;",	sizeof ("&deg;")-1,	0xB0	},
@@ -178,13 +185,8 @@ htmlEntityDecode(const char *source, size_t length, char *buffer, size_t size)
 					code = strtol(s+2, &stop, 10);
 
 				if (0 <= code && code < 256 && *stop == ';') {
-					if (code == HTML_ENTITY_SHY)
-						/* Discard soft-hyphen &shy; */
-						buflen--;
-					else {
-						/* Write the decoded hex byte. */
-						*buffer++ = (char) code;
-					}
+					/* Write the decoded hex byte. */
+					*buffer++ = (char) code;
 					s += stop - s + 1;
 				} else {
 					/* Unknown numeric. Copy as is. */
@@ -195,13 +197,8 @@ htmlEntityDecode(const char *source, size_t length, char *buffer, size_t size)
 
 			for (entry = entities; entry->entity != NULL; entry++) {
 				if (strncmp(s, entry->entity, entry->length) == 0) {
-					if (entry->ch == HTML_ENTITY_SHY)
-						/* Discard soft-hyphen &shy; */
-						buflen--;
-					else {
-						/* Replace entity name by byte. */
-						*buffer++ = entry->ch;
-					}
+					/* Replace entity name by byte. */
+					*buffer++ = entry->ch;
 					s += entry->length;
 					break;
 				}

@@ -274,7 +274,8 @@ struct mapping {
 
 static struct mapping schemeTable[] = {
 	{ "ip",		sizeof ("ip")-1, 		0 },
-	{ "cid",	sizeof ("cid")-1, 		0 },
+	{ "cid",	sizeof ("cid")-1, 		0 },	/* RFC 2392 */
+	{ "mid",	sizeof ("mid")-1, 		0 },	/* RFC 2392 */
 	{ "data",	sizeof ("data")-1, 		0 },	/* RFC 2397 */
 	{ "file",	sizeof ("file")-1,		0 },
 	{ "about",	sizeof ("about")-1,		0 },
@@ -1178,11 +1179,28 @@ uri_mime_decoded_octet(Mime *m, int ch, void *_data)
 			if (0 < offset) {
 				offset--;
 
-				/* Note that htmlEntityDecode() discards soft-hyphen &shy; */
 				length = htmlEntityDecode(
 					hold->buffer+offset, hold->length-offset,
 					hold->buffer+offset, hold->length-offset
 				);
+
+				/* Treate &nbsp; as a space, thus a
+				 * delimiter not part of a URI.
+				 */
+				if (hold->buffer[offset] == (char) 0xA0) {
+					hold->length = offset;
+					goto delimiter;
+				}
+
+				/* Discard &shy; used within a URI.
+				 *
+				 * http://www.symantec.com/connect/blogs/soft-hyphen-new-url-obfuscation-technique
+				 * http://www.cs.tut.fi/~jkorpela/shy.html
+				 */
+				if (hold->buffer[offset] == (char) 0xAD) {
+					length = 0;
+				}
+
 				hold->length = offset + length;
 			}
 		}
@@ -1197,7 +1215,7 @@ uri_mime_decoded_octet(Mime *m, int ch, void *_data)
 		}
 		return;
 	}
-
+delimiter:
 	/* Attempt to parse the hold buffer for a valid URI. */
 	if (0 < hold->length) {
 		int value;
@@ -1914,6 +1932,8 @@ void
 process_string(UriWorker *uw)
 {
 	unsigned char *s = BufBytes(uw->cgi._RAW) + BufOffset(uw->cgi._RAW);
+	if (0 < debug)
+		syslog(LOG_DEBUG, "%s: %s", __func__, s);
 	process_loop(uw, iterate_string, (void *)&s);
 }
 

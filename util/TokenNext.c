@@ -50,15 +50,15 @@
  *	[]		[]		(null)
  *
  *	TOKEN_KEEP_QUOTES
- *	
+ *
  *	If set, then do not strip quotes.
  *
  *	TOKEN_KEEP_BACKSLASH
- *	
+ *
  *	If set, then do not strip backslash escape.
  *
  *	TOKEN_KEEP_ESCAPES
- *	
+ *
  *	If set, then do not strip backslash escape nor quotes.
  *
  * @return
@@ -144,7 +144,8 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 		case '\\':
 			if (flags & TOKEN_KEEP_BACKSLASH)
 				*t++ = *string;
-			escape = 1;
+			else
+				escape = 1;
 			continue;
 		}
 

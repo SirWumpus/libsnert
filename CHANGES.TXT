@@ -105,6 +105,15 @@ is no set schedule for releases.
 	dynamic strings, instead of static, so that at_exit_cleanup()
 	would work correctly.
 
+   !	Fixed uri_mime_decoded_octet() such that &nbsp; is treated like
+	normal white space and thus a delimiter separating URI.
+
+   !	htmlEntityDecode() no longer discards &shy; (soft-hyphen) as
+	implemented in 1.74.13. Now its the caller's responsiblity, in
+	this case uri_mime_decoded_octet(), to remove or otherwise take
+	action on the 0xAD character code. This ensures proper
+	separation between decode/encode and action/display.
+
 --1.75.18--
 
    !	Finish modifications to MCC broadcast-only protocol to support
