@@ -116,6 +116,9 @@ is no set schedule for releases.
 
    +	Add pad CLI tool.
 
+   !	smdbAccessIsOk() no longer remaps SMDB_ACCESS_DISCARD to
+   	SMDB_ACCESS_OK, so that milters return SMFIS_DISCARD.
+
 --1.75.18--
 
    !	Finish modifications to MCC broadcast-only protocol to support

@@ -623,18 +623,14 @@ smdbAccessIsOk(smdb_code status)
 		break;
 
 	case SMDB_ACCESS_DISCARD:
-		/* A DISCARD is technically an accept message followed
-		 * by siliently dropping it in the bit bucket.
-		 */
-		return SMDB_ACCESS_OK;
+	case SMDB_ACCESS_TEMPFAIL:
+		/* No special treatment, status remains as is. */
+		return status;
 
 	case SMDB_ACCESS_ERROR:
 	case SMDB_ACCESS_HATER:
 	case SMDB_ACCESS_REJECT:
 		return SMDB_ACCESS_REJECT;
-
-	case SMDB_ACCESS_TEMPFAIL:
-		return SMDB_ACCESS_TEMPFAIL;
 
 	case SMDB_ACCESS_SKIP:
 		/* Used to short circuit a subnet/subdomain search without
