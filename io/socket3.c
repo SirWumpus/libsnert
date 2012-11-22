@@ -611,6 +611,7 @@ socket3_accept(SOCKET fd, SocketAddress *addrp)
 	socklen_t socklen;
 	SocketAddress addr;
 
+	errno = 0;
 	socklen = sizeof (addr);
 	client = accept(fd, (struct sockaddr *) &addr, &socklen);
 
@@ -618,7 +619,7 @@ socket3_accept(SOCKET fd, SocketAddress *addrp)
 		*addrp = addr;
 
 	if (0 < socket3_debug)
-		syslog(LOG_DEBUG, "socket3_accept(%d, %lx) client=%d", (int) fd, (unsigned long) addrp, (int) client);
+		syslog(LOG_DEBUG, "socket3_accept(%d, %lx) client=%d errno=%d", (int) fd, (unsigned long) addrp, (int) client, errno);
 
 	return client;
 }

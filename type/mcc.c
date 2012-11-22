@@ -553,7 +553,7 @@ mccPutRowLocal(mcc_handle *mcc, mcc_row *row)
 
 	if (1 < debug)
 		syslog(
-			LOG_DEBUG, "mccPutRowLocal key=%d:" MCC_FMT_K " value=%d:" MCC_FMT_V, 
+			LOG_DEBUG, "mccPutRowLocal key=%d:" MCC_FMT_K " value=%d:" MCC_FMT_V,
 			MCC_GET_K_SIZE(row), MCC_FMT_K_ARG(row),
 			MCC_GET_V_SIZE(row), MCC_FMT_V_ARG(row)
 		);
@@ -590,7 +590,7 @@ mccSend(mcc_handle *mcc, mcc_row *row, uint8_t command)
 		return MCC_OK;
 
 	(void) time(&now);
-	mccUpdateActive("127.0.0.1", &now);
+	mccUpdateActive("127.0.0.1", (uint32_t *)&now);
 
 	/* Covert some of the values to network byte order. */
 	MCC_SET_COMMAND(row, command);
@@ -692,12 +692,12 @@ mcc_listener_thread(void *data)
 		row.v_size = ntohs(row.v_size);
 
 		(void) time(&row.expires);
-		mccUpdateActive(ip, &row.expires);
+		mccUpdateActive(ip, (uint32_t *)&row.expires);
 		row.expires += row.ttl;
 
 		if (1 < debug) {
 			syslog(
-				LOG_DEBUG, "mcc from=[%s] cmd=%c key=" MCC_FMT_K, 
+				LOG_DEBUG, "mcc from=[%s] cmd=%c key=" MCC_FMT_K,
 				ip, MCC_GET_COMMAND(&row), MCC_FMT_K_ARG(&row)
 			);
 		}
@@ -711,7 +711,7 @@ mcc_listener_thread(void *data)
 				continue;
 			}
 			MCC_PTR_V(&row)[MCC_GET_V_SIZE(&row)] = '\0';
-			add = strtol(MCC_PTR_V(&row), NULL, 10);
+			add = strtol((char *)MCC_PTR_V(&row), NULL, 10);
 			/*@fallthrough@*/
 
 			while (0)  {
@@ -866,7 +866,7 @@ mccStartListener(const char **ip_array, int port)
 
 	if ((address = socketAddressCreate(this_host, port)) == NULL) {
 		syslog(
-			LOG_ERR, "mcc listener address: %s, (%d)", 
+			LOG_ERR, "mcc listener address: %s, (%d)",
 			strerror(errno), errno
 		);
 		goto error1;
@@ -877,7 +877,7 @@ mccStartListener(const char **ip_array, int port)
 
 	if (cache.server == NULL) {
 		syslog(
-			LOG_ERR, "mcc listener socket: %s, (%d)", 
+			LOG_ERR, "mcc listener socket: %s, (%d)",
 			strerror(errno), errno
 		);
 		goto error1;
@@ -885,35 +885,35 @@ mccStartListener(const char **ip_array, int port)
 
 	if (socketSetNonBlocking(cache.server, 1)) {
 		syslog(
-			LOG_ERR, "mcc listener non-blocking: %s (%d)", 
+			LOG_ERR, "mcc listener non-blocking: %s (%d)",
 			strerror(errno), errno
 		);
 		goto error1;
 	}
 	if (socketSetReuse(cache.server, 1)) {
 		syslog(
-			LOG_ERR, "mcc listener socketSetReuse(%d, 1): %s (%d)", 
+			LOG_ERR, "mcc listener socketSetReuse(%d, 1): %s (%d)",
 			socketGetFd(cache.server), strerror(errno), errno
 		);
 		goto error1;
 	}
 	if (socketBind(cache.server, &cache.server->address)) {
 		syslog(
-			LOG_ERR, "mcc listener bind: %s (%d)", 
+			LOG_ERR, "mcc listener bind: %s (%d)",
 			strerror(errno), errno
 		);
 		goto error1;
 	}
 	if (socketMulticastTTL(cache.server, 1)) {
 		syslog(
-			LOG_ERR, "mcc listener hops: %s (%d)", 
+			LOG_ERR, "mcc listener hops: %s (%d)",
 			strerror(errno), errno
 		);
 		goto error1;
 	}
 	if (socketMulticastLoopback(cache.server, 0)) {
 		syslog(
-			LOG_ERR, "mcc listener disable loopback: %s (%d)", 
+			LOG_ERR, "mcc listener disable loopback: %s (%d)",
 			strerror(errno), errno
 		);
 		goto error1;
@@ -928,7 +928,7 @@ mccStartListener(const char **ip_array, int port)
 		free(address);
 		if (j != 0) {
 			syslog(
-				LOG_ERR, "mcc listener %s join: %s (%d)", 
+				LOG_ERR, "mcc listener %s join: %s (%d)",
 				ip_array[i], strerror(errno), errno
 			);
 			goto error1;
@@ -951,7 +951,7 @@ mccStartListener(const char **ip_array, int port)
 #endif
 	if (i != 0) {
 		syslog(
-			LOG_ERR, "mcc listener thread: %s, (%d)", 
+			LOG_ERR, "mcc listener thread: %s, (%d)",
 			strerror(errno), errno
 		);
 		goto error1;
@@ -1039,10 +1039,10 @@ mccPutKeyValue(mcc_handle *mcc, const char *key, const char *value, unsigned lon
 	row.ttl = ttl;
 	row.expires = time(NULL) + ttl;
 
-	length = vsnprintf(MCC_PTR_K(&row), MCC_DATA_SIZE, "%s", (char *)key);
+	length = vsnprintf((char *)MCC_PTR_K(&row), MCC_DATA_SIZE, "%s", (char *)key);
 	MCC_SET_K_SIZE(&row, length);
 
-	length = snprintf(MCC_PTR_V(&row), MCC_GET_V_SPACE(&row), "%s", value);
+	length = snprintf((char *)MCC_PTR_V(&row), MCC_GET_V_SPACE(&row), "%s", value);
 	MCC_SET_V_SIZE(&row, length);
 
 	return mccPutRow(mcc, &row);
@@ -1057,9 +1057,9 @@ mccPutKeyValue(mcc_handle *mcc, const char *key, const char *value, unsigned lon
  *
  * @param row
  *	Pointer to a cached row, with key and expires set. When no row
- *	exists, assume a value of zero. On return updated local value 
+ *	exists, assume a value of zero. On return updated local value
  *	will be set.
- * 
+ *
  * @return
  *	MCC_OK or MCC_ERROR.
  */
@@ -1076,17 +1076,17 @@ mccAddRowLocal(mcc_handle *mcc, long add, mcc_row *row)
 	switch (mccGetRow(mcc, row)) {
 	case MCC_OK:
 		/* Room enough for a terminating NUL byte? */
-		if (MCC_DATA_SIZE-1 <= MCC_GET_K_SIZE(row) + MCC_GET_V_SIZE(row)) 
+		if (MCC_DATA_SIZE-1 <= MCC_GET_K_SIZE(row) + MCC_GET_V_SIZE(row))
 			return MCC_ERROR;
 
 		/* Get the current value. */
 		MCC_PTR_V(row)[MCC_GET_V_SIZE(row)] = '\0';
-		number = strtol(MCC_PTR_V(row), NULL, 10);
+		number = strtol((char *)MCC_PTR_V(row), NULL, 10);
 		/*@fallthrough@*/
 
 	case MCC_NOT_FOUND:
 		number += add;
-		length = snprintf(MCC_PTR_V(row), MCC_GET_V_SPACE(row), "%ld", number);
+		length = snprintf((char *)MCC_PTR_V(row), MCC_GET_V_SPACE(row), "%ld", number);
 		MCC_SET_V_SIZE(row, length);
 
 		/* Restore expires timestamp for updated row. */
@@ -1104,7 +1104,7 @@ mccAddRow(mcc_handle *mcc, long add, mcc_row *row)
 	int length;
 
 	/* Broadcast the adjustment. */
-	length = snprintf(MCC_PTR_V(row), MCC_GET_V_SPACE(row), "%+ld", add);
+	length = snprintf((char *)MCC_PTR_V(row), MCC_GET_V_SPACE(row), "%+ld", add);
 	MCC_SET_V_SIZE(row, length);
 	(void) mccSend(mcc, row, MCC_CMD_ADD);
 
@@ -1126,7 +1126,7 @@ mccSetKey(mcc_row *row, const char *fmt, ...)
 	va_list args;
 
 	va_start(args, fmt);
-	length = vsnprintf(MCC_PTR_K(row), MCC_DATA_SIZE, fmt, args);
+	length = vsnprintf((char *)MCC_PTR_K(row), MCC_DATA_SIZE, fmt, args);
 	MCC_SET_K_SIZE(row, length);
 	va_end(args);
 
@@ -1140,7 +1140,7 @@ mccSetValue(mcc_row *row, const char *fmt, ...)
 	va_list args;
 
 	va_start(args, fmt);
-	length = vsnprintf(MCC_PTR_V(row), MCC_GET_V_SPACE(row), fmt, args);
+	length = vsnprintf((char *)MCC_PTR_V(row), MCC_GET_V_SPACE(row), fmt, args);
 	MCC_SET_V_SIZE(row, length);
 	va_end(args);
 
@@ -1705,7 +1705,7 @@ main(int argc, char **argv)
 			old_row.ttl = 0;
 			(void) time(&old_row.expires);
 		}
-		
+
 		switch (cmd - commands) {
 		case 1:
 			break;
@@ -1717,7 +1717,7 @@ main(int argc, char **argv)
 				fflush(stdout);
 			}
 			break;
-			
+
 		case 5: case 6:
 			new_row.ttl = cache_ttl;
 			MCC_SET_V_SIZE(&new_row, 0);
@@ -1749,7 +1749,7 @@ main(int argc, char **argv)
 			}
 			break;
 
-		case 3: 
+		case 3:
 			switch (mccDeleteRow(mcc, &new_row)) {
 			case MCC_OK:
 				printf("deleted key=" MCC_FMT_K "\n", MCC_FMT_K_ARG(&new_row));
