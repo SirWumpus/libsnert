@@ -81,7 +81,7 @@ $O$E :
 
 #######################################################################
 
-ORIGINAL	= ansi$E flip$E popin$E uue$E show$E range$E sqlargs$E \
+ORIGINAL	= ansi$E flip$E pad$E popin$E uue$E show$E range$E sqlargs$E \
 		  counter$E  mimepart$E clamstream$E dnsd$E secho$E sechod$E
 MEH_TOOLS	= sendform$E nph-download.cgi here-i-am$E where-are-you$E \
 		  ziplist$E rarlist$E taglengths$E rsleep$E
@@ -148,6 +148,9 @@ sechod$E : ${top_srcdir}/io/socket3$O ${top_srcdir}/io/socket3_tls$O sechod.c
 
 ansi$E : ansi.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)ansi$E ansi.c ${LIBS_PREFIX}
+
+pad$E : pad.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)pad$E pad.c ${LIBS_PREFIX}
 
 clamstream$E : ${top_srcdir}/io/socket2$O clamstream.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)clamstream$E clamstream.c $(LIBSNERT) $(LIBS) ${NETWORK_LIBS}

@@ -69,6 +69,9 @@ mimepart	Predecessor to the mime tool above.
 netcontainsip	Simple tool to test if a given IPv4 or IPv6 address is
 		a member of the given IPv6 or IPv4 net/cidr.
 
+pad		Simple tool to pad leading and trailing padding with
+		byte and column width restrictions.
+
 pdq		Parallel Domain Query; does DNS lookups similar to
 		dig(1), but in a parallel manner, especially with DNS
 		based black/white lists.

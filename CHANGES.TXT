@@ -114,6 +114,8 @@ is no set schedule for releases.
 	action on the 0xAD character code. This ensures proper
 	separation between decode/encode and action/display.
 
+   +	Add pad CLI tool.
+
 --1.75.18--
 
    !	Finish modifications to MCC broadcast-only protocol to support

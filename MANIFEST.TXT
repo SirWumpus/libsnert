@@ -348,6 +348,7 @@ com/snert/src/lib/tools/mimepart.c
 com/snert/src/lib/tools/myhostname.c
 com/snert/src/lib/tools/nothing.c
 com/snert/src/lib/tools/nph-download.c
+com/snert/src/lib/tools/pad.c
 com/snert/src/lib/tools/popin.c
 com/snert/src/lib/tools/poppassd-pam.c
 com/snert/src/lib/tools/range.c
