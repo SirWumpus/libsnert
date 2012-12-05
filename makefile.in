@@ -79,7 +79,7 @@ $O$E :
 
 OBJS = LibSnert$O
 
-SUBDIRS = crc object type util io net mail sys
+SUBDIRS = crc object type util io net mail sys tools
 
 .MAIN : all
 

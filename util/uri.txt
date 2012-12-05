@@ -1,5 +1,9 @@
+From uri@snert.test Mon Dec 3 20:17:41 2012
 Return-Path: <uri@snert.test>
 Comment: long headers should not cause header/body state change.
+Received: from [192.168.2.11] (chiisai-11.localdomain. [192.168.2.11])
+        by chippy.snert.com (8.14.4/8.14.4) with ESMTP id qB41HXj7022735
+        for <achowe@[192.168.2.9]>; Mon, 3 Dec 2012 20:17:41 -0500 (EST)
 X-Spam-Report: * 1.2 RCVD_IN_BL_SPAMCOP_NET RBL: Received via a relay in
 	bl.spamcop.net
 	*      [Blocked - see <http://www.spamcop.net/bl.shtml?93.56.96.132>]

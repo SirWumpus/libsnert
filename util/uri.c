@@ -1765,6 +1765,8 @@ process(URI *uri, UriWorker *uw)
 		fprintf(uw->out, "\tquery=%s\r\n", TextEmpty(uri->query));
 		fprintf(uw->out, "\tfragment=%s\r\n", TextEmpty(uri->fragment));
 	} else if (uri_ports != NULL) {
+		if (debug)
+			fprintf(uw->out, "%u: ", uw->source.line);
 		fputs(uri->uriDecoded, uw->out);
 		fputc('\n', uw->out);
 	}

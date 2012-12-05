@@ -197,6 +197,7 @@ com/snert/src/lib/util/bs.c
 com/snert/src/lib/util/convertDate.c
 com/snert/src/lib/util/djb-hash-test.c
 com/snert/src/lib/util/escape.c
+com/snert/src/lib/util/getdelim.c
 com/snert/src/lib/util/getopt.c
 com/snert/src/lib/util/html.c
 com/snert/src/lib/util/htmlEntity.c
@@ -346,6 +347,7 @@ com/snert/src/lib/tools/makefile.in
 com/snert/src/lib/tools/md5main.c
 com/snert/src/lib/tools/mimepart.c
 com/snert/src/lib/tools/myhostname.c
+com/snert/src/lib/tools/natsort.c
 com/snert/src/lib/tools/nothing.c
 com/snert/src/lib/tools/nph-download.c
 com/snert/src/lib/tools/pad.c

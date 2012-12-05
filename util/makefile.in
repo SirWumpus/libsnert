@@ -85,7 +85,7 @@ $O$E :
 
 OBJS = \
 	ixhash$O md4$O md5$O b64$O cgi$O playfair$O convertDate$O \
-	BigInt$O JavaTime$O getopt$O Memory$O Rotate$O Buf$O \
+	BigInt$O JavaTime$O getopt$O getdelim$O Memory$O Rotate$O Buf$O \
 	TextBackslash$O TextEscape$O TextInputLine$O TextReadLine$O TextCopy$O \
 	TextCat$O TextDup$O TextDupN$O TokenCount$O TokenNext$O TokenSplitA$O TokenSplit$O TokenQuote$O \
 	TextJoin$O TextSplit$O TextSensitiveCompare$O TextTransliterate$O \

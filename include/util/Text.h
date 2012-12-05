@@ -1,27 +1,25 @@
 /*
  * Text.h
  *
- * Copyright 2001, 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2001, 2012 by Anthony Howe.  All rights reserved.
  */
 
 #ifndef __com_snert_lib_util_Text_h__
 #define __com_snert_lib_util_Text_h__	1
 
-#ifndef __com_snert_lib_type_Vector_h__
-#include <com/snert/lib/type/Vector.h>
-#endif
-
-#ifndef __com_snert_lib_util_Buf_h__
-#include <com/snert/lib/util/Buf.h>
-#endif
-
-#ifndef BUFSIZ
 #include <stdio.h>
-#endif
-
 #include <string.h>
+#include <sys/types.h>
 
-#include <com/snert/lib/util/Token.h>
+#ifndef __com_snert_lib_type_Vector_h__
+# include <com/snert/lib/type/Vector.h>
+#endif
+#ifndef __com_snert_lib_util_Buf_h__
+# include <com/snert/lib/util/Buf.h>
+#endif
+#ifndef __com_snert_lib_util_Token_h__
+# include <com/snert/lib/util/Token.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -164,15 +162,15 @@ extern int TextBackslash(char);
  *	[]		[]		(empty vector)
  *
  *	TOKEN_KEEP_QUOTES
- *	
+ *
  *	If set, then do not strip quotes.
  *
  *	TOKEN_KEEP_BACKSLASH
- *	
+ *
  *	If set, then do not strip backslash escape.
  *
  *	TOKEN_KEEP_ESCAPES
- *	
+ *
  *	If set, then do not strip backslash escape nor quotes.
  *
  * @return
@@ -299,6 +297,13 @@ extern void TextUpper(char *str, long length);
 extern void TextReverse(char *str, long length);
 extern void TextTransliterate(char *str, const char *from_set, const char *to_set, long length);
 
+#ifndef HAVE_GETLINE
+extern ssize_t getline(char **linep, size_t *np, FILE *fp);
+#endif
+#ifndef HAVE_GETDELIM
+extern ssize_t getdelim(char **linep, size_t *np, int delim, FILE *fp);
+#endif
+
 /**
  * Scan backwards from an offset in the string looking for the
  * last non-delimiter ahead of a delimiter character.
@@ -351,7 +356,7 @@ extern int strlrspn(const char *string, size_t offset, const char *delims);
  *	whether the string s1 is greater than, equal to, or less than the
  *	string s2 according to natural sorting order.
  */
-int strnatcmp(const char *s1, const char *s2);
+extern int strnatcmp(const char *s1, const char *s2);
 
 /**
  * Natural string caseless compare.
@@ -367,7 +372,7 @@ int strnatcmp(const char *s1, const char *s2);
  *	whether the string s1 is greater than, equal to, or less than the
  *	string s2 according to natural sorting order.
  */
-int strnatcasecmp(const char *s1, const char *s2);
+extern int strnatcasecmp(const char *s1, const char *s2);
 
 extern int strnatcmp0(const unsigned char *a, const unsigned char *b, int fold_case);
 

@@ -724,7 +724,14 @@ mimeStateHdr(Mime *m, int ch)
 
 	LOGSTATE(m, ch);
 
-	if (ch == ':') {
+	/* Colon delimiter between header name and value? */
+	if (ch == ':'
+	/* Or maybe the unix mailbox "From $address $ctime\n" line. */
+	|| (ch == ' '
+	  && m->mime_part_number == 0
+	  && m->mime_part_length == 5
+	  && strncmp(m->source.buffer, "From ", 5) == 0)
+	) {
 		m->state.source_state = mimeStateHdrValue;
 	} else if (ch == ASCII_CR) {
 		;

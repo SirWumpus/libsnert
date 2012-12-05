@@ -1,7 +1,7 @@
 /*
  * version.h
  *
- * Copyright 2002, 2010 by Anthony Howe. All rights reserved.
+ * Copyright 2002, 2012 by Anthony Howe. All rights reserved.
  */
 
 #ifndef __com_snert_lib_version_h__
@@ -468,6 +468,12 @@ union semun {
 #undef HAVE_STRSPN
 #undef HAVE_STRSTR
 #undef HAVE_STRTOK
+
+/*
+ * Extra Stdio Functions
+ */
+#undef HAVE_GETDELIM
+#undef HAVE_GETLINE
 
 /*
  * Extra String Functions

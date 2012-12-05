@@ -82,10 +82,11 @@ $O$E :
 #######################################################################
 
 ORIGINAL	= ansi$E flip$E pad$E popin$E uue$E show$E range$E sqlargs$E \
-		  counter$E  mimepart$E clamstream$E dnsd$E secho$E sechod$E
+		  counter$E clamstream$E dnsd$E secho$E sechod$E natsort$E
 MEH_TOOLS	= sendform$E nph-download.cgi here-i-am$E where-are-you$E \
 		  ziplist$E rarlist$E taglengths$E rsleep$E
-MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E echod$E
+MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E \
+		  echod$E
 UNIX 		= filed zoned mailgroup socketsink$E tee$E
 
 
@@ -254,11 +255,14 @@ echod$E: ${top_srcdir}/io/socket2$O echod.c
 dnsd$E: ${top_srcdir}/io/socket2$O dnsd.c
 	$(CC) ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_SQLITE3} ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)dnsd$E dnsd.c $(LIBSNERT) $(LIBS) ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
 
+natsort$E: natsort.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)natsort$E natsort.c $(LIBSNERT) $(LIBS)
+
 tee$E: tee.c
-	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)tee$E tee.c $(LIBSNERT) $(LIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)tee$E tee.c $(LIBSNERT) $(LIBS)
 
 d-tee$E: ${top_srcdir}/sys/lockpick$O tee.c
-	$(CC) -DTEST $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)d-tee$E tee.c ${top_srcdir}/sys/lockpick$O $(LIBSNERT) $(LIBS)
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)d-tee$E tee.c ${top_srcdir}/sys/lockpick$O $(LIBSNERT) $(LIBS)
 
 sift$E: sift.c
 	${CC} ${CFLAGS_SQLITE3} ${CFLAGS_PTHREAD} ${CFLAGS} ${LDFLAGS_SQLITE3} ${LDFLAGS_PTHREAD} ${LDFLAGS} ${CC_E}sift$E sift.c ${LIBSNERT} ${LIB_SQLITE3} ${LIB_PTHREAD} ${LIBS}

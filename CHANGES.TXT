@@ -119,6 +119,14 @@ is no set schedule for releases.
    !	smdbAccessIsOk() no longer remaps SMDB_ACCESS_DISCARD to
    	SMDB_ACCESS_OK, so that milters return SMFIS_DISCARD.
 
+   !	Fix MIME API and tool to handle parsing of Unix style mailbox
+	file with the prepended "From $sender $ctime" line. Added by
+	Sendmail and/or procmail when piping to a mail delivery agent.
+	Reported by Alex Broens.
+
+   +	Add natsort.c from http://sourcefrog.net/projects/natsort/ by
+	Martin Pool, author of strnatcmp.c.
+
 --1.75.18--
 
    !	Finish modifications to MCC broadcast-only protocol to support
