@@ -13,48 +13,36 @@
 extern "C" {
 #endif
 
-#ifndef IPV4_BIT_LENGTH
 #define IPV4_BIT_LENGTH			32
-#endif
+#define IPV6_BIT_LENGTH			128
 
-#ifndef IPV4_BYTE_LENGTH
-#define IPV4_BYTE_LENGTH		(IPV4_BIT_LENGTH/8)
-#endif
+#define IPV4_BYTE_SIZE			(IPV4_BIT_LENGTH/8)
+#define IPV4_BYTE_LENGTH		IPV4_BYTE_SIZE		/* depricated */
 
-#ifndef IPV4_STRING_LENGTH
 /* Space for a full-size IPv4 string (4 octets of 3 decimal digits
  * separated by dots and terminating NULL byte).
  */
-#define IPV4_STRING_LENGTH		(IPV4_BIT_LENGTH/8*4)
-#endif
+#define IPV4_STRING_SIZE		(IPV4_BIT_LENGTH/8*4)
+#define IPV4_STRING_LENGTH		IPV4_STRING_SIZE	/* depricated */
 
 #define IPV6_TAG			"IPv6:"
 #define IPV6_TAG_LENGTH			5
 
-#ifndef IPV6_BIT_LENGTH
-#define IPV6_BIT_LENGTH			128
-#endif
+#define IPV6_BYTE_SIZE			(IPV6_BIT_LENGTH/8)
+#define IPV6_BYTE_LENGTH		IPV6_BYTE_SIZE		/* depricated */
 
-#ifndef IPV6_BYTE_LENGTH
-#define IPV6_BYTE_LENGTH		(IPV6_BIT_LENGTH/8)
-#endif
-
-#ifndef IPV6_STRING_LENGTH
 /* Space for a full-size IPv6 string; 8 groups of 4 character hex
  * words (16-bits) separated by colons and terminating NULL byte.
  */
-#define IPV6_STRING_LENGTH		(IPV6_BIT_LENGTH/16*5)
-#endif
+#define IPV6_STRING_SIZE		(IPV6_BIT_LENGTH/16*5)
+#define IPV6_STRING_LENGTH		IPV6_STRING_SIZE	/* depricated */
 
-#ifndef IPV6_OFFSET_IPV4
-#define IPV6_OFFSET_IPV4		(IPV6_BYTE_LENGTH-IPV4_BYTE_LENGTH)
-#endif
+#define IPV6_OFFSET_IPV4		(IPV6_BYTE_SIZE-IPV4_BYTE_SIZE)
 
-#ifndef DOMAIN_STRING_LENGTH
 /* Space for a full-size domain string, plus terminating NULL byte.
  */
-#define DOMAIN_STRING_LENGTH		256
-#endif
+#define DOMAIN_SIZE			256
+#define DOMAIN_STRING_LENGTH		DOMAIN_SIZE		/* depricated */
 
 /* These macros intended to retrieve network numeric data types stored
  * at odd memory addresses, which can cause some bus errors on certain
@@ -113,7 +101,7 @@ typedef enum {
 	IS_IP_SHARED		= 0x00200000,	/* 100.64.0.0/10	RFC 6598 */
 } is_ip_t;
 
-#define IS_IP_V4		(IS_IP_V4_COMPATIBLE | IS_IP_V4_MAPPED) 
+#define IS_IP_V4		(IS_IP_V4_COMPATIBLE | IS_IP_V4_MAPPED)
 #define IS_IP_ANY		(~0 & ~IS_IP_V4 & ~IS_IP_V6)
 
 #define IS_IP_TEST_NET		(IS_IP_BENCHMARK | IS_IP_TEST_NET_1 | IS_IP_TEST_NET_2 | IS_IP_TEST_NET_3)
@@ -127,8 +115,8 @@ typedef enum {
  *	An IP address in network byte order.
  *
  * @param ip_length
- *	The length of the IP address, which is either IPV4_BYTE_LENGTH (4)
- *	or IPV6_BYTE_LENGTH (16).
+ *	The length of the IP address, which is either IPV4_BYTE_SIZE (4)
+ *	or IPV6_BYTE_SIZE (16).
  *
  * @param compact
  *	If true and the ip argument is an IPv6 address, then the compact
@@ -195,7 +183,7 @@ extern int isIPv4InName(const char *client_name, unsigned char *ipv4, const char
  *	True if the IP address string matches a reserved IP address.
  *	See RFC 3330, 3513, 3849, 4048
  */
-extern int isReservedIPv4(unsigned char ipv4[IPV4_BYTE_LENGTH], is_ip_t flags);
+extern int isReservedIPv4(unsigned char ipv4[IPV4_BYTE_SIZE], is_ip_t flags);
 
 /**
  * @param ip
@@ -208,7 +196,7 @@ extern int isReservedIPv4(unsigned char ipv4[IPV4_BYTE_LENGTH], is_ip_t flags);
  *	True if the IP address string matches a reserved IP address.
  *	See RFC 3330, 3513, 3849, 4048
  */
-extern int isReservedIPv6(unsigned char ipv6[IPV6_BYTE_LENGTH], is_ip_t flags);
+extern int isReservedIPv6(unsigned char ipv6[IPV6_BYTE_SIZE], is_ip_t flags);
 
 /**
  * A convenience function to parse and test an IP address string.
@@ -269,7 +257,7 @@ extern int isRFC2606(const char *path);
  * @return
  *	True if network/cidr contains the given IPv6 address.
  */
-extern int networkContainsIPv6(unsigned char net[IPV6_BYTE_LENGTH], unsigned long cidr, unsigned char ipv6[IPV6_BYTE_LENGTH]);
+extern int networkContainsIPv6(unsigned char net[IPV6_BYTE_SIZE], unsigned long cidr, unsigned char ipv6[IPV6_BYTE_SIZE]);
 #define networkContainsIp	networkContainsIPv6
 
 /**
@@ -327,7 +315,7 @@ extern size_t networkSetLong(unsigned char *p, unsigned long n);
  * @return
  *	The length of the IP address string parsed.
  */
-extern int parseIPv6(const char *ip, unsigned char ipv6[IPV6_BYTE_LENGTH]);
+extern int parseIPv6(const char *ip, unsigned char ipv6[IPV6_BYTE_SIZE]);
 
 /**
  * @param string

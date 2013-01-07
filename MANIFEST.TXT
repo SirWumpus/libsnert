@@ -74,6 +74,7 @@ com/snert/src/lib/mail/mfReply.c
 com/snert/src/lib/mail/smf.c
 com/snert/src/lib/mail/smtp2.c
 com/snert/src/lib/mail/spf.c
+com/snert/src/lib/mail/spf-test.sh
 com/snert/src/lib/mail/tlds-alpha-by-domain.txt
 com/snert/src/lib/mail/tlds.c
 com/snert/src/lib/mail/tlds.sed

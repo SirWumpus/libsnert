@@ -78,7 +78,7 @@ socketAddressNew(const char *host, unsigned port)
 	char *stop;
 	SocketAddress *addr;
 	long length = 0, value;
-	unsigned char ipv6[IPV6_BYTE_LENGTH];
+	unsigned char ipv6[IPV6_BYTE_SIZE];
 
 	if (host == NULL)
 		return NULL;
@@ -127,7 +127,7 @@ socketAddressNew(const char *host, unsigned port)
 # ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
 		addr->sa.sa_len = sizeof (struct sockaddr_in);
 # endif
-		memcpy(&addr->in.sin_addr, ipv6+sizeof (ipv6)-IPV4_BYTE_LENGTH, IPV4_BYTE_LENGTH);
+		memcpy(&addr->in.sin_addr, ipv6+sizeof (ipv6)-IPV4_BYTE_SIZE, IPV4_BYTE_SIZE);
 	}
 
 	return addr;
@@ -168,7 +168,7 @@ socketAddressCreate(const char *host, unsigned port)
 	int length;
 	SocketAddress *addr;
 	unsigned short value;
-	unsigned char ipv6[IPV6_BYTE_LENGTH];
+	unsigned char ipv6[IPV6_BYTE_SIZE];
 
 	if (host == NULL) {
 		errno = EFAULT;
@@ -211,7 +211,7 @@ socketAddressCreate(const char *host, unsigned port)
 			if (rr->section == PDQ_SECTION_QUERY)
 				continue;
 			if ((rr->type == PDQ_TYPE_A || rr->type == PDQ_TYPE_AAAA)) {
-				memcpy(ipv6, ((PDQ_AAAA *) rr)->address.ip.value, IPV6_BYTE_LENGTH);
+				memcpy(ipv6, ((PDQ_AAAA *) rr)->address.ip.value, IPV6_BYTE_SIZE);
 				break;
 			}
 		}
@@ -242,8 +242,8 @@ socketAddressCreate(const char *host, unsigned port)
 		addr->in.sin_family = AF_INET;
 		memcpy(
 			&addr->in.sin_addr,
-			ipv6+sizeof (ipv6)-IPV4_BYTE_LENGTH,
-			IPV4_BYTE_LENGTH
+			ipv6+sizeof (ipv6)-IPV4_BYTE_SIZE,
+			IPV4_BYTE_SIZE
 		);
 	}
 
@@ -312,16 +312,15 @@ socketAddressGetName(SocketAddress *addr, char *buffer, long size)
 #if defined(HAVE_SEM_T)
 	static sem_t sem;
 	static int sem_ready;
-#endif
 
+	if (!sem_ready) {
+		sem_ready = 1;
+		(void) sem_init(&sem, 0, 1);
+	}
+#endif
 	if (addr == NULL) {
 		errno = EFAULT;
 		return 0;
-	}
-
-	if (!sem_ready) {
-		(void) sem_init(&sem, 0, 1);
-		sem_ready = 1;
 	}
 
 	/* If the address is ::0 or 0.0.0.0, we need to lookup
@@ -478,9 +477,9 @@ socketAddressGetName(SocketAddress *addr, char *buffer, long size)
  *	Return 0 on success; otherwise SOCKET_ERROR if the address is not IPv4 or IPv6.
  */
 int
-socketAddressGetIPv6(SocketAddress *addr, int flags, unsigned char ipv6[IPV6_BYTE_LENGTH])
+socketAddressGetIPv6(SocketAddress *addr, int flags, unsigned char ipv6[IPV6_BYTE_SIZE])
 {
-	memset(ipv6, 0, IPV6_BYTE_LENGTH);
+	memset(ipv6, 0, IPV6_BYTE_SIZE);
 
 	if (addr == NULL) {
 		errno = EFAULT;
@@ -489,15 +488,15 @@ socketAddressGetIPv6(SocketAddress *addr, int flags, unsigned char ipv6[IPV6_BYT
 
 	switch (addr->sa.sa_family) {
 	case AF_INET:
-		memcpy(ipv6+IPV6_OFFSET_IPV4, &addr->in.sin_addr, IPV4_BYTE_LENGTH);
+		memcpy(ipv6+IPV6_OFFSET_IPV4, &addr->in.sin_addr, IPV4_BYTE_SIZE);
 		break;
 #ifdef HAVE_STRUCT_SOCKADDR_IN6
 	case AF_INET6:
 		if ((flags & SOCKET_ADDRESS_AS_IPV4)
 		&& isReservedIPv6((unsigned char *) &addr->in6.sin6_addr, IS_IP_V4_MAPPED))
-			memcpy(ipv6+IPV6_OFFSET_IPV4, (char *) &addr->in6.sin6_addr+IPV6_OFFSET_IPV4, IPV4_BYTE_LENGTH);
+			memcpy(ipv6+IPV6_OFFSET_IPV4, (char *) &addr->in6.sin6_addr+IPV6_OFFSET_IPV4, IPV4_BYTE_SIZE);
 		else
-			memcpy(ipv6, &addr->in6.sin6_addr, IPV6_BYTE_LENGTH);
+			memcpy(ipv6, &addr->in6.sin6_addr, IPV6_BYTE_SIZE);
 		break;
 #endif
 	default:
@@ -527,7 +526,7 @@ socketAddressEqual(SocketAddress *a, SocketAddress *b)
 	if (a->sa.sa_family == AF_INET6 && IN6_IS_ADDR_V4MAPPED(&a->in6.sin6_addr)) {
 		SocketAddress a_in4;
 
-		memcpy(&a_in4.in.sin_addr.s_addr, &a->in6.sin6_addr.s6_addr[IPV6_OFFSET_IPV4], IPV4_BYTE_LENGTH);
+		memcpy(&a_in4.in.sin_addr.s_addr, &a->in6.sin6_addr.s6_addr[IPV6_OFFSET_IPV4], IPV4_BYTE_SIZE);
 		a_in4.in.sin_port = a->in6.sin6_port;
 		a_in4.in.sin_family = AF_INET;
 		a = &a_in4;
@@ -536,7 +535,7 @@ socketAddressEqual(SocketAddress *a, SocketAddress *b)
 	if (b->sa.sa_family == AF_INET6 && IN6_IS_ADDR_V4MAPPED(&b->in6.sin6_addr)) {
 		SocketAddress b_in4;
 
-		memcpy(&b_in4.in.sin_addr.s_addr, &b->in6.sin6_addr.s6_addr[IPV6_OFFSET_IPV4], IPV4_BYTE_LENGTH);
+		memcpy(&b_in4.in.sin_addr.s_addr, &b->in6.sin6_addr.s6_addr[IPV6_OFFSET_IPV4], IPV4_BYTE_SIZE);
 		b_in4.in.sin_port = b->in6.sin6_port;
 		b_in4.in.sin_family = AF_INET;
 		b = &b_in4;
@@ -550,7 +549,7 @@ socketAddressEqual(SocketAddress *a, SocketAddress *b)
 	case AF_INET:
 		if (a->in.sin_port != b->in.sin_port)
 			return 0;
-		if (memcmp(&a->in.sin_addr, &b->in.sin_addr, IPV4_BYTE_LENGTH) != 0)
+		if (memcmp(&a->in.sin_addr, &b->in.sin_addr, IPV4_BYTE_SIZE) != 0)
 			return 0;
 		break;
 
@@ -558,7 +557,7 @@ socketAddressEqual(SocketAddress *a, SocketAddress *b)
 	case AF_INET6:
 		if (a->in6.sin6_port != b->in6.sin6_port)
 			return 0;
-		if (memcmp(&a->in6.sin6_addr, &b->in6.sin6_addr, IPV6_BYTE_LENGTH) != 0)
+		if (memcmp(&a->in6.sin6_addr, &b->in6.sin6_addr, IPV6_BYTE_SIZE) != 0)
 			return 0;
 		break;
 #endif

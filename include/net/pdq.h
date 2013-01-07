@@ -124,6 +124,7 @@ typedef enum {
 	PDQ_TYPE_AAAA			= 28,	/* RFC 1886, 3596 */
 	PDQ_TYPE_A6			= 38,	/* RFC 2874, not supported */
 	PDQ_TYPE_DNAME			= 39,	/* RFC 2672 */
+	PDQ_TYPE_SPF			= 99,	/* RFC 4408 */
 	PDQ_TYPE_ANY			= 255,	/* RFC 1035 all (behaves like ``any'') */
 	PDQ_TYPE_5A			= 256,	/* special API type for pdqListFindName */
 } PDQ_type;

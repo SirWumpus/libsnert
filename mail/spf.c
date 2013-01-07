@@ -46,6 +46,9 @@ static const char usage_spf_temp_error_dns[] =
 
 Option spfTempErrorDns = { "spf-temp-error-dns", "+", usage_spf_temp_error_dns };
 
+#ifndef STRLEN
+#define STRLEN(s)			(sizeof (s)-1)
+#endif
 
 #define MAX_PTR_MACRO			10
 #define MAX_DNS_MECHANISMS		10
@@ -86,22 +89,22 @@ typedef struct {
 	int ptr_count;
 	int temp_error;
 	int mechanism_count;
+	PDQ *pdq;
 	char *ip;
 	char *helo;
 	ParsePath *mail;
 	Vector circular;
-	char buffer[SMTP_DOMAIN_LENGTH+1];
-	unsigned char ipv6[IPV6_BYTE_LENGTH];
+	unsigned char ipv6[IPV6_BYTE_SIZE];
 } spfContext;
 
 void
-spfSetDebug(int flag)
+spfSetDebug(int level)
 {
-	debug = flag;
+	debug = level;
 }
 
 static int
-spfMatchIp(unsigned char ipv6[IPV6_BYTE_LENGTH], PDQ_rr *list, unsigned long cidr)
+spfMatchIp(unsigned char ipv6[IPV6_BYTE_SIZE], PDQ_rr *list, unsigned long cidr)
 {
 	PDQ_rr *rr;
 
@@ -117,81 +120,29 @@ spfMatchIp(unsigned char ipv6[IPV6_BYTE_LENGTH], PDQ_rr *list, unsigned long cid
 	return 0;
 }
 
-#ifdef NOT_FINISHED_REPLACEMENT
-static int
-spfPtr(spfContext *ctx, const char *target)
-{
-	char *rootdot;
-	int i, j, match;
-	Vector entries, arecords;
-	DnsEntry *entry, *arecord;
-
-	/* Do NOT rely on recursion here, otherwise a
-	 * multihomed host may fail to match correctly...
-	 */
-	if ((entries = DnsGet(dns, DNS_TYPE_PTR, 0, ctx->ip)) == NULL) {
-		if (DnsGetReturnCode(dns) == DNS_RCODE_UNDEFINED)
-			return -2;
-
-		return -1;
-	}
-
-	match = 0;
-
-	for (i = 0; !match && i < VectorLength(entries); i++) {
-		if ((entry = VectorGet(entries, i)) == NULL)
-			continue;
-
-		if ((arecords = DnsGet(dns, DNS_TYPE_A, 1, entry->value)) == NULL) {
-			if ((arecords = DnsGet(dns, DNS_TYPE_AAAA, 1, entry->value)) == NULL) {
-				break;
-			}
-		}
-
-		if ((rootdot = strrchr(entry->value, '.')) != NULL && rootdot[1] == '\0')
-			*rootdot = '\0';
-
-		for (j = 0; j < VectorLength(arecords); j++) {
-			if ((arecord = VectorGet(arecords, j)) == NULL)
-				continue;
-
-			if (arecord->address != NULL && networkContainsIp(arecord->address, IPV6_BIT_LENGTH, ctx->ipv6)) {
-				if (debug)
-					syslog(LOG_DEBUG, "ptr=%s target=%s", (char *) entry->value, target);
-				if (0 <= TextInsensitiveEndsWith(entry->value, target)) {
-					match = 1;
-					break;
-				}
-			}
-		}
-
-		VectorDestroy(arecords);
-	}
-
-	VectorDestroy(entries);
-
-	return match;
-}
-#endif
-
+/*
+ * @return
+ *	A pointer to a macro expansion. Must be freed by caller.
+ */
 static char *
 spfMacro(spfContext *ctx, const char *domain, const char *fmt)
 {
 	long rhp;
+	int is_ipv6;
 	const char *format;
-	int i, j, length, reverse, span;
-	char *value, macro[SMTP_DOMAIN_LENGTH+1], workspace[SMTP_DOMAIN_LENGTH+1], delims[8], dots[8];
+	int offset, length, reverse, span;
+	char *value, buffer[DOMAIN_SIZE], macro[DOMAIN_SIZE], workspace[DOMAIN_SIZE], delims[8], dots[8];
 
 	fmt += *fmt == ':';
 	if (*fmt == '\0' || *fmt == '/')
 		return (char *) domain;
 
 	format = fmt;
-	length = SMTP_DOMAIN_LENGTH+1;
-	for (i = 0; *fmt != '\0' && *fmt != '/' && i < length; fmt++) {
+	is_ipv6 = strchr(ctx->ip, ':') != NULL;
+	for (offset = 0; *fmt != '\0' && *fmt != '/' && offset < sizeof (buffer); fmt++) {
 		if (*fmt != '%') {
 			/* Copy a literal character into the buffer. */
-			ctx->buffer[i++] = *fmt;
+			buffer[offset++] = *fmt;
 			continue;
 		}
 
@@ -199,13 +150,13 @@ spfMacro(spfContext *ctx, const char *domain, const char *fmt)
 		switch (*++fmt) {
 		case '%':
 			/* A percent literal. */
-			ctx->buffer[i++] = *fmt;
+			buffer[offset++] = *fmt;
 			continue;
 		case '_':
-			ctx->buffer[i++] = ' ';
+			buffer[offset++] = ' ';
 			continue;
 		case '-':
-			i += TextCopy(ctx->buffer + i, length - i, "%20");
+			offset += TextCopy(buffer+offset, sizeof (buffer)-offset, "%20");
 			continue;
 		case '{':
 			break;
@@ -222,9 +173,23 @@ spfMacro(spfContext *ctx, const char *domain, const char *fmt)
 		case 'h':
 			value = ctx->helo;
 			break;
-		case 'i':
-			value = ctx->ip;
+#ifdef EXP_MACRO
+/* These macros only required to service exp= TXT records. */
+		case 'r':
+			value = "unknown";
 			break;
+		case 't':
+			(void) snprintf(macro, sizeof (macro), "%lu", (unsigned long) time(NULL));
+			goto macro_filled;
+		case 'c':
+#endif
+		case 'i':
+			(void) formatIP(
+				ctx->ipv6+(is_ipv6 ? 0 : IPV6_OFFSET_IPV4),
+				is_ipv6 ? IPV6_BYTE_SIZE : IPV4_BYTE_SIZE,
+				*fmt == 'c', macro, sizeof (macro)
+			);
+			goto macro_filled;
 		case 'l':
 			value = ctx->mail->localLeft.string;
 			break;
@@ -235,7 +200,7 @@ spfMacro(spfContext *ctx, const char *domain, const char *fmt)
 			value = ctx->mail->address.string;
 			break;
 		case 'v':
-			value = strchr(ctx->ip, '.') == NULL ? "ip6" : "in-addr";
+			value = is_ipv6 ? "ip6" : "in-addr";
 			break;
 		case 'p':
 {
@@ -261,21 +226,21 @@ spfMacro(spfContext *ctx, const char *domain, const char *fmt)
 				pdqListFree(alist);
 			}
 
-			j = TextCopy(macro, sizeof (macro), value);
-			if (0 < j && macro[j-1] == '.')
-				macro[j-1] = '\0';
+			length = TextCopy(macro, sizeof (macro), value);
+			if (0 < length && macro[length-1] == '.')
+				macro[length-1] = '\0';
 
 			pdqListFree(list);
 }
-			goto already_copied_validated_ip;
+			goto macro_filled;
 		default:
 			syslog(LOG_ERR, "SPF macro syntax error in \"%s\"", format);
 			return NULL;
 		}
 
 		/* Take a working copy of the macro value. */
-		TextCopy(macro, sizeof (macro), value);
-already_copied_validated_ip:
+		(void) TextCopy(macro, sizeof (macro), value);
+macro_filled:
 		value = macro;
 
 		/* Get number of right-hand-parts. */
@@ -292,7 +257,7 @@ already_copied_validated_ip:
 		}
 
 		/* Get a copy of the delimeters to split on and/or replace. */
-		if (sscanf(fmt, "%7[.-+,/_=]%n", delims, &span) == 1) {
+		if (sscanf(fmt, "%[.-+,/_=]%n", delims, &span) == 1) {
 			delims[span] = '\0';
 			fmt += span;
 		} else {
@@ -321,11 +286,11 @@ already_copied_validated_ip:
 
 		TextTransliterate(value, delims, dots, -1);
 
-		i += TextCopy(ctx->buffer + i, length - i, value);
+		offset += TextCopy(buffer+offset, sizeof (buffer)-offset, value);
 	}
-	ctx->buffer[i - (length <= i)] = '\0';
+	buffer[offset - (sizeof (buffer) <= offset)] = '\0';
 
-	return (char *) ctx->buffer;
+	return strdup(buffer);
 }
 
 /*
@@ -354,10 +319,10 @@ spfGetDualCIDR(const char *s, unsigned long *cidr_4, unsigned long *cidr_6)
 	if (stop[0] == '/' && stop[1] != '/') {
 		cidr4 = (unsigned long) strtol(stop + 1, (char **) &stop, 10);
 
-		/* All our IPv4 addresses are mapped to IPv6 address,
+		/* The IPv4 addresses are mapped to IPv6 addresses,
 		 * so we have to convert the CIDR from IPv4 to IPv6.
 		 */
-		cidr4 = IPV6_BIT_LENGTH - 32 + cidr4;
+		cidr4 = IPV6_BIT_LENGTH - IPV4_BIT_LENGTH + cidr4;
 	}
 
 	if (cidr_6 != NULL && stop[0] == '/' && stop[1] == '/')
@@ -406,7 +371,6 @@ spfIsCircularReference(spfContext *ctx, const char *domain)
 static const char *
 spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 {
-	PDQ *pdq;
 	PDQ_rr *list, *rr;
 	char *txt;
 	Vector terms;
@@ -415,22 +379,24 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 	long i, length;
 	unsigned long cidr, cidr6;
 	char *term, *redirect, *target;
-	unsigned char net[IPV6_BYTE_LENGTH];
+	unsigned char net[IPV6_BYTE_SIZE];
 
+	txt = NULL;
 	err = NULL;
+	term = NULL;
 	qualifier = SPF_NONE;
 
 	if (ctx == NULL || domain == NULL) {
 		err = spfErrorNullArgument;
 		goto error0;
 	}
-
-	if (debug)
+	if (debug) {
 		syslog(
-			LOG_DEBUG, "enter spfCheck(%lx, %s, '%s') ip=%s helo=%s mail=%s",
-			(long) ctx, domain, TextNull(alt_txt),
+			LOG_DEBUG, "enter %s(%lx, %s, \"%s\") ip=%s helo=%s mail=%s",
+			__func__, (unsigned long) ctx, domain, TextNull(alt_txt),
 			ctx->ip, ctx->helo, ctx->mail->address.string
 		);
+	}
 
 	if (*ctx->ip == '\0' || *domain == '\0')
 		goto error1;
@@ -465,16 +431,16 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 		goto error1;
 	}
 
-	if ((pdq = pdqOpen()) == NULL) {
-		err = spfErrorInternal;
-		goto error1;
-	}
-
 	if (alt_txt == NULL) {
-		if ((list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_TXT, domain, NULL)) == NULL) {
-			if (errno != 0)
-				qualifier = SPF_TEMP_ERROR;
-			goto error2;
+		/* RFC 4408 states that SPF RR trump SPF TXT RR, however
+		 * the SPF in TXT is still more commonly used.
+		 */
+		if ((list = pdqGet(ctx->pdq, PDQ_CLASS_IN, PDQ_TYPE_TXT, domain, NULL)) == NULL) {
+			if ((list = pdqGet(ctx->pdq, PDQ_CLASS_IN, PDQ_TYPE_SPF, domain, NULL)) == NULL) {
+				if (errno != 0)
+					qualifier = SPF_TEMP_ERROR;
+				goto error1;
+			}
 		}
 
 		if (list->section == PDQ_SECTION_QUERY) {
@@ -482,6 +448,8 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 
 			switch (((PDQ_QUERY *)list)->rcode) {
 			case PDQ_RCODE_OK:
+				/* With a TXT record, up the default to neutral (?all). */
+				qualifier = SPF_NEUTRAL;
 				err = NULL;
 				break;
 
@@ -491,11 +459,14 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 			 * non-exsistant/broken domains to be ignored.
 			 */
 			case PDQ_RCODE_SERVER:
+			/* RFC 4408 section 5 paragraph 8 NXDOMAIN (3)
+			 * treats as OK (0) with zero answers.
+			 */
+			case PDQ_RCODE_NXDOMAIN:
 				qualifier = SPF_NEUTRAL;
 				goto error3;
 
 			case PDQ_RCODE_ERRNO:
-			case PDQ_RCODE_UNDEFINED:
 			case PDQ_RCODE_NOT_IMPLEMENTED:
 				goto error3;
 
@@ -507,7 +478,6 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 			err = NULL;
 		}
 
-		txt = NULL;
 		for (rr = list; rr != NULL; rr = rr->next) {
 			if (rr->section == PDQ_SECTION_QUERY || rr->type != PDQ_TYPE_TXT)
 				continue;
@@ -529,27 +499,32 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 		if (txt == NULL)
 			goto error3;
 	} else {
+		/* With a TXT record given, up the default to neutral (?all). */
+		qualifier = SPF_NEUTRAL;
 		txt = (char *) alt_txt;
 		list = NULL;
 	}
-
-	if (debug)
-		syslog(LOG_DEBUG, "domain=%s TXT=%s", domain, txt);
 
 	if ((terms = TextSplit(txt, " ", 0)) == NULL) {
 		err = spfErrorMemory;
 		goto error4;
 	}
 
-	redirect = NULL;
+	redirect = target = NULL;
 
 	/* Start after the version specifier. */
 	for (i = 1; i < VectorLength(terms); i++, qualifier = SPF_NEUTRAL) {
 		pdqListFree(list);
 		list = NULL;
+		if (target != domain)
+			free(target);
+		target = NULL;
 
 		if ((term = VectorGet(terms, i)) == NULL)
 			continue;
+
+		if (debug)
+			syslog(LOG_DEBUG, "term=%s", term);
 
 		switch (*term++) {
 		case '+': qualifier = SPF_PASS;		break;
@@ -559,7 +534,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 		default: term--; qualifier = SPF_PASS;	break;
 		}
 
-		if (TextInsensitiveCompareN(term , "all", 3) == 0) {
+		if (TextInsensitiveCompareN(term , "all", STRLEN("all")) == 0) {
 #ifdef DOWNGRADE_PASS_ALL
 			/* Disallow +all; spammers are setting themselves
 			 * overly permissive SPF records to allow botnets
@@ -578,8 +553,8 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 			break;
 		}
 
-		else if (TextInsensitiveCompareN(term , "a", 1) == 0) {
-			if ((target = spfMacro(ctx, domain, term+1)) == NULL) {
+		else if (TextInsensitiveCompareN(term , "a", STRLEN("a")) == 0) {
+			if ((target = spfMacro(ctx, domain, term+STRLEN("a"))) == NULL) {
 				qualifier = SPF_PERM_ERROR;
 				err = spfErrorSyntax;
 				goto error5;
@@ -597,7 +572,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto error5;
 			}
 
-			if ((list = pdqGet5A(pdq, PDQ_CLASS_IN, target)) == NULL) {
+			if ((list = pdqGet5A(ctx->pdq, PDQ_CLASS_IN, target)) == NULL) {
 				qualifier = SPF_TEMP_ERROR;
 				err = spfErrorInternal;
 				goto error5;
@@ -625,8 +600,8 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto done;
 		}
 
-		else if (TextInsensitiveCompareN(term , "mx", 2) == 0) {
-			if ((target = spfMacro(ctx, domain, term+2)) == NULL) {
+		else if (TextInsensitiveCompareN(term , "mx", STRLEN("mx")) == 0) {
+			if ((target = spfMacro(ctx, domain, term+STRLEN("mx"))) == NULL) {
 				qualifier = SPF_PERM_ERROR;
 				err = spfErrorSyntax;
 				goto error5;
@@ -644,7 +619,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto error5;
 			}
 
-			if ((list = pdqGetMX(pdq, PDQ_CLASS_IN, target, 0)) == NULL) {
+			if ((list = pdqGetMX(ctx->pdq, PDQ_CLASS_IN, target, 0)) == NULL) {
 				if (errno == 0)
 					continue;
 				qualifier = SPF_TEMP_ERROR;
@@ -674,8 +649,8 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto done;
 		}
 
-		else if (TextInsensitiveCompareN(term , "ptr", 3) == 0) {
-			if ((target = spfMacro(ctx, domain, term+3)) == NULL) {
+		else if (TextInsensitiveCompareN(term , "ptr", STRLEN("ptr")) == 0) {
+			if ((target = spfMacro(ctx, domain, term+STRLEN("ptr"))) == NULL) {
 				qualifier = SPF_PERM_ERROR;
 				err = spfErrorSyntax;
 				goto error5;
@@ -687,7 +662,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto error5;
 			}
 
-			if ((list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_PTR, ctx->ip, NULL)) == NULL) {
+			if ((list = pdqGet(ctx->pdq, PDQ_CLASS_IN, PDQ_TYPE_PTR, ctx->ip, NULL)) == NULL) {
 				qualifier = SPF_TEMP_ERROR;
 				err = spfErrorInternal;
 				goto error5;
@@ -718,7 +693,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				if (rr->section == PDQ_SECTION_QUERY || rr->type != PDQ_TYPE_PTR)
 					continue;
 
-				if ((alist = pdqGet5A(pdq, PDQ_CLASS_IN, ((PDQ_PTR *) rr)->host.string.value)) == NULL)
+				if ((alist = pdqGet5A(ctx->pdq, PDQ_CLASS_IN, ((PDQ_PTR *) rr)->host.string.value)) == NULL)
 					break;
 
 				/* Remove trailing root dot. */
@@ -734,7 +709,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 						continue;
 
 					if (networkContainsIp(((PDQ_AAAA *) ar)->address.ip.value, IPV6_BIT_LENGTH, ctx->ipv6)) {
-						if (debug)
+						if (1 < debug)
 							syslog(LOG_DEBUG, "ptr=%s target=%s", ar->name.string.value, target);
 						if (0 <= TextInsensitiveEndsWith(((PDQ_PTR *) rr)->host.string.value, target)) {
 							match = 1;
@@ -782,14 +757,14 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto done;
 		}
 
-		else if (TextInsensitiveCompareN(term , "include:", 8) == 0) {
-			if ((target = spfMacro(ctx, domain, term+8)) == NULL) {
+		else if (TextInsensitiveCompareN(term , "include:", STRLEN("include:")) == 0) {
+			if ((target = spfMacro(ctx, domain, term+STRLEN("include:"))) == NULL) {
 				qualifier = SPF_PERM_ERROR;
 				err = spfErrorSyntax;
 				goto error5;
 			}
 
-			err = spfCheck(ctx, term+8, NULL);
+			err = spfCheck(ctx, target, NULL);
 			switch (ctx->result) {
 			case SPF_NONE:
 				/* According to the SPF-Classic Internet Draft
@@ -811,8 +786,8 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 			}
 		}
 
-		else if (TextInsensitiveCompareN(term , "exists:", 7) == 0) {
-			if ((target = spfMacro(ctx, domain, term+7)) == NULL) {
+		else if (TextInsensitiveCompareN(term , "exists:", STRLEN("exists:")) == 0) {
+			if ((target = spfMacro(ctx, domain, term+STRLEN("exists:"))) == NULL) {
 				qualifier = SPF_PERM_ERROR;
 				err = spfErrorSyntax;
 				goto error5;
@@ -824,7 +799,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto error5;
 			}
 
-			if ((list = pdqGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_A, target, NULL)) != NULL) {
+			if ((list = pdqGet(ctx->pdq, PDQ_CLASS_IN, PDQ_TYPE_A, target, NULL)) != NULL) {
 				if (list->section == PDQ_SECTION_QUERY && ((PDQ_QUERY *)list)->rcode != PDQ_RCODE_OK) {
 					if (((PDQ_QUERY *)list)->rcode == PDQ_RCODE_UNDEFINED)
 						continue;
@@ -843,14 +818,18 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 			}
 		}
 
-		else if (TextInsensitiveCompareN(term , "redirect=", 9) == 0) {
+		else if (TextInsensitiveCompareN(term , "redirect=", STRLEN("redirect=")) == 0) {
 			if (redirect != NULL) {
 				qualifier = SPF_PERM_ERROR;
 				err = spfErrorSyntax;
 				goto error5;
 			}
-			redirect = term+9;
+			redirect = term+STRLEN("redirect=");
 		}
+
+		/* Unsupported terms, such as exp= and RFC 6652
+		 * ra=, rp=, and rr= are simply skipped.
+		 */
 	}
 
 	if (redirect != NULL) {
@@ -859,38 +838,31 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 			err = spfErrorSyntax;
 			goto error5;
 		}
-		if ((target = strdup(target)) == NULL) {
-			qualifier = SPF_PERM_ERROR;
-			err = spfErrorMemory;
-			goto error5;
-		}
 		err = spfCheck(ctx, target, NULL);
 		qualifier = ctx->result;
 		free(target);
 	}
 done:
-	if (debug && i < VectorLength(terms))
-		syslog(LOG_DEBUG, "matching %s", (char *) VectorGet(terms, i));
 error5:
 	VectorDestroy(terms);
+	if (target != domain)
+		free(target);
 error4:
 	if (alt_txt == NULL)
 		free(txt);
 error3:
 	pdqListFree(list);
-error2:
-	pdqClose(pdq);
 error1:
 	ctx->result = qualifier;
-error0:
-	if (debug)
+	if (debug) {
 		syslog(
-			LOG_DEBUG, "exit  spfCheck(%lx, %s, '%s') result=%s error=%s",
-			(long) ctx, domain, TextNull(alt_txt),
-			ctx == NULL ? "" : spfResultString[ctx->result],
-			err == NULL ? "" : err
+			LOG_DEBUG, "exit %s(%lx, %s,\"%s\") txt=\"%s\" match=%s result=%s error=%s",
+			__func__, (unsigned long) ctx, domain,
+			TextEmpty(alt_txt), TextEmpty(txt), TextEmpty(term),
+			spfResultString[qualifier], TextEmpty(err)
 		);
-
+	}
+error0:
 	return err;
 }
 
@@ -906,6 +878,8 @@ spfCheckHeloMailTxt(const char *client_addr, const char *helo, const char *mail,
 		goto error0;
 	}
 
+	*result = SPF_PERM_ERROR;
+	ctx.result = SPF_PERM_ERROR;
 	ctx.ip = (char *) client_addr;
 	ctx.helo = (char *) (helo == NULL ? unknown : helo);
 	ctx.ptr_count = ctx.mechanism_count = 0;
@@ -915,8 +889,7 @@ spfCheckHeloMailTxt(const char *client_addr, const char *helo, const char *mail,
 		error = spfErrorIpParse;
 		goto error0;
 	}
-
-	if (parsePath(mail, 0, 0, &ctx.mail) != NULL) {
+	if (parsePath(mail, STRICT_LITERAL_PLUS, 0, &ctx.mail) != NULL) {
 		error = spfErrorSyntax;
 		goto error0;
 	}
@@ -945,17 +918,23 @@ spfCheckHeloMailTxt(const char *client_addr, const char *helo, const char *mail,
 		}
 	}
 
-	if ((ctx.circular = VectorCreate(5)) == NULL) {
-		error = spfErrorMemory;
+	if ((ctx.pdq = pdqOpen()) == NULL) {
+		error = spfErrorInternal;
 		goto error1;
 	}
 
+	if ((ctx.circular = VectorCreate(5)) == NULL) {
+		error = spfErrorMemory;
+		goto error2;
+	}
 	VectorSetDestroyEntry(ctx.circular, free);
 
 	error = spfCheck(&ctx, ctx.mail->domain.string, txt);
 	*result = ctx.result;
 
 	VectorDestroy(ctx.circular);
+error2:
+	pdqClose(ctx.pdq);
 error1:
 	free(ctx.mail);
 error0:
@@ -1020,15 +999,17 @@ static int
 testMacro(const char *ip, ParsePath *mail, const char *spec, const char *expect)
 {
 	int rc;
+	char *target;
 	spfContext ctx;
 
 	ctx.ip = (char *) ip;
 	ctx.mail = mail;
 	ctx.helo = (char *) test_helo;
 
-	spfMacro(&ctx, mail->domain.string, spec);
-	rc = TextInsensitiveCompare(expect, ctx.buffer) == 0;
-	printf("%s <%s> %s -> %s %s\n", ip, mail->address.string, spec, ctx.buffer, rc ? "PASS" : "FAIL");
+	target = spfMacro(&ctx, mail->domain.string, spec);
+	rc = TextInsensitiveCompare(expect, target) == 0;
+	printf("%s <%s> %s -> %s %s\n", ip, mail->address.string, spec, target, rc ? "PASS" : "FAIL");
+	free(target);
 
 	return rc;
 }
@@ -1073,22 +1054,6 @@ testMacros(void)
 	return 0;
 }
 
-#if ! defined(__MINGW32__)
-#undef syslog
-void
-syslog(int level, const char *fmt, ...)
-{
-	va_list args;
-
-	va_start(args, fmt);
-	if (logFile == NULL)
-		vsyslog(level, fmt, args);
-	else
-		LogV(level, fmt, args);
-	va_end(args);
-}
-#endif
-
 int
 main(int argc, char **argv)
 {
@@ -1107,18 +1072,13 @@ main(int argc, char **argv)
 			testMacros();
 			return 0;
 		case 'v':
-#ifdef VAR_LOG_DEBUG
-			openlog("spf", LOG_PID, LOG_MAIL);
-#else
-			LogSetProgramName("spf");
-			LogOpen("(standard error)");
-#endif
-			pdqSetDebug(1);
-			spfSetDebug(1);
+			pdqSetDebug(debug);
+			spfSetDebug(debug+1);
+			setlogmask(LOG_UPTO(LOG_DEBUG));
 			break;
 		default:
-			(void) fprintf(stderr, usage);
-			return EX_USAGE;
+			optind = argc;
+			break;
 		}
 	}
 
@@ -1137,9 +1097,11 @@ main(int argc, char **argv)
 		exit(EX_SOFTWARE);
 	}
 
+	if (debug)
+		openlog("spf", LOG_PID|LOG_PERROR, LOG_MAIL);
+
 	for (i = optind+1; i < argc; i++) {
 		error = spfCheckHeloMailTxt(argv[optind], helo, argv[i], txt, &spf);
-
 		fprintf(stdout, "<%s> %s %s\n", argv[i], spfResultString[spf], error == NULL ? "" : error);
 	}
 

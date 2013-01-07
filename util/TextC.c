@@ -58,35 +58,6 @@ TextSubstring(const char *orig, long offset, long length)
 }
 
 /**
- * @param s
- *	A C string pointer.
- *
- * @return
- *	True if the string is empty (zero length)
- *	or contains only whitespace.
- */
-#undef TextIsBlank
-int
-TextIsBlank(const char *s)
-{
-	return s == NULL || s[strcspn(s, " \t\r\n\f")] == '\0';
-}
-
-/**
- * @param s
- *	A C string pointer.
- *
- * @return
- *	True if the string is empty (zero length).
- */
-#undef TextIsEmpty
-int
-TextIsEmpty(const char *s)
-{
-	return s == NULL || *s == '\0';
-}
-
-/**
  * <p>
  * Does the string consist only of digits in the given radix?
  * </p>

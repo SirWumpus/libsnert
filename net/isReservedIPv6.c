@@ -16,8 +16,6 @@
 
 #include <com/snert/lib/net/network.h>
 
-#define IPV6_OFFSET_IPV4	(IPV6_BYTE_LENGTH-IPV4_BYTE_LENGTH)
-
 /**
  * @param ip
  *	An IPv6 address in network byte order.

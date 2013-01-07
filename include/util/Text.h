@@ -73,8 +73,6 @@ extern int TextInsensitiveCompareN(const void *xp, void const *yp, long len);
 extern /*@only@*/ char *TextSubstring(const char *, long offset, long length);
 extern /*@only@*/ char *TextDupN(const char *, size_t);
 extern unsigned long TextHash(unsigned long, const char *);
-extern const char *TextNull(const char *);
-extern const char *TextEmpty(const char *);
 extern const char *TextDelim(const char *, const char *);
 extern int TextIsInteger(const char *, int);
 extern Buf *TextExpand(Buf *s, long col);
@@ -82,6 +80,8 @@ extern char *TextHexEncode(Buf *b);
 
 #define TextIsBlank(s)		((s) == NULL || (s)[strcspn(s, " \t\r\n\f")] == '\0')
 #define TextIsEmpty(s)		((s) == NULL || *(s) == '\0')
+#define TextEmpty(s)		((s) == NULL ? "" : (s))
+#define TextNull(s)		((s) == NULL ? "(NULL)" : (s))
 
 #ifndef TextIsBlank
 /**
@@ -103,6 +103,26 @@ extern int TextIsBlank(const char *s);
  *	True if the string is empty (zero length).
  */
 extern int TextIsEmpty(const char *s);
+#endif
+#ifndef TextEmpty
+/**
+ * @param s
+ *	A C string pointer.
+ *
+ * @return
+ *	Pointer s or empty string.
+ */
+extern int TextEmpty(const char *s);
+#endif
+#ifndef TextNull
+/**
+ * @param s
+ *	A C string pointer.
+ *
+ * @return
+ *	Pointer s or NULL string.
+ */
+extern int TextNull(const char *s);
 #endif
 
 /**

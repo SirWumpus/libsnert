@@ -469,6 +469,11 @@ union semun {
 #undef HAVE_STRSTR
 #undef HAVE_STRTOK
 
+/* Length of a static string. */
+#ifndef STRLEN
+#define STRLEN(ss)	(sizeof (ss)-1)
+#endif
+
 /*
  * Extra Stdio Functions
  */

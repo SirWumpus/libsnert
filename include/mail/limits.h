@@ -1,7 +1,7 @@
 /*
  * limits.h
  *
- * Copyright 2005, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2005, 2012 by Anthony Howe. All rights reserved.
  */
 
 #ifndef __com_snert_lib_mail_limits_h__
@@ -88,39 +88,6 @@ extern "C" {
 #define SMTP_DATA_BLOCK_TO		180
 #define SMTP_DOT_TO			600
 #define SMTP_SERVER_TO			300
-
-#ifndef IPV4_BIT_LENGTH
-#define IPV4_BIT_LENGTH			32
-#endif
-
-#ifndef IPV4_BYTE_LENGTH
-#define IPV4_BYTE_LENGTH		(IPV4_BIT_LENGTH/8)
-#endif
-
-#ifndef IPV4_STRING_LENGTH
-/* Space for a full-size IPv4 string (4 octets of 3 decimal digits
- * separated by dots and terminating NULL byte).
- */
-#define IPV4_STRING_LENGTH		(IPV4_BIT_LENGTH/8*4)
-#endif
-
-#define IPV6_TAG			"IPv6:"
-#define IPV6_TAG_LENGTH			5
-
-#ifndef IPV6_BIT_LENGTH
-#define IPV6_BIT_LENGTH			128
-#endif
-
-#ifndef IPV6_BYTE_LENGTH
-#define IPV6_BYTE_LENGTH		(IPV6_BIT_LENGTH/8)
-#endif
-
-#ifndef IPV6_STRING_LENGTH
-/* Space for a full-size IPv6 string; 8 groups of 4 character hex
- * words (16-bits) separated by colons and terminating NULL byte.
- */
-#define IPV6_STRING_LENGTH		(IPV6_BIT_LENGTH/16*5)
-#endif
 
 #ifdef  __cplusplus
 }

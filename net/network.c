@@ -3,7 +3,7 @@
  *
  * Network Support Routines
  *
- * Copyright 2004, 2008 by Anthony Howe. All rights reserved.
+ * Copyright 2004, 2012 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -115,20 +115,39 @@ networkSetLong(unsigned char *p, unsigned long n)
 
 #ifdef TEST
 #include <stdio.h>
+#include <com/snert/lib/util/getopt.h>
 #include <com/snert/lib/sys/sysexits.h>
 
 static const char usage[] =
-"usage: netcontainsip cidr ip\n"
+"usage: netcontainsip [-p] cidr ip\n"
 ;
 
 int
 main(int argc, char **argv)
 {
-	if (argc != 3) {
+	int rc, ch, print = 0;
+
+	while ((ch = getopt(argc, argv, "p")) != -1) {
+		switch (ch) {
+		case 'p':
+			print = 1;
+			break;
+		default:
+			optind = argc;
+			break;
+		}
+	}
+
+	if (argc <= optind+1) {
 		fprintf(stderr, usage);
 		return EX_USAGE;
 	}
 
-	return ! networkContainsIP(argv[1], argv[2]);
+	rc = networkContainsIP(argv[optind], argv[optind+1]);
+
+	if (print)
+		printf("%s %s %s\n", rc ? "Yes" : "No", argv[optind], argv[optind+1]);
+
+	return ! rc;
 }
 #endif

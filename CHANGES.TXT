@@ -57,6 +57,22 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.20--
+
+  !!	Fix seg.fault in SPF for IP or mail/domain parsing error.
+
+   !	When an alternate SPF TXT recorded is supplied, then the default
+   	result should be Neutral, instead of None. eg. -t "v=spf1"
+
+   !	Fix SPF %{i} handling of IPv6 address.
+
+   !	Fix SPF handling of %{l+}; plus-sign was being treated as a
+   	Sendmail special delimiter, instead of just a literal.
+
+   !	Add support for SPF RR type 99.
+
+   +	Add spf-test.sh RFC conformance test script.
+
 --1.75.19--
 
    !	Add highwater and lifetime counters to "sift" database.
