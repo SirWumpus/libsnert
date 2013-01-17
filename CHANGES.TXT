@@ -59,6 +59,8 @@ is no set schedule for releases.
 
 --1.75.20--
 
+   *    Upgraded SQLite to 3.7.15.2
+
   !!	Fix seg.fault in SPF for IP or mail/domain parsing error.
 
    !	When an alternate SPF TXT recorded is supplied, then the default
