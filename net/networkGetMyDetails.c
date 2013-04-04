@@ -37,20 +37,20 @@
  *	A pointer to a buffer to fill with the FQDN for this host.
  */
 void
-networkGetMyName(char host[DOMAIN_STRING_LENGTH])
+networkGetMyName(char host[DOMAIN_SIZE])
 {
 	struct hostent *my_name;
 
-	if (gethostname(host, DOMAIN_STRING_LENGTH) < 0) {
+	if (gethostname(host, DOMAIN_SIZE) < 0) {
 #ifndef NDEBUG
 		UPDATE_ERRNO;
 		syslog(LOG_ERR, "networkGetMyName: gethostname error: %d", errno);
 #endif
-		TextCopy(host, DOMAIN_STRING_LENGTH, "localhost.localhost");
+		TextCopy(host, DOMAIN_SIZE, "localhost.localhost");
 	}
 
 	if ((my_name = gethostbyname(host)) != NULL)
-		TextCopy(host, DOMAIN_STRING_LENGTH, my_name->h_name);
+		TextCopy(host, DOMAIN_SIZE, my_name->h_name);
 }
 
 /**
@@ -61,7 +61,7 @@ networkGetMyName(char host[DOMAIN_STRING_LENGTH])
  *	A pointer to a buffer to fill with the IP address for this host.
  */
 void
-networkGetHostIp(char *host, char ip[IPV6_STRING_LENGTH])
+networkGetHostIp(char *host, char ip[IPV6_STRING_SIZE])
 {
 	struct hostent *my_ip;
 
@@ -70,12 +70,12 @@ networkGetHostIp(char *host, char ip[IPV6_STRING_LENGTH])
 		UPDATE_ERRNO;
 		syslog(LOG_ERR, "networkGetHostIp: gethostbyname error: %d", errno);
 #endif
-     		TextCopy(ip, IPV6_STRING_LENGTH, "0.0.0.0");
+     		TextCopy(ip, IPV6_STRING_SIZE, "0.0.0.0");
      	} else {
 		(void) formatIP(
 			(unsigned char *) my_ip->h_addr_list[0],
-			my_ip->h_addrtype == AF_INET ? IPV4_BYTE_LENGTH : IPV6_BYTE_LENGTH,
-			1, ip, IPV6_STRING_LENGTH
+			my_ip->h_addrtype == AF_INET ? IPV4_BYTE_SIZE : IPV6_BYTE_SIZE,
+			1, ip, IPV6_STRING_SIZE
 		);
 	}
 }
@@ -92,7 +92,7 @@ networkGetHostIp(char *host, char ip[IPV6_STRING_LENGTH])
  *	from the host name.
  */
 void
-networkGetMyDetails(char host[DOMAIN_STRING_LENGTH], char ip[IPV6_STRING_LENGTH])
+networkGetMyDetails(char host[DOMAIN_SIZE], char ip[IPV6_STRING_SIZE])
 {
 	if (*host == '\0')
 		networkGetMyName(host);

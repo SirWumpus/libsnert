@@ -72,8 +72,8 @@ long
 reverseSegments(const char *source, const char *delims, char *buffer, int size, int arpa)
 {
 	long length;
-	char ip[IPV6_STRING_LENGTH];
-	unsigned char ipv6[IPV6_BYTE_LENGTH];
+	char ip[IPV6_STRING_SIZE];
+	unsigned char ipv6[IPV6_BYTE_SIZE];
 
 	if (TextInsensitiveCompareN(source, IPV6_TAG, IPV6_TAG_LENGTH) == 0)
 		source += IPV6_TAG_LENGTH;
@@ -89,7 +89,7 @@ reverseSegments(const char *source, const char *delims, char *buffer, int size, 
 			(void) parseIPv6(source, ipv6);
 
 			/* Convert back to full IPv6 address string. */
-			formatIP(ipv6, IPV6_BYTE_LENGTH, 0, ip, sizeof (ip));
+			formatIP(ipv6, IPV6_BYTE_SIZE, 0, ip, sizeof (ip));
 			source = ip;
 		}
 

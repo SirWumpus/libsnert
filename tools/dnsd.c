@@ -120,7 +120,6 @@
 #define SHIFT_RCODE		0
 
 #define LABEL_LENGTH		63
-#define DOMAIN_LENGTH		(DOMAIN_STRING_LENGTH-1)
 
 #define SQL_TABLE_EXISTS	\
 "SELECT name FROM sqlite_master WHERE type='table' AND name='dns';"
@@ -216,8 +215,8 @@ typedef struct rr {
 	DNS_type type;
 	size_t name_length;
 	size_t data_length;
-	unsigned char name[DOMAIN_STRING_LENGTH];
-	unsigned char data[DOMAIN_STRING_LENGTH];
+	unsigned char name[DOMAIN_SIZE];
+	unsigned char data[DOMAIN_SIZE];
 } DNS_rr;
 
 typedef struct {
@@ -715,7 +714,7 @@ data_length(DNS_rr *record)
 	case DNS_TYPE_A:
 		return 4;
 	case DNS_TYPE_AAAA:
-		return IPV6_BYTE_LENGTH;
+		return IPV6_BYTE_SIZE;
 	case DNS_TYPE_TXT:
 		if (255 < record->data_length)
 			break;
@@ -735,7 +734,7 @@ append_answer(DNS_query *query, DNS_rr *answer)
 	size_t rdlength;
 	unsigned offset;
 	unsigned char *pkt, *eom;
-	unsigned char ipv6[IPV6_BYTE_LENGTH];
+	unsigned char ipv6[IPV6_BYTE_SIZE];
 
 	rdlength = data_length(answer);
 	if (UDP_PACKET_SIZE < query->packet.length + DNS_RR_MIN_LENGTH + rdlength)

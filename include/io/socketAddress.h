@@ -104,7 +104,7 @@ extern int socketAddressSetPort(SocketAddress *addr, unsigned port);
  *	SOCKET_ADDRESS_AS_IPV4
  *
  * @param ipv6
- *	An IPV6_BYTE_LENGTH buffer in which to copy of an IPv4 or IPv6 address.
+ *	An IPV6_BYTE_SIZE buffer in which to copy of an IPv4 or IPv6 address.
  *
  * @retrun
  *	Return 0 on success; otherwise -1 if the addres is not IPv4 or IPv6.
@@ -144,7 +144,7 @@ extern long socketAddressGetString(SocketAddress *addr, int flags, char *buffer,
  * The +6 bytes is for a delimiter and unsigned short port number. The +2
  * bytes for square brackets.
  */
-#define SOCKET_ADDRESS_STRING_SIZE		(IPV6_STRING_LENGTH+8)
+#define SOCKET_ADDRESS_STRING_SIZE		(IPV6_STRING_SIZE+8)
 
 /**
  * @param addr

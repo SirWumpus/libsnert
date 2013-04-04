@@ -28,7 +28,7 @@
  *	See RFC 3330, 3513, 3849, 4048, 4291
  */
 int
-isReservedIPv6(unsigned char ipv6[IPV6_BYTE_LENGTH], is_ip_t mask)
+isReservedIPv6(unsigned char ipv6[IPV6_BYTE_SIZE], is_ip_t mask)
 {
 	int zeros;
 
@@ -38,16 +38,16 @@ isReservedIPv6(unsigned char ipv6[IPV6_BYTE_LENGTH], is_ip_t mask)
 	}
 
 	/* Count leading zero octets. */
-	for (zeros = 0; zeros < IPV6_BYTE_LENGTH; zeros++)
+	for (zeros = 0; zeros < IPV6_BYTE_SIZE; zeros++)
 		if (ipv6[zeros] != 0)
 			break;
 
 	/* RFC 3513, 3330, 4291 */
-	if ((mask & IS_IP_THIS_HOST) && zeros == IPV6_BYTE_LENGTH)
+	if ((mask & IS_IP_THIS_HOST) && zeros == IPV6_BYTE_SIZE)
 		return 1;
 
 	/* IPv4 0.0.0.0/8 */
-	if ((mask & IS_IP_THIS_NET) && zeros >= IPV6_BYTE_LENGTH - 3)
+	if ((mask & IS_IP_THIS_NET) && zeros >= IPV6_BYTE_SIZE - 3)
 		return 1;
 
 	/* RFC 3513, 4291 ::1/128 */

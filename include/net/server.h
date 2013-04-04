@@ -172,7 +172,7 @@ typedef struct {
 
 typedef struct {
 	Socket2 *socket;
-	char name[DOMAIN_STRING_LENGTH+1];
+	char name[DOMAIN_SIZE];
 } ServerInterface;
 
 struct server_session {
@@ -191,7 +191,7 @@ struct server_session {
 	Server *server;
 	Socket2 *client;
 	ServerWorker *worker;
-	unsigned char ipv6[IPV6_BYTE_LENGTH];
+	unsigned char ipv6[IPV6_BYTE_SIZE];
 	char address[SOCKET_ADDRESS_STRING_SIZE];
 	char if_addr[SOCKET_ADDRESS_STRING_SIZE];
 };

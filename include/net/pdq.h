@@ -76,18 +76,18 @@ typedef struct pdq PDQ;
 typedef struct {
 	struct {
 		unsigned short offset;			/* 0 or IPV6_OFFSET_IPV4 */
-		unsigned char value[IPV6_BYTE_LENGTH];	/* IPv6 or IPv4-in-IPv6 address */
+		unsigned char value[IPV6_BYTE_SIZE];	/* IPv6 or IPv4-in-IPv6 address */
 	} ip;
 	struct {
 		unsigned short length;
-		char value[IPV6_STRING_LENGTH];
+		char value[IPV6_STRING_SIZE];
 	} string;
 } PDQ_address;
 
 typedef struct {
 	struct {
 		unsigned short length;
-		char value[DOMAIN_STRING_LENGTH];
+		char value[DOMAIN_SIZE];
 	} string;
 } PDQ_name;
 
@@ -1001,7 +1001,7 @@ extern PDQ_rr *pdqListFindAddress(PDQ_rr *list, PDQ_class class, PDQ_type type, 
  *	A pointer to the first PDQ_rr record found or NULL if not found.
  *	Only records of type PDQ_A or PDQ_AAAA are returned.
  */
-extern PDQ_rr *pdqListFindIP(PDQ_rr *list, PDQ_class class, PDQ_type type, const unsigned char ipv6[IPV6_BYTE_LENGTH]);
+extern PDQ_rr *pdqListFindIP(PDQ_rr *list, PDQ_class class, PDQ_type type, const unsigned char ipv6[IPV6_BYTE_SIZE]);
 
 /**
  * @param list

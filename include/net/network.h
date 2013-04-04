@@ -42,7 +42,6 @@ extern "C" {
 /* Space for a full-size domain string, plus terminating NULL byte.
  */
 #define DOMAIN_SIZE			256
-#define DOMAIN_STRING_LENGTH		DOMAIN_SIZE		/* depricated */
 
 /* These macros intended to retrieve network numeric data types stored
  * at odd memory addresses, which can cause some bus errors on certain
@@ -276,7 +275,7 @@ extern int networkContainsIP(const char *net_cidr, const char *address);
  * @param host
  *	A pointer to a buffer to fill with the FQDN for this host.
  */
-extern void networkGetMyName(char host[DOMAIN_STRING_LENGTH]);
+extern void networkGetMyName(char host[DOMAIN_SIZE]);
 
 /**
  * @param host
@@ -285,7 +284,7 @@ extern void networkGetMyName(char host[DOMAIN_STRING_LENGTH]);
  * @param ip
  *	A pointer to a buffer to fill with the IP address for this host.
  */
-extern void networkGetHostIp(char *host, char ip[IPV6_STRING_LENGTH]);
+extern void networkGetHostIp(char *host, char ip[IPV6_STRING_SIZE]);
 
 /**
  * @param opt_name
@@ -298,7 +297,7 @@ extern void networkGetHostIp(char *host, char ip[IPV6_STRING_LENGTH]);
  *	If empty, then the IP address will be determined automatically
  *	from the host name.
  */
-extern void networkGetMyDetails(char host[DOMAIN_STRING_LENGTH], char ip[IPV6_STRING_LENGTH]);
+extern void networkGetMyDetails(char host[DOMAIN_SIZE], char ip[IPV6_STRING_SIZE]);
 
 extern unsigned short networkGetShort(unsigned char *p);
 extern unsigned long networkGetLong(unsigned char *p);

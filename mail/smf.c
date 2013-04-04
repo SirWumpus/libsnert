@@ -581,7 +581,7 @@ smfAccessPattern(smfWork *work, const char *hay, char *pins, char **actionp)
 	long cidr, length;
 	char *action, *next, *pin;
 	int access, is_hay_ip, match;
-	unsigned char net[IPV6_BYTE_LENGTH], ipv6[IPV6_BYTE_LENGTH];
+	unsigned char net[IPV6_BYTE_SIZE], ipv6[IPV6_BYTE_SIZE];
 
 	access = SMDB_ACCESS_UNKNOWN;
 
@@ -1984,7 +1984,7 @@ smfOpenProlog(SMFICTX *ctx, char *client_name, _SOCK_ADDR *raw_client_addr, char
 #endif
 		(void) formatIP(
 			addr,
-			raw_client_addr->sa_family == AF_INET ? IPV4_BYTE_LENGTH : IPV6_BYTE_LENGTH,
+			raw_client_addr->sa_family == AF_INET ? IPV4_BYTE_SIZE : IPV6_BYTE_SIZE,
 			1, client_addr, length
 		);
 	} else {
@@ -2320,7 +2320,7 @@ static int
 getMyDetails(void)
 {
 	if (*smfOptInterfaceName.string == '\0') {
-		if ((smfOptInterfaceName.string = malloc(DOMAIN_STRING_LENGTH)) == NULL)
+		if ((smfOptInterfaceName.string = malloc(DOMAIN_SIZE)) == NULL)
 			return -1;
 		networkGetMyName(smfOptInterfaceName.string);
 	}
@@ -2329,7 +2329,7 @@ getMyDetails(void)
 		if (smfOptInterfaceIp.initial != smfOptInterfaceIp.string)
 			free(smfOptInterfaceIp.string);
 
-		if ((smfOptInterfaceIp.string = malloc(IPV6_STRING_LENGTH)) == NULL)
+		if ((smfOptInterfaceIp.string = malloc(IPV6_STRING_SIZE)) == NULL)
 			return -1;
 
 		networkGetHostIp(smfOptInterfaceName.string, smfOptInterfaceIp.string);

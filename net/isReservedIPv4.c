@@ -28,7 +28,7 @@
  *	See RFC 3330, 3513, 3849, 4048, 5735, 6598
  */
 int
-isReservedIPv4(unsigned char ipv4[IPV4_BYTE_LENGTH], is_ip_t mask)
+isReservedIPv4(unsigned char ipv4[IPV4_BYTE_SIZE], is_ip_t mask)
 {
 	unsigned long ip;
 

@@ -139,7 +139,7 @@ typedef struct smtp2 {
 	int code;			/* Last SMTP response code. */
 	char *domain;			/* Domain or host for connection. */
 	char *sender;
-	char local_ip[IPV6_STRING_LENGTH];
+	char local_ip[IPV6_STRING_SIZE];
 	char text[SMTP_TEXT_LINE_LENGTH+1];
 } SMTP2;
 

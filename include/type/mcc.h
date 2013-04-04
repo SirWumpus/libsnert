@@ -203,7 +203,7 @@ typedef struct mcc_string {
 typedef struct {
 	time_t touched;
 	unsigned long max_ppm;
-	char ip[IPV6_STRING_LENGTH];
+	char ip[IPV6_STRING_SIZE];
 	mcc_interval intervals[MCC_INTERVALS];
 	mcc_string *notes;
 } mcc_active_host;

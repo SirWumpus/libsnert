@@ -3499,7 +3499,7 @@ static int
 lua_net_reverse_ip(lua_State *L)
 {
 	long length;
-	char buffer[DOMAIN_STRING_LENGTH];
+	char buffer[DOMAIN_SIZE];
 
 	length = reverseIp(luaL_checkstring(L, 1), buffer, sizeof (buffer), luaL_checkint(L, 2));
 	lua_pushlstring(L, buffer, length);

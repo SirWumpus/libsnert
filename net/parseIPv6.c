@@ -62,7 +62,7 @@
  *	The length of the IP address string parsed; zero if nothing parsed.
  */
 int
-parseIPv6(const char *ip, unsigned char ipv6[IPV6_BYTE_LENGTH])
+parseIPv6(const char *ip, unsigned char ipv6[IPV6_BYTE_SIZE])
 {
 	long a, b, c, d, word;
 	const char *start, *stop;
@@ -105,10 +105,10 @@ parseIPv6(const char *ip, unsigned char ipv6[IPV6_BYTE_LENGTH])
 	}
 
 	/* Shift the tail of the IPv6 address to right end of the buffer. */
-	memmove(ipv6+(IPV6_BYTE_LENGTH-(*stop == '.')*4-offset+mark), ipv6+mark, offset-mark);
+	memmove(ipv6+(IPV6_BYTE_SIZE-(*stop == '.')*4-offset+mark), ipv6+mark, offset-mark);
 
 	/* Fill in the compressed zeros. */
-	memset(ipv6+mark, 0, IPV6_BYTE_LENGTH-(*stop == '.')*4 - offset);
+	memset(ipv6+mark, 0, IPV6_BYTE_SIZE-(*stop == '.')*4 - offset);
 
 	/* IPv6v4-full, IPv6v4-comp */
 	if (*stop == '.') {

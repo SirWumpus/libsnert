@@ -29,10 +29,10 @@
  *	True if network/cidr contains the given IPv6 address.
  */
 int
-networkContainsIPv6(unsigned char net[IPV6_BYTE_LENGTH], unsigned long cidr, unsigned char ipv6[IPV6_BYTE_LENGTH])
+networkContainsIPv6(unsigned char net[IPV6_BYTE_SIZE], unsigned long cidr, unsigned char ipv6[IPV6_BYTE_SIZE])
 {
 	int i, prefix, partial;
-	unsigned char mask[IPV6_BYTE_LENGTH];
+	unsigned char mask[IPV6_BYTE_SIZE];
 
 	if (IPV6_BIT_LENGTH < cidr)
 		return 0;
@@ -67,7 +67,7 @@ networkContainsIP(const char *net_cidr, const char *address)
 {
 	const char *slash;
 	unsigned long cidr;
-	unsigned char network[IPV6_BYTE_LENGTH], ip[IPV6_BYTE_LENGTH];
+	unsigned char network[IPV6_BYTE_SIZE], ip[IPV6_BYTE_SIZE];
 
 	if (net_cidr == NULL || (slash = strchr(net_cidr, '/')) == NULL)
 		return 0;

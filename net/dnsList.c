@@ -451,7 +451,7 @@ dnsListCheckIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name,
 {
 	PDQ_rr *rr;
 	const char *list_name = NULL;
-	char buffer[DOMAIN_STRING_LENGTH];
+	char buffer[DOMAIN_SIZE];
 
 	if (dns_list == NULL || name == NULL || *name == '\0')
 		return NULL;

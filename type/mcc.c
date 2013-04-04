@@ -637,7 +637,7 @@ mcc_listener_thread(void *data)
 	SocketAddress from;
 	mcc_key_hook **hooks, *hook;
 	unsigned char our_digest[16];
-	char ip[IPV6_STRING_LENGTH], *listen_addr;
+	char ip[IPV6_STRING_SIZE], *listen_addr;
 
 	if ((mcc = mccCreate()) == NULL)
 		goto error0;

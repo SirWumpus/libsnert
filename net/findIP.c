@@ -186,7 +186,7 @@ int
 main(int argc, char **argv)
 {
 	int offset, span;
-	char ip[IPV6_TAG_LENGTH+IPV6_STRING_LENGTH], *string;
+	char ip[IPV6_TAG_LENGTH+IPV6_STRING_SIZE], *string;
 
 	if (argc <= 1) {
 		fprintf(stderr, "usage: findIP string ...\n");

@@ -912,7 +912,7 @@ test(unsigned long flags, int argc, char **argv)
 }
 
 struct test_ip {
-	unsigned char address[IPV6_BYTE_LENGTH];
+	unsigned char address[IPV6_BYTE_SIZE];
 	long mask;
 	int expect;
 	char *ip;
@@ -980,7 +980,7 @@ int
 testIP()
 {
 	int i, length, reserved;
-	unsigned char ipv6[IPV6_BYTE_LENGTH];
+	unsigned char ipv6[IPV6_BYTE_SIZE];
 
 	for (i = 0; i < sizeof (ip_list) / sizeof (*ip_list); i++) {
 		length = parseIPv6(ip_list[i].ip, ipv6);

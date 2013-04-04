@@ -264,8 +264,8 @@ int
 main(int argc, char **argv)
 {
 	int rc;
-	unsigned char ipv6[IPV6_BYTE_LENGTH];
-	char client_addr[IPV6_STRING_LENGTH+2], client_name[DOMAIN_STRING_LENGTH];
+	unsigned char ipv6[IPV6_BYTE_SIZE];
+	char client_addr[IPV6_STRING_SIZE+2], client_name[DOMAIN_SIZE];
 
 	printf("Enter IP and host name pairs:\n");
 	while (!feof(stdin)) {

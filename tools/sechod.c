@@ -138,7 +138,7 @@ int
 echo_server(SOCKET fd, SocketAddress *addr)
 {
 	long length;
-	char host[DOMAIN_STRING_LENGTH], ip[SOCKET_ADDRESS_STRING_SIZE];
+	char host[DOMAIN_SIZE], ip[SOCKET_ADDRESS_STRING_SIZE];
 
 	(void) socketAddressGetName(addr, host, sizeof (host));
 	(void) socketAddressGetString(addr, SOCKET_ADDRESS_AS_IPV4, ip, sizeof (ip));

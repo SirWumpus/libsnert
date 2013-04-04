@@ -26,8 +26,8 @@
  *	An IP address in network byte order.
  *
  * @param ip_length
- *	The length of the IP address, which is either IPV4_BYTE_LENGTH (4)
- *	or IPV6_BYTE_LENGTH (16).
+ *	The length of the IP address, which is either IPV4_BYTE_SIZE (4)
+ *	or IPV6_BYTE_SIZE (16).
  *
  * @param compact
  *	If true and the ip argument is an IPv6 address, then the compact
@@ -39,7 +39,7 @@
  *	terminated.
  *
  * @param size
- *	The size of the buffer, which should be at least IPV6_STRING_LENGTH.
+ *	The size of the buffer, which should be at least IPV6_STRING_SIZE.
  *
  * @return
  *	The length of the formatted address, excluding the terminating null
@@ -60,17 +60,17 @@ formatIP(unsigned char *ip, int ip_length, int compact, char *buffer, long size)
 		return 0;
 	}
 
-	if (ip_length == IPV4_BYTE_LENGTH)
+	if (ip_length == IPV4_BYTE_SIZE)
 		return snprintf(buffer, size, "%d.%d.%d.%d", ip[0],ip[1],ip[2],ip[3]);
 
-	if (ip_length != IPV6_BYTE_LENGTH)
+	if (ip_length != IPV6_BYTE_SIZE)
 		return 0;
 
 	length = 0;
 	word_fmt = compact == 2 ? "%04x" : "%x";
 
 	z = 0;
-	for (i = 0; i < IPV6_BYTE_LENGTH; i += 2) {
+	for (i = 0; i < IPV6_BYTE_SIZE; i += 2) {
 		word = NET_GET_SHORT(&ip[i]);
 
 		/* Count leading zero words. */
@@ -82,10 +82,10 @@ formatIP(unsigned char *ip, int ip_length, int compact, char *buffer, long size)
 			length += snprintf(buffer+length, size-length, 0 < i ? ":" : "::");
 
 			/* 1:2:3:4:5:6:7:0 compacting trailing zeros 1:2:3:4:5:6:7:: */
-			if (i == IPV6_BYTE_LENGTH-2)
+			if (i == IPV6_BYTE_SIZE-2)
 				break;
 
-			for (i += 2; i < IPV6_BYTE_LENGTH; i += 2) {
+			for (i += 2; i < IPV6_BYTE_SIZE; i += 2) {
 				word = NET_GET_SHORT(&ip[i]);
 				if (word != 0)
 					break;
@@ -101,7 +101,7 @@ formatIP(unsigned char *ip, int ip_length, int compact, char *buffer, long size)
 			break;
 
 		length += snprintf(buffer+length, size-length, word_fmt, word);
-		if (i < IPV6_BYTE_LENGTH-2 && length+1 < size)
+		if (i < IPV6_BYTE_SIZE-2 && length+1 < size)
 			buffer[length++] = ':';
 
 		/* IPv4-mapped-IPv6  == 0:0:0:0:0:ffff:123.45.67.89 */
@@ -157,7 +157,7 @@ socketAddressFormatIp(const struct sockaddr *sa, int flags, char *buffer, size_t
 
 	switch (sa->sa_family) {
 	case AF_INET:
-		length += formatIP((unsigned char *) &((struct sockaddr_in *) sa)->sin_addr, IPV4_BYTE_LENGTH, 0, buffer+length, size-length);
+		length += formatIP((unsigned char *) &((struct sockaddr_in *) sa)->sin_addr, IPV4_BYTE_SIZE, 0, buffer+length, size-length);
 		port = ntohs(((struct sockaddr_in *) sa)->sin_port);
 		delim = ':';
 		break;
@@ -168,12 +168,12 @@ socketAddressFormatIp(const struct sockaddr *sa, int flags, char *buffer, size_t
 		int offset, ip_length;
 
 		offset = 0;
-		ip_length = IPV6_BYTE_LENGTH;
+		ip_length = IPV6_BYTE_SIZE;
 
 		if ((flags & SOCKET_ADDRESS_AS_IPV4)
 		&& isReservedIPv6((unsigned char *) &((struct sockaddr_in6 *) sa)->sin6_addr, IS_IP_V4)) {
 			offset = IPV6_OFFSET_IPV4;
-			ip_length = IPV4_BYTE_LENGTH;
+			ip_length = IPV4_BYTE_SIZE;
 		}
 
 		length += formatIP(
@@ -251,8 +251,8 @@ int
 main(int argc, char **argv)
 {
 	int argi, length;
-	char string[IPV6_STRING_LENGTH];
-	unsigned char ipv6[IPV6_BYTE_LENGTH];
+	char string[IPV6_STRING_SIZE];
+	unsigned char ipv6[IPV6_BYTE_SIZE];
 
 	if (argc == 1) {
 		argv = test_list;

@@ -87,8 +87,8 @@
  ***********************************************************************/
 
 #define DNS_PORT		53
-#define NET_SHORT_BYTE_LENGTH	2
-#define NET_LONG_BYTE_LENGTH	4
+#define NET_SHORT_BYTE_SIZE	2
+#define NET_LONG_BYTE_SIZE	4
 #define UDP_PACKET_SIZE		512
 
 #define OP_QUERY		0x0000
@@ -105,7 +105,6 @@
 #define SHIFT_RCODE		0
 
 #define LABEL_LENGTH		63
-#define DOMAIN_LENGTH		(DOMAIN_STRING_LENGTH-1)
 
 /***********************************************************************
  *** Internal types.
@@ -173,8 +172,8 @@ struct pdq {
 };
 
 struct host {
-	char host[DOMAIN_LENGTH+1];
-	unsigned char ip[IPV6_BYTE_LENGTH];
+	char host[DOMAIN_SIZE];
+	unsigned char ip[IPV6_BYTE_SIZE];
 };
 
 static int debug = 0;
@@ -1302,7 +1301,7 @@ pdqListFindName(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *name)
  *	Only records of type PDQ_A or PDQ_AAAA are returned.
  */
 PDQ_rr *
-pdqListFindIP(PDQ_rr *list, PDQ_class class, PDQ_type type, const unsigned char ipv6[IPV6_BYTE_LENGTH])
+pdqListFindIP(PDQ_rr *list, PDQ_class class, PDQ_type type, const unsigned char ipv6[IPV6_BYTE_SIZE])
 {
 	/* We can only find IP in A/AAAA records. */
 	if (type != PDQ_TYPE_A && type != PDQ_TYPE_AAAA && type != PDQ_TYPE_5A)
@@ -1836,7 +1835,7 @@ pdq_name_length(struct udp_packet *packet, unsigned char *ptr)
 		return -1;
 	}
 
-	if (DOMAIN_LENGTH < length) {
+	if (DOMAIN_SIZE <= length) {
 		syslog(LOG_ERR, "pdq_name_length() domain name too long!!!");
 		return -1;
 	}
@@ -2045,8 +2044,8 @@ pdq_ip_to_arpa(const char *name)
 	char *buffer = NULL;
 
 	errno = 0;
-	if (strstr(name, ".arpa") == NULL && (buffer = malloc(DOMAIN_LENGTH+1)) != NULL) {
-		(void) reverseIp(name, buffer, DOMAIN_LENGTH+1, 1);
+	if (strstr(name, ".arpa") == NULL && (buffer = malloc(DOMAIN_SIZE)) != NULL) {
+		(void) reverseIp(name, buffer, DOMAIN_SIZE, 1);
 	}
 
 	return buffer;
@@ -2056,7 +2055,7 @@ pdq_ip_to_arpa(const char *name)
 static int
 pdq_parse_ns(const char *ns, SocketAddress *server)
 {
-	unsigned char ipv6[IPV6_BYTE_LENGTH];
+	unsigned char ipv6[IPV6_BYTE_SIZE];
 
 	if (parseIPv6(ns, ipv6) == 0)
 		return -1;
@@ -2071,7 +2070,7 @@ pdq_parse_ns(const char *ns, SocketAddress *server)
 	{
 		server->in.sin_port = htons(DNS_PORT);
 		server->in.sin_family = AF_INET;
-		memcpy(&server->in.sin_addr, ipv6+IPV6_OFFSET_IPV4, IPV4_BYTE_LENGTH);
+		memcpy(&server->in.sin_addr, ipv6+IPV6_OFFSET_IPV4, IPV4_BYTE_SIZE);
 	}
 
 	return 0;
@@ -2133,7 +2132,7 @@ pdq_query_fill(PDQ *pdq, PDQ_query *query, PDQ_class class, PDQ_type type, const
 	unsigned char *s, *t, *label;
 
 	length = strlen(name);
-	if (DOMAIN_STRING_LENGTH <= length) {
+	if (DOMAIN_SIZE <= length) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -2144,7 +2143,7 @@ pdq_query_fill(PDQ *pdq, PDQ_query *query, PDQ_class class, PDQ_type type, const
 	/* The header length, length of the name with root segment,
 	 * and space for the type and class fields.
 	 */
-	q->length = sizeof (struct header) + 1 + length + needRoot + 2 * NET_SHORT_BYTE_LENGTH;
+	q->length = sizeof (struct header) + 1 + length + needRoot + 2 * NET_SHORT_BYTE_SIZE;
 
 	/* Fill in the header fields that are not zero. */
 	q->header.id = htons(RANDOM_NUMBER(0xFFFF));
@@ -2275,7 +2274,7 @@ pdq_fill_rr(PDQ_rr *rr, struct udp_packet *packet, unsigned char *ptr, unsigned 
 	}
 
 	rr->type = NET_GET_SHORT(ptr);
-	ptr += NET_SHORT_BYTE_LENGTH;
+	ptr += NET_SHORT_BYTE_SIZE;
 	if (packet_end <= ptr) {
 		syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
 		errno = EFAULT;
@@ -2283,7 +2282,7 @@ pdq_fill_rr(PDQ_rr *rr, struct udp_packet *packet, unsigned char *ptr, unsigned 
 	}
 
 	rr->class = NET_GET_SHORT(ptr);
-	ptr += NET_SHORT_BYTE_LENGTH;
+	ptr += NET_SHORT_BYTE_SIZE;
 	if (packet_end < ptr) {
 		syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
 		errno = EFAULT;
@@ -2317,7 +2316,7 @@ pdq_reply_rr(struct udp_packet *packet, unsigned char *ptr, unsigned char **stop
 	}
 
 	type = NET_GET_SHORT(ptr);
-	ptr += NET_SHORT_BYTE_LENGTH;
+	ptr += NET_SHORT_BYTE_SIZE;
 	if (packet_end <= ptr) {
 		syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
 		errno = EFAULT;
@@ -2325,7 +2324,7 @@ pdq_reply_rr(struct udp_packet *packet, unsigned char *ptr, unsigned char **stop
 	}
 
 	class = NET_GET_SHORT(ptr);
-	ptr += NET_SHORT_BYTE_LENGTH;
+	ptr += NET_SHORT_BYTE_SIZE;
 	if (packet_end < ptr) {
 		syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
 		errno = EFAULT;
@@ -2447,7 +2446,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			/* Skip unknown DNS RR types. */
 			if (errno == EINVAL) {
 				/* Skip TTL field. */
-				ptr += NET_LONG_BYTE_LENGTH;
+				ptr += NET_LONG_BYTE_SIZE;
 				if (packet_end <= ptr) {
 					syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
 					goto error1;
@@ -2455,7 +2454,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 
 				/* Get length field for remainder of RR. */
 				length = NET_GET_SHORT(ptr);
-				ptr += NET_SHORT_BYTE_LENGTH;
+				ptr += NET_SHORT_BYTE_SIZE;
 				if (packet_end <= ptr) {
 					syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
 					goto error1;
@@ -2475,14 +2474,14 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 		}
 
 		record->ttl = NET_GET_LONG(ptr);
-		ptr += NET_LONG_BYTE_LENGTH;
+		ptr += NET_LONG_BYTE_SIZE;
 		if (packet_end <= ptr) {
 			syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
 			goto error1;
 		}
 
 		length = NET_GET_SHORT(ptr);
-		ptr += NET_SHORT_BYTE_LENGTH;
+		ptr += NET_SHORT_BYTE_SIZE;
 		if (packet_end <= ptr) {
 			syslog(LOG_WARN, "%s.%d: id=%u packet boundary error", __FUNCTION__, __LINE__, packet->header.id);
 			goto error1;
@@ -2516,7 +2515,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 
 		case PDQ_TYPE_MX:
 			((PDQ_MX *) record)->preference = NET_GET_SHORT(ptr);
-			ptr += NET_SHORT_BYTE_LENGTH;
+			ptr += NET_SHORT_BYTE_SIZE;
 			/*@fallthrough@*/
 
 		case PDQ_TYPE_NS:
@@ -2579,19 +2578,19 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			}
 
 			((PDQ_SOA *) record)->serial = NET_GET_LONG(ptr);
-			ptr += NET_LONG_BYTE_LENGTH;
+			ptr += NET_LONG_BYTE_SIZE;
 
 			((PDQ_SOA *) record)->refresh = NET_GET_LONG(ptr);
-			ptr += NET_LONG_BYTE_LENGTH;
+			ptr += NET_LONG_BYTE_SIZE;
 
 			((PDQ_SOA *) record)->retry = NET_GET_LONG(ptr);
-			ptr += NET_LONG_BYTE_LENGTH;
+			ptr += NET_LONG_BYTE_SIZE;
 
 			((PDQ_SOA *) record)->expire = NET_GET_LONG(ptr);
-			ptr += NET_LONG_BYTE_LENGTH;
+			ptr += NET_LONG_BYTE_SIZE;
 
 			((PDQ_SOA *) record)->minimum = NET_GET_LONG(ptr);
-			ptr += NET_LONG_BYTE_LENGTH;
+			ptr += NET_LONG_BYTE_SIZE;
 			break;
 
 		case PDQ_TYPE_HINFO:
@@ -2906,7 +2905,7 @@ pdqOpen(void)
 	if (pdq_source_port_randomise) {
 		int i;
 		SocketAddress local;
-		char local_name[DOMAIN_STRING_LENGTH], local_ip[IPV6_STRING_LENGTH];
+		char local_name[DOMAIN_SIZE], local_ip[IPV6_STRING_SIZE];
 
 		local_ip[0] = '\0';
 		local_name[0] = '\0';
@@ -3054,10 +3053,10 @@ pdqQuery(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char 
 	 * then reverse the IP address ourselves.
 	 */
 	if (type == PDQ_TYPE_PTR && strstr(name, ".arpa") == NULL) {
-		if ((buffer = malloc(DOMAIN_LENGTH+1)) == NULL)
+		if ((buffer = malloc(DOMAIN_SIZE)) == NULL)
 			goto error1;
 
-		length = reverseIp(name, buffer, DOMAIN_LENGTH+1, 1);
+		length = reverseIp(name, buffer, DOMAIN_SIZE, 1);
 		name = buffer;
 	}
 
@@ -3140,14 +3139,14 @@ pdqPoll(PDQ *pdq, unsigned ms)
 			saved_errno = errno;
 			reply->packet.header.bits = ntohs(reply->packet.header.bits);
 			if (0 < debug) {
-				char ipv6[IPV6_STRING_LENGTH];
+				char ipv6[IPV6_STRING_SIZE];
 				*ipv6 = '\0';
 #ifdef HAVE_STRUCT_SOCKADDR_IN6
 				if (reply->from.sa.sa_family == AF_INET6)
-					(void) formatIP((unsigned char *) &reply->from.in6.sin6_addr, IPV6_BYTE_LENGTH, 1, ipv6, sizeof (ipv6));
+					(void) formatIP((unsigned char *) &reply->from.in6.sin6_addr, IPV6_BYTE_SIZE, 1, ipv6, sizeof (ipv6));
 				else
 #endif
-					(void) formatIP((unsigned char *) &reply->from.in.sin_addr, IPV4_BYTE_LENGTH, 1, ipv6, sizeof (ipv6));
+					(void) formatIP((unsigned char *) &reply->from.in.sin_addr, IPV4_BYTE_SIZE, 1, ipv6, sizeof (ipv6));
 				syslog(LOG_DEBUG, "< recv id=%u rcode=%d length=%u from=%s", ntohs(reply->packet.header.id), reply->packet.header.bits & PDQ_BITS_RCODE, reply->packet.length, ipv6);
 			}
 
@@ -3304,7 +3303,7 @@ pdqListHasValidSOA(PDQ_rr *list, const char *name)
 	int offset;
 	PDQ_rr *rr;
 	PDQ_valid_soa rc;
-	unsigned char ipv6[IPV6_BYTE_LENGTH];
+	unsigned char ipv6[IPV6_BYTE_SIZE];
 
 	rc = PDQ_SOA_MISSING;
 
@@ -3586,7 +3585,7 @@ pdqGetDnsList(PDQ *pdq, PDQ_class class, PDQ_type type, const char *prefix_name,
 	size_t length;
 	PDQ_rr *answer;
 	const char **suffix;
-	char buffer[DOMAIN_STRING_LENGTH];
+	char buffer[DOMAIN_SIZE];
 
 	answer = NULL;
 
@@ -3841,7 +3840,7 @@ pdqTestSOA(PDQ *pdq, PDQ_class class, const char *name, PDQ_rr **list)
 
 	/* Find start of TLD. */
 	if ((offset = indexValidTLD(name)) < 0) {
-		unsigned char ipv6[IPV6_BYTE_LENGTH];
+		unsigned char ipv6[IPV6_BYTE_SIZE];
 
 		/* Ignore IP addresses by assuming true. */
 		if (0 < parseIPv6(name, ipv6)) {
@@ -4530,7 +4529,7 @@ main(int argc, char **argv)
 	Vector suffix_list;
 	PDQ_rr *list, *answers;
 	PDQ_rr *(*wait_fn)(PDQ *);
-	char buffer[DOMAIN_STRING_LENGTH+1];
+	char buffer[DOMAIN_SIZE];
 	int ch, type, class, i, prune_list, check_soa, from_root;
 
 	from_root = 0;

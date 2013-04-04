@@ -31,7 +31,7 @@
 int
 isReservedIP(const char *ip, is_ip_t mask)
 {
-	unsigned char ipv6[IPV6_BYTE_LENGTH];
+	unsigned char ipv6[IPV6_BYTE_SIZE];
 
 	if (parseIPv6(ip, ipv6) == 0)
 		return 0;
