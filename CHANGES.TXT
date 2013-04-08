@@ -61,6 +61,9 @@ is no set schedule for releases.
 
    *    Upgraded SQLite to 3.7.16.1
 
+   !    Fix spfCheck() double free of target introduced in 1.75.20. Also
+	simplified spfMacro() to always return a malloc'd string, instead
+	of either malloc'd string or domain argument.
 
 --1.75.20--
 

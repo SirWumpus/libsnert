@@ -135,7 +135,7 @@ spfMacro(spfContext *ctx, const char *domain, const char *fmt)
 
 	fmt += *fmt == ':';
 	if (*fmt == '\0' || *fmt == '/')
-		return (char *) domain;
+		fmt = "%{d}";
 
 	format = fmt;
 	is_ipv6 = strchr(ctx->ip, ':') != NULL;
@@ -516,8 +516,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 	for (i = 1; i < VectorLength(terms); i++, qualifier = SPF_NEUTRAL) {
 		pdqListFree(list);
 		list = NULL;
-		if (target != domain)
-			free(target);
+		free(target);
 		target = NULL;
 
 		if ((term = VectorGet(terms, i)) == NULL)
@@ -840,13 +839,11 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 		}
 		err = spfCheck(ctx, target, NULL);
 		qualifier = ctx->result;
-		free(target);
 	}
 done:
 error5:
 	VectorDestroy(terms);
-	if (target != domain)
-		free(target);
+	free(target);
 error4:
 	if (alt_txt == NULL)
 		free(txt);
