@@ -378,7 +378,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 	const char *err;
 	long i, length;
 	unsigned long cidr, cidr6;
-	char *term, *redirect, *target;
+	char *term, *redirect, *target, *explain;
 	unsigned char net[IPV6_BYTE_SIZE];
 
 	txt = NULL;
@@ -824,6 +824,15 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 				goto error5;
 			}
 			redirect = term+STRLEN("redirect=");
+		}
+
+		else if (TextInsensitiveCompareN(term , "exp=", STRLEN("exp=")) == 0) {
+			if (explain != NULL) {
+				qualifier = SPF_PERM_ERROR;
+				err = spfErrorSyntax;
+				goto error5;
+			}
+			explain = term+STRLEN("exp=");
 		}
 
 		/* Unsupported terms, such as exp= and RFC 6652
