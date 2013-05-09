@@ -432,19 +432,24 @@ socket3_client(SOCKET fd, SocketAddress *addr, long timeout)
 	UPDATE_ERRNO;
 
 	switch (errno) {
+	case ECONNREFUSED:
+		goto error1;
 	case EAGAIN:
 #if defined(EAGAIN) && defined(EWOULDBLOCK) && EAGAIN != EWOULDBLOCK
 	case EWOULDBLOCK:
 #endif
 	case EINPROGRESS:
-		(void) socket3_get_error(fd);
+		if ((rc = socket3_get_error(fd)) != EINPROGRESS && rc != 0) {
+			errno = rc;
+			goto error1;
+		}
 		if (!socket3_can_send(fd, timeout))
 			goto error1;
-
 		/* Resets the socket's copy of the error code. */
-		if (socket3_get_error(fd))
+		if ((rc = socket3_get_error(fd)) != 0) {
+			errno = rc;
 			goto error1;
-
+		}
 		/*@fallthrough@*/
 	case 0:
 		rc = 0;
@@ -458,6 +463,7 @@ error0:
 static SOCKET
 socket3_basic_connect(const char *host, unsigned port, long timeout)
 {
+	int err;
 	SOCKET fd;
 	SocketAddress *addr;
 
@@ -467,8 +473,10 @@ socket3_basic_connect(const char *host, unsigned port, long timeout)
 	fd = socket3_open(addr, 1);
 
 	if (socket3_client(fd, addr, timeout)) {
+		err = errno;
 		socket3_close(fd);
 		fd = SOCKET_ERROR;
+		errno = err;
 	}
 
 	free(addr);
@@ -510,7 +518,7 @@ socket3_connect(const char *host, unsigned port, long timeout)
 		return fd;
 
 	/* We have a host[:port] where the host might be multi-homed. */
-	if ((span = spanHost((unsigned char *)host, 1)) <= 0)
+	if ((span = spanHost((unsigned char *)host, 0)) <= 0)
 		return SOCKET_ERROR;
 
 	/* Find the optional port. */

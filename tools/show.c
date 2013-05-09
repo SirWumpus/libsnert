@@ -1,13 +1,26 @@
 /*
  * show.c
  *
- * Copyright 2000, 2004 by Anthony Howe.  All rights reserved.
+ * Copyright 2000, 2013 by Anthony Howe.  All rights reserved.
  *
- * usage: show lines files...
+ * usage: show [-bfu][-n lines][-p string] file ...
  */
+
+#ifndef DEFAULT_LINES
+#define DEFAULT_LINES		(-10)
+#endif
+
+#ifndef POLL_INTERVAL
+#define POLL_INTERVAL		2
+#endif
+
+#ifndef BUFFER_SIZE
+#define BUFFER_SIZE		(32*1024)
+#endif
 
 #include <com/snert/lib/version.h>
 
+#include <errno.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -20,38 +33,40 @@
 #include <com/snert/lib/sys/Time.h>
 #include <com/snert/lib/util/getopt.h>
 
-char buf[BUFSIZ];
+static char buffer[BUFFER_SIZE];
 
-char usage[] =
-"usage: show [-bfu][-n lines][-p string] files...\n"
+static char usage[] =
+"usage: show [-bfu][-n lines][-p string] file ...\n"
 "\n"
 "-b\t\tbeep when pattern matches\n"
-"-f\t\tcontinue to output data as the file grows\n"
+"-f\t\tcontinue to output data as a file grows\n"
 "-n lines\tdisplay the top N or bottom -N lines; 0 for all\n"
 "-p string\thighlight string in the output\n"
 "-u\t\tunbuffered output\n"
 "files ...\tlist of files to show\n"
 "\n"
-"show/1.4 Copyright 2000, 2004 by Anthony Howe. All rights reserved.\n"
+"show Copyright 2000, 2013 by Anthony Howe. All rights reserved.\n"
 ;
 
-int beep;
-const char asciiBeep[] = "\007";
-const char ansiNormal[] = "\033[0m";
-const char ansiReverse[] = "\033[5;7m";
+static int beep;
+static int follow_flag;
+static int reverse_flag;
+static long nlines = DEFAULT_LINES;
+static char *pattern;
 
-int
+static const char asciiBeep[] = "\007";
+static const char ansiNormal[] = "\033[0m";
+static const char ansiReverse[] = "\033[5;7m";
+
+static long
 output(const char *buf, long length, const char *pattern, long *resume)
 {
 	long i, plen;
 	const char *stop;
 
-	if (pattern == (const char *) 0)
-#ifdef UNBUFFERED
-		return write(1, buf, length);
-#else
+	if (pattern == NULL)
 		return fwrite(buf, 1, length, stdout);
-#endif
+
 	plen = strlen(pattern);
 	stop = buf + length;
 
@@ -62,26 +77,16 @@ output(const char *buf, long length, const char *pattern, long *resume)
 		}
 
 		if (pattern[*resume + i] == '\0') {
-#ifdef UNBUFFERED
-			write(1, ansiReverse, sizeof (ansiReverse) - 1);
-			write(1, pattern, plen);
-			write(1, ansiNormal, sizeof (ansiNormal) - 1);
-#else
 			fwrite(ansiReverse, 1, sizeof (ansiReverse) - 1, stdout);
 			fwrite(pattern, 1, plen, stdout);
 			fwrite(ansiNormal, 1, sizeof (ansiNormal) - 1, stdout);
-#endif
+
 			buf += i;
 		} else if (stop <= buf + i) {
 			*resume += i;
 			return length - i;
 		} else {
-#ifdef UNBUFFERED
-			write(1, pattern, *resume + i);
-#else
 			fwrite(pattern, 1, *resume + i, stdout);
-#endif
-
 			buf += i;
 		}
 
@@ -94,11 +99,7 @@ output(const char *buf, long length, const char *pattern, long *resume)
 				break;
 		}
 
-#ifdef UNBUFFERED
-		(void) write(1, buf, i);
-#else
 		(void) fwrite(buf, 1, i, stdout);
-#endif
 		buf += i;
 
 		for (i = 0; buf + i < stop && pattern[i] != '\0'; i++) {
@@ -107,27 +108,17 @@ output(const char *buf, long length, const char *pattern, long *resume)
 		}
 
 		if (pattern[i] == '\0') {
-#ifdef UNBUFFERED
-			write(1, ansiReverse, sizeof (ansiReverse) - 1);
-			write(1, pattern, plen);
-			write(1, ansiNormal, sizeof (ansiNormal) - 1);
-#else
 			if (beep)
 				fwrite(asciiBeep, 1, sizeof (asciiBeep) - 1, stdout);
 			fwrite(ansiReverse, 1, sizeof (ansiReverse) - 1, stdout);
 			fwrite(pattern, 1, plen, stdout);
 			fwrite(ansiNormal, 1, sizeof (ansiNormal) - 1, stdout);
-#endif
 			buf += i;
 		} else if (stop <= buf + i) {
 			*resume += i;
 			return length - i;
 		} else {
-#ifdef UNBUFFERED
-			write(1, buf, i);
-#else
 			fwrite(buf, 1, i, stdout);
-#endif
 			buf += i;
 		}
 	}
@@ -135,182 +126,205 @@ output(const char *buf, long length, const char *pattern, long *resume)
 	return length;
 }
 
+static int
+follow_stream(FILE *fp)
+{
+	size_t n;
+	int follow;
+	struct stat sb;
+	dev_t last_dev = 0;
+	ino_t last_ino = 0;
+	size_t last_size = 0;
+	long pattern_offset = 0;
+
+	/* Cannot follow standard input. */
+	follow = follow_flag && fileno(fp) != STDIN_FILENO;
+
+	if (fstat(fileno(fp), &sb) == 0) {
+		last_ino = sb.st_ino;
+		last_dev = sb.st_dev;
+		last_size = sb.st_size;
+	}
+
+	do {
+		clearerr(fp);
+		while (0 < (n = fread(buffer, 1, sizeof (buffer), fp))) {
+			(void) output(buffer, n, pattern, &pattern_offset);
+		}
+
+		if (follow) {
+			if (fstat(fileno(fp), &sb) != 0
+			|| sb.st_size < last_size
+			|| sb.st_ino != last_ino
+			|| sb.st_dev != last_dev)
+				return -1;
+
+			sleep(POLL_INTERVAL);
+			last_ino = sb.st_ino;
+			last_dev = sb.st_dev;
+			last_size = sb.st_size;
+		}
+	} while (follow && !ferror(fp));
+
+	fflush(stdout);
+
+	return 0;
+}
+
+static int
+seek_last_n_lines(FILE *fp, size_t lines)
+{
+	char *eb;
+	off_t offset;
+	size_t n, count;
+	struct stat finfo;
+
+	if (fstat(fileno(fp), &finfo) != 0)
+		return -1;
+
+	/* Start with the odd buffer length from the end of file. */
+	offset = finfo.st_size % sizeof (buffer);
+
+	/* Seeking on a pipe will fail with errno ESPIPE. */
+	if (fseek(fp, -offset, SEEK_END) == -1)
+		return -1;
+
+	offset = ftell(fp);
+
+	for (count = 0; ; ) {
+		/* Fill the buffer. */
+		if ((n = fread(buffer, 1, sizeof (buffer), fp)) == 0)
+			break;
+
+		/* Count backwards newlines (fine for Unix, PC). */
+		for (eb = buffer+n; buffer < eb; ) {
+			if (*--eb == '\n' && lines <= count++) {
+				offset += (eb+1-buffer);
+				(void) fseek(fp, offset, SEEK_SET);
+				break;
+			}
+		}
+
+		if (lines <= count)
+			break;
+
+		/* Move backwards by BUFSIZ byte units until we
+		 * seek beyond the start of the file.
+		 */
+		if (fseek(fp, offset-sizeof (buffer), SEEK_SET) == -1)
+			break;
+
+		offset = ftell(fp);
+	}
+
+	return 0;
+}
+
+static FILE *
+show_n_lines(const char *file, long lines)
+{
+	FILE *fp;
+	size_t n;
+	char *b, *eb;
+	long pattern_offset = 0;
+
+	if (file[0] == '-' && file[1] == '\0')
+		fp = stdin;
+	else if ((fp = fopen(file, "rb")) == NULL)
+		return NULL;
+
+	if (lines < 0) {
+		lines = -lines;
+		if (seek_last_n_lines(fp, lines)) {
+			(void) fclose(fp);
+			return NULL;
+		}
+	}
+
+	while (0 < lines) {
+		if ((n = fread(buffer, 1, sizeof (buffer), fp)) == 0)
+			break;
+
+		/* Count newlines in the buffer. */
+		for (b = buffer, eb = buffer+n; b < eb; ) {
+			if (*b++ == '\n' && --lines <= 0)
+				break;
+		}
+
+		(void) output(buffer, b - buffer, pattern, &pattern_offset);
+	}
+
+	fflush(stdout);
+
+	return fp;
+}
+
+static void
+show_file(const char *file)
+{
+	FILE *fp;
+
+	/* Show first N or last N lines of a file. */
+	fp = show_n_lines(file, nlines);
+
+	/* Follow the file as it grows, like a log file. */
+	while (fp != NULL && follow_stream(fp)) {
+		/* The file has been truncated or replaced. */
+		fp = freopen(file, "rb", fp);
+	}
+
+	if (fp != NULL)
+		(void) fclose(fp);
+	else
+		(void) fprintf(stderr, "%s: %s (%d)\n", file, strerror(errno), errno);
+}
+
 int
 main(int argc, char **argv)
 {
-#ifdef UNBUFFERED
-	int fd;
-#else
-	FILE *fp;
-#endif
-	size_t n;
-	off_t offset;
-	struct stat finfo;
-	char *b, *eb, *pattern;
-	int ch, follow, unbuffered;
-	long lines, count, patternOffset;
+	int ch;
 
-	follow = 0;
-	lines = -10;
-	unbuffered = 0;
-	pattern = NULL;
-	patternOffset = 0;
-
-	while ((ch = getopt(argc, argv, "bfn:p:u")) != -1) {
+	while ((ch = getopt(argc, argv, "bfn:p:ru")) != -1) {
 		switch (ch) {
 		case 'b':
 			beep = 1;
 			break;
 		case 'f':
-			follow = 1;
+			follow_flag = 1;
 			break;
 		case 'p':
 			pattern = optarg;
 			break;
 		case 'u':
-			unbuffered = 1;
+			setvbuf(stdout, NULL, _IONBF, 0);
 			break;
 		case 'n':
-			lines = strtol(optarg, NULL, 10);
+			nlines = strtol(optarg, NULL, 10);
+			break;
+		case 'r':
+			reverse_flag = 1;
 			break;
 		default:
-			fprintf(stderr, usage);
-			return 2;
+			optind = argc+1;
+			break;
 		}
 	}
 
-	if (argc <= optind) {
+	if (argc < optind) {
 		fprintf(stderr, usage);
 		return 2;
 	}
 
-	for ( ; optind < argc; optind++) {
-		if (stat(argv[optind], &finfo) < 0)
-			return 1;
+	/* Can follow only a single file argument. */
+	if (optind + 1 != argc)
+		follow_flag = 0;
 
-#ifdef UNBUFFERED
-		if ((fd = open(argv[optind], O_RDONLY)) < 0)
-			return 1;
-#else
-		if ((fp = fopen(argv[optind], "r")) == NULL)
-			return 1;
-
-		if (unbuffered)
-			setvbuf(fp, NULL, _IONBF, 0);
-#endif
-
-		if (lines == 0) {
-#ifdef UNBUFFERED
-			while (0 < (n = read(fd, buf, sizeof (buf)))) {
-#else
-			while (0 < (n = fread(buf, 1, sizeof (buf), fp))) {
-#endif
-				(void) output(buf, n, pattern, &patternOffset);
-			}
-		} else {
-			if (lines < 0) {
-				count = lines = -lines;
-
-				/* Start with the odd buffer length from the end of file. */
-				offset = finfo.st_size % sizeof (buf);
-
-#ifdef UNBUFFERED
-				if ((offset = lseek(fd, -offset, SEEK_END)) == (off_t) -1)
-					return 1;
-#else
-				if (fseek(fp, -offset, SEEK_END) == -1)
-					return 1;
-
-				offset = ftell(fp);
-#endif
-
-				for (;;) {
-					/* Fill the buffer. */
-#ifdef UNBUFFERED
-					if ((n = read(fd, buf, sizeof (buf))) <= 0)
-#else
-					if ((n = fread(buf, 1, sizeof (buf), fp)) == 0)
-#endif
-						break;
-
-					/* Count backwards newlines (fine for Unix, PC). */
-					for (eb = buf+n; buf < eb; ) {
-						if (*--eb == '\n' && --count < 0) {
-							offset += (eb+1-buf);
-#ifdef UNBUFFERED
-							(void) lseek(fd, offset, SEEK_SET);
-#else
-							(void) fseek(fp, offset, SEEK_SET);
-#endif
-							break;
-						}
-					}
-
-					if (count <= 0)
-						break;
-
-					/* Move backwards by BUFSIZ byte units until we
-					 * seek beyond the start of the file.
-					 */
-#ifdef UNBUFFERED
-					if ((offset = lseek(fd, offset-sizeof (buf), SEEK_SET)) == (off_t) -1)
-						break;
-#else
-					if (fseek(fp, offset-sizeof (buf), SEEK_SET) == -1)
-						break;
-
-					offset = ftell(fp);
-#endif
-				}
-			}
-
-			while (0 < lines) {
-#ifdef UNBUFFERED
-				if ((n = read(fd, buf, sizeof (buf))) < 0)
-#else
-				if ((n = fread(buf, 1, sizeof (buf), fp)) == 0)
-#endif
-					break;
-
-				/* Count newlines (fine for Unix, PC). */
-				for (b = buf, eb = buf+n; b < eb; )
-					if (*b++ == '\n' && --lines <= 0)
-						break;
-
-				(void) output(buf, b - buf, pattern, &patternOffset);
-			}
-
-#ifndef UNBUFFERED
-			fflush(stdout);
-#endif
+	if (argc == optind) {
+		show_file("-");
+	} else {
+		for ( ; optind < argc; optind++) {
+			show_file(argv[optind]);
 		}
-
-#ifdef UNBUFFERED
-		while (follow && 0 <= (n = read(fd, buf, sizeof (buf)))) {
-#else
-		while (follow) {
-			clearerr(fp);
-			if ((n = fread(buf, 1, sizeof (buf), fp)) == 0) {
-				/* For zero length reads check for an error.
-				 * if no error pause for a bit, otherwise
-				 * we'll eat CPU cycles.
-				 */
-				follow = !ferror(fp);
-				sleep(1);
-				continue;
-			}
-#endif
-			(void) output(buf, n, pattern, &patternOffset);
-#ifndef UNBUFFERED
-			fflush(stdout);
-#endif
-		}
-
-#ifdef UNBUFFERED
-		(void) close(fd);
-#else
-		(void) fclose(fp);
-#endif
 	}
 
 	return 0;

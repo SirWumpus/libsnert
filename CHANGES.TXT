@@ -57,6 +57,22 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.22--
+
+   *    Upgraded SQLite to 3.7.16.2
+
+   !	Fixed socket3_connect() handling of ECONNREFUSED, particularly
+	so that connections to a host with both an AAAA and A records
+	ie. localhost where a service isn't available on IPv6, then
+	falls back to the IPv4.
+
+   !	Fixed secho CLI to work with IMAP STARTTLS and handling lengthy
+	replies from POP and IMAP commands, such as LIST, UIDL, LSUB,
+	etc.
+
+   !	Fixed show tool's handling of -f follow option and removed old
+   	UNBUFFERED code blocks in favour of stdio.
+
 --1.75.21--
 
    *    Upgraded SQLite to 3.7.16.1
