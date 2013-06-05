@@ -86,6 +86,7 @@ char **argv;
 		FatalPrintLine(0, 0, "Both files refer to standard input.");
 
 	for (fetch = FILE_1 | FILE_2, eof_1_2 = 0; ; ) {
+		i = 0;
 		if (fetch & FILE_1) {
 			(void) fgets(line1, sizeof line1, fp1);
 			if (ferror(fp1))

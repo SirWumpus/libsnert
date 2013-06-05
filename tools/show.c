@@ -29,8 +29,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+
 #include <com/snert/lib/io/posix.h>
 #include <com/snert/lib/sys/Time.h>
+#include <com/snert/lib/sys/sysexits.h>
 #include <com/snert/lib/util/getopt.h>
 
 static char buffer[BUFFER_SIZE];
@@ -130,20 +132,25 @@ static int
 follow_stream(FILE *fp)
 {
 	size_t n;
-	int follow;
 	struct stat sb;
-	dev_t last_dev = 0;
 	ino_t last_ino = 0;
+	dev_t last_dev = 0;
+	dev_t last_rdev = 0;
 	size_t last_size = 0;
 	long pattern_offset = 0;
 
-	/* Cannot follow standard input. */
-	follow = follow_flag && fileno(fp) != STDIN_FILENO;
-
+	/* Initialise our current position and file "instance" variables. */
 	if (fstat(fileno(fp), &sb) == 0) {
 		last_ino = sb.st_ino;
 		last_dev = sb.st_dev;
+		last_rdev = sb.st_rdev;
 		last_size = sb.st_size;
+
+		/* The -f option is ignored if the standard input
+		 * is a pipe, but not if it is a FIFO.
+		 */
+		if (follow_flag)
+			follow_flag = fileno(fp) != STDIN_FILENO || S_ISFIFO(sb.st_mode);
 	}
 
 	do {
@@ -152,19 +159,24 @@ follow_stream(FILE *fp)
 			(void) output(buffer, n, pattern, &pattern_offset);
 		}
 
-		if (follow) {
+		if (follow_flag) {
+			/* Wait for new data to accumulate. */
+			sleep(POLL_INTERVAL);
+
+			/* Check for truncation or new instance of file. */
 			if (fstat(fileno(fp), &sb) != 0
 			|| sb.st_size < last_size
 			|| sb.st_ino != last_ino
-			|| sb.st_dev != last_dev)
+			|| sb.st_dev != last_dev
+			|| sb.st_rdev != last_rdev)
 				return -1;
 
-			sleep(POLL_INTERVAL);
 			last_ino = sb.st_ino;
 			last_dev = sb.st_dev;
+			last_rdev = sb.st_dev;
 			last_size = sb.st_size;
 		}
-	} while (follow && !ferror(fp));
+	} while (follow_flag && !ferror(fp));
 
 	fflush(stdout);
 
@@ -175,7 +187,7 @@ static int
 seek_last_n_lines(FILE *fp, size_t lines)
 {
 	char *eb;
-	off_t offset;
+	long offset;
 	size_t n, count;
 	struct stat finfo;
 
@@ -183,39 +195,36 @@ seek_last_n_lines(FILE *fp, size_t lines)
 		return -1;
 
 	/* Start with the odd buffer length from the end of file. */
-	offset = finfo.st_size % sizeof (buffer);
-
-	/* Seeking on a pipe will fail with errno ESPIPE. */
-	if (fseek(fp, -offset, SEEK_END) == -1)
-		return -1;
-
-	offset = ftell(fp);
+	offset = finfo.st_size - finfo.st_size % sizeof (buffer);
 
 	for (count = 0; ; ) {
-		/* Fill the buffer. */
-		if ((n = fread(buffer, 1, sizeof (buffer), fp)) == 0)
+		/* Seeking on a pipe will fail with errno ESPIPE. */
+		if (fseek(fp, offset, SEEK_SET) == -1)
 			break;
 
-		/* Count backwards newlines (fine for Unix, PC). */
+		/* Fill the buffer. */
+		if ((n = fread(buffer, 1, sizeof (buffer), fp)) <= 0)
+			break;
+
+		/* Count backwards N newlines. */
 		for (eb = buffer+n; buffer < eb; ) {
 			if (*--eb == '\n' && lines <= count++) {
 				offset += (eb+1-buffer);
-				(void) fseek(fp, offset, SEEK_SET);
 				break;
 			}
 		}
 
-		if (lines <= count)
+		if (offset <= 0 || lines <= count)
 			break;
 
-		/* Move backwards by BUFSIZ byte units until we
-		 * seek beyond the start of the file.
+		/* Move backwards by buffer size units until we reach
+		 * the start of the file.
 		 */
-		if (fseek(fp, offset-sizeof (buffer), SEEK_SET) == -1)
-			break;
-
-		offset = ftell(fp);
+		offset -= sizeof (buffer);
 	}
+
+	/* Set to start of file or start of last N lines. */
+	(void) fseek(fp, offset, SEEK_SET);
 
 	return 0;
 }
@@ -312,7 +321,7 @@ main(int argc, char **argv)
 
 	if (argc < optind) {
 		fprintf(stderr, usage);
-		return 2;
+		return EX_USAGE;
 	}
 
 	/* Can follow only a single file argument. */
@@ -327,5 +336,5 @@ main(int argc, char **argv)
 		}
 	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }

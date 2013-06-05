@@ -3,7 +3,7 @@
  *
  * Generic Log Trawler, Tracking, and Reporting
  *
- * Copyright 2012 by Anthony Howe.  All rights reserved.
+ * Copyright 2012, 2013 by Anthony C Howe.  All rights reserved.
  */
 
 #ifndef _NAME
@@ -37,6 +37,12 @@
 #ifndef SMTP_CONNECT_TO
 #define SMTP_CONNECT_TO		30
 #endif
+
+#ifndef POLL_INTERVAL
+#define POLL_INTERVAL		2
+#endif
+
+#define ON_EXPIRE		1
 
 /***********************************************************************
  *** No configuration below this point.
@@ -123,7 +129,7 @@
 "END;" \
 "CREATE TRIGGER limit_onupdate AFTER UPDATE ON limits BEGIN"\
 " INSERT INTO limit_to_log VALUES(OLD.oid, (SELECT id_log FROM log_last_oid WHERE oid=1));" \
-"END;" 
+"END;"
 
 #define TABLES_EXIST    \
 "SELECT name FROM sqlite_master WHERE type='table' AND name='log';"
@@ -176,10 +182,11 @@ struct sift_ctx {
 };
 
 struct pattern_rule {
-	ListItem node;	
+	ListItem node;
 	char *pattern;
 	char *report;		/* NULL or r= . */
-	char *command;		/* NULL or c= . */
+	char *on_exceed;	/* NULL or c= . */
+	char *on_expire;	/* NULL or C= . */
 	char **limits;		/* NULL or NULL terminated array of l= strings. */
 	long thread;		/* -1 or index */
 	regex_t re;
@@ -248,16 +255,16 @@ static char usage[] =
 "-R\t\tReset the database before processing the log-files.\n"
 "\n"
 #endif
-"-s host:ip\tThe SMTP smart host to use for sending reports. The default\n"
+"-s host:ip\tThe SMTP smart host to use for sending reports. Default\n"
 "\t\tis \"127.0.0.1:25\".\n"
 "\n"
-"-v\t\tVerbose and/or debug information to standard output. -v write\n"
-"\t\tcopy of limit exceeded reports to standard output; -vv include\n"
-"\t\tSMTP debug; -vvv include regular expression debug.\n"
+"-v\t\tVerbose and/or debug information written to standard output.\n"
+"\t\t-v write limit exceeded reports; -vv include SMTP debug; -vvv\n"
+"\t\tinclude regular expression debug.\n"
 "\n"
 "-y year\t\tYear when log_file was create. Default current year.\n"
 "\n"
-"-z gmtoff\tGMT offset when log_file was created. Default current time zone.\n"
+"-z gmtoff\tGMT offset of log_file. Default current time zone.\n"
 "\n"
 "One or more log files can be examined. When none are specified, then\n"
 "standard input is used. When using -f only one log file may be given\n"
@@ -277,6 +284,13 @@ static char usage[] =
 "\tthe command string, instances of \"#N\" are replaced by the Nth\n"
 "\tsub-expression found in pattern.\n"
 "\n"
+#ifdef ON_EXPIRE
+"C=\"shell command\"\n"
+"\tWhen an exceeded limit expires, execute the given shell command.\n"
+"\tIn the command string, instances of \"#N\" are replaced by the Nth\n"
+"\tsub-expression found in pattern.\n"
+"\n"
+#endif
 "l=index[,index ...],max/time[unit]\n"
 "\tSpecifies one or more indices of sub-expressions for which this\n"
 "\tlimit applies. The value max is an upper limit (inclusive) over\n"
@@ -299,19 +313,19 @@ static char usage[] =
 "\tIndex number of a sub-expression found in pattern used to thread\n"
 "\trelated log lines.\n"
 "\n"
-"sift/1.0 Copyright 2012 by Anthony Howe. All rights reserved.\n"
+"sift/1.0 Copyright 2012, 2013 by Anthony C Howe. All rights reserved.\n"
 ;
 
 /***********************************************************************
- *** 
+ ***
  ***********************************************************************/
 
 #undef syslog
 
-void  
+void
 syslog(int level, const char *fmt, ...)
 {
-        va_list args;  
+        va_list args;
 
         va_start(args, fmt);
         if (logFile == NULL)
@@ -325,8 +339,8 @@ static void
 sql_error(const char *file, int line, sqlite3_stmt *stmt)
 {
 	(void) fprintf(
-		stderr, "%s/%d: %s (%d): %s\n", file, line, 
-		sqlite3_errmsg(ctx.db), sqlite3_errcode(ctx.db), 
+		stderr, "%s/%d: %s (%d): %s\n", file, line,
+		sqlite3_errmsg(ctx.db), sqlite3_errcode(ctx.db),
 		sqlite3_sql(stmt)
 	);
         (void) sqlite3_clear_bindings(stmt);
@@ -344,7 +358,7 @@ sql_step(sqlite3 *db, sqlite3_stmt *sql_stmt)
 
         if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
 //		(void) fprintf(stderr, "db step error: %s (%d)\n", sqlite3_errmsg(db), rc);
-                if (rc == SQLITE_CORRUPT || rc == SQLITE_CANTOPEN) 
+                if (rc == SQLITE_CORRUPT || rc == SQLITE_CANTOPEN)
 			abort();
         }
 
@@ -374,28 +388,28 @@ sql_count(void *data, int ncolumns, char **col_values, char **col_names)
 static void
 fini_db(void)
 {
-        if (ctx.insert_log != NULL) 
+        if (ctx.insert_log != NULL)
                 (void) sqlite3_finalize(ctx.insert_log);
-        if (ctx.thread_log != NULL) 
+        if (ctx.thread_log != NULL)
                 (void) sqlite3_finalize(ctx.thread_log);
 
-        if (ctx.insert_limit != NULL) 
+        if (ctx.insert_limit != NULL)
                 (void) sqlite3_finalize(ctx.insert_limit);
-        if (ctx.update_limit != NULL) 
+        if (ctx.update_limit != NULL)
                 (void) sqlite3_finalize(ctx.update_limit);
-        if (ctx.select_limit != NULL) 
+        if (ctx.select_limit != NULL)
                 (void) sqlite3_finalize(ctx.select_limit);
-        if (ctx.increment_limit != NULL) 
+        if (ctx.increment_limit != NULL)
                 (void) sqlite3_finalize(ctx.increment_limit);
 
-        if (ctx.insert_pattern != NULL) 
+        if (ctx.insert_pattern != NULL)
                 (void) sqlite3_finalize(ctx.insert_pattern);
-        if (ctx.select_pattern != NULL) 
+        if (ctx.select_pattern != NULL)
                 (void) sqlite3_finalize(ctx.select_pattern);
-        if (ctx.find_pattern != NULL) 
+        if (ctx.find_pattern != NULL)
                 (void) sqlite3_finalize(ctx.find_pattern);
 
-        if (ctx.select_limit_to_log != NULL) 
+        if (ctx.select_limit_to_log != NULL)
                 (void) sqlite3_finalize(ctx.select_limit_to_log);
 
 	sqlite3_close(ctx.db);
@@ -475,7 +489,8 @@ free_rule(void *_rule)
 
 	if (rule != NULL) {
 		free(rule->pattern);
-		free(rule->command);
+		free(rule->on_exceed);
+		free(rule->on_expire);
 		free(rule->limits);
 		regfree(&rule->re);
 		free(rule);
@@ -485,19 +500,19 @@ free_rule(void *_rule)
 /*
  * Pattern Rule Grammar
  * --------------------
- * 
+ *
  * line := blank | "#" comment | rule
- * 
+ *
  * rule := pattern *[ whitespace ] actions
- * 
+ *
  * whitespace := SPACE | TAB
- * 
+ *
  * pattern := "/" extended_regex "/"
- * 
+ *
  * actions := action [ ";" actions ]
- * 
- * action := thread | limit | report | command
- * 
+ *
+ * action := thread | limit | report | on_exceed | on_expire
+ *
  * quote := "'" | '"'
  *
  * index := number | quote text quote
@@ -505,13 +520,16 @@ free_rule(void *_rule)
  * indices := index [ "," index ]
  *
  * thread := "t=" indices
- * 
+ *
  * limit := "l=" indices "," max "/" period [ unit ]
- * 
+ *
  * report := "r=" mail *[ "," mail ]
- * 
- * command := "c=" quoted_shell_command
- * 
+ *
+ * on_exceed := "c=" quoted_shell_command
+ *
+ * on_expire := "C=" quoted_shell_command
+ *
+ * quoted_shell_command := quote text quote
  */
 static int
 init_rule(char *line)
@@ -526,7 +544,7 @@ init_rule(char *line)
 		goto error0;
 	if ((rule = calloc(1, sizeof (*rule))) == NULL)
 		goto error0;
-	if ((rule->pattern = TokenNext(line, &next, "/", TOKEN_KEEP_ESCAPES)) == NULL) 
+	if ((rule->pattern = TokenNext(line, &next, "/", TOKEN_KEEP_ESCAPES)) == NULL)
 		goto error1;
 	if ((fields = TextSplit(next, ";", TOKEN_KEEP_ESCAPES)) == NULL)
 		goto error1;
@@ -544,7 +562,7 @@ init_rule(char *line)
 	}
 	if ((err = sql_step(ctx.db, ctx.insert_pattern)) != SQLITE_DONE) {
 		sql_error(__FILE__, __LINE__, ctx.insert_pattern);
-		goto error2;	
+		goto error2;
 	}
 
 	rule->id_pattern = sqlite3_last_insert_rowid(ctx.db);
@@ -561,11 +579,11 @@ init_rule(char *line)
 		}
 		if ((err = sql_step(ctx.db, ctx.find_pattern)) != SQLITE_ROW) {
 			sql_error(__FILE__, __LINE__, ctx.find_pattern);
-			goto error2;	
+			goto error2;
 		}
 		if ((rule->id_pattern = sqlite3_column_int64(ctx.find_pattern, 0)) == 0) {
 			sql_error(__FILE__, __LINE__, ctx.find_pattern);
-			goto error2;	
+			goto error2;
 		}
 		(void) sqlite3_clear_bindings(ctx.find_pattern);
                 sqlite3_reset(ctx.find_pattern);
@@ -576,19 +594,25 @@ init_rule(char *line)
 		field += strspn(field, " \t");
 
 		switch (*field) {
-		case 'c': 
+		case 'c':
 			if (field[1] == '=') {
-				free(rule->command);
-				rule->command = VectorReplace(fields, i, NULL);
+				free(rule->on_exceed);
+				rule->on_exceed = VectorReplace(fields, i, NULL);
 			}
 			break;
-		case 'r': 
+		case 'C':
+			if (field[1] == '=') {
+				free(rule->on_expire);
+				rule->on_expire = VectorReplace(fields, i, NULL);
+			}
+			break;
+		case 'r':
 			if (field[1] == '=') {
 				free(rule->report);
 				rule->report = VectorReplace(fields, i, NULL);
 			}
 			break;
-		case 't': 
+		case 't':
 			if (field[1] == '=')
 				rule->thread = strtol(field+2, NULL, 10);
 			break;
@@ -667,7 +691,7 @@ limit_select(sqlite3_int64 id_pattern, const char *token, int length, struct lim
 		sql_error(__FILE__, __LINE__, ctx.select_limit);
 		return;
 	}
-	if (sql_step(ctx.db, ctx.select_limit) != SQLITE_ROW) 
+	if (sql_step(ctx.db, ctx.select_limit) != SQLITE_ROW)
 		return;
 
 	/* Pull out existing limit details. */
@@ -775,7 +799,7 @@ buffer_grow(char *buffer, size_t grow, size_t length, size_t *size)
 	if (*size <= length) {
 		if ((copy = realloc(buffer, length + grow)) == NULL) {
 			free(buffer);
-			return NULL; 	
+			return NULL;
 		}
 		*size = length + grow;
 		buffer = copy;
@@ -811,7 +835,7 @@ replace_references(int delim, const char *str, const char *source, regmatch_t *s
 				length = sub[index].rm_eo - sub[index].rm_so;
 				if ((expand = buffer_grow(expand, GROW_SIZE, offset+length, &size)) == NULL)
 					return NULL;
-				(void) memcpy(expand+offset, source+sub[index].rm_so, length); 
+				(void) memcpy(expand+offset, source+sub[index].rm_so, length);
 				offset += length;
 			}
 		} else {
@@ -827,15 +851,37 @@ replace_references(int delim, const char *str, const char *source, regmatch_t *s
 }
 
 static void
+do_command(struct pattern_rule *rule, const char *command, const char *line, regmatch_t *parens)
+{
+	int err;
+	char *cmd, *expand;
+
+	/* Parse field="..." */
+	cmd = TokenNext(strchr(command, '=')+1, NULL, "\n", TOKEN_KEEP_BACKSLASH);
+
+	/* Replace #n matched sub-expressions. */
+	expand = replace_references('#', cmd, line, parens, rule->re.re_nsub);
+
+	if (expand != NULL) {
+		if ((err = system(expand)) < 0)
+			(void) fprintf(stderr, "%s\n\t%s (%d)\n", expand, strerror(errno), errno);
+		else if (0 < err)
+			(void) fprintf(stderr, "%s\n\tcommand error %d\n", expand, err);
+		free(expand);
+	}
+	free(cmd);
+}
+
+static void
 limit_report(struct pattern_rule *rule, const char *action, struct limit *limit, const char *line, regmatch_t *parens)
 {
         SMTP2 *smtp;
         Vector rcpts;
-        int flags, err;
+        int smtp_flags;
 	const unsigned char *text;
-        char *cmd, *expand, **table, buffer[SMTP_PATH_LENGTH];
+        char **table, buffer[SMTP_PATH_LENGTH];
 
-	if (0 < debug) 
+	if (0 < debug)
 		(void) fprintf(
 			stdout, "/%s/ %s: limit exceeded (%d)\n",
 			rule->pattern, action, limit->reported + limit->counter
@@ -851,8 +897,8 @@ limit_report(struct pattern_rule *rule, const char *action, struct limit *limit,
 		}
 
 		/* Try to connect to local smart host. */
-		flags = SMTP_FLAG_LOG | (1 < debug ? SMTP_FLAG_DEBUG : 0);
-		smtp = smtp2Open(smtp_host, SMTP_CONNECT_TO * UNIT_MILLI, SMTP_COMMAND_TO * UNIT_MILLI, flags);
+		smtp_flags = SMTP_FLAG_LOG | (1 < debug ? SMTP_FLAG_DEBUG : 0);
+		smtp = smtp2Open(smtp_host, SMTP_CONNECT_TO * UNIT_MILLI, SMTP_COMMAND_TO * UNIT_MILLI, smtp_flags);
 		if (smtp == NULL) {
 			(void) fprintf(stderr, "%s: %s (%d)\n", smtp_host, strerror(errno), errno);
 			goto error1;
@@ -897,22 +943,8 @@ limit_report(struct pattern_rule *rule, const char *action, struct limit *limit,
 			(void) smtp2Printf(smtp, "%s" CRLF, text);
 	}
 
-	if (rule->command != NULL) {
-		/* Parse c="..." */
-		cmd = TokenNext(strchr(rule->command, '=')+1, NULL, "\n", TOKEN_KEEP_BACKSLASH);
-
-		/* Replace #n matched sub-expressions. */
-		expand = replace_references('#', cmd, line, parens, rule->re.re_nsub);
-
-		if (expand != NULL) {
-			if ((err = system(expand)) < 0)
-				(void) fprintf(stderr, "%s\n\t%s (%d)\n", expand, strerror(errno), errno);
-			else if (0 < err)
-				(void) fprintf(stderr, "%s\n\tcommand error %d\n", expand, err);
-			free(expand);
-		}
-		free(cmd);
-	}
+	if (rule->on_exceed != NULL)
+		do_command(rule, rule->on_exceed, line, parens);
 
 	(void) sqlite3_clear_bindings(ctx.select_limit_to_log);
 	sqlite3_reset(ctx.select_limit_to_log);
@@ -926,7 +958,7 @@ error0:
 	;
 }
 
-/* 
+/*
  * Parse and check a limit. Malformed limit actions are ignored.
  *
  * limit := "l=" indices "," max "/" period [ unit ]
@@ -934,7 +966,7 @@ error0:
  * indices := index [ "," index ]
  *
  * index := number | quote text quote
- */ 
+ */
 static void
 check_limit(const char *action, const char *line, struct pattern_rule *rule, regmatch_t *parens, time_t tstamp)
 {
@@ -956,7 +988,7 @@ check_limit(const char *action, const char *line, struct pattern_rule *rule, reg
 			/* Find end of quoted string. */
 			if ((stop = strchr(lp+1, *lp)) == NULL) {
 				(void) fprintf(
-					stderr, "/%s/ %s: missing closing quote (%c)\n", 
+					stderr, "/%s/ %s: missing closing quote (%c)\n",
 					rule->pattern, action, *lp
 				);
 				return;
@@ -985,7 +1017,7 @@ check_limit(const char *action, const char *line, struct pattern_rule *rule, reg
 		}
 		if (rule->re.re_nsub < number) {
 			(void) fprintf(
-				stderr, "/%s/ %s: regex sub-expression index %ld out of bounds, max. %lu\n", 
+				stderr, "/%s/ %s: regex sub-expression index %ld out of bounds, max. %lu\n",
 				rule->pattern, action, number, (unsigned long) rule->re.re_nsub
 			);
 			return;
@@ -1027,10 +1059,14 @@ check_limit(const char *action, const char *line, struct pattern_rule *rule, reg
 			limit.expires = tstamp + seconds;
 			limit_insert(&limit);
 		} else {
+#ifdef ON_EXPIRE
+			do_command(rule, rule->on_expire, line, parens);
+#else
+/* Forgotten why. */
 			/* Report extra log lines since 1st report. */
-			if (0 < limit.reported && limit.reported < limit.counter) 
+			if (0 < limit.reported && limit.reported < limit.counter)
 				limit_report(rule, action, &limit, line, parens);
-
+#endif
 			/* Reset existing limit's expire time. */
 			limit.updated = tstamp;
 			limit.expires = tstamp + seconds;
@@ -1071,10 +1107,10 @@ append_log(char *line, struct pattern_rule *rule, regmatch_t *parens, time_t tst
 
 	if (2 < debug) {
 		(void) fprintf(
-			stdout, "match \"%.*s\"\n\tthread %ld \"%.*s\"\n", 
+			stdout, "match \"%.*s\"\n\tthread %ld \"%.*s\"\n",
 			(int) (parens[0].rm_eo - parens[0].rm_so), line + parens[0].rm_so,
 			rule->thread,
-			(int) (parens[rule->thread].rm_eo - parens[rule->thread].rm_so), 
+			(int) (parens[rule->thread].rm_eo - parens[rule->thread].rm_so),
 			line + parens[rule->thread].rm_so
 		);
 	}
@@ -1088,8 +1124,8 @@ append_log(char *line, struct pattern_rule *rule, regmatch_t *parens, time_t tst
 		goto error1;
 	}
 	err = sqlite3_bind_text(
-		ctx.insert_log, 3, line + parens[rule->thread].rm_so, 
-		parens[rule->thread].rm_eo - parens[rule->thread].rm_so, 
+		ctx.insert_log, 3, line + parens[rule->thread].rm_so,
+		parens[rule->thread].rm_eo - parens[rule->thread].rm_so,
 		SQLITE_STATIC
 	);
 	if (err != SQLITE_OK) {
@@ -1144,10 +1180,19 @@ process_stream(FILE *fp)
 {
 	int follow;
 	struct stat sb;
-	dev_t last_dev = 0;
 	ino_t last_ino = 0;
+	dev_t last_dev = 0;
+	dev_t last_rdev = 0;
 	size_t last_size = 0;
 	char line[LINE_SIZE];
+
+	/* Initialise our current position and file "instance" variables. */
+	if (fstat(fileno(fp), &sb) == 0) {
+		last_ino = sb.st_ino;
+		last_dev = sb.st_dev;
+		last_rdev = sb.st_rdev;
+		last_size = sb.st_size;
+	}
 
 	follow = follow_flag && fileno(fp) != STDIN_FILENO;
 
@@ -1155,14 +1200,20 @@ process_stream(FILE *fp)
 		process_rules(line);
 
 		if (follow) {
-			if (fstat(fileno(fp), &sb) 
-			|| sb.st_size < last_size 
-			|| sb.st_ino != last_ino 
-			|| sb.st_dev != last_dev)
+			/* Wait for new data to accumulate. */
+			sleep(POLL_INTERVAL);
+
+			/* Check for truncation or new instance of file. */
+			if (fstat(fileno(fp), &sb)
+			|| sb.st_size < last_size
+			|| sb.st_ino != last_ino
+			|| sb.st_dev != last_dev
+			|| sb.st_dev != last_rdev)
 				return -1;
 
 			last_ino = sb.st_ino;
 			last_dev = sb.st_dev;
+			last_rdev = sb.st_rdev;
 			last_size = sb.st_size;
 		}
 	}
@@ -1187,8 +1238,8 @@ process_file(const char *file)
 			rc = process_stream(fp);
 			(void) fclose(fp);
 		}
-			
- 		if (fp == NULL) 
+
+ 		if (fp == NULL)
 			(void) fprintf(stderr, "%s: %s (%d)\n", file, strerror(errno), errno);
 	}
 }
@@ -1213,7 +1264,7 @@ init_today(void)
 	assumed_year = today.tm_year + 1900;
 	assumed_tz = today.tm_gmtoff;
 }
-	
+
 int
 main(int argc, char **argv)
 {
@@ -1250,7 +1301,7 @@ main(int argc, char **argv)
 		case 'r':
 			report_to = optarg;
 			break;
-			
+
 		case 'R':
 			db_reset = 1;
 			break;
@@ -1258,24 +1309,24 @@ main(int argc, char **argv)
 		case 's':
 			smtp_host = optarg;
 			break;
-			
+
 		case 'y':
 			assumed_year = strtol(optarg, NULL, 10);
 			break;
-			
+
 		case 'z':
 			assumed_tz = strtol(optarg, NULL, 10);
 			break;
-			
+
 		default:
 			(void) printf(usage);
-			return EXIT_USAGE;
+			return EX_USAGE;
 		}
 	}
-	
+
 	if (argc <= optind || (follow_flag && optind+2 < argc)) {
 		(void) printf(usage);
-		return EXIT_USAGE;
+		return EX_USAGE;
 	}
 
 	if (1 < debug)
@@ -1285,26 +1336,27 @@ main(int argc, char **argv)
 		(void) snprintf(db_user, sizeof (db_user), DB_PATH_FMT, getuid());
 		db_path = db_user;
 	}
-	
+
 	if (db_delete)
 		(void) unlink(db_path);
 
 	init_today();
-		
+
 	if (atexit(at_exit_cleanup) || init_db(db_path) || init_rules(argv[optind]))
 		return EX_SOFTWARE;
-	
+
 	if ((report = TextSplit(report_to, ", ", 0)) == NULL)
 		return EX_SOFTWARE;
 
 	if (optind+1 == argc) {
+		follow_flag = 0;
 		process_file("-");
 	} else {
-		for (argi = optind+1; argi < argc; argi++) 
+		for (argi = optind+1; argi < argc; argi++)
 			process_file(argv[argi]);
 	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }
 
 /***********************************************************************

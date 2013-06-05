@@ -94,7 +94,8 @@
  *		misconfigured state.
  */
 
-#define EX_OK		0	/* successful termination */
+#define EX_OK		0	/* aka EXIT_SUCCESS, successful termination */
+#define EX_FAIL		1	/* aka EXIT_FAILURE, generic error */
 
 #define EX__BASE	64	/* base value for error messages */
 

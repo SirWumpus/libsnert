@@ -305,7 +305,8 @@ convertTimeZone(const char *zone_string, long *zone_value, const char **stop)
 int
 convertMonth(const char *month_string, long *month_value, const char **stop)
 {
-	long abbrev, month;
+	long month;
+	unsigned long abbrev;
 
 	if (month_string == NULL || month_value == NULL)
 		return -1;

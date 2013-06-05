@@ -106,7 +106,7 @@ static char usage[] =
 "\n"
 "-c ca_pem\tCertificate Authority root certificate chain file\n"
 "-C dir\t\tCertificate Authority root certificate directory\n"
-"-h host[:port]\tECHO host and optional port to contact; default " ECHO_HOST "\n"
+"-h host[:port]\thost and optional port to contact; default " ECHO_HOST "\n"
 "-k key_crt_pem\tprivate key and certificate chain file\n"
 "-K key_pass\tpassword for private key; default no password\n"
 "-p protocol\tapplication protocol/port; default " QUOTE(ECHO_PORT) "\n"

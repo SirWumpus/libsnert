@@ -59,7 +59,7 @@ is no set schedule for releases.
 
 --1.75.22--
 
-   *    Upgraded SQLite to 3.7.16.2
+   *    Upgraded SQLite to 3.7.17
 
    !	Fixed socket3_connect() handling of ECONNREFUSED, particularly
 	so that connections to a host with both an AAAA and A records
@@ -71,7 +71,26 @@ is no set schedule for releases.
 	etc.
 
    !	Fixed show tool's handling of -f follow option and removed old
-   	UNBUFFERED code blocks in favour of stdio.
+   	UNBUFFERED code blocks in favour of stdio. Apply similar -f
+	fixes to sift tool.
+
+   !	Prelimiary and untested code for sift -C option.
+
+   !	Fix SPF bug where two or more SPF (TXT) records must return 
+	PermError.  Reported by Steve Freegard.
+
+		spf 147.143.7.63 bangor.ac.uk 
+
+	The SPF test incorrectly toggles between returning Pass and Fail,
+	because bangor.ac.uk has 2 SPF TXT records. The correct answer is
+	PermError.
+
+	RFC 4408 section 3.1.3 talks about multiple strings in a TXT
+	record.  Section 4.5 covers selecting records:
+
+		If there are two or more records remaining, then check_host() 
+		exits immediately with the result of "PermError".
+
 
 --1.75.21--
 

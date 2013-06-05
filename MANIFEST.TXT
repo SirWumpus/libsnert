@@ -1,5 +1,5 @@
 org/sqlite/makefile
-org/sqlite/sqlite-autoconf-3071602.tar.gz
+org/sqlite/sqlite-autoconf-3071700.tar.gz
 com/snert/lib/Log.pm
 com/snert/include/com/snert/lib
 com/snert/include/org/valgrind
@@ -71,6 +71,8 @@ com/snert/src/lib/mail/mime-multi-crlf.eml
 com/snert/src/lib/mail/mime-multi-nohdr.eml
 com/snert/src/lib/mail/digestbl.c
 com/snert/src/lib/mail/mfReply.c
+com/snert/src/lib/mail/sk.c
+com/snert/src/lib/mail/sk.sh
 com/snert/src/lib/mail/smf.c
 com/snert/src/lib/mail/smtp2.c
 com/snert/src/lib/mail/spf.c
@@ -195,6 +197,7 @@ com/snert/src/lib/util/TokenSplit.c
 com/snert/src/lib/util/TokenSplitA.c
 com/snert/src/lib/util/bitcount32.c
 com/snert/src/lib/util/bs.c
+com/snert/src/lib/util/buffer.c
 com/snert/src/lib/util/convertDate.c
 com/snert/src/lib/util/djb-hash-test.c
 com/snert/src/lib/util/escape.c

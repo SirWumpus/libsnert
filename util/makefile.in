@@ -95,7 +95,7 @@ OBJS = \
 	TextNull$O TextC$O setBitWord$O strlrcspn$O strlrspn$O strnatcmp$O bs$O Base64$O \
 	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O html$O htmlEntity$O \
 	uriIsDomainBL$O uri$O option$O sqlite3$O time62$O timespec$O timeval$O timer$O \
-	token_bucket$O
+	token_bucket$O buffer$O
 
 TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
        DebugMallocTest$E ixhash$E md4$E md5$E htmlstrip$E TextCopy$E TextMatch$E \
