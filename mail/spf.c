@@ -66,6 +66,7 @@ const char spfErrorIpParse[] = "IPv4 or IPv6 parse error";
 const char spfErrorMemory[] = "out of memory";
 const char spfErrorCircular[] = "circular reference";
 const char spfErrorDnsLimit[] = "too many DNS lookups";
+const char spfErrorTooMany[] = "more than one SPF record";
 
 const char *spfResultString[] = {
 	"Pass", "Fail", "None", "Neutral", "SoftFail", "TempError", "PermError"
@@ -486,13 +487,19 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 			&& strncmp((char *) ((PDQ_TXT *) rr)->text.value, "v=spf1 ", sizeof ("v=spf1 ")-1) != 0)
 				continue;
 
+			if (txt != NULL) {
+				qualifier = SPF_PERM_ERROR;
+				err = spfErrorTooMany;
+				goto error4;
+			}
+
 			if ((txt = malloc(((PDQ_TXT *) rr)->text.length+1)) == NULL) {
+				qualifier = SPF_TEMP_ERROR;
 				err = spfErrorInternal;
 				goto error3;
 			}
 
 			TextCopy(txt, ((PDQ_TXT *) rr)->text.length+1, (char *) ((PDQ_TXT *) rr)->text.value);
-			break;
 		}
 
 		/* Zero entries or no matching ones found? */
