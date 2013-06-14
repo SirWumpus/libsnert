@@ -659,8 +659,18 @@ void (*socket3_close_hook)(SOCKET fd) = socket3_close_fd;
 void
 socket3_close(SOCKET fd)
 {
+	unsigned char buffer[512];
+
 	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "socket3_close(%d)", (int) fd);
+
+	/* Avoid TIME_WAIT state "socket zombie" when a connection is
+	 * closed by consuming and discarding any waiting data.
+	 */
+	(void) socket3_set_nonblocking(fd, 1);
+	while (0 < socket3_read(fd, buffer, sizeof (buffer), NULL)) 
+		;
+
 	(*socket3_close_hook)(fd);
 }
 

@@ -21,6 +21,8 @@ extern int convertYMD(const char *date_string, long *year, long *month, long *da
 extern int convertHMS(const char *time_string, long *hour, long *min, long *sec, const char **stop);
 extern int convertSyslog(const char *tstamp, long *month, long *day, long *hour, long *min, long *sec, const char **stop);
 extern int convertCtime(const char *str, long *year, long *month, long *day, long *hour, long *min, long *sec, const char **stop);
+extern int convertISO8601(const char *str, long *year, long *month, long *day, long *hour, long *min, long *sec, const char **stop);
+extern int convertISO8601Tz(const char *zone_string, long *zone_value, const char **stop);
 
 /**
  * @param year

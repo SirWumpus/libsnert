@@ -1,9 +1,9 @@
 LibSnert Software Library, Version 1
 
-Copyright 2001, 2011 by Anthony Howe.  All rights reserved.
+Copyright 2001, 2013 by Anthony Howe.  All rights reserved.
 
 
-LICENSE AGREEMENT 1.8
+LICENSE AGREEMENT 1.9
 
 SNERTSOFT & CO. ARE WILLING TO LICENSE THE SOFTWARE IDENTIFIED ABOVE TO
 YOU ONLY UPON THE CONDITION THAT YOU ACCEPT ALL OF THE TERMS CONTAINED
@@ -32,8 +32,7 @@ AGREEMENT.
      fifty percent (50%) of the outstanding shares or beneficial
      ownership of such entity.
 
-  4. ``SnertSoft'' means Anthony C. Howe situated in Cannes, France
-     (SIRET #489 259 937 00014).
+  4. ``SnertSoft'' means Anthony C. Howe situated in Montreal, Canada.
 
   5. ``SnertSoft & Co.'' means SnertSoft and all authorised & licensed
      partners, such as value-added resellers or appliance manufacturers.

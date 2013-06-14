@@ -387,6 +387,8 @@ playfair_decode(Playfair *pf, const char *message)
 }
 
 #ifdef TEST
+#include <getopt.h>
+
 static char usage[] =
 "usage: playfair [-568dku][-a set] key [message]\n"
 "\n"
@@ -410,7 +412,7 @@ static char input[256];
 int
 main(int argc, char **argv)
 {
-	int argi;
+	int ch;
 	Playfair pf;
 	playfair_fn fn;
 	char *out, *alphabet;
@@ -420,11 +422,8 @@ main(int argc, char **argv)
 	fn = playfair_encode;
 	alphabet = ALPHABET25;
 
-	for (argi = 1; argi < argc; argi++) {
-		if (argv[argi][0] != '-' || (argv[argi][1] == '-' && argv[argi][2] == '\0'))
-			break;
-
-		switch (argv[argi][1]) {
+	while ((ch = getopt(argc, argv, "568dkua:")) != -1) {
+		switch (ch) {
 		case '5':
 			alphabet = ALPHABET25;
 			break;
@@ -444,26 +443,26 @@ main(int argc, char **argv)
 			pf.opt_undo_uncommon = 1;
 			break;
 		case 'a':
-			alphabet = argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2];
+			alphabet = optarg;
 			break;
 		default:
-			fprintf(stderr, "invalid option -%c\n%s", argv[argi][1], usage);
-			return EXIT_FAILURE;
+			optind = argc;
+			break;
 		}
 	}
 
-	if (argc < argi + 1) {
+	if (argc < optind + 1) {
 		fprintf(stderr, "missing key\n%s", usage);
 		return EXIT_FAILURE;
 	}
 
-	if (playfair_init(&pf, alphabet, argv[argi])) {
+	if (playfair_init(&pf, alphabet, argv[optind])) {
 		fprintf(stderr, "alphabet invalid\n");
 		return EXIT_FAILURE;
 	}
 
-	if (argv[argi+1] != NULL) {
-		if ((out = (*fn)(&pf, argv[argi+1])) == NULL) {
+	if (argv[optind+1] != NULL) {
+		if ((out = (*fn)(&pf, argv[optind+1])) == NULL) {
 			fprintf(stderr, "out of memory\n");
 			return EXIT_FAILURE;
 		}

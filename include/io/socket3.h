@@ -319,7 +319,7 @@ extern int socket3_set_sess_id_ctx(SOCKET fd, unsigned char *id, size_t length);
  *	A SOCKET returned by socket3_open() or socket3_accept().
  *
  * @return
- *	True is the connection is encrypted.
+ *	True if the connection is encrypted.
  */
 extern int socket3_is_tls(SOCKET fd);
 

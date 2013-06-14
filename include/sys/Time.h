@@ -11,6 +11,10 @@
 #ifndef __com_snert_lib_sys_Time_h__
 #define __com_snert_lib_sys_Time_h__	1
 
+#ifdef __linux__
+/* Enable support for BSD time zone field extensions to struct tm. */
+# define _BSD_SOURCE
+#endif
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
 #endif

@@ -45,7 +45,7 @@ isReservedIPv4(unsigned char ipv4[IPV4_BYTE_SIZE], is_ip_t mask)
 	||  ((mask & IS_IP_LOCALHOST)    &&  ip               == 0x7f000001) /* 127.0.0.1/32	localhost      */
 	||  ((mask & IS_IP_THIS_HOST)    &&  ip               == 0x00000000) /* 0.0.0.0/32      "this" host    */
 	||  ((mask & IS_IP_PROTOCOL)     && (ip & 0xffffff00) == 0xc0000000) /* 192.0.0.0/24		RFC 5736 */
-	||  ((mask & IS_IP_TEST_NET_1)     && (ip & 0xffffff00) == 0xc0000200) /* 192.0.2.0/24		RFC 5737 */
+	||  ((mask & IS_IP_TEST_NET_1)   && (ip & 0xffffff00) == 0xc0000200) /* 192.0.2.0/24		RFC 5737 */
 	||  ((mask & IS_IP_6TO4_ANYCAST) && (ip & 0xffffff00) == 0xc0586300) /* 192.88.99.0/24		RFC 3068 */
 	||  ((mask & IS_IP_TEST_NET_2)   && (ip & 0xffffff00) == 0xc6336400) /* 198.51.64.0/24		RFC 5737 */
 	||  ((mask & IS_IP_TEST_NET_3)   && (ip & 0xffffff00) == 0xcb007100) /* 203.0.113.0/24		RFC 5737 */

@@ -1,7 +1,7 @@
 /*
  * uri.c
  *
- * RFC 2821, 2396 Support Routines
+ * RFC 2821, 2396, 3986 Support Routines
  *
  * Copyright 2006, 2012 by Anthony Howe. All rights reserved.
  */
@@ -272,29 +272,33 @@ struct mapping {
 	int value;
 };
 
+/*
+ * http://www.iana.org/assignments/uri-schemes/uri-schemes.xml
+ */
 static struct mapping schemeTable[] = {
-	{ "ip",		sizeof ("ip")-1, 		0 },
+	{ "ip",		sizeof ("ip")-1, 		0 },	/* Extension */
 	{ "cid",	sizeof ("cid")-1, 		0 },	/* RFC 2392 */
 	{ "mid",	sizeof ("mid")-1, 		0 },	/* RFC 2392 */
 	{ "data",	sizeof ("data")-1, 		0 },	/* RFC 2397 */
-	{ "file",	sizeof ("file")-1,		0 },
-	{ "about",	sizeof ("about")-1,		0 },
-	{ "javascript",	sizeof ("javascript")-1,	0 },
-	{ "ftp",	sizeof ("ftp")-1, 		21 },
-	{ "gopher",	sizeof ("gopher")-1, 		70 },
-	{ "http",	sizeof ("http")-1, 		80 },
-	{ "https",	sizeof ("https")-1, 		443 },
-	{ "imap",	sizeof ("imap")-1, 		143 },
-	{ "ldap",	sizeof ("ldap")-1, 		389 },
-	{ "mailto",	sizeof ("mailto")-1, 		25 },
-	{ "smtp",	sizeof ("smtp")-1, 		25 },
-	{ "email",	sizeof ("email")-1, 		25 },
-	{ "mail",	sizeof ("mail")-1, 		25 },
-	{ "from",	sizeof ("from")-1, 		25 },
-	{ "nntp",	sizeof ("nntp")-1, 		119 },
-	{ "pop3",	sizeof ("pop3")-1, 		110 },
-	{ "telnet",	sizeof ("telnet")-1, 		23 },
-	{ "rtsp",	sizeof ("rtsp")-1, 		554 },
+	{ "file",	sizeof ("file")-1,		0 },	/* RFC 1738 */
+	{ "about",	sizeof ("about")-1,		0 },	/* RFC 6694 */
+	{ "javascript",	sizeof ("javascript")-1,	0 },	/* Extension, common use */
+	{ "ftp",	sizeof ("ftp")-1, 		21 },	/* RFC 1738 */
+	{ "gopher",	sizeof ("gopher")-1, 		70 },	/* RFC 4266 */
+	{ "http",	sizeof ("http")-1, 		80 },	/* RFC 2616 */
+	{ "https",	sizeof ("https")-1, 		443 },	/* RFC 2616, 2818 */
+	{ "imap",	sizeof ("imap")-1, 		143 },	/* RFC 5092 */
+	{ "ldap",	sizeof ("ldap")-1, 		389 },	/* RFC 4516 */
+	{ "mailto",	sizeof ("mailto")-1, 		25 },	/* RFC 6068 */
+	{ "smtp",	sizeof ("smtp")-1, 		25 },	/* Extension, alias mailto: */
+	{ "email",	sizeof ("email")-1, 		25 },	/* Extension, alias mailto: */
+	{ "mail",	sizeof ("mail")-1, 		25 },	/* Extension, alias mailto: */
+	{ "from",	sizeof ("from")-1, 		25 },	/* Extension, alias mailto: */
+	{ "nntp",	sizeof ("nntp")-1, 		119 },	/* RFC 5538 */
+	{ "pop",	sizeof ("pop3")-1, 		110 },	/* RFC 2384 */
+	{ "pop3",	sizeof ("pop3")-1, 		110 },	/* Extension, alias pop: */
+	{ "telnet",	sizeof ("telnet")-1, 		23 },	/* RFC 4248 */
+	{ "rtsp",	sizeof ("rtsp")-1, 		554 },	/* RFC 2326 */
 	{ NULL, 0 }
 };
 
@@ -525,9 +529,16 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	if ((uri->query = strchr(value, '?')) != NULL)
 		*uri->query++ = '\0';
 
-	if (value[0] == '/' && value[1] == '/') {
+	/* Allow for special case where we have "http:/host/" eg.
+	 *
+	 * 	http:/grandpalacegoldcasino.pl/
+	 *
+	 * This is an invalid URI by RFC 2616 and 3986, but sufficient
+	 * elements exist (http scheme, host) to try parsing.
+	 */
+	if (value[0] == '/' && (value[1] == '/' || 0 < uriGetSchemePort(uri))) {
 		/* net_path (2396) / authority (rfc 3986) */
-		value += 2;
+		value += 1 + (value[1] == '/');
 
 		if ((uri->host = strchr(value, '@')) != NULL) {
 			uri->userInfo = value;

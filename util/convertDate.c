@@ -3,7 +3,7 @@
  *
  * Internet Date & Time parsing functions based on RFC 2822.
  *
- * Copyright 2003, 2012 by Anthony Howe.  All rights reserved.
+ * Copyright 2003, 2013 by Anthony Howe.  All rights reserved.
  */
 
 /***********************************************************************
@@ -567,7 +567,7 @@ convertSyslog(const char *tstamp, long *month, long *day, long *hour, long *minu
  * ctime() format is "mmm dd HH:MM:SS yyyy".
  */
 int
-convertCtime(const char *tstamp, long *month, long *day, long *year, long *hour, long *minute, long *second, const char **stop)
+convertCtime(const char *tstamp, long *year, long *month, long *day, long *hour, long *minute, long *second, const char **stop)
 {
 	const char *next;
 
@@ -585,6 +585,110 @@ convertCtime(const char *tstamp, long *month, long *day, long *year, long *hour,
 	return 0;
 }
 
+unsigned long
+strntoul(const char *s, const char **stop, int width)
+{
+	int digit;
+	unsigned long num = 0;
+
+	while (isdigit(*s) && 0 < width--) {
+		digit = *s++ - '0';
+		num = num * 10 + digit;
+	}
+
+	if (stop != NULL)
+		*stop = (char *)s;
+
+	return num;
+}
+
+/*
+ * ISO 8601 time zone format:
+ *
+ *	[ "Z" | ( "+" | "-" )HH[[":"]MM] ]
+ */
+int
+convertISO8601Tz(const char *s, long *zone, const char **stop)
+{
+	int sign;
+	long hh, mm = 0;
+
+	if (*s == 'Z') {
+		*zone = 0;
+		s++;
+	} else {
+		sign = *s++;
+		if (sign != '+' && sign != '-')
+			return -1;
+		sign = sign == '+' ? 1 : -1;
+
+		hh = strntoul(s, stop, 2);
+		if (*stop - s != 2)
+			return -1;
+		s = *stop;
+		s += (*s == ':');
+
+		/* Time zone minutes optional, advance by 0
+		 * if missing else 2 if present.
+		 */
+		mm = strntoul(s, stop, 2);
+		if (s < *stop && *stop - s != 2)
+			return -1;
+
+		*zone = sign * (hh * 3600 + mm * 60);
+	}
+	if (stop != NULL)
+		*stop = (char *)s;
+
+	return 0;
+}
+
+/*
+ * ISO 8601 format
+ *
+ *	yyyy ["-"] mm ["-"] dd [ "T" HH [":"] MM [[":"] SS] ]
+ */
+int
+convertISO8601(const char *s, long *year, long *month, long *day, long *hour, long *minute, long *second, const char **stop)
+{
+	*year = strntoul(s, stop, 4);
+	if (*stop - s != 4)
+		return -1;
+	s = *stop;
+	s += (*s == '-');
+	*month = strntoul(s, stop, 2);
+	if (*stop - s != 2)
+		return -1;
+	s = *stop;
+	s += (*s == '-');
+	*day = strntoul(s, stop, 2);
+	if (*stop - s != 2)
+		return -1;
+	s = *stop;
+	if (*s != 'T') {
+		*hour = *minute = *second = 0;
+		return 0;
+	}
+
+	*hour = strntoul(++s, stop, 2);
+	if (*stop - s != 2)
+		return -1;
+	s = *stop;
+	s += (*s == ':');
+	*minute = strntoul(s, stop, 2);
+	if (*stop - s != 2)
+		return -1;
+	s = *stop;
+	s += (*s == ':');
+
+	/* :SS optional, advance 0 if missing, else 2 if present. */
+	*second = strntoul(s, stop, 2);
+	if (s < *stop && *stop - s != 2)
+		return -1;
+
+	return 0;
+}
+
 /**
  * Convert an RFC 2822 Date & Time string into seconds from the epoch.
  *
@@ -598,10 +702,27 @@ convertCtime(const char *tstamp, long *month, long *day, long *year, long *hour,
  *
  * Not supported:	Mon 22 Sep 20:02:33 CDT 2003	(year & zone out of order)
  *
+ * ISO 8601:		20030922T200233+02		(without delimiters + zone)
+ *
+ *			2003-09-22T20:02:33+0200	(with delimiters + zone)
+ *
  * The following formats are supported:
  *
- *	[www[,]] dd mmm yyyy [HH:MM:SS [zzzzzz]]
- *	[www[,]] mmm dd HH:MM:SS yyyy [zzzzzz]
+ * RFC 2822
+ *
+ *	[www[", "]] dd " " mmm " " yyyy " " [HH ":" MM ":" SS [zzzzzz]]
+ *
+ * ctime()
+ *
+ *	[www[", "]] mmm " " dd " " HH ":" MM ":" SS " " yyyy [zzzzzz]
+ *
+ * ISO 8601
+ *
+ *	date := yyyy ["-"] mm ["-"] dd [ "T" time ]
+ *
+ *	time := HH [":"] MM [ [":"] SS ][tz]
+ *
+ *	tz   := "Z" | ( "+" | "-" ) HH[[":"]MM]
  *
  * If the time zone is missing, then GMT (+0000) is assumed, which may
  * cause undefined results if the time values are used for non-local
@@ -634,6 +755,11 @@ convertDate(const char *date_string, time_t *gmt_seconds_since_epoch, const char
 		date_string += (*date_string == ',');
 
 	hour = minute = second = zone = 0;
+
+	if (convertISO8601(date_string, &year, &month, &day, &hour, &minute, &second, &date_string) == 0) {
+		if (*date_string != '\0' && convertISO8601Tz(date_string, &zone, &date_string))
+			return -1;
+	} else
 
 	/* First try to parse the old ctime() format. This is NOT conforming,
 	 * but at least all the elements are there, that I can support it.
@@ -676,39 +802,18 @@ convertDate(const char *date_string, time_t *gmt_seconds_since_epoch, const char
 #ifdef TEST
 
 #include <com/snert/lib/io/Log.h>
+#include <com/snert/lib/util/getopt.h>
 
 int debug;
 int strict;
 const char usage[] = \
 "usage: convertDate [-v] date-string ...\n"
 "\n"
-"Convert an RFC 2822 date & time specification into GMT seconds.\n"
+"Convert an RFC 2822 or ISO 8601 date & time specification into GMT seconds.\n"
 "\n"
 LIBSNERT_COPYRIGHT "\n"
 "\n"
 ;
-
-int
-options(int argc, char **argv)
-{
-	int argi;
-
-	for (argi = 1; argi < argc; argi++) {
-		if (argv[argi][0] != '-' || (argv[argi][1] == '-' && argv[argi][2] == '\0'))
-			break;
-
-		switch (argv[argi][1]) {
-		case 'v':
-			debug = 1;
-			break;
-		default:
-			fprintf(stderr, "invalid option -%c\n%s", argv[argi][1], usage);
-			exit(2);
-		}
-	}
-
-	return argi;
-}
 
 int
 main(int argc, char **argv)
@@ -718,14 +823,21 @@ main(int argc, char **argv)
 	const char *stop;
 
 	LogSetProgramName("convertDate");
-	i = options(argc, argv);
-
-	if (argc <= i) {
+	while ((i = getopt(argc, argv, "v")) != -1) {
+		switch (i) {
+		case 'v':
+			debug = 1;
+			break;
+		default:
+			optind = argc;
+		}
+	}
+	if (argc <= optind) {
 		fprintf(stderr, "%s", usage);
 		exit(2);
 	}
 
-	for ( ; i < argc; i++) {
+	for (i = optind; i < argc; i++) {
 		if (convertDate(argv[i], &gmt, &stop)) {
 			LogStderr(LOG_ERR, "\"%s\" does not conform to RFC 2822 section 3.3. Date and Time Specification", argv[i]);
 			exit(1);

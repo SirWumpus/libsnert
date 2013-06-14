@@ -37,6 +37,9 @@
 #ifdef HAVE_SEMAPHORE_H
 # include <semaphore.h>
 #endif
+#ifdef HAVE_SYS_STAT_H
+# include <sys/stat.h>
+#endif
 
 #include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/util/Text.h>
@@ -228,17 +231,32 @@ socket3_get_field(SOCKET fd, X509_Field field, char *buffer, size_t size)
  *** Socket3 API
  ***********************************************************************/
 
+/**
+ * @param cert_dir
+ *	A directory path containing individual CA certificates
+ *	in PEM format. Can be NULL.
+ *
+ * @param ca_chain
+ *	A collection of CA root certificates as a PEM formatted
+ *	chain file. Can be NULL.
+ *
+ * @note
+ *	At least one of cert_dir or ca_chain must be specified
+ *	in order to find CA root certificates used for validation.
+ */
 int
 socket3_set_ca_certs(const char *cert_dir, const char *ca_chain)
 {
 #ifdef HAVE_OPENSSL_SSL_H
-	if (cert_dir == NULL || *cert_dir == '\0') {
-		syslog(LOG_ERR, "CA certificate directory is undefined");
-		return SOCKET_ERROR;
+	struct stat sb;
+
+	if (cert_dir == NULL || stat(cert_dir, &sb) || !S_ISDIR(sb.st_mode)) {
+		syslog(LOG_WARNING, "CA certificate directory is undefined");
+		cert_dir = NULL;
 	}
-	if (ca_chain == NULL || *ca_chain == '\0') {
-		syslog(LOG_ERR, "CA certificate chain file is undefined");
-		return SOCKET_ERROR;
+	if (ca_chain == NULL || stat(ca_chain, &sb) || !S_ISREG(sb.st_mode)) {
+		syslog(LOG_WARNING, "CA certificate chain file is undefined");
+		ca_chain = NULL;
 	}
 	if (!SSL_CTX_load_verify_locations(ssl_ctx, ca_chain, cert_dir)) {
 		syslog(LOG_ERR, "failed to load CA root certificates");
@@ -248,6 +266,12 @@ socket3_set_ca_certs(const char *cert_dir, const char *ca_chain)
 	return 0;
 }
 
+/**
+ * @param dh_pem
+ *	Set the Diffie-Hellman parameter file in PEM format.
+ *	Used only with SSL/TLS servers.
+ *
+ */
 int
 socket3_set_server_dh(const char *dh_pem)
 {
@@ -286,6 +310,23 @@ socket3_set_key(const char *key_pem, const char *key_pass)
 	return 0;
 }
 
+/**
+ * @param cert_pem
+ *	A client or server certificate file in PEM format.
+ *	Can be NULL for client applications.
+ *
+ * @param key_pem
+ *	The client or server's private key file in PEM format.
+ *	Can be NULL for client applications.
+ *
+ * @param key_pass
+ *	The private key password string, if required; otherwise NULL.
+ *
+ * @note
+ *	For client applications key_pem and cert_pem are only required
+ *	for bi-literal certificate exchanges. Typically this is not
+ *	required, for example in HTTPS client applications.
+ */
 int
 socket3_set_cert_key(const char *cert_pem, const char *key_pem, const char *key_pass)
 {
@@ -315,6 +356,9 @@ socket3_set_cert_key_chain(const char *key_cert_pem, const char *key_pass)
 static int socket3_initialised_tls = 0;
 static unsigned char session_id_ctx[] = "libsnert-socket3";
 
+/**
+ * Initialise the socket and SSL/TLS subsystems.
+ */
 int
 socket3_init_tls(void)
 {
@@ -395,6 +439,9 @@ socket3_init_tls(void)
 	return 0;
 }
 
+/**
+ * We're finished with the socket subsystem.
+ */
 void
 socket3_fini_tls(void)
 {
@@ -412,6 +459,14 @@ socket3_fini_tls(void)
 	}
 }
 
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @return
+ *	Zero (0) no peer certificate, 1 failed validation,
+ *	2 passed validation.
+ */
 int
 socket3_get_valid_tls(SOCKET fd)
 {
@@ -431,6 +486,8 @@ socket3_get_valid_tls(SOCKET fd)
 	return rc;
 }
 
+/**
+ */
 int
 socket3_get_cipher_tls(SOCKET fd, char *buffer, size_t size)
 {
@@ -442,7 +499,11 @@ socket3_get_cipher_tls(SOCKET fd, char *buffer, size_t size)
 	static char *cert_is_valid[] = { "N/A", "NONE", "FAIL", "PASS" };
 
 	if (0 < (valid = socket3_get_valid_tls(fd))) {
- 		cipher = SSL_get_current_cipher(ssl);
+		/*** NetBSD or newer OpenSSL headers declare
+		 *** const SSL_CIPHER *SSL_get_current_cipher(const SSL *s)
+		 *** contrary to online documentation.
+		 ***/
+ 		cipher = (SSL_CIPHER *)SSL_get_current_cipher(ssl);
 		prv_bits = SSL_CIPHER_get_bits(cipher, &alg_bits);
 		name = SSL_CIPHER_get_name(cipher);
 		ver = SSL_CIPHER_get_version(cipher);
@@ -459,6 +520,8 @@ socket3_get_cipher_tls(SOCKET fd, char *buffer, size_t size)
 #endif
 }
 
+/**
+ */
 int
 socket3_get_issuer_tls(SOCKET fd, char *buffer, size_t size)
 {
@@ -469,6 +532,8 @@ socket3_get_issuer_tls(SOCKET fd, char *buffer, size_t size)
 #endif
 }
 
+/**
+ */
 int
 socket3_get_subject_tls(SOCKET fd, char *buffer, size_t size)
 {
@@ -479,6 +544,23 @@ socket3_get_subject_tls(SOCKET fd, char *buffer, size_t size)
 #endif
 }
 
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @param is_server
+ *	Zero (0) for a client connection; one (1) for a server connection;
+ *	two (2) for a server connection requiring a client certificate.
+ *
+ * @param timeout
+ *	A timeout value in milliseconds to wait for the socket TLS accept
+ *	with the server. Zero or negative value for an infinite (system)
+ *	timeout.
+ *
+ * @return
+ * 	Zero if the security handshake was successful; otherwise
+ *	-1 on error.
+ */
 int
 socket3_start_tls(SOCKET fd, int is_server, long ms)
 {
@@ -541,6 +623,8 @@ error0:
 	return SOCKET_ERROR;
 }
 
+/**
+ */
 void
 socket3_get_error_tls(SOCKET fd, char *buffer, size_t size)
 {
@@ -566,6 +650,8 @@ socket3_get_error_tls(SOCKET fd, char *buffer, size_t size)
 #endif
 }
 
+/**
+ */
 int
 socket3_set_sess_id_ctx(SOCKET fd, unsigned char *id, size_t length)
 {
@@ -579,7 +665,13 @@ socket3_set_sess_id_ctx(SOCKET fd, unsigned char *id, size_t length)
 	return 0;
 }
 
-
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @return
+ *	True if the connection is encrypted.
+ */
 int
 socket3_is_tls(SOCKET fd)
 {
@@ -592,6 +684,17 @@ socket3_is_tls(SOCKET fd)
 #endif
 }
 
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @return
+ *	True if the peer certificate passed validation.
+ *
+ * @note
+ *	socket3_is_cn_tls() performs this check as part of
+ *	checking the common name (CN) of a certificate.
+ */
 int
 socket3_is_peer_ok(SOCKET fd)
 {
@@ -606,6 +709,18 @@ socket3_is_peer_ok(SOCKET fd)
 #endif
 }
 
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @param expect_cn
+ *	A C string of the expected common name to match. The string
+ *	can be a glob-like pattern, see TextFind().
+ *
+ * @return
+ *	True if the common name (CN) matches that of the peer's
+ *	presented certificate.
+ */
 int
 socket3_is_cn_tls(SOCKET fd, const char *expect_cn)
 {
@@ -642,6 +757,24 @@ socket3_is_cn_tls(SOCKET fd, const char *expect_cn)
 #endif
 }
 
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @param buffer
+ *	A buffer to save input to. The input is first taken from the
+ *	read buffer, if there is any. Any remaining space in the buffer
+ *	is then filled by a peek on the actual socket.
+ *
+ * @param size
+ *	The size of the buffer to fill.
+ *
+ * @param from
+ *	The origin of the input. May be NULL.
+ *
+ * @return
+ *	Return the number of bytes read or SOCKET_ERROR.
+ */
 long
 socket3_peek_tls(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 {
@@ -665,6 +798,24 @@ socket3_peek_tls(SOCKET fd, unsigned char *buffer, long size, SocketAddress *fro
 	return socket3_peek_fd(fd, buffer, size, from);
 }
 
+/**
+ * Read in a chunk of input from a socket.
+ *
+ * @param fd
+ *	A SOCKET returned by socket3_open().
+ *
+ * @param buffer
+ *	A buffer to save input to.
+ *
+ * @param size
+ *	The size of the buffer.
+ *
+ * @param from
+ *	The origin of the input. May be NULL.
+ *
+ * @return
+ *	Return the number of bytes read or SOCKET_ERROR.
+ */
 long
 socket3_read_tls(SOCKET fd, unsigned char *buffer, long size, SocketAddress *from)
 {
@@ -688,6 +839,25 @@ socket3_read_tls(SOCKET fd, unsigned char *buffer, long size, SocketAddress *fro
 	return socket3_read_fd(fd, buffer, size, from);
 }
 
+/**
+ * Write buffer through a socket to the specified destination.
+ *
+ * @param fd
+ *	A SOCKET returned by socket3_open().
+ *
+ * @param buffer
+ *	The buffer to send.
+ *
+ * @param fdize
+ *	The size of the buffer.
+ *
+ * @param to
+ *	A SocketAddress pointer where to send the buffer.
+ *	May be NULL for a connection based socket.
+ *
+ * @return
+ *	The number of bytes written or SOCKET_ERROR.
+ */
 long
 socket3_write_tls(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
 {
@@ -711,6 +881,20 @@ socket3_write_tls(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to
 	return socket3_write_fd(fd, buffer, size, to);
 }
 
+/**
+ * @param fd
+ *	A socket file descriptor returned by socket() or accept().
+ *
+ * @param timeout
+ *	A timeout value in milliseconds to wait for socket input.
+ *	A negative value for an infinite timeout.
+ *
+ * @param rw_flags
+ *	Whether to wait for input, output, or both.
+ *
+ * @return
+ *	Zero if the socket is ready; otherwise errno code.
+ */
 int
 socket3_wait_tls(SOCKET fd, long timeout, unsigned rw_flags)
 {
@@ -736,6 +920,18 @@ socket3_wait_tls(SOCKET fd, long timeout, unsigned rw_flags)
 	return socket3_wait_fd(fd, timeout, rw_flags);
 }
 
+/**
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @return
+ * 	Zero if the shutdown handshake was successful; otherwise
+ *	-1 on error.
+ *
+ * @note
+ *	Only used to end encrypted communcations, while keeping
+ *	the socket open for further open communications.
+ */
 int
 socket3_end_tls(SOCKET fd)
 {
@@ -759,6 +955,18 @@ socket3_end_tls(SOCKET fd)
 	return 0;
 }
 
+/**
+ * Shutdown the socket.
+ *
+ * @param fd
+ *	A SOCKET returned by socket3_open() or socket3_accept().
+ *
+ * @param fdhut
+ *	Shutdown the read, write, or both directions of the socket.
+ *
+ * @return
+ *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
+ */
 int
 socket3_shutdown_tls(SOCKET fd, int shut)
 {
@@ -777,6 +985,13 @@ socket3_shutdown_tls(SOCKET fd, int shut)
 	return socket3_shutdown_fd(fd, shut);
 }
 
+/**
+ * Shutdown and close a socket.
+ *
+ * @param fd
+ *	A SOCKET returned by socket3_open(), socket3_server(),
+ *	or socket3_accept().
+ */
 void
 socket3_close_tls(SOCKET fd)
 {
