@@ -332,12 +332,17 @@ int
 socket3_set_linger(SOCKET fd, int seconds)
 {
 #ifdef SO_LINGER
-	struct linger setlinger = { 1, 0 };
+	struct linger setlinger = { 0, 0 };
+
+	if (0 <= seconds) {
+		setlinger.l_onoff = 1;
 # if defined(__WIN32__)
-	setlinger.l_linger = (u_short) seconds;
+		setlinger.l_linger = (u_short) seconds;
 # else
-	setlinger.l_linger = seconds;
+		setlinger.l_linger = seconds;
 # endif
+	}
+
 	return setsockopt(fd, SOL_SOCKET, SO_LINGER, (char *) &setlinger, sizeof (setlinger));
 #else
 	return 0;
@@ -642,11 +647,21 @@ socket3_accept(SOCKET fd, SocketAddress *addrp)
 void
 socket3_close_fd(SOCKET fd)
 {
+	unsigned char buffer[512];
+
 	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "socket3_close_fd(%d)", (int) fd);
 
 	if (fd != SOCKET_ERROR) {
 		socket3_shutdown(fd, SHUT_WR);
+
+		/* Avoid TIME_WAIT state "socket zombie" when a connection
+		 * is closed by consuming and discarding any waiting data.
+		 */
+		(void) socket3_set_nonblocking(fd, 1);
+		while (0 < socket3_read(fd, buffer, sizeof (buffer), NULL))
+			;
+
 		closesocket(fd);
 	}
 
@@ -659,17 +674,8 @@ void (*socket3_close_hook)(SOCKET fd) = socket3_close_fd;
 void
 socket3_close(SOCKET fd)
 {
-	unsigned char buffer[512];
-
 	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "socket3_close(%d)", (int) fd);
-
-	/* Avoid TIME_WAIT state "socket zombie" when a connection is
-	 * closed by consuming and discarding any waiting data.
-	 */
-	(void) socket3_set_nonblocking(fd, 1);
-	while (0 < socket3_read(fd, buffer, sizeof (buffer), NULL)) 
-		;
 
 	(*socket3_close_hook)(fd);
 }

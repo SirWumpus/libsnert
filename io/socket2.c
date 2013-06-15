@@ -645,8 +645,7 @@ socketClose(Socket2 *s)
 		syslog(LOG_DEBUG, "socketClose(%lx) s.fd=%d", (long) s, s == NULL ? -1 : socketGetFd(s));
 
 	if (s != NULL) {
-		socketShutdown(s, SHUT_WR);
-		socketFdClose(s);
+		socket3_close(socketGetFd(s));
 	}
 }
 
