@@ -432,6 +432,9 @@ convertYMD(const char *date_string, long *year, long *month, long *day, const ch
 	if (convertMonth(date_string, month, &next))
 		return -1;
 
+	if (*day < 1 || daysPerMonth[*month] < *day)
+		return -1;
+
 	date_string = skipCommentWhitespace(next);
 	*year = strtol(date_string, (char **) &next, 10);
 	if (date_string == next)
@@ -551,7 +554,7 @@ convertSyslog(const char *tstamp, long *month, long *day, long *hour, long *minu
 
 	tstamp = skipCommentWhitespace(next);
 	*day = strtol(tstamp, (char **) &next, 10);
-	if (tstamp == next)
+	if (tstamp == next || *day < 1 || daysPerMonth[*month] < *day)
 		return -1;
 
 	if (convertHMS(next, hour, minute, second, &next))
@@ -651,40 +654,47 @@ convertISO8601Tz(const char *s, long *zone, const char **stop)
 int
 convertISO8601(const char *s, long *year, long *month, long *day, long *hour, long *minute, long *second, const char **stop)
 {
-	*year = strntoul(s, stop, 4);
-	if (*stop - s != 4)
+	const char *next;
+
+	*year = strntoul(s, &next, 4);
+	if (next - s != 4)
 		return -1;
-	s = *stop;
+	s = next;
 	s += (*s == '-');
-	*month = strntoul(s, stop, 2);
-	if (*stop - s != 2)
+	*month = strntoul(s, &next, 2) - 1;
+	if (next - s != 2)
 		return -1;
-	s = *stop;
+	s = next;
 	s += (*s == '-');
-	*day = strntoul(s, stop, 2);
-	if (*stop - s != 2)
+	*day = strntoul(s, &next, 2);
+	if (next - s != 2)
 		return -1;
-	s = *stop;
+	s = next;
 	if (*s != 'T') {
 		*hour = *minute = *second = 0;
+		if (stop != NULL)
+			*stop = next;
 		return 0;
 	}
 
-	*hour = strntoul(++s, stop, 2);
-	if (*stop - s != 2)
+	*hour = strntoul(++s, &next, 2);
+	if (next - s != 2)
 		return -1;
-	s = *stop;
+	s = next;
 	s += (*s == ':');
-	*minute = strntoul(s, stop, 2);
-	if (*stop - s != 2)
+	*minute = strntoul(s, &next, 2);
+	if (next - s != 2)
 		return -1;
-	s = *stop;
+	s = next;
 	s += (*s == ':');
 
 	/* :SS optional, advance 0 if missing, else 2 if present. */
-	*second = strntoul(s, stop, 2);
-	if (s < *stop && *stop - s != 2)
+	*second = strntoul(s, &next, 2);
+	if (s < next && next - s != 2)
 		return -1;
+
+	if (stop != NULL)
+		*stop = next;
 
 	return 0;
 }
