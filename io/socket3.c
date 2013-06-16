@@ -653,7 +653,7 @@ socket3_close_fd(SOCKET fd)
 		syslog(LOG_DEBUG, "socket3_close_fd(%d)", (int) fd);
 
 	if (fd != SOCKET_ERROR) {
-		socket3_shutdown(fd, SHUT_WR);
+//		socket3_shutdown(fd, SHUT_WR);
 
 		/* Avoid TIME_WAIT state "socket zombie" when a connection
 		 * is closed by consuming and discarding any waiting data.
@@ -676,7 +676,6 @@ socket3_close(SOCKET fd)
 {
 	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "socket3_close(%d)", (int) fd);
-
 	(*socket3_close_hook)(fd);
 }
 
