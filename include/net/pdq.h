@@ -279,6 +279,23 @@ typedef struct {
 /* The overall time that pdqWait() and pdqWaitAll() are allowed.
  * With an initial timeout of 3 seconds, doubling every interation,
  * limited to 4 iterations, then it will take 45 seconds to timeout.
+ *
+ * Using BIND defaults and assuming a single DNS server, then the
+ * exponential backoff algorithm will result in a max. delay of
+ * 75 seconds (5+10+20+40) to find an answer before giving up.
+ *
+ * With more than one server, the timeout each round is divided
+ * by the number of servers available. So for example:
+ *   
+ *      1 server : 5+     10+    20+    40+      = 75 seconds
+ *      2 servers: 5+5+   5+5+   10+10+ 20+20    = 80 seconds
+ *      3 servers: 5+5+5+ 5+5+5+ 6+6+6+ 13+13+13 = 87 seconds
+ *
+ * Using an initial 3 second timeout:
+ *
+ *      1 server : 3+     6+     12+    24       = 45 seconds
+ *      2 servers: 3+3+   3+3+   6+6+   12+12    = 48 seconds
+ *      3 servers: 3+3+3+ 3+3+3+ 4+4+4+ 8+8+8    = 54 seconds
  */
 #define PDQ_TIMEOUT_MAX			(PDQ_TIMEOUT_START+(PDQ_TIMEOUT_START*2)+(PDQ_TIMEOUT_START*4)+(PDQ_TIMEOUT_START*8))
 #endif

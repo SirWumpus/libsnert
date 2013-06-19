@@ -1,7 +1,7 @@
 /*
  * isRFC2606.c
  *
- * Copyright 2002, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2002, 2013 by Anthony Howe. All rights reserved.
  */
 
 
@@ -27,7 +27,10 @@
  *	Flag bit mask of reserved domains to restrict.
  *
  * @return
- *	True if the domain portion matches a reserved domain.
+ *	True if the domain portion matches a reserved domain. 
+ *
+ * @see
+ *	RFC 2606, 6761, 6762
  */
 int
 isReservedTLD(const char *path, unsigned long flags)
@@ -62,12 +65,7 @@ isReservedTLD(const char *path, unsigned long flags)
 
 	/* This is NOT an RFC 2606 reserved domain, but is in common
 	 * usage, because of broken Microsoft MCSE recommendations
-	 * concerning Active Directory.
-	 *
-	 * Note that .local will probably be part of a future update
-	 * to RFC 2606 because the Internet Draft for multicast DNS.
-	 *
-	 * http://www.ietf.org/internet-drafts/draft-cheshire-dnsext-multicastdns-06.txt
+	 * concerning Active Directory. See RFC 6762.
 	 */
 	if ((flags & IS_TLD_LOCAL) && TextInsensitiveCompare(dot, ".local") == 0)
 		return 1;
