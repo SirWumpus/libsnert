@@ -135,13 +135,10 @@ ${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
 debug : ${top_srcdir}/util/DebugMalloc.o
 	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o' build
 
-backup-tlds:
-	-mv two-level-tlds.txt two-level-tlds.txt.bak
-	-mv tlds-alpha-by-domain.txt tlds-alpha-by-domain.txt.bak
-
-update-tlds: backup-tlds tlds-alpha-by-domain.txt two-level-tlds.txt three-level-tlds.txt
+update-tlds: tlds-alpha-by-domain.txt two-level-tlds.txt three-level-tlds.txt
 
 tlds-alpha-by-domain.txt:
+	mv tlds-alpha-by-domain.txt tlds-alpha-by-domain.txt.bak
 	wget -r -O tlds-alpha-by-domain.txt http://data.iana.org/TLD/tlds-alpha-by-domain.txt
 
 tlds-alpha-by-domain.c : tlds.sed tlds-alpha-by-domain.txt

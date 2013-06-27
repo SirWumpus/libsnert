@@ -226,8 +226,14 @@ option$E: option.c
 DebugMalloc$O: DebugMalloc.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -c DebugMalloc.c
 
-DebugMallocTest$E: DebugMalloc$O DebugMallocTest.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)DebugMallocTest$E DebugMallocTest.c $(LIBSNERT) ${LIBS} DebugMalloc$O
+DebugMalloc$E: DebugMalloc$O DebugMallocTest.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)DebugMalloc$E DebugMallocTest.c $(LIBSNERT) ${LIBS} DebugMalloc$O
+
+dmalloct$O: DebugMalloc.c
+	$(CC) $(CFLAGS) ${CFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)dmalloct$O -c DebugMalloc.c
+
+dmalloct$E: dmalloct$O DebugMallocTest.c
+	$(CC) -DTEST $(CFLAGS) ${CFLAGS_PTHREAD} $(LDFLAGS) ${LDFLAGS_PTHREAD} $(CC_E)dmalloct$E DebugMallocTest.c $(LIBSNERT) ${LIBS} ${LIB_PTHREAD} dmalloct$O
 
 convertDate$E: convertDate.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)convertDate$E convertDate.c $(LIBSNERT) ${LIBS}
@@ -254,7 +260,7 @@ time62$E : time62.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)time62$E time62.c
 
 timer$E : timer.c
-	${CC} -DTEST ${CFLAGS} ${CFLAGS_PTHREAD} ${LDFLAGS} ${LDFLAGS_PTHREAD} $(CC_E)timer$E timer.c $(LIBSNERT) ${CFLAGS_PTHREAD}
+	${CC} -DTEST ${CFLAGS} ${CFLAGS_PTHREAD} ${LDFLAGS} ${LDFLAGS_PTHREAD} $(CC_E)timer$E timer.c $(LIBSNERT) ${LIB_PTHREAD}
 
 htmlstrip$E : html.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)htmlstrip$E html.c $(LIBSNERT)

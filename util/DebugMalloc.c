@@ -1,15 +1,16 @@
 /*
  * DebugMalloc.c
  *
- * Copyright 2003, 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2003, 2013 by Anthony Howe.  All rights reserved.
  *
  * Inspired by Armin Biere's ccmalloc. This version is far less
- * complex and only detects four types of memory errors:
+ * complex and only detects five types of memory errors:
  *
  *   -	double-free
  *   -	memory over runs
  *   -	memory under runs
  *   -	releasing an invalid pointer
+ *   -	memory leaks
  *
  * However its main advantage is that its reentrant and thus
  * thread safe, and is known to work under Linux, OpenBSD, and
@@ -54,10 +55,6 @@
 #define PAD_SIZE		8	/* Must be even. */
 #endif
 
-#ifndef SIGNAL_MEMORY
-#define SIGNAL_MEMORY		SIGSEGV
-#endif
-
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/
@@ -71,9 +68,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
-#include <sys/types.h>
 
-#include <com/snert/lib/sys/pthread.h>
+#ifdef HAVE_SYS_TYPES_H
+# include <sys/types.h>
+#endif
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
+
 #include <com/snert/lib/sys/sysexits.h>
 #include <com/snert/lib/util/DebugMalloc.h>
 
@@ -92,12 +94,39 @@ extern ssize_t write(int, const void *, size_t);
  ***********************************************************************/
 
 #if !defined(__unix__) && !defined(HAVE_PTHREAD_KEY_CREATE)
-# undef DEBUG_MALLOC_THREAD_REPORT
+# undef _THREAD_SAFE
 #endif
 
-#ifdef DEBUG_MALLOC_THREAD_REPORT
-# define DEBUG_MALLOC_MUTEX
+#ifdef _THREAD_SAFE
+# include <com/snert/lib/sys/pthread.h>
+#else
+/* Disable pthread support. */
+# undef PTHREAD_MUTEX_LOCK
+# undef PTHREAD_MUTEX_UNLOCK
+# define PTHREAD_MUTEX_LOCK(m)
+# define PTHREAD_MUTEX_UNLOCK(m)
+
+# define PTHREAD_MUTEX_INITIALIZER	0
+# define PTHREAD_ONCE_INIT		0
+# define pthread_t			unsigned
+# define pthread_key_t			unsigned
+# define pthread_mutex_t		unsigned
+# define pthread_once_t			unsigned
+# define pthread_self()			(0)
+# define pthread_once(o, f)		(0)
+# define pthread_key_create(k, f)	(0)
+# define pthread_getspecific(k)		main_head
+# define pthread_setspecific(k, v)	(main_head = (v), 0)
+# define pthread_mutex_lock(m)		(0)
+# define pthread_mutex_trylock(m)	(0)
+# define pthread_mutex_unlock(m)	(0)
 #endif
+
+#define HERE_FMT		"%s:%u "
+#define HERE_ARG		file, line
+
+#define CHUNK_FMT		"chunk=0x%lx size=%lu " HERE_FMT
+#define CHUNK_ARG(b)		&(b)[1], (b)->size, (b)->file, (b)->line
 
 typedef enum {
 	MEMORY_INITIALISE, MEMORY_INITIALISING, MEMORY_INITIALISED
@@ -108,11 +137,9 @@ typedef struct block_data {
 	size_t size;
 	unsigned line;
 	const char *file;
-#if defined(DEBUG_MALLOC_THREAD_REPORT)
+	unsigned long crc;
 	struct block_data *prev;
 	struct block_data *next;
-#endif
-	unsigned long crc;
 	unsigned char after[PAD_SIZE];
 } BlockData;
 
@@ -120,8 +147,6 @@ typedef struct block_data {
 #define ALIGN_PAD(sz, pow2)	(ALIGN_SIZE(sz, pow2) - sz)
 
 static const char *unknown = "(unknown)";
-static void msg(char *fmt, ...);
-static void msgv(char *fmt, va_list args);
 static void dump(unsigned char *chunk, size_t size);
 static void signal_error(char *fmt, ...);
 
@@ -147,15 +172,12 @@ static volatile unsigned long memory_allocation_count = 0;
 
 static size_t static_used;
 static char static_memory[MAX_STATIC_MEMORY];
-#ifdef DEBUG_MALLOC_MUTEX
-static pthread_mutex_t memory_mutex = PTHREAD_MUTEX_INITIALIZER;
-#endif
 
+int memory_exit = 1;
+int memory_signal = SIGSEGV;
 int memory_show_free = 0;
 int memory_show_malloc = 0;
 int memory_thread_leak = 0;
-int memory_raise_signal = 1;
-int memory_raise_and_exit = 1;
 int memory_test_double_free = 1;
 void *memory_free_chunk = NULL;
 void *memory_malloc_chunk = NULL;
@@ -165,86 +187,82 @@ unsigned long memory_report_interval = 0;
  ***
  ***********************************************************************/
 
-#if defined(DEBUG_MALLOC_THREAD_REPORT)
-/*** THIS CODE NEEDS TO BE REVIEWED. NOT STABLE IN THREADED CODE. ***/
+static pthread_t main_thread;
 
-#define IS_NULL(p)	((p) == NULL || ((unsigned long)(p) & 0xFF) == FREED_BYTE)
-
-enum { THREAD_KEY_INITIALISE, THREAD_KEY_INITIALISING, THREAD_KEY_READY, THREAD_KEY_BUSY };
-
+#ifdef _THREAD_SAFE
 static pthread_key_t thread_malloc_list;
-/* static pthread_mutex_t msg_mutex = PTHREAD_MUTEX_INITIALIZER; */
-static volatile int thread_key_state = THREAD_KEY_INITIALISE;
-static int (*lib_pthread_create)(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg);
+static pthread_once_t thread_key_once = PTHREAD_ONCE_INIT;
+static pthread_mutex_t memory_mutex = PTHREAD_MUTEX_INITIALIZER;
+#else
+static BlockData *main_head;
+#endif
 
-void
-DebugMallocThreadReport(void *data)
+static void
+thread_exit_report(void *data)
 {
-	void *chunk;
-	unsigned count = 0;
+	unsigned count;
 	BlockData *block = data;
 
-	if (block != NULL) {
-		for ( ; block != NULL; block = block->next, count++) {
-			chunk = &block[1];
+	/* Clear the thread key data to avoid thread key cleanup loop. */
+	(void) pthread_setspecific(thread_malloc_list, NULL);
 
+	/* Dump the list of allocated memory at thread exit. */
+	if (block != NULL) {
+		if (main_thread == pthread_self())
+			err_msg("main_thread:\r\n");
+		else
+			err_msg("thread #%lx:\r\n", (unsigned long) pthread_self());
+
+		for (count = 0; block != NULL; block = block->next, count++) {
 			if (block->crc != ((unsigned long) block ^ block->size)) {
-				signal_error("thread #%lu memory marker corruption chunk=0x%lx size=%lu\r\n", (unsigned long) pthread_self(), (long) chunk,  block->size);
+				signal_error("thread #%lu memory marker corruption " CHUNK_FMT "\r\n", (unsigned long) pthread_self(), CHUNK_ARG(block));
 				return;
 			}
 
-			msg("thread #%lu chunk=0x%lx size=%lu file=%s:%u dump=", (unsigned long) pthread_self(), (long) chunk, block->size, block->file, block->line);
-			dump(chunk, block->size < 40 ? block->size : 40);
-			msg("\r\n");
+			err_msg("\t" CHUNK_FMT " dump=", CHUNK_ARG(block));
+			dump((unsigned char *)&block[1], block->size < 40 ? block->size : 40);
+			err_msg("\r\n");
 		}
 
-		thread_key_state = THREAD_KEY_BUSY;
-		(void) pthread_setspecific(thread_malloc_list, NULL);
-		thread_key_state = THREAD_KEY_READY;
-
-		msg("thread #%lu allocated blocks=%u\r\n", (unsigned long) pthread_self(), count);
+		err_msg("\tleaked blocks=%u\r\n", count);
 
 		if (memory_thread_leak && 0 < count)
 			signal_error("thread report abort\r\n");
 	}
 }
 
-int
-pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg)
+static void
+thread_make_key(void)
 {
-	/* Must wait until the pthread library has been initialised
-	 * before we can initialise the thread key. If we attempt to
-	 * use pthread_key_create() in init(), then we may get a
-	 * segmentation fault.
-	 */
-	if (thread_key_state == THREAD_KEY_INITIALISE) {
-		thread_key_state = THREAD_KEY_INITIALISING;
-		if (!pthread_key_create(&thread_malloc_list, DebugMallocThreadReport))
-			thread_key_state = THREAD_KEY_READY;
-	}
-
-	return (*lib_pthread_create)(thread, attr, start_routine, arg);
+	(void) pthread_key_create(&thread_malloc_list, thread_exit_report);
+	main_thread = pthread_self();
 }
 
-#endif
-
 static void
-msgv(char *fmt, va_list args)
+exit_report(void)
+{
+	thread_exit_report(pthread_getspecific(thread_malloc_list));
+}
+
+void
+err_msgv(char *fmt, va_list args)
 {
 	int len;
 	char buf[255];
 
-	len = vsnprintf(buf, sizeof (buf), fmt, args);
-	(void) write(2, buf, len);
+	if (fmt != NULL) {
+		len = vsnprintf(buf, sizeof (buf), fmt, args);
+		(void) write(STDERR_FILENO, buf, len);
+	}
 }
 
-static void
-msg(char *fmt, ...)
+void
+err_msg(char *fmt, ...)
 {
 	va_list args;
 
 	va_start(args, fmt);
-	msgv(fmt, args);
+	err_msgv(fmt, args);
 	va_end(args);
 }
 
@@ -266,7 +284,7 @@ dump(unsigned char *chunk, size_t size)
 			hex[2] = (*chunk >> 4) & 0xF;
 			hex[2] += (hex[2] < 0xA) ? '0' : ('A' - 10);
 
-			(void) write(2, hex, sizeof (hex));
+			(void) write(STDERR_FILENO, hex, sizeof (hex));
 		}
 	}
 }
@@ -277,27 +295,35 @@ signal_error(char *fmt, ...)
 	va_list args;
 
 	va_start(args, fmt);
-	msgv(fmt, args);
+	err_msgv(fmt, args);
 	va_end(args);
 
-	if (memory_raise_signal)
-		raise(SIGNAL_MEMORY);
+	if (0 < memory_signal) {
+		(void) pthread_mutex_trylock(&memory_mutex);
+		(void) pthread_mutex_unlock(&memory_mutex);
+		raise(memory_signal);
+	}
 
-	if (memory_raise_and_exit)
+	if (memory_exit)
 		exit(EX_DATAERR);
 }
 
 void
-DebugMallocReport(void)
+DebugMallocSummary(void)
 {
-	msg(
-		" malloc: %14lu    free: %14lu    lost: %14ld\r\n",
+	if (main_thread == pthread_self())
+		err_msg("main_thread:\r\n");
+	else
+		err_msg("thread #%lx:\r\n", (unsigned long) pthread_self());
+
+	err_msg(
+		"\t malloc: %-14lu    free: %-14lu    lost: %-14ld\r\n",
 		memory_allocation_count, memory_free_count,
 		memory_allocation_count - memory_free_count
 	);
 
-	msg(
-		"_malloc: %14lu   _free: %14lu   _lost: %14ld\r\n",
+	err_msg(
+		"\t_malloc: %-14lu   _free: %-14lu   _lost: %-14ld\r\n",
 		static_allocation_count, static_free_count,
 		static_allocation_count - static_free_count
 	);
@@ -356,11 +382,13 @@ init_common(void)
 	if ((value = getenv("MEMORY")) != NULL) {
 		memory_show_free = (strchr(value, 'F') != NULL);
 		memory_show_malloc = (strchr(value, 'M') != NULL);
-		memory_raise_signal = (strchr(value, 'S') == NULL);
-		memory_raise_and_exit = (strchr(value, 'E') == NULL);
 		memory_thread_leak = (strchr(value, 'T') != NULL);
+		memory_signal = (strchr(value, 'S') == NULL) ? SIGSEGV : 0;
+		memory_exit = (strchr(value, 'E') == NULL);
 	}
 
+	if ((value = getenv("MEMORY_SIGNUM")) != NULL)
+		memory_signal = (int) strtol(value, NULL, 0);
 	if ((value = getenv("MEMORY_FREE_CHUNK")) != NULL)
 		memory_free_chunk = (void *) strtol(value, NULL, 0);
 	if ((value = getenv("MEMORY_MALLOC_CHUNK")) != NULL)
@@ -368,8 +396,12 @@ init_common(void)
 	if ((value = getenv("MEMORY_REPORT_INTERVAL")) != NULL)
 		memory_report_interval = (unsigned long) strtol(value, NULL, 0);
 
-	if (atexit(DebugMallocReport)) {
-		msg("atexit() error\r\n");
+	if (atexit(exit_report)) {
+		err_msg("atexit() error\r\n");
+		exit(EX_OSERR);
+	}
+	if (atexit(DebugMallocSummary)) {
+		err_msg("atexit() error\r\n");
 		exit(EX_OSERR);
 	}
 }
@@ -388,7 +420,7 @@ void
 memory_free(void *chunk)
 {
 	if (LocalFree(chunk) != NULL) {
-		msg("free failed chunk=%lx", (long) chunk);
+		err_msg("free failed chunk=%lx", (long) chunk);
 		raise(SIGNAL_MEMORY);
 		exit(EX_DATAERR);
 	}
@@ -406,7 +438,7 @@ void
 memory_free(void *chunk)
 {
 	if (!HeapFree(GetProcessHeap(), 0, chunk)) {
-		msg("free failed chunk=%lx", (long) chunk);
+		err_msg("free failed chunk=%lx", (long) chunk);
 		raise(SIGNAL_MEMORY);
 		exit(EX_DATAERR);
 	}
@@ -460,32 +492,32 @@ init(void)
 
 	handle = dlopen(LIBC_PATH, RTLD_NOW);
 	if ((err = dlerror()) != NULL) {
-		msg("libc.so load error\r\n");
+		err_msg("libc.so load error: %s\r\n", err);
 		exit(EX_OSERR);
 	}
 
   	libc_malloc = (void *(*)(size_t)) dlsym(handle, "malloc");
 	if ((err = dlerror()) != NULL) {
-		msg("failed to find libc malloc()\r\n");
+		err_msg("malloc() not found: %s\r\n", err);
 		exit(EX_OSERR);
 	}
 
   	libc_free = (void (*)(void *)) dlsym(handle, "free");
 	if ((err = dlerror()) != NULL) {
-		msg("failed to find libc free()\r\n");
+		err_msg("free() not found: %s\r\n", err);
 		exit(EX_OSERR);
 	}
 
-#if defined(DEBUG_MALLOC_THREAD_REPORT) && defined(LIBPTHREAD_PATH)
+#if NOT_USED
 	handle = dlopen(LIBPTHREAD_PATH, RTLD_NOW);
 	if ((err = dlerror()) != NULL) {
-		msg("libpthread.so load error\r\n");
+		err_msg("libpthread.so load error\r\n", err);
 		exit(EX_OSERR);
 	}
 
-  	lib_pthread_create = dlsym(handle, "pthread_create");
+	lib_pthread_create = dlsym(handle, "pthread_create");
 	if ((err = dlerror()) != NULL) {
-		msg("failed to find pthread_create()\r\n");
+		err_msg("pthread_create() not found: %s\r\n", err);
 		exit(EX_OSERR);
 	}
 #endif
@@ -503,37 +535,32 @@ init(void)
 # error "Unable to debug memory on this system."
 #endif
 
-#undef free
-#undef malloc
-#undef calloc
-#undef realloc
-
 void
-free(void *chunk)
+(free)(void *chunk)
 {
-	DebugFree(chunk);
+	DebugFree(chunk, unknown, 0);
 }
 
 void *
-malloc(size_t size)
+(malloc)(size_t size)
 {
 	return DebugMalloc(size, unknown, 0);
 }
 
 void *
-calloc(size_t m, size_t n)
+(calloc)(size_t m, size_t n)
 {
 	return DebugCalloc(m, n, unknown, 0);
 }
 
 void *
-realloc(void *chunk, size_t size)
+(realloc)(void *chunk, size_t size)
 {
 	return DebugRealloc(chunk, size, unknown, 0);
 }
 
 static void
-DebugCheckBoundaries(BlockData *block)
+DebugCheckBoundaries(BlockData *block, const char *file, unsigned line)
 {
 	unsigned char *p, *q;
 	unsigned char *chunk = (unsigned char *) &block[1];
@@ -543,7 +570,7 @@ DebugCheckBoundaries(BlockData *block)
 	q = chunk;
 	for ( ; p < q; p++) {
 		if (*p != DOH_BYTE) {
-			signal_error("memory underun (a) chunk=0x%lx size=%lu\r\n", (long) chunk, block->size);
+			signal_error(HERE_FMT "memory underun (a) " CHUNK_FMT "\r\n", HERE_ARG, CHUNK_ARG(block));
 			return;
 		}
 	}
@@ -553,29 +580,28 @@ DebugCheckBoundaries(BlockData *block)
 	q = p + sizeof (block->before);
 	for ( ; p < q; p++) {
 		if (*p != DAH_BYTE) {
-			signal_error("memory underun (b) chunk=0x%lx size=%lu\r\n", (long) chunk, block->size);
+			signal_error(HERE_FMT "memory underun (b) " CHUNK_FMT "\r\n", HERE_ARG, CHUNK_ARG(block));
 			return;
 		}
 	}
-
 
 	/* Check the boundary marker between end of chunk and end of block. */
 	p = (unsigned char *) &block[1] + block->size;
 	q = p + ALIGN_PAD(block->size, ALIGNMENT_SIZE) + ALIGNMENT_SIZE;
 	for ( ; p < q; p++) {
 		if (*p != DOH_BYTE) {
-			signal_error("memory overrun chunk=0x%lx size=%lu\r\n", (long) chunk, block->size);
+			signal_error(HERE_FMT "memory overrun " CHUNK_FMT "\r\n", HERE_ARG, CHUNK_ARG(block));
 			return;
 		}
 	}
 }
 
 void
-DebugFree(void *chunk)
+DebugFree(void *chunk, const char *file, unsigned line)
 {
-	BlockData *block;
 	unsigned char *p, *q;
 	size_t size, block_size;
+	BlockData *block, *head;
 
 	if (chunk == NULL)
 		return;
@@ -588,7 +614,7 @@ DebugFree(void *chunk)
 
 	case MEMORY_INITIALISING:
 		if (!_free(chunk)) {
-			raise(SIGNAL_MEMORY);
+			raise(memory_signal);
 			exit(EX_DATAERR);
 		}
 		return;
@@ -597,6 +623,8 @@ DebugFree(void *chunk)
 		init();
 		break;
 	}
+
+	PTHREAD_MUTEX_LOCK(&memory_mutex);
 
 	/* Get the location of the block data. */
 	block = &((BlockData *) chunk)[-1];
@@ -612,13 +640,13 @@ DebugFree(void *chunk)
 		+ ALIGNMENT_SIZE;
 
 	if (block->crc != ((unsigned long) block ^ size)) {
-		/* Can't report size as it is probably bogus. */
+		/* Can't report size as it is probably corrupted. */
 		if (*(unsigned char *) chunk == FREED_BYTE) {
-			signal_error("double free chunk=0x%lx\r\n", (long) chunk);
+			signal_error(HERE_FMT "double free chunk=0x%lx\r\n", HERE_ARG, (long) chunk);
 			return;
 		}
 
-		signal_error("memory corruption chunk=0x%lx\r\n", (long) chunk);
+		signal_error(HERE_FMT "memory corruption chunk=0x%lx\r\n", HERE_ARG, (long) chunk);
 		return;
 	}
 
@@ -626,30 +654,19 @@ DebugFree(void *chunk)
 	if (size & ~((~ (size_t) 0) >> 1))
 		memory_test_double_free = 0;
 
-#if defined(DEBUG_MALLOC_THREAD_REPORT)
-	if (pthread_mutex_lock(&memory_mutex))
-		signal_error("free mutex lock: %s (%d)\r\n", strerror(errno), errno);
+	/* Maintain list of allocated memory per thread, including main() */
+	head = pthread_getspecific(thread_malloc_list);
 
-	if (!IS_NULL(block->prev)) {
+	if (block->prev == NULL)
+		head = block->next;
+	else
 		block->prev->next = block->next;
-	} else {
-		/* Update thread's pointer to the head of it's allocation list. */
-		thread_key_state = THREAD_KEY_BUSY;
-		(void) pthread_setspecific(thread_malloc_list, block->next);
-		thread_key_state = THREAD_KEY_READY;
 
-		if (!IS_NULL(block->next))
-			block->next->prev = NULL;
-	}
-
-	if (!IS_NULL(block->next))
+	if (block->next != NULL)
 		block->next->prev = block->prev;
-	else if (!IS_NULL(block->prev))
-		block->prev->next = NULL;
 
-	if (pthread_mutex_unlock(&memory_mutex))
-		signal_error("free mutex unlock: %s (%d)\r\n", strerror(errno), errno);
-#endif
+	(void) pthread_setspecific(thread_malloc_list, head);
+
 	if (memory_test_double_free) {
 		/* Look for double-free first, since the block structure
 		 * may have been overwritten by a previous free() causing
@@ -663,12 +680,12 @@ DebugFree(void *chunk)
 		}
 
 		if (0 < size && q <= p) {
-			signal_error("double-free chunk=0x%lx size=%lu\r\n", (long) chunk, size);
+			signal_error(HERE_FMT "double-free " CHUNK_FMT "\r\n", CHUNK_ARG(block));
 			return;
 		}
 	}
 
-	DebugCheckBoundaries(block);
+	DebugCheckBoundaries(block, HERE_ARG);
 
 	if (memory_test_double_free) {
 		/* Wipe the WHOLE memory area including the space
@@ -679,17 +696,10 @@ DebugFree(void *chunk)
 
 	/* The libc free has its own mutex locking. */
 	(*libc_free)(block);
-
-#ifdef DEBUG_MALLOC_MUTEX
-	if (pthread_mutex_lock(&memory_mutex))
-		signal_error("free mutex lock: %s (%d)\r\n", strerror(errno), errno);
-#endif
 	memory_free_count++;
 
-#ifdef DEBUG_MALLOC_MUTEX
-	if (pthread_mutex_unlock(&memory_mutex))
-		signal_error("free mutex lock: %s (%d)\r\n", strerror(errno), errno);
-#endif
+	PTHREAD_MUTEX_UNLOCK(&memory_mutex);
+
 #ifdef __WIN32__
 /* On some systems like OpenBSD with its own debugging malloc()/free(),
  * once freed you cannot access the memory without causing a segmentation
@@ -700,21 +710,21 @@ DebugFree(void *chunk)
 		memory_test_double_free = 0;
 #endif
 	if (memory_show_free)
-		msg("free chunk=0x%lx size=%lu\r\n", (unsigned long) chunk, size);
+		err_msg(HERE_FMT "free chunk=0x%lx size=%lu\r\n", HERE_ARG, (unsigned long) chunk, size);
 
 	if (chunk == memory_free_chunk)
-		signal_error("memory stop free on chunk=0x%lx\r\n", (long) chunk);
+		signal_error(HERE_FMT "memory stop free on chunk=0x%lx\r\n", HERE_ARG, (long) chunk);
 
 	if (0 < memory_report_interval && memory_free_count % memory_report_interval == 0)
-		DebugMallocReport();
+		DebugMallocSummary();
 }
 
 void *
 DebugMalloc(size_t size, const char *file, unsigned line)
 {
 	void *chunk;
-	BlockData *block;
 	size_t block_size;
+	BlockData *block, *head;
 
 	switch (memory_init_state) {
 	case MEMORY_INITIALISED:
@@ -728,6 +738,8 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 		init();
 		break;
 	}
+
+	PTHREAD_MUTEX_LOCK(&memory_mutex);
 
 	/* Allocate enough space to include some boundary markers.
 	 *
@@ -750,50 +762,35 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 	if (block == NULL)
 		return NULL;
 
-#ifdef DEBUG_MALLOC_MUTEX
-	if (pthread_mutex_lock(&memory_mutex))
-		signal_error("malloc mutex lock: %s (%d)\r\n", strerror(errno), errno);
-#endif
 	memory_allocation_count++;
-
-#if defined(DEBUG_MALLOC_THREAD_REPORT)
-	block->prev = block->next = NULL;
-
-	if (thread_key_state == THREAD_KEY_READY) {
-		BlockData *head = pthread_getspecific(thread_malloc_list);
-
-		if (!IS_NULL(head)) {
-			block->prev = NULL;
-			block->next = head;
-			head->prev = block;
-		}
-
-		/* pthread_setspecific() might allocate memory first
-		 * time it is called for a new thread, which might
-		 * cause recursion if we don't take care to skip this
-		 * section while in pthread_setspecific().
-		 */
-		thread_key_state = THREAD_KEY_BUSY;
-		(void) pthread_setspecific(thread_malloc_list, block);
-		thread_key_state = THREAD_KEY_READY;
-	}
-#endif
-#ifdef DEBUG_MALLOC_MUTEX
-	if (pthread_mutex_unlock(&memory_mutex))
-		signal_error("malloc mutex unlock: %s (%d)\r\n", strerror(errno), errno);
-#endif
-	block->crc = (unsigned long) block ^ size;
-	block->size = size;
-	block->file = file;
-	block->line = line;
 
 	/* The chunk to return. */
 	chunk = &block[1];
 
 	/* Fill in the boundary markers. */
+	memset(block, DOH_BYTE, block_size);
 	memset(block->before, DAH_BYTE, sizeof (block->before));
-	memset(block->after, DOH_BYTE, chunk - (void *) block->after);
-	memset((char *) chunk + size, DOH_BYTE, ALIGN_PAD(size, ALIGNMENT_SIZE) + ALIGNMENT_SIZE);
+
+	/* Zero the chunk. */
+	memset((char *) chunk, 0, size);
+
+	/* Maintain list of allocated memory per thread, including main() */
+    	(void) pthread_once(&thread_key_once, thread_make_key);
+	head = pthread_getspecific(thread_malloc_list);
+
+	block->next = head;
+
+	if (head == NULL)
+		block->prev = NULL;
+	else
+		head->prev = block;
+
+	(void) pthread_setspecific(thread_malloc_list, block);
+
+	block->crc = (unsigned long) block ^ size;
+	block->size = size;
+	block->file = file;
+	block->line = line;
 
 	/* When we allocate a previously freed chunk, write a single value
 	 * to the start of the chunk to prevent inadvertant double-free
@@ -802,11 +799,13 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 	if (0 < size)
 		*(unsigned char *) chunk = MALLOC_BYTE;
 
+	PTHREAD_MUTEX_UNLOCK(&memory_mutex);
+
 	if (memory_show_malloc)
-		msg("malloc chunk=0x%lx size=%lu\r\n", (unsigned long) chunk, size);
+		err_msg("%s:%d malloc chunk=0x%lx size=%lu\r\n", HERE_ARG, (unsigned long) chunk, size);
 
 	if (chunk == memory_malloc_chunk)
-		signal_error("memory stop malloc on chunk=0x%lx\r\n", chunk);
+		signal_error("%s:%d memory stop malloc on chunk=0x%lx\r\n", HERE_ARG, chunk);
 
 	return chunk;
 }
@@ -817,7 +816,7 @@ DebugRealloc(void *chunk, size_t size, const char *file, unsigned line)
 	void *replacement;
 	BlockData *block;
 
-	if ((replacement = DebugMalloc(size, file, line)) == NULL)
+	if ((replacement = DebugMalloc(size, HERE_ARG)) == NULL)
 		return NULL;
 
 	if (chunk != NULL) {
@@ -834,7 +833,7 @@ DebugCalloc(size_t m, size_t n, const char *file, unsigned line)
 {
 	void *chunk;
 
-	if ((chunk = DebugMalloc(m * n, file, line)) != NULL)
+	if ((chunk = DebugMalloc(m * n, HERE_ARG)) != NULL)
 		memset(chunk, 0, m * n);
 
 	return chunk;

@@ -60,10 +60,26 @@ is no set schedule for releases.
 --1.75.23--
 
    !	Fix socket3_close() to address TIME_WAIT (socket zombie) issue
-	by consuming any unread input.
+	by not calling shutdown SHUT_WR. Leave that to the application.
+	TIME_WAIT handled by proper use of linger timeout.
+
+	In the case of BarricadeMX:
+
+	1. Make sure that socke close functions no longer do a shutdown
+	   SHUT_WR as a default matter of corse.
+	2. Set linger timeout to 0 on new client connections, assumes
+	   most connections drop by client or if dropped by application.
+	3. On SMTP QUIT set the linger timeout to about 3 or so seconds
+	   for a clean close.
+
+	This LONG article helps clarify things...
+	http://www.serverframework.com/asynchronousevents/2011/01/time-wait-and-its-design-implications-for-protocols-and-scalable-servers.html
+
+	Thsi one explained linger more clearly...
+	http://alas.matf.bg.ac.rs/manuals/lspe/snode=105.html
 
    !	Fix socket3_set_ca_certs() to check if the cert_dir and ca_chain
-	exist before calling SSL_CTX_load_verify_locations(). 
+	exist before calling SSL_CTX_load_verify_locations().
 
    +	Added support for ISO 8601 format to convertDate().
 
@@ -76,6 +92,13 @@ is no set schedule for releases.
 	"http:/" spam example.
 
    !	Minor change to playfair CLI to use getopt().
+
+   !	Refactored DebugMalloc pthread support. Should now detect memory
+	leaks per thread.
+
+   !	Updated IANA TLD list.
+
+   +	Added binary search tree API.
 
 --1.75.22--
 

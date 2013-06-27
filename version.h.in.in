@@ -938,6 +938,19 @@ typedef int socklen_t;
 #define QUOTE(x)	QUOTE_THIS(x)
 #define QUOTE_THIS(x)	#x
 
+/**
+ * @param a
+ *	A pointer to object A.
+ *
+ * @param b
+ *	A pointer to object B.
+ *
+ * @return
+ *	Zero if A == B, negative if A < B, or positive if A > B.
+ */
+#define HAVE_CMPFN_T
+typedef int (*CmpFn)(void *a, void *b);
+
 /***********************************************************************
  *** Alternate Memory Allocator
  ***********************************************************************/

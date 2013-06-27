@@ -18,16 +18,27 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 #include <signal.h>
+
+#if HAVE_INTTYPES_H
+# include <inttypes.h>
+#else
+# if HAVE_STDINT_H
+# include <stdint.h>
+# endif
+#endif
+
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
 
 #include <com/snert/lib/util/DebugMalloc.h>
 
-enum { PASS, FAIL, SIGNAL };
+typedef enum { PASS, FAIL, SIGNAL } TestRc;
 
 struct diagnostic {
-	int (*test)(void);
-	int expectedStatus;
+	TestRc (*test)(void);
+	TestRc expectedStatus;
 	const char *explanation;
 };
 
@@ -42,16 +53,16 @@ fault_handler(int signum)
 	fault_found = 1;
 }
 
-static int
+static TestRc
 find_fault(const struct diagnostic *diag)
 {
-	int status;
+	TestRc status;
 	const char *result;
 
 	fault_found = 0;
 
-	write(2, diag->explanation, strlen(diag->explanation));
-	write(2, elipses, sizeof (elipses)-1);
+	write(STDERR_FILENO, diag->explanation, strlen(diag->explanation));
+	write(STDERR_FILENO, elipses, sizeof (elipses)-1);
 
 	status = (*diag->test)();
 
@@ -59,19 +70,25 @@ find_fault(const struct diagnostic *diag)
 		status = SIGNAL;
 
 	result = status == diag->expectedStatus ? "OK" : "FAIL";
-	write(2, result, strlen(result));
-	write(2, &newline, sizeof (newline)-1);
+	write(STDERR_FILENO, result, strlen(result));
+	write(STDERR_FILENO, &newline, sizeof (newline)-1);
 
 	return status;
 }
 
-static int
+static TestRc
 testSizes(void)
 {
-	return sizeof (unsigned long) < sizeof(void *);
+	return sizeof (unsigned long) < sizeof (void *);
 }
 
-static int
+static TestRc
+size_intptr(void)
+{
+	return sizeof (intptr_t) < sizeof (void *);
+}
+
+static TestRc
 allocateMemory(void)
 {
 	allocation = (char *) malloc(1);
@@ -80,7 +97,7 @@ allocateMemory(void)
 
 }
 
-static int
+static TestRc
 freeMemory(void)
 {
 	free(allocation);
@@ -88,7 +105,7 @@ freeMemory(void)
 	return PASS;
 }
 
-static int
+static TestRc
 write0(void)
 {
 	*allocation = 1;
@@ -96,7 +113,7 @@ write0(void)
 	return PASS;
 }
 
-static int
+static TestRc
 write_over(void)
 {
 	allocation[1] = '>';
@@ -104,7 +121,7 @@ write_over(void)
 	return PASS;
 }
 
-static int
+static TestRc
 write_under(void)
 {
 	allocation[-1] = '<';
@@ -112,7 +129,7 @@ write_under(void)
 	return PASS;
 }
 
-static int
+static TestRc
 corruptPointer(void)
 {
 	allocation += sizeof (void *);
@@ -123,7 +140,11 @@ corruptPointer(void)
 static struct diagnostic diagnostics[] = {
 	{
 		testSizes, PASS,
-		"A (void *) is larger than (long), switch to using (long long)."
+		"sizeof (int) == sizeof (void *)"
+	},
+	{
+		size_intptr, PASS,
+		"sizeof (intptr_t) == sizeof (void *)"
 	},
 	{
 		allocateMemory, PASS,
@@ -201,12 +222,11 @@ main(int argc, char * * argv)
 {
 	static const struct diagnostic *diag;
 
-	memory_raise_signal = 1;
-	memory_raise_and_exit = 0;
-	signal(SIGNAL_MEMORY, fault_handler);
+	memory_exit = 0;
+	signal(memory_signal, fault_handler);
 
 	for (diag = diagnostics; diag->explanation != NULL; diag++) {
-		int status = find_fault(diag);
+		TestRc status = find_fault(diag);
 
 		if (status != diag->expectedStatus) {
 			/* Don't use stdio to print here, because stdio
@@ -214,9 +234,9 @@ main(int argc, char * * argv)
 			 * is broken. Also, use _exit() instead of exit(),
 			 * because _exit() doesn't flush stdio.
 			 */
-			write(2, failedTest, sizeof(failedTest) - 1);
-			write(2, diag->explanation, strlen(diag->explanation));
-			write(2, &newline, 1);
+			write(STDERR_FILENO, failedTest, sizeof(failedTest) - 1);
+			write(STDERR_FILENO, diag->explanation, strlen(diag->explanation));
+			write(STDERR_FILENO, &newline, 1);
 			_exit(EXIT_FAILURE);
 		}
 	}

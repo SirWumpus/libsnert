@@ -85,8 +85,10 @@ $O$E :
 
 IDIR := ${top_srcdir}/include
 HDIR := ${IDIR}/type
-OBJS := Object$O Data$O Integer$O Decimal$O Hash$O Vector$O list$O queue$O Text$O kvm$O mcc$O
-TEST := Object$E Data$E Integer$E Decimal$E Hash$E Vector$E Text$E kvmc$E kvmd$E kvmap$E mcc$E
+OBJS := Object$O Data$O Integer$O Decimal$O Hash$O Vector$O list$O tree$O \
+	queue$O Text$O kvm$O mcc$O
+TEST := Object$E Data$E Integer$E Decimal$E Hash$E Vector$E tree$E Text$E \
+	kvmc$E kvmd$E kvmap$E mcc$E
 
 .MAIN : build
 
@@ -144,6 +146,11 @@ lint: title
 	cd ../crc; ${MAKE} build; if test $$? -ne 0; then exit 1; fi
 
 list.c : ${HDIR}/list.h
+
+tree.c : ${HDIR}/tree.h
+
+tree$E : tree.c
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}tree$E tree.c
 
 ${HDIR}/queue.h : ${HDIR}/list.h
 

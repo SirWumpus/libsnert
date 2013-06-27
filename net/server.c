@@ -1394,6 +1394,7 @@ sinkStart(Server *server)
 
 	return 0;
 error2:
+	socketSetLinger(sink_socket, 0);
 	socketClose(sink_socket);
 	server->data = NULL;
 error1:
@@ -1406,6 +1407,7 @@ int
 sinkStop(Server *server)
 {
 	if (server != NULL) {
+		socketSetLinger(server->data, 0);
 		socketClose(server->data);
 		server->data = NULL;
 	}
@@ -1471,8 +1473,7 @@ sinkProcess(ServerSession *session)
 		}
 	}
 
-	/* Close the socket without calling shutdown(). */
-	socketFdClose(session->client);
+	socketClose(session->client);
 	session->client = NULL;
 error0:
 	return reportFinish(session);

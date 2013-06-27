@@ -64,7 +64,7 @@ The following test cases
 
  Y  U  N  -	(www.parenthesis.com)	Implicit domain within parenthesis.
 
- N  -  N  -	There are no numeric top-level-domains like www.example.123
+ N  -  N  -	There are no numeric top-level-domains like www.example.123 implicit parses, no lookup
 
  N  -  N  -	foo.bar.-123		Invalid top-level-domain. RFC 1035 section 2.3.1 grammar.
 
@@ -352,9 +352,9 @@ Comment: Dot separator encoded using 8bit Big5 codes.
 
 <HTML>
 <BODY>
-<A href="http://cheng-xia5¡Cinfo/">link</A>	0xA143	dot
-<A href="http://cheng-xia5¡Dinfo/">link</A>	0xA144	dot
-<A href="http://cheng-xia5¡Oinfo/">link</A>	0xA14F	dot
+<A href="http://cheng-xia5¡Cinfo/">link</A>	0xA143	U+3002	IDEOGRAPHIC FULL STOP
+<A href="http://cheng-xia5¡Dinfo/">link</A>	0xA144	U+FF0E	FULLWIDTH FULL STOP
+<A href="http://cheng-xia5¡Oinfo/">link</A>	0xA14F	U+FE52	SMALL FULL STOP
 </BODY>
 </HTML>
 

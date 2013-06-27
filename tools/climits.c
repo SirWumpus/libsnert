@@ -5,6 +5,7 @@
  */
 
 #include <stdio.h>
+#include <stdint.h>
 
 #undef _
 #if defined(__STDC__) || defined(__BORLANDC__)
@@ -236,7 +237,10 @@ t_limits limits[] = {
 	{ "SIZEOF_CHAR", sizeof (char), sizeof_type },
 	{ "SIZEOF_SHORT", sizeof (short), sizeof_type },
 	{ "SIZEOF_INT", sizeof (int), sizeof_type },
+	{ "SIZEOF_VOID_PTR", sizeof (void *), sizeof_type },
+	{ "SIZEOF_INTPTR_T", sizeof (intptr_t), sizeof_type },
 	{ "SIZEOF_LONG", sizeof (long), sizeof_type },
+	{ "SIZEOF_LONG_LONG", sizeof (long long), sizeof_type },
 	{ (char *) 0, 0, 0 }
 };
 

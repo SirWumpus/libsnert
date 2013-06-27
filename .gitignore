@@ -95,6 +95,8 @@ type/kvmap
 type/kvmc
 type/kvmd
 type/mcc
+util/DebugMalloc
+util/dmalloct
 util/uri
 util/urid
 util/b64
