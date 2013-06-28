@@ -100,6 +100,8 @@ is no set schedule for releases.
 
    +	Added binary search tree API.
 
+   +	Added pthread_spin_* API detection.
+
 --1.75.22--
 
    *    Upgraded SQLite to 3.7.17

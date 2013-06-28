@@ -99,27 +99,36 @@ extern ssize_t write(int, const void *, size_t);
 
 #ifdef _THREAD_SAFE
 # include <com/snert/lib/sys/pthread.h>
+
+# define LOCK_T				pthread_mutex_t
+# define LOCK_INIT(L)			pthread_mutex_init(L, NULL)
+# define LOCK_FREE(L)			pthread_mutex_destroy(L)
+# define LOCK_LOCK(L)			pthread_mutex_lock(L)
+# define LOCK_TRYLOCK(L)		pthread_mutex_trylock(L)
+# define LOCK_UNLOCK(L)			pthread_mutex_unlock(L)
+
 #else
 /* Disable pthread support. */
-# undef PTHREAD_MUTEX_LOCK
-# undef PTHREAD_MUTEX_UNLOCK
-# define PTHREAD_MUTEX_LOCK(m)
-# define PTHREAD_MUTEX_UNLOCK(m)
+# define LOCK_T				unsigned
+# define LOCK_INIT(L)			(0)
+# define LOCK_FREE(L)			(0)
+# define LOCK_LOCK(L)			(0)
+# define LOCK_TRYLOCK(L)		(0)
+# define LOCK_UNLOCK(L)			(0)
 
 # define PTHREAD_MUTEX_INITIALIZER	0
 # define PTHREAD_ONCE_INIT		0
 # define pthread_t			unsigned
-# define pthread_key_t			unsigned
-# define pthread_mutex_t		unsigned
-# define pthread_once_t			unsigned
 # define pthread_self()			(0)
+# define pthread_once_t			unsigned
 # define pthread_once(o, f)		(0)
+# define pthread_key_t			unsigned
 # define pthread_key_create(k, f)	(0)
 # define pthread_getspecific(k)		main_head
 # define pthread_setspecific(k, v)	(main_head = (v), 0)
-# define pthread_mutex_lock(m)		(0)
-# define pthread_mutex_trylock(m)	(0)
-# define pthread_mutex_unlock(m)	(0)
+# define pthread_cleanup_push(f, d)
+# define pthread_cleanup_pop(b)
+
 #endif
 
 #define HERE_FMT		"%s:%u "
@@ -129,7 +138,9 @@ extern ssize_t write(int, const void *, size_t);
 #define CHUNK_ARG(b)		&(b)[1], (b)->size, (b)->file, (b)->line
 
 typedef enum {
-	MEMORY_INITIALISE, MEMORY_INITIALISING, MEMORY_INITIALISED
+	MEMORY_INITIALISE,
+	MEMORY_INITIALISING,
+	MEMORY_INITIALISED
 } MemoryInit;
 
 typedef struct block_data {
@@ -187,15 +198,14 @@ unsigned long memory_report_interval = 0;
  ***
  ***********************************************************************/
 
-static pthread_t main_thread;
-
 #ifdef _THREAD_SAFE
-static pthread_key_t thread_malloc_list;
-static pthread_once_t thread_key_once = PTHREAD_ONCE_INIT;
-static pthread_mutex_t memory_mutex = PTHREAD_MUTEX_INITIALIZER;
+static LOCK_T lock;
+static pthread_key_t thread_key;
 #else
 static BlockData *main_head;
 #endif
+
+static pthread_t main_thread;
 
 static void
 thread_exit_report(void *data)
@@ -204,7 +214,7 @@ thread_exit_report(void *data)
 	BlockData *block = data;
 
 	/* Clear the thread key data to avoid thread key cleanup loop. */
-	(void) pthread_setspecific(thread_malloc_list, NULL);
+	(void) pthread_setspecific(thread_key, NULL);
 
 	/* Dump the list of allocated memory at thread exit. */
 	if (block != NULL) {
@@ -221,7 +231,6 @@ thread_exit_report(void *data)
 
 			err_msg("\t" CHUNK_FMT " dump=", CHUNK_ARG(block));
 			dump((unsigned char *)&block[1], block->size < 40 ? block->size : 40);
-			err_msg("\r\n");
 		}
 
 		err_msg("\tleaked blocks=%u\r\n", count);
@@ -232,16 +241,9 @@ thread_exit_report(void *data)
 }
 
 static void
-thread_make_key(void)
-{
-	(void) pthread_key_create(&thread_malloc_list, thread_exit_report);
-	main_thread = pthread_self();
-}
-
-static void
 exit_report(void)
 {
-	thread_exit_report(pthread_getspecific(thread_malloc_list));
+	thread_exit_report(pthread_getspecific(thread_key));
 }
 
 void
@@ -287,6 +289,8 @@ dump(unsigned char *chunk, size_t size)
 			(void) write(STDERR_FILENO, hex, sizeof (hex));
 		}
 	}
+
+	write(STDERR_FILENO, "\r\n", STRLEN("\r\n"));
 }
 
 static void
@@ -299,8 +303,10 @@ signal_error(char *fmt, ...)
 	va_end(args);
 
 	if (0 < memory_signal) {
-		(void) pthread_mutex_trylock(&memory_mutex);
-		(void) pthread_mutex_unlock(&memory_mutex);
+#ifdef NOT_NEEDED
+		(void) LOCK_TRYLOCK(&lock);
+		(void) LOCK_UNLOCK(&lock);
+#endif
 		raise(memory_signal);
 	}
 
@@ -317,15 +323,16 @@ DebugMallocSummary(void)
 		err_msg("thread #%lx:\r\n", (unsigned long) pthread_self());
 
 	err_msg(
-		"\t malloc: %-14lu    free: %-14lu    lost: %-14ld\r\n",
+		"\t malloc: %-14lu  free: %-14lu  lost: %-14ld\r\n",
 		memory_allocation_count, memory_free_count,
 		memory_allocation_count - memory_free_count
 	);
 
 	err_msg(
-		"\t_malloc: %-14lu   _free: %-14lu   _lost: %-14ld\r\n",
+		"\t_malloc: %-14lu _free: %-14lu _lost: %-14ld _used: %-14ld\r\n",
 		static_allocation_count, static_free_count,
-		static_allocation_count - static_free_count
+		static_allocation_count - static_free_count,
+		static_used
 	);
 }
 
@@ -397,11 +404,11 @@ init_common(void)
 		memory_report_interval = (unsigned long) strtol(value, NULL, 0);
 
 	if (atexit(exit_report)) {
-		err_msg("atexit() error\r\n");
+		err_msg(HERE_FMT "atexit() error\r\n", __FILE__, __LINE__);
 		exit(EX_OSERR);
 	}
 	if (atexit(DebugMallocSummary)) {
-		err_msg("atexit() error\r\n");
+		err_msg(HERE_FMT "atexit() error\r\n", __FILE__, __LINE__);
 		exit(EX_OSERR);
 	}
 }
@@ -471,57 +478,53 @@ init(void)
 
 	libc_malloc = memory_alloc;
 	libc_free = memory_free;
-
 	init_common();
-
-	memory_init_state = MEMORY_INITIALISED;
 }
 
 #elif defined(HAVE_DLFCN_H) && defined(LIBC_PATH)
 # include <dlfcn.h>
 
+static void *libc;
+
+static void
+fini(void)
+{
+	(void) LOCK_FREE(&lock);
+	if (libc != NULL)
+		(void) dlclose(libc);
+}
+
 static void
 init(void)
 {
-	void *handle;
 	const char *err;
 
 	memory_init_state = MEMORY_INITIALISING;
 
-	init_common();
-
-	handle = dlopen(LIBC_PATH, RTLD_NOW);
+	libc = dlopen(LIBC_PATH, RTLD_NOW);
 	if ((err = dlerror()) != NULL) {
 		err_msg("libc.so load error: %s\r\n", err);
 		exit(EX_OSERR);
 	}
 
-  	libc_malloc = (void *(*)(size_t)) dlsym(handle, "malloc");
+	if (atexit(fini)) {
+		err_msg(HERE_FMT "atexit() error\r\n", __FILE__, __LINE__);
+		exit(EX_SOFTWARE);
+	}
+
+  	libc_malloc = (void *(*)(size_t)) dlsym(libc, "malloc");
 	if ((err = dlerror()) != NULL) {
-		err_msg("malloc() not found: %s\r\n", err);
+		err_msg("libc malloc() not found: %s\r\n", err);
 		exit(EX_OSERR);
 	}
 
-  	libc_free = (void (*)(void *)) dlsym(handle, "free");
+  	libc_free = (void (*)(void *)) dlsym(libc, "free");
 	if ((err = dlerror()) != NULL) {
-		err_msg("free() not found: %s\r\n", err);
+		err_msg("libc free() not found: %s\r\n", err);
 		exit(EX_OSERR);
 	}
 
-#if NOT_USED
-	handle = dlopen(LIBPTHREAD_PATH, RTLD_NOW);
-	if ((err = dlerror()) != NULL) {
-		err_msg("libpthread.so load error\r\n", err);
-		exit(EX_OSERR);
-	}
-
-	lib_pthread_create = dlsym(handle, "pthread_create");
-	if ((err = dlerror()) != NULL) {
-		err_msg("pthread_create() not found: %s\r\n", err);
-		exit(EX_OSERR);
-	}
-#endif
-	memory_init_state = MEMORY_INITIALISED;
+	init_common();
 }
 
 #elif !defined(LIBC_PATH)
@@ -606,25 +609,22 @@ DebugFree(void *chunk, const char *file, unsigned line)
 	if (chunk == NULL)
 		return;
 
+	/* free() before main() can happen with OpenBSD. */
 	switch (memory_init_state) {
 	case MEMORY_INITIALISED:
 		if (_free(chunk))
 			return;
 		break;
-
 	case MEMORY_INITIALISING:
-		if (!_free(chunk)) {
-			raise(memory_signal);
-			exit(EX_DATAERR);
-		}
-		return;
-
+		if (_free(chunk))
+			return;
+		/* Wasn't allocated by _malloc(). */
+		/*@fallthrough@*/
 	case MEMORY_INITIALISE:
-		init();
-		break;
+		/* free() before malloc() */
+		raise(memory_signal);
+		exit(EX_DATAERR);
 	}
-
-	PTHREAD_MUTEX_LOCK(&memory_mutex);
 
 	/* Get the location of the block data. */
 	block = &((BlockData *) chunk)[-1];
@@ -655,7 +655,7 @@ DebugFree(void *chunk, const char *file, unsigned line)
 		memory_test_double_free = 0;
 
 	/* Maintain list of allocated memory per thread, including main() */
-	head = pthread_getspecific(thread_malloc_list);
+	head = pthread_getspecific(thread_key);
 
 	if (block->prev == NULL)
 		head = block->next;
@@ -665,7 +665,7 @@ DebugFree(void *chunk, const char *file, unsigned line)
 	if (block->next != NULL)
 		block->next->prev = block->prev;
 
-	(void) pthread_setspecific(thread_malloc_list, head);
+	(void) pthread_setspecific(thread_key, head);
 
 	if (memory_test_double_free) {
 		/* Look for double-free first, since the block structure
@@ -696,9 +696,10 @@ DebugFree(void *chunk, const char *file, unsigned line)
 
 	/* The libc free has its own mutex locking. */
 	(*libc_free)(block);
-	memory_free_count++;
 
-	PTHREAD_MUTEX_UNLOCK(&memory_mutex);
+	(void) LOCK_LOCK(&lock);
+	memory_free_count++;
+	(void) LOCK_UNLOCK(&lock);
 
 #ifdef __WIN32__
 /* On some systems like OpenBSD with its own debugging malloc()/free(),
@@ -726,20 +727,33 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 	size_t block_size;
 	BlockData *block, *head;
 
+	/* malloc() before main() can happen with OpenBSD. */
 	switch (memory_init_state) {
 	case MEMORY_INITIALISED:
 		break;
 
-	case MEMORY_INITIALISING:
-		/* Ignore mutex locking, assumes single threaded. */
-		return _malloc(size);
-
 	case MEMORY_INITIALISE:
 		init();
-		break;
-	}
+		/*@fallthrough@*/
 
-	PTHREAD_MUTEX_LOCK(&memory_mutex);
+	case MEMORY_INITIALISING:
+		if (line == 0)
+			return _malloc(size);
+
+		/* OpenBSD allocates more memory when some pthread functions
+		 * are first used. Force it here so as to allocate it from
+		 * _malloc(). We can't do this in init(), since the first call
+		 * happens during thread initilisation and would cause a loop.
+		 */
+		(void) LOCK_INIT(&lock);
+		(void) LOCK_LOCK(&lock);
+		(void) LOCK_UNLOCK(&lock);
+		(void) pthread_key_create(&thread_key, thread_exit_report);
+		(void) pthread_setspecific(thread_key, NULL);
+
+		memory_init_state = MEMORY_INITIALISED;
+		main_thread = pthread_self();
+	}
 
 	/* Allocate enough space to include some boundary markers.
 	 *
@@ -757,12 +771,12 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 		+ ALIGNMENT_SIZE;
 
 	/* The libc malloc has its own mutex locking. */
-	block = (*libc_malloc)(block_size);
-
-	if (block == NULL)
+	if ((block = (*libc_malloc)(block_size)) == NULL)
 		return NULL;
 
+	(void) LOCK_LOCK(&lock);
 	memory_allocation_count++;
+	(void) LOCK_UNLOCK(&lock);
 
 	/* The chunk to return. */
 	chunk = &block[1];
@@ -775,8 +789,7 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 	memset((char *) chunk, 0, size);
 
 	/* Maintain list of allocated memory per thread, including main() */
-    	(void) pthread_once(&thread_key_once, thread_make_key);
-	head = pthread_getspecific(thread_malloc_list);
+	head = pthread_getspecific(thread_key);
 
 	block->next = head;
 
@@ -785,7 +798,7 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 	else
 		head->prev = block;
 
-	(void) pthread_setspecific(thread_malloc_list, block);
+	(void) pthread_setspecific(thread_key, block);
 
 	block->crc = (unsigned long) block ^ size;
 	block->size = size;
@@ -798,8 +811,6 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 	 */
 	if (0 < size)
 		*(unsigned char *) chunk = MALLOC_BYTE;
-
-	PTHREAD_MUTEX_UNLOCK(&memory_mutex);
 
 	if (memory_show_malloc)
 		err_msg("%s:%d malloc chunk=0x%lx size=%lu\r\n", HERE_ARG, (unsigned long) chunk, size);
