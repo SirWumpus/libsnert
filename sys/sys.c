@@ -1,7 +1,7 @@
 /*
  * sys.c
  *
- * Copyright 2008 by Anthony Howe. All rights reserved.
+ * Copyright 2008, 2013 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -32,6 +32,10 @@
 
 #if defined(__WIN32__) || defined(__CYGWIN__)
 # include <windows.h>
+#endif
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
 #endif
 
 #if defined(__OpenBSD__) && defined(HAVE_SYS_SYSCTL_H)

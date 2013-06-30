@@ -1,7 +1,7 @@
 /*
  * Text.c
  *
- * Copyright 2001, 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2001, 2013 by Anthony Howe.  All rights reserved.
  */
 
 #include <ctype.h>
@@ -13,6 +13,10 @@
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/Token.h>
 #include <com/snert/lib/io/posix.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 typedef int (*TextCompareFunction)(const void *, const void *);
 typedef long (*TextLongCompareFunction)(const void *, const void *);
@@ -263,10 +267,6 @@ TextCountOccurences(const char *s1, const char *s2)
 
 #ifdef TEST
 #include <stdio.h>
-
-#ifdef USE_DEBUG_MALLOC
-# include <com/snert/lib/util/DebugMalloc.h>
-#endif
 
 void
 TestTextSplit(char *string, char *delims, int empty)

@@ -3,14 +3,12 @@
  *
  * RFC 2045, 2046, 2047
  *
- * Copyright 2007, 2012 by Anthony Howe. All rights reserved.
+ * Copyright 2007, 2013 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/
-
-#define _REENTRANT	1
 
 #include <com/snert/lib/version.h>
 
@@ -26,6 +24,10 @@
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/mail/mime.h>
 #include <com/snert/lib/util/Text.h>
+
+#ifdef DEBUG_MALLOC
+#include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  *** MIME Decoders & States
@@ -730,7 +732,7 @@ mimeStateHdr(Mime *m, int ch)
 	|| (ch == ' '
 	  && m->mime_part_number == 0
 	  && m->mime_part_length == 5
-	  && strncmp(m->source.buffer, "From ", 5) == 0)
+	  && strncmp((char *)m->source.buffer, "From ", 5) == 0)
 	) {
 		m->state.source_state = mimeStateHdrValue;
 	} else if (ch == ASCII_CR) {

@@ -5,12 +5,17 @@
  * duplicate keys; each non-null key can map to at most one non-null
  * value. Similar to Java's abstract Dictionary class.
  *
- * Copyright 2001, 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2001, 2013 by Anthony Howe.  All rights reserved.
  */
 
 #include <stdlib.h>
 
+#include <com/snert/lib/version.h>
 #include <com/snert/lib/type/Hash.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /*
  * The size of the hash table should be a small prime number:

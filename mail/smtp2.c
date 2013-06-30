@@ -3,7 +3,7 @@
  *
  * A simple SMTP engine.
  *
- * Copyright 2007 by Anthony Howe. All rights reserved.
+ * Copyright 2007, 2013 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -48,6 +48,10 @@
 #include <com/snert/lib/mail/smtp2.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/b64.h>
+
+#ifdef DEBUG_MALLOC
+#include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  ***

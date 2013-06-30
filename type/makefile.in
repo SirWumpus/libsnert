@@ -87,8 +87,8 @@ IDIR := ${top_srcdir}/include
 HDIR := ${IDIR}/type
 OBJS := Object$O Data$O Integer$O Decimal$O Hash$O Vector$O list$O tree$O \
 	queue$O Text$O kvm$O mcc$O
-TEST := Object$E Data$E Integer$E Decimal$E Hash$E Vector$E tree$E Text$E \
-	kvmc$E kvmd$E kvmap$E mcc$E
+TEST := Object$E Data$E Integer$E Decimal$E Hash$E Vector$E tree$E Text$E
+CLI  := kvmap$E kvmc$E kvmd$E mcc$E
 
 .MAIN : build
 
@@ -103,7 +103,9 @@ title :
 
 build: title $(LIB) add-lib
 
-build-test: ${TEST}
+build-test: ${TEST} ${CLI}
+
+build-cli: title ${CLI}
 
 $(LIB):	$(OBJS)
 
@@ -122,12 +124,7 @@ distclean: clean
 install: build
 	-cp -p kvmap$E mcc$E ${bindir}
 
-
-${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
-	cd ${top_srcdir}/util ; make DebugMalloc.o
-
-debug : ${top_srcdir}/util/DebugMalloc.o
-	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o' build
+debug : build
 
 lint: title
 	-splint -D_REENTRANT -I${SNERT_INCDIR} +posixlib +boolint *.c
@@ -161,14 +158,14 @@ ${HDIR}/kvm.h : ${IDIR}/sys/pthread.h
 kvm.c : ${IDIR}/io/socket2.h ${HDIR}/kvm.h
 
 kvm$O : kvm.c
-	${CC} ${CFLAGS_DB} ${CFLAGS_SQLITE3} $(CFLAGS) -c $*.c
+	${CC} $(CFLAGS) ${CFLAGS_DB} ${CFLAGS_SQLITE3} -c $*.c
 
 ${HDIR}/mcc.h : ${IDIR}/io/socket2.h ${IDIR}/net/network.h ${IDIR}/sys/pthread.h ${HDIR}/Vector.h
 
 mcc.c : ${IDIR}/io/Log.h ${IDIR}/util/md5.h ${IDIR}/util/Text.h ${HDIR}/mcc.h
 
 mcc$O : mcc.c
-	${CC} ${CFLAGS_SQLITE3} $(CFLAGS) -c $*.c
+	${CC} $(CFLAGS) ${CFLAGS_SQLITE3} -c $*.c
 
 Vector.c : ${HDIR}/Vector.h
 

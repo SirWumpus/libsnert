@@ -98,9 +98,9 @@ OBJS = \
 	token_bucket$O buffer$O
 
 TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
-       DebugMallocTest$E ixhash$E md4$E md5$E htmlstrip$E TextCopy$E TextMatch$E \
+       DebugMalloc$E ixhash$E md4$E md5$E htmlstrip$E TextCopy$E TextMatch$E \
        TextTransliterate$E TextSensitiveEndsWith$E TextInsensitiveEndsWith$E \
-       ProcTitle$E timer$E
+       ProcTitle$E timer$E dmalloct$E
 
 CLI = b64$E convertDate$E uri$E urid$E playfair$E cipher$E TextFind$E
 
@@ -147,12 +147,7 @@ distclean: clean
 install: build-cli
 	-cp -p ${CLI} ${bindir}
 
-
-${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
-	cd ${top_srcdir}/util ; make DebugMalloc.o
-
-debug : ${top_srcdir}/util/DebugMalloc.o
-	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o' build
+debug : build
 
 lint: title
 	-splint -D_REENTRANT -I${SNERT_INCDIR} +posixlib +boolint *.c
@@ -227,13 +222,13 @@ DebugMalloc$O: DebugMalloc.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -c DebugMalloc.c
 
 DebugMalloc$E: DebugMalloc$O DebugMallocTest.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)DebugMalloc$E DebugMallocTest.c $(LIBSNERT) ${LIBS} DebugMalloc$O
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)DebugMalloc$E DebugMallocTest.c DebugMalloc$O $(LIBSNERT) ${LIBS}
 
 dmalloct$O: DebugMalloc.c
 	$(CC) $(CFLAGS) ${CFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)dmalloct$O -c DebugMalloc.c
 
 dmalloct$E: dmalloct$O DebugMallocTest.c
-	$(CC) -DTEST $(CFLAGS) ${CFLAGS_PTHREAD} $(LDFLAGS) ${LDFLAGS_PTHREAD} $(CC_E)dmalloct$E DebugMallocTest.c $(LIBSNERT) ${LIBS} ${LIB_PTHREAD} dmalloct$O
+	$(CC) -DTEST $(CFLAGS) ${CFLAGS_PTHREAD} $(LDFLAGS) ${LDFLAGS_PTHREAD} $(CC_E)dmalloct$E DebugMallocTest.c dmalloct$O $(LIBSNERT) ${LIBS} ${LIB_PTHREAD}
 
 convertDate$E: convertDate.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)convertDate$E convertDate.c $(LIBSNERT) ${LIBS}

@@ -116,7 +116,7 @@ write0(void)
 static TestRc
 write_over(void)
 {
-	allocation[1] = '>';
+	allocation[1] = 0xFF;
 
 	return PASS;
 }
@@ -124,7 +124,7 @@ write_over(void)
 static TestRc
 write_under(void)
 {
-	allocation[-1] = '<';
+	allocation[-1] = 0xFF;
 
 	return PASS;
 }

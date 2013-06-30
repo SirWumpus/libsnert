@@ -37,6 +37,10 @@
 #include <com/snert/lib/mail/limits.h>
 #include <com/snert/lib/mail/smdb.h>
 
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
+
 static const char usage_smdb_key_has_nul[] =
   "Key lookups must include the terminating NUL byte. Intended for\n"
 "# Postfix with postmap(1) generated .db files.\n"
@@ -450,8 +454,12 @@ smdbSetDebug(int level)
 void
 smdbSetKeyHasNul(smdb *sm, int flag)
 {
-	if (sm != NULL)
-		sm->_mode = flag ? (sm->_mode |= KVM_MODE_KEY_HAS_NUL) : (sm->_mode &= ~KVM_MODE_KEY_HAS_NUL);
+	if (sm != NULL) {
+		if (flag)
+			sm->_mode |= KVM_MODE_KEY_HAS_NUL;
+		else
+			sm->_mode &= ~KVM_MODE_KEY_HAS_NUL;
+	}
 }
 
 void

@@ -3,7 +3,7 @@
  *
  * RFC 4408
  *
- * Copyright 2005, 2007 by Anthony Howe. All rights reserved.
+ * Copyright 2005, 2013 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -30,6 +30,10 @@
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/bs.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  ***
@@ -1067,6 +1071,13 @@ testMacros(void)
 	return 0;
 }
 
+void
+at_exit_cleanup(void)
+{
+	pdqFini();
+	closelog();
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1100,7 +1111,7 @@ main(int argc, char **argv)
 		return EX_USAGE;
 	}
 
-	if (atexit(pdqFini)) {
+	if (atexit(at_exit_cleanup)) {
 		fprintf(stderr, "atexit() failed\n");
 		exit(EX_SOFTWARE);
 	}

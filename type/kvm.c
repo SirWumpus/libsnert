@@ -67,6 +67,10 @@ extern unsigned int sleep(unsigned int);
 #include <com/snert/lib/sys/pthread.h>
 #include <com/snert/lib/util/Text.h>
 
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
+
 #ifndef HAVE_PTHREAD_MUTEX_T
 # undef PTHREAD_MUTEX_LOCK
 # undef PTHREAD_MUTEX_UNLOCK

@@ -3,7 +3,7 @@
  *
  * Fine resolution clock.
  *
- * Copyright 2002, 2005 by Anthony Howe.  All rights reserved.
+ * Copyright 2002, 2013 by Anthony Howe.  All rights reserved.
  */
 
 /***********************************************************************
@@ -30,6 +30,10 @@
 # else
 #  include <time.h>
 # endif
+#endif
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
 #endif
 
 Time *

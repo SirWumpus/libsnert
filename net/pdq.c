@@ -5,7 +5,7 @@
  *
  * RFC 1035 (DNS), 1886 (IPv6), 2821 (SMTP), 2874 (IPv6), 3596 (IPv6)
  *
- * Copyright 2002, 2011 by Anthony Howe. All rights reserved.
+ * Copyright 2002, 2013 by Anthony Howe. All rights reserved.
  */
 
 #ifndef MAX_CNAME_DEPTH
@@ -81,6 +81,10 @@
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/timer.h>
 #include <com/snert/lib/net/pdq.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  *** Constants
@@ -1016,6 +1020,8 @@ pdqListPruneMatch(PDQ_rr *list)
 		if (rr->section == PDQ_SECTION_QUERY) {
 			if (((PDQ_QUERY *)rr)->rcode != PDQ_RCODE_OK)
 				*prev = next = pdqListPruneQuery(rr);
+			else
+				prev = &rr->next;
 			continue;
 		}
 
@@ -2636,16 +2642,6 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 			goto error1;
 		}
 
-#ifdef OFF
-#ifndef ONLY_ANSWER_SECTION
-		/* Do we already have one of these in the list? */
-		if ((record->type == PDQ_TYPE_NS || record->type == PDQ_TYPE_SOA)
-		&& pdqListFindHost(query->rr.net, record->class, record->type, ((PDQ_NS *) record)->host.string.value) != NULL) {
-			pdqListFree(record);
-			continue;
-		}
-#endif
-#endif
 		/* Insert MX in reverse sorted order. Remember the list
 		 * being added to in reverse order from the order received.
 		 * We reverse the list before returning it below.
@@ -4522,6 +4518,13 @@ strerror(int error_code)
 }
 #endif
 
+void
+at_exit_cleanup()
+{
+	pdqFini();
+	closelog();
+}
+
 int
 main(int argc, char **argv)
 {
@@ -4598,7 +4601,7 @@ main(int argc, char **argv)
 
 	srand(TextHash(0, argv[optind+1]) ^ time(NULL));
 
-	if (atexit(pdqFini)) {
+	if (atexit(at_exit_cleanup)) {
 		fprintf(stderr, "atexit() failed\n");
 		exit(EX_SOFTWARE);
 	}

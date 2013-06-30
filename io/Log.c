@@ -46,6 +46,10 @@ extern long getpid(void);
 #include <com/snert/lib/io/posix.h>
 #include <com/snert/lib/sys/Time.h>
 
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
+
 FILE *logFile;
 static unsigned logMask = LOG_UPTO(LOG_DEBUG);
 static char *logLevels[] = { "PANIC", "ALERT", "FATAL", "ERROR", "WARN", "NOTICE", "INFO", "DEBUG" };

@@ -3,7 +3,7 @@
  *
  * Multicast / Unicast Cache
  *
- * Copyright 2006, 2012 by Anthony Howe. All rights reserved.
+ * Copyright 2006, 2013 by Anthony Howe. All rights reserved.
  */
 
 #ifndef MCC_LISTENER_TIMEOUT
@@ -47,6 +47,10 @@
 #include <com/snert/lib/util/md5.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/sys/Time.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  ***

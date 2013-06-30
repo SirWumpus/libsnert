@@ -1,10 +1,8 @@
 /*
  * Vector.c
  *
- * Copyright 2001, 2011 by Anthony Howe.  All rights reserved.
+ * Copyright 2001, 2013 by Anthony Howe.  All rights reserved.
  */
-
-#include <com/snert/lib/version.h>
 
 #include <ctype.h>
 #include <errno.h>
@@ -12,8 +10,13 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <com/snert/lib/version.h>
 #include <com/snert/lib/type/Object.h>
 #include <com/snert/lib/type/Vector.h>
+
+#ifdef DEBUG_MALLOC
+#include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 #ifndef VECTOR_GROWTH
 #define VECTOR_GROWTH		1000

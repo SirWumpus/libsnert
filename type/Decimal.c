@@ -1,15 +1,20 @@
 /*
  * Decimal.c
  *
- * Copyright 2004 by Anthony Howe.  All rights reserved.
+ * Copyright 2004, 2013 by Anthony Howe.  All rights reserved.
  */
 
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <com/snert/lib/version.h>
 #include <com/snert/lib/crc/Crc.h>
 #include <com/snert/lib/type/Decimal.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 #define REF_DECIMAL(v)		((Decimal)(v))
 
@@ -20,7 +25,7 @@
  *** Instance methods
  ***********************************************************************/
 
-/*@only@*//*@null@*/ 
+/*@only@*//*@null@*/
 static void *
 DecimalClone(void *self)
 {
@@ -31,16 +36,16 @@ static int
 DecimalCompare(void *self, /*@null@*/ void *other)
 {
 	double diff;
-	
+
 	/* NULL pointers and non-Data objects sort towards the end. */
 	if (other == NULL || REF_DECIMAL(other)->compare != DecimalCompare)
 		return -1;
-		
+
 	if (self == other)
 		return 0;
 
 	diff = REF_DECIMAL(self)->value - REF_DECIMAL(other)->value;
-	
+
 	if (diff <= DBL_EPSILON)
 		return 0;
 
@@ -49,7 +54,7 @@ DecimalCompare(void *self, /*@null@*/ void *other)
 
 static int
 DecimalEquals(void *self, /*@null@*/ void *other)
-{	
+{
 	return (*REF_DECIMAL(self)->compare)(self, other) == 0;
 }
 
@@ -78,16 +83,16 @@ DecimalSet(Decimal self, double value)
  *** Class methods
  ***********************************************************************/
 
-void 
+void
 DecimalInit(Decimal self)
 {
 	static struct decimal model;
 
 	if (model.objectName == NULL) {
-		ObjectInit(&model);	
+		ObjectInit(&model);
 
 		/* Overrides. */
-		model.objectSize = sizeof (struct decimal);			
+		model.objectSize = sizeof (struct decimal);
 		model.objectName = "Decimal";
 		model.clone = DecimalClone;
 		model.equals = DecimalEquals;
@@ -96,10 +101,10 @@ DecimalInit(Decimal self)
 
 		/* Methods */
 #ifdef REALLY_WANT_ACCESSORS_FOR_PUBLIC_INSTANCE_VARIABLE
-		model.objectMethodCount += 2;					
+		model.objectMethodCount += 2;
 		model.set = DecimalSet;
 		model.get = DecimalGet;
-#endif			
+#endif
 		/* Instance variables. */
 		model.value = 0;
 	}
@@ -107,11 +112,11 @@ DecimalInit(Decimal self)
 	*self = model;
 }
 
-Decimal 
+Decimal
 DecimalCreate(double value)
 {
 	Decimal self;
-	
+
 	if ((self = malloc(sizeof (*self))) == NULL)
 		return NULL;
 
@@ -120,16 +125,16 @@ DecimalCreate(double value)
 	self->destroy = free;
 	/*@=usedef =type@*/
 	self->value = value;
-				
+
 	return self;
 }
 
-Decimal 
+Decimal
 DecimalCreateFromString(const char *str)
 {
 	if (str == NULL)
 		return NULL;
-		
+
 	return DecimalCreate(strtod(str, NULL));
 }
 

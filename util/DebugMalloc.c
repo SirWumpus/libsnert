@@ -26,15 +26,15 @@
 #endif
 
 #ifndef DOH_BYTE
-#define DOH_BYTE		0xD0
+#define DOH_BYTE		'>'
 #endif
 
 #ifndef DAH_BYTE
-#define DAH_BYTE		0xDA
+#define DAH_BYTE		'<'
 #endif
 
 #ifndef FREED_BYTE
-#define FREED_BYTE		0xDF
+#define FREED_BYTE		'#'
 #endif
 
 #ifndef MALLOC_BYTE
@@ -53,6 +53,10 @@
 
 #ifndef PAD_SIZE
 #define PAD_SIZE		8	/* Must be even. */
+#endif
+
+#ifndef SIGNAL_MEMORY
+#define SIGNAL_MEMORY		SIGUSR2
 #endif
 
 /***********************************************************************
@@ -93,10 +97,6 @@ extern ssize_t write(int, const void *, size_t);
  *** Constants & Globals
  ***********************************************************************/
 
-#if !defined(__unix__) && !defined(HAVE_PTHREAD_KEY_CREATE)
-# undef _THREAD_SAFE
-#endif
-
 #ifdef _THREAD_SAFE
 # include <com/snert/lib/sys/pthread.h>
 
@@ -134,8 +134,8 @@ extern ssize_t write(int, const void *, size_t);
 #define HERE_FMT		"%s:%u "
 #define HERE_ARG		file, line
 
-#define CHUNK_FMT		"chunk=0x%lx size=%lu " HERE_FMT
-#define CHUNK_ARG(b)		&(b)[1], (b)->size, (b)->file, (b)->line
+#define BLOCK_FMT		"chunk=0x%lx size=%lu " HERE_FMT
+#define BLOCK_ARG(b)		&(b)[1], (b)->size, (b)->file, (b)->line
 
 typedef enum {
 	MEMORY_INITIALISE,
@@ -161,6 +161,7 @@ static const char *unknown = "(unknown)";
 static void dump(unsigned char *chunk, size_t size);
 static void signal_error(char *fmt, ...);
 
+static void (*libc__exit)(int);
 static void (*libc_free)(void *);
 static void *(*libc_malloc)(size_t);
 
@@ -185,11 +186,14 @@ static size_t static_used;
 static char static_memory[MAX_STATIC_MEMORY];
 
 int memory_exit = 1;
-int memory_signal = SIGSEGV;
+int memory_signal = SIGNAL_MEMORY;
 int memory_show_free = 0;
 int memory_show_malloc = 0;
 int memory_thread_leak = 0;
 int memory_test_double_free = 1;
+int memory_freed_marker = FREED_BYTE;
+int memory_lower_marker = DAH_BYTE;
+int memory_upper_marker = DOH_BYTE;
 void *memory_free_chunk = NULL;
 void *memory_malloc_chunk = NULL;
 unsigned long memory_report_interval = 0;
@@ -225,12 +229,10 @@ thread_exit_report(void *data)
 
 		for (count = 0; block != NULL; block = block->next, count++) {
 			if (block->crc != ((unsigned long) block ^ block->size)) {
-				signal_error("thread #%lu memory marker corruption " CHUNK_FMT "\r\n", (unsigned long) pthread_self(), CHUNK_ARG(block));
+				signal_error("thread #%lu memory marker corruption " BLOCK_FMT "\r\n", (unsigned long) pthread_self(), BLOCK_ARG(block));
 				return;
 			}
-
-			err_msg("\t" CHUNK_FMT " dump=", CHUNK_ARG(block));
-			dump((unsigned char *)&block[1], block->size < 40 ? block->size : 40);
+			DebugMallocDump(&block[1]);
 		}
 
 		err_msg("\tleaked blocks=%u\r\n", count);
@@ -240,8 +242,8 @@ thread_exit_report(void *data)
 	}
 }
 
-static void
-exit_report(void)
+void
+DebugMallocReport(void)
 {
 	thread_exit_report(pthread_getspecific(thread_key));
 }
@@ -317,7 +319,7 @@ signal_error(char *fmt, ...)
 void
 DebugMallocSummary(void)
 {
-	if (main_thread == pthread_self())
+	if (main_thread == 0 || main_thread == pthread_self())
 		err_msg("main_thread:\r\n");
 	else
 		err_msg("thread #%lx:\r\n", (unsigned long) pthread_self());
@@ -336,49 +338,29 @@ DebugMallocSummary(void)
 	);
 }
 
-/*
- * During program initialisation, we have to assign memory from
- * a static block. Its assumed that the program at this stage
- * is still a single thread. Any memory freed at this stage
- * must have been assigned by _malloc() and is abandoned.
- */
-static int
-_free(void *chunk)
+void
+DebugMallocDump(void *chunk)
 {
-	if (chunk == NULL)
-		return 1;
-
-	if (static_memory <= (char *) chunk && (char *) chunk < static_memory + static_used) {
-		static_free_count++;
-		return 1;
+	if (memory_init_state == MEMORY_INITIALISED) {
+		BlockData *block = &((BlockData *) chunk)[-1];
+		err_msg("\t" BLOCK_FMT " dump=", BLOCK_ARG(block));
+		dump((unsigned char *)chunk, block->size < 40 ? block->size : 40);
 	}
-
-	return 0;
 }
 
-/*
- * During program initialisation, we have to assign memory from
- * a static block. Its assumed that the program at this stage
- * is still a single thread.
- */
-static void *
-_malloc(size_t size)
+static void
+DebugMallocHere0(void *chunk, const char *file, unsigned line, const char *tag)
 {
-	size_t aligned_used = static_used;
-
-	/* Advance to next aligned chunk. */
-	if ((aligned_used & ALIGNMENT_MASK) != 0)
-		aligned_used = ALIGN_SIZE(aligned_used, ALIGNMENT_SIZE);
-
-	if (sizeof (static_memory) <= aligned_used + size) {
-		errno = ENOMEM;
-		return NULL;
+	if (memory_init_state == MEMORY_INITIALISED) {
+		BlockData *block = &((BlockData *) chunk)[-1];
+		err_msg(HERE_FMT "%s " BLOCK_FMT "\r\n", HERE_ARG, tag, BLOCK_ARG(block));
 	}
+}
 
-	static_used = aligned_used + size;
-	static_allocation_count++;
-
-	return (void *) (static_memory + aligned_used);
+void
+DebugMallocHere(void *chunk, const char *file, unsigned line)
+{
+	DebugMallocHere0(chunk, file, line, "info");
 }
 
 static void
@@ -402,8 +384,8 @@ init_common(void)
 		memory_malloc_chunk = (void *) strtol(value, NULL, 0);
 	if ((value = getenv("MEMORY_REPORT_INTERVAL")) != NULL)
 		memory_report_interval = (unsigned long) strtol(value, NULL, 0);
-
-	if (atexit(exit_report)) {
+#ifdef __WIN32__
+	if (atexit(DebugMallocReport)) {
 		err_msg(HERE_FMT "atexit() error\r\n", __FILE__, __LINE__);
 		exit(EX_OSERR);
 	}
@@ -411,6 +393,7 @@ init_common(void)
 		err_msg(HERE_FMT "atexit() error\r\n", __FILE__, __LINE__);
 		exit(EX_OSERR);
 	}
+#endif
 }
 
 #if defined(__WIN32__)
@@ -475,7 +458,6 @@ static void
 init(void)
 {
 	memory_init_state = MEMORY_INITIALISING;
-
 	libc_malloc = memory_alloc;
 	libc_free = memory_free;
 	init_common();
@@ -485,14 +467,6 @@ init(void)
 # include <dlfcn.h>
 
 static void *libc;
-
-static void
-fini(void)
-{
-	(void) LOCK_FREE(&lock);
-	if (libc != NULL)
-		(void) dlclose(libc);
-}
 
 static void
 init(void)
@@ -507,11 +481,6 @@ init(void)
 		exit(EX_OSERR);
 	}
 
-	if (atexit(fini)) {
-		err_msg(HERE_FMT "atexit() error\r\n", __FILE__, __LINE__);
-		exit(EX_SOFTWARE);
-	}
-
   	libc_malloc = (void *(*)(size_t)) dlsym(libc, "malloc");
 	if ((err = dlerror()) != NULL) {
 		err_msg("libc malloc() not found: %s\r\n", err);
@@ -521,6 +490,12 @@ init(void)
   	libc_free = (void (*)(void *)) dlsym(libc, "free");
 	if ((err = dlerror()) != NULL) {
 		err_msg("libc free() not found: %s\r\n", err);
+		exit(EX_OSERR);
+	}
+
+  	libc__exit = dlsym(libc, "_exit");
+	if ((err = dlerror()) != NULL) {
+		err_msg("libc _exit() not found: %s\r\n", err);
 		exit(EX_OSERR);
 	}
 
@@ -537,6 +512,64 @@ init(void)
 #else
 # error "Unable to debug memory on this system."
 #endif
+
+/*
+ * During program initialisation, we have to assign memory from
+ * a static block. Its assumed that the program at this stage
+ * is still a single thread. Any memory freed at this stage
+ * must have been assigned by _malloc() and is abandoned.
+ */
+static int
+_free(void *chunk)
+{
+	if (chunk == NULL)
+		return 1;
+
+	if (static_memory <= (char *) chunk && (char *) chunk < static_memory + static_used) {
+		static_free_count++;
+		return 1;
+	}
+
+	return 0;
+}
+
+/*
+ * During program initialisation, we have to assign memory from
+ * a static block. Its assumed that the program at this stage
+ * is still a single thread.
+ */
+static void *
+_malloc(size_t size)
+{
+	size_t aligned_used = static_used;
+
+	/* Advance to next aligned chunk. */
+	if ((aligned_used & ALIGNMENT_MASK) != 0)
+		aligned_used = ALIGN_SIZE(aligned_used, ALIGNMENT_SIZE);
+
+	if (sizeof (static_memory) <= aligned_used + size) {
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	static_used = aligned_used + size;
+	static_allocation_count++;
+
+	return (void *) (static_memory + aligned_used);
+}
+
+void
+(_exit)(int status)
+{
+	/* Have to initialise libc__exit before we can call it. */
+	if (memory_init_state == MEMORY_INITIALISE)
+		init();
+
+	DebugMallocSummary();
+	DebugMallocReport();
+
+	(*libc__exit)(status);
+}
 
 void
 (free)(void *chunk)
@@ -568,12 +601,30 @@ DebugCheckBoundaries(BlockData *block, const char *file, unsigned line)
 	unsigned char *p, *q;
 	unsigned char *chunk = (unsigned char *) &block[1];
 
+	if (memory_test_double_free) {
+		/* Look for double-free first, since the block structure
+		 * may have been overwritten by a previous free() causing
+		 * a false positive for a memory underrun.
+		 */
+		p = (unsigned char *) chunk;
+		q = p + block->size;
+		for ( ; p < q; p++) {
+			if (*p != memory_freed_marker)
+				break;
+		}
+
+		if (0 < block->size && q <= p) {
+			signal_error(HERE_FMT "double-free " BLOCK_FMT "\r\n", BLOCK_ARG(block));
+			return;
+		}
+	}
+
 	/* Check the boundary marker between block and chunk. */
 	p = block->after;
 	q = chunk;
 	for ( ; p < q; p++) {
-		if (*p != DOH_BYTE) {
-			signal_error(HERE_FMT "memory underun (a) " CHUNK_FMT "\r\n", HERE_ARG, CHUNK_ARG(block));
+		if (*p != memory_upper_marker) {
+			signal_error(HERE_FMT "memory underun (a) " BLOCK_FMT "\r\n", HERE_ARG, BLOCK_ARG(block));
 			return;
 		}
 	}
@@ -582,8 +633,8 @@ DebugCheckBoundaries(BlockData *block, const char *file, unsigned line)
 	p = block->before;
 	q = p + sizeof (block->before);
 	for ( ; p < q; p++) {
-		if (*p != DAH_BYTE) {
-			signal_error(HERE_FMT "memory underun (b) " CHUNK_FMT "\r\n", HERE_ARG, CHUNK_ARG(block));
+		if (*p != memory_lower_marker) {
+			signal_error(HERE_FMT "memory underun (b) " BLOCK_FMT "\r\n", HERE_ARG, BLOCK_ARG(block));
 			return;
 		}
 	}
@@ -592,17 +643,27 @@ DebugCheckBoundaries(BlockData *block, const char *file, unsigned line)
 	p = (unsigned char *) &block[1] + block->size;
 	q = p + ALIGN_PAD(block->size, ALIGNMENT_SIZE) + ALIGNMENT_SIZE;
 	for ( ; p < q; p++) {
-		if (*p != DOH_BYTE) {
-			signal_error(HERE_FMT "memory overrun " CHUNK_FMT "\r\n", HERE_ARG, CHUNK_ARG(block));
+		if (*p != memory_upper_marker) {
+			signal_error(HERE_FMT "memory overrun " BLOCK_FMT "\r\n", HERE_ARG, BLOCK_ARG(block));
 			return;
 		}
+	}
+
+	if (memory_test_double_free) {
+		/* Wipe the WHOLE memory area including the space
+		 * for the lower and upper boundaries.
+		 */
+		size_t block_size =
+			  ALIGN_SIZE(sizeof (*block), ALIGNMENT_SIZE)
+			+ ALIGN_SIZE(block->size, ALIGNMENT_SIZE)
+			+ ALIGNMENT_SIZE;
+		(void) memset(block, memory_freed_marker, block_size);
 	}
 }
 
 void
-DebugFree(void *chunk, const char *file, unsigned line)
+(DebugFree)(void *chunk, const char *file, unsigned line)
 {
-	unsigned char *p, *q;
 	size_t size, block_size;
 	BlockData *block, *head;
 
@@ -641,7 +702,7 @@ DebugFree(void *chunk, const char *file, unsigned line)
 
 	if (block->crc != ((unsigned long) block ^ size)) {
 		/* Can't report size as it is probably corrupted. */
-		if (*(unsigned char *) chunk == FREED_BYTE) {
+		if (*(unsigned char *) chunk == memory_freed_marker) {
 			signal_error(HERE_FMT "double free chunk=0x%lx\r\n", HERE_ARG, (long) chunk);
 			return;
 		}
@@ -667,32 +728,10 @@ DebugFree(void *chunk, const char *file, unsigned line)
 
 	(void) pthread_setspecific(thread_key, head);
 
-	if (memory_test_double_free) {
-		/* Look for double-free first, since the block structure
-		 * may have been overwritten by a previous free() causing
-		 * a false positive for a memory underrun.
-		 */
-		p = (unsigned char *) chunk;
-		q = p + size;
-		for ( ; p < q; p++) {
-			if (*p != FREED_BYTE)
-				break;
-		}
-
-		if (0 < size && q <= p) {
-			signal_error(HERE_FMT "double-free " CHUNK_FMT "\r\n", CHUNK_ARG(block));
-			return;
-		}
-	}
+	if (memory_show_free)
+		DebugMallocHere0(chunk, file, line, "free");
 
 	DebugCheckBoundaries(block, HERE_ARG);
-
-	if (memory_test_double_free) {
-		/* Wipe the WHOLE memory area including the space
-		 * for the lower and upper boundaries.
-		 */
-		memset(block, FREED_BYTE, block_size);
-	}
 
 	/* The libc free has its own mutex locking. */
 	(*libc_free)(block);
@@ -707,12 +746,9 @@ DebugFree(void *chunk, const char *file, unsigned line)
  * fault. Windows is less strict.
  */
 	/* Windows appears to do its own double-free detection after a free(). */
-	if (0 < size && ((unsigned char *) chunk)[size - 1] != FREED_BYTE)
+	if (0 < size && ((unsigned char *) chunk)[size - 1] != memory_freed_marker)
 		memory_test_double_free = 0;
 #endif
-	if (memory_show_free)
-		err_msg(HERE_FMT "free chunk=0x%lx size=%lu\r\n", HERE_ARG, (unsigned long) chunk, size);
-
 	if (chunk == memory_free_chunk)
 		signal_error(HERE_FMT "memory stop free on chunk=0x%lx\r\n", HERE_ARG, (long) chunk);
 
@@ -721,7 +757,7 @@ DebugFree(void *chunk, const char *file, unsigned line)
 }
 
 void *
-DebugMalloc(size_t size, const char *file, unsigned line)
+(DebugMalloc)(size_t size, const char *file, unsigned line)
 {
 	void *chunk;
 	size_t block_size;
@@ -782,22 +818,18 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 	chunk = &block[1];
 
 	/* Fill in the boundary markers. */
-	memset(block, DOH_BYTE, block_size);
-	memset(block->before, DAH_BYTE, sizeof (block->before));
+	(void) memset(block, memory_upper_marker, block_size);
+	(void) memset(block->before, memory_lower_marker, sizeof (block->before));
 
 	/* Zero the chunk. */
-	memset((char *) chunk, 0, size);
+	(void) memset((char *) chunk, 0, size);
 
 	/* Maintain list of allocated memory per thread, including main() */
 	head = pthread_getspecific(thread_key);
-
+	block->prev = NULL;
 	block->next = head;
-
-	if (head == NULL)
-		block->prev = NULL;
-	else
+	if (head != NULL)
 		head->prev = block;
-
 	(void) pthread_setspecific(thread_key, block);
 
 	block->crc = (unsigned long) block ^ size;
@@ -805,24 +837,25 @@ DebugMalloc(size_t size, const char *file, unsigned line)
 	block->file = file;
 	block->line = line;
 
+#ifdef NOPE
 	/* When we allocate a previously freed chunk, write a single value
 	 * to the start of the chunk to prevent inadvertant double-free
 	 * detection in case the caller never writes anything into this chunk.
 	 */
 	if (0 < size)
 		*(unsigned char *) chunk = MALLOC_BYTE;
-
+#endif
 	if (memory_show_malloc)
-		err_msg("%s:%d malloc chunk=0x%lx size=%lu\r\n", HERE_ARG, (unsigned long) chunk, size);
+		DebugMallocHere0(chunk, file, line, "malloc");
 
 	if (chunk == memory_malloc_chunk)
-		signal_error("%s:%d memory stop malloc on chunk=0x%lx\r\n", HERE_ARG, chunk);
+		signal_error(HERE_FMT "memory stop malloc on " BLOCK_FMT "\r\n", HERE_ARG, BLOCK_ARG(block));
 
 	return chunk;
 }
 
 void *
-DebugRealloc(void *chunk, size_t size, const char *file, unsigned line)
+(DebugRealloc)(void *chunk, size_t size, const char *file, unsigned line)
 {
 	void *replacement;
 	BlockData *block;
@@ -832,7 +865,7 @@ DebugRealloc(void *chunk, size_t size, const char *file, unsigned line)
 
 	if (chunk != NULL) {
 		block = &((BlockData *) chunk)[-1];
-		memcpy(replacement, chunk, block->size < size ? block->size : size);
+		(void) memcpy(replacement, chunk, block->size < size ? block->size : size);
 		free(chunk);
 	}
 
@@ -840,7 +873,7 @@ DebugRealloc(void *chunk, size_t size, const char *file, unsigned line)
 }
 
 void *
-DebugCalloc(size_t m, size_t n, const char *file, unsigned line)
+(DebugCalloc)(size_t m, size_t n, const char *file, unsigned line)
 {
 	void *chunk;
 

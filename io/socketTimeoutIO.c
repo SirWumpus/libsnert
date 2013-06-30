@@ -53,6 +53,10 @@
 #include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/util/timer.h>
 
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
+
 #if !defined(HAVE_EPOLL_CREATE) && !(defined(HAVE_KQUEUE) && defined(HAVE_CLOCK_GETTIME))
 static void
 socket_reset_set(SOCKET *array, int length, void *_set)

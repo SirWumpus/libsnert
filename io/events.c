@@ -39,6 +39,10 @@
 #include <com/snert/lib/util/timer.h>
 #include <com/snert/lib/util/Text.h>
 
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
+
 #if defined(HAVE_KQUEUE)
 # define KQUEUE_READ		EVFILT_READ
 # define KQUEUE_WRITE		EVFILT_WRITE
@@ -124,7 +128,7 @@ eventResetExpire(Event *event, const time_t *now)
  * @param event
  *	A pointer to Event structure.
  *
- * @note 
+ * @note
  *	The original design of the Snert IO Events API was based on
  *	a paper about implementing Haskell Event IO and how IO typically
  *	always needs a timeout, so the Snert version always assumes that

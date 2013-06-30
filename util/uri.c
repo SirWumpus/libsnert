@@ -3,7 +3,7 @@
  *
  * RFC 2821, 2396, 3986 Support Routines
  *
- * Copyright 2006, 2012 by Anthony Howe. All rights reserved.
+ * Copyright 2006, 2013 by Anthony Howe. All rights reserved.
  */
 
 #ifndef IMPLICIT_DOMAIN_MIN_DOTS
@@ -18,12 +18,12 @@
 
 #define _REENTRANT	1
 
-#include <com/snert/lib/version.h>
-
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <com/snert/lib/version.h>
 
 #ifdef HAVE_FCNTL_H
 # include <fcntl.h>
@@ -46,6 +46,10 @@
 #include <com/snert/lib/util/uri.h>
 #include <com/snert/lib/util/html.h>
 #include <com/snert/lib/util/Text.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  ***
@@ -2110,7 +2114,7 @@ main(int argc, char **argv)
 	int i, ch;
 	UriWorker uw;
 
-	memset(&uw, 0, sizeof (uw));
+	(void) memset(&uw, 0, sizeof (uw));
 
 	if (atexit(at_exit_cleanup)) {
 		fprintf(stderr, log_init, LOG_LINE, strerror(errno), errno);

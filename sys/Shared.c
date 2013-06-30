@@ -1,7 +1,7 @@
 /*
  * Shared.c
  *
- * Copyright 2001, 2004 by Anthony Howe.  All rights reserved.
+ * Copyright 2001, 2013 by Anthony Howe.  All rights reserved.
  *
  * Ralf S. Engelschall's MM Library, while nice, appears to be incomplete:
  * no POSIX semaphores, permission issues for SysV, and constant need to
@@ -26,6 +26,10 @@
 
 #include <com/snert/lib/version.h>
 #include <com/snert/lib/sys/Shared.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 #if ! defined(SHARED_MEMORY_API) || SHARED_MEMORY_API == UNKNOWN_API
 #error "No shared memory support defined."

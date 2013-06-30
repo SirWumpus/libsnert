@@ -1,7 +1,7 @@
 /**
  * dnsList.c
  *
- * Copyright 2008, 2012 by Anthony Howe. All rights reserved.
+ * Copyright 2008, 2013 by Anthony Howe. All rights reserved.
  */
 
 #define NS_VERSION3
@@ -10,23 +10,27 @@
  *** No configuration below this point.
  ***********************************************************************/
 
-#include <com/snert/lib/version.h>
-
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <com/snert/lib/version.h>
 
 #ifndef __MINGW32__
 # if defined(HAVE_SYSLOG_H)
 #  include <syslog.h>
 # endif
 #endif
-#include <com/snert/lib/io/Log.h>
 
+#include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/sys/Time.h>
 #include <com/snert/lib/mail/tlds.h>
 #include <com/snert/lib/util/md5.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/net/dnsList.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  ***

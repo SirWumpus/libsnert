@@ -40,6 +40,10 @@
 #include <com/snert/lib/util/timer.h>
 #include <com/snert/lib/sys/process.h>
 
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
+
 static int debug;
 
 /**

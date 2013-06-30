@@ -30,6 +30,10 @@
 
 #include <com/snert/lib/sys/Mutex.h>
 
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
+
 #if ! defined(SERIALIZATION_API) || SERIALIZATION_API == UNKNOWN_API
 #error "No mutex support defined."
 #endif

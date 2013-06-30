@@ -1,13 +1,18 @@
 /*
  * Object.c
  *
- * Copyright 2004 by Anthony Howe.  All rights reserved.
+ * Copyright 2004, 2013 by Anthony Howe.  All rights reserved.
  */
 
 #include <stdlib.h>
 #include <string.h>
 
+#include <com/snert/lib/version.h>
 #include <com/snert/lib/type/Object.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 #define REF_OBJECT(v)		((Object)(v))
 

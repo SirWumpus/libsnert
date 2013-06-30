@@ -3,7 +3,7 @@
  *
  * Binary String
  *
- * Copyright 2005, 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2005, 2013 by Anthony Howe.  All rights reserved.
  */
 
 #include <ctype.h>
@@ -11,7 +11,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <com/snert/lib/version.h>
 #include <com/snert/lib/util/bs.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 long
 bsLength(unsigned char *bs)

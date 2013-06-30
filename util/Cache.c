@@ -30,6 +30,10 @@
 #  include <com/snert/lib/io/Log.h>
 #endif
 
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
+
 #define REF_CACHE(v)		((Cache)(v))
 
 /***********************************************************************

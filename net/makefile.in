@@ -82,18 +82,21 @@ $O$E :
 
 IDIR := ${top_srcdir}/include
 HDIR := ${IDIR}/net
-OBJS =  getRFC2821DateTime$O formatIP$O isRFC2606$O network$O networkGetMyDetails$O \
+OBJS := getRFC2821DateTime$O formatIP$O isRFC2606$O network$O networkGetMyDetails$O \
 	parseIPv6$O isReservedIPv4$O isReservedIPv6$O isReservedIP$O ipinclient$O \
 	reverse$O pdq$O spanIP$O spanHost$O spanLocalPart$O findIP$O dnsList$O \
 	server$O http$O
 
-PROGRAMS = ipinclient$E pdq$E findIP$E formatIP$E server$E geturl$E netcontainsip$E
+TEST := ipinclient$E findIP$E formatIP$E netcontainsip$E
+NET  := geturl$E pdq$E server$E
 
 .MAIN : build
 
 all: build
 
-build: title add-lib ipinclient$E findIP$E formatIP$E netcontainsip$E
+build: title add-lib ${TEST}
+
+build-cli: title ${TEST} ${NET}
 
 add-lib: ${OBJS}
 	@echo
@@ -117,12 +120,7 @@ title :
 install: build
 	-cp -p pdq$E ${bindir}
 
-
-${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
-	cd ${top_srcdir}/util ; make DebugMalloc.o
-
-debug : ${top_srcdir}/util/DebugMalloc.o
-	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o' build
+debug : build
 
 #add-lib:
 #	@echo

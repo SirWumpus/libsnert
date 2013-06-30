@@ -95,12 +95,7 @@ distclean: clean
 
 install: build
 
-
-${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
-	cd ${top_srcdir}/util ; make DebugMalloc.o
-
-debug : ${top_srcdir}/util/DebugMalloc.o
-	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o' build
+debug : build
 
 lint: title
 #	-splint -D_REENTRANT -I${SNERT_INCDIR} +posixlib +boolint *.c

@@ -1,7 +1,7 @@
 /*
- * TextCount.c
+ * TokenSplit.c
  *
- * Copyright 2004, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2004, 2013 by Anthony Howe. All rights reserved.
  */
 
 #include <com/snert/lib/version.h>
@@ -11,6 +11,10 @@
 
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/Token.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  ***

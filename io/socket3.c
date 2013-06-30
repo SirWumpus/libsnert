@@ -40,6 +40,10 @@
 #include <com/snert/lib/util/timer.h>
 #include <com/snert/lib/util/Text.h>
 
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
+
 #if defined(HAVE_KQUEUE)
 # define KQUEUE_READ		EVFILT_READ
 # define KQUEUE_WRITE		EVFILT_WRITE

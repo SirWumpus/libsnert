@@ -98,11 +98,7 @@ install: build
 lint: title crc12.tbl crc16.tbl crc32.tbl crcccitt.tbl
 	-splint -D_REENTRANT -I${SNERT_INCDIR} +posixlib +boolint *.c
 
-${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
-	cd ${top_srcdir}/util ; make DebugMalloc.o
-
-debug : ${top_srcdir}/util/DebugMalloc.o
-	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o -dl -lpthread' build
+debug : build
 
 #
 # Build functions.
@@ -143,6 +139,6 @@ crctable$E : ../util/getopt$O crctable.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)crctable$E crctable.c ../util/getopt$O
 
 Luhn$E: Luhn.c
-	${WRAPPER} $(CC) $(CFLAGS) -DTEST $(CC_E)Luhn$E Luhn.c ${LIBS_PREFIX}
+	$(CC) -DTEST $(CFLAGS) ${LDFLAGS} $(CC_E)Luhn$E Luhn.c ${LIBS_PREFIX} ${LIBSNERT}
 	-rm -f Luhn$O
 

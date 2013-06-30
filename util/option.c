@@ -1,10 +1,8 @@
 /*
  * option.c
  *
- * Copyright 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2006, 2013 by Anthony Howe.  All rights reserved.
  */
-
-#include <com/snert/lib/version.h>
 
 #include <ctype.h>
 #include <errno.h>
@@ -12,10 +10,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <com/snert/lib/version.h>
 #include <com/snert/lib/io/file.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/Token.h>
 #include <com/snert/lib/util/option.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /**
  * @param option

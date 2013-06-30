@@ -96,6 +96,8 @@ is no set schedule for releases.
    !	Refactored DebugMalloc pthread support. Should now detect memory
 	leaks per thread.
 
+  !!	Fixed memory leak of PDQ_SECTION_QUERY in pdqListPruneMatch().
+
    !	Updated IANA TLD list.
 
    +	Added binary search tree API.

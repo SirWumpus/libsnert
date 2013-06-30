@@ -1,7 +1,7 @@
 /*
  * Text.c
  *
- * Copyright 2001, 2012 by Anthony Howe.  All rights reserved.
+ * Copyright 2001, 2013 by Anthony Howe.  All rights reserved.
  */
 
 #include <ctype.h>
@@ -14,6 +14,10 @@
 #include <com/snert/lib/util/Buf.h>
 #include <com/snert/lib/type/Text.h>
 #include <com/snert/lib/util/Text.h>
+
+#ifdef DEBUG_MALLOC
+#include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 #define REF_TEXT(v)		((Text)(v))
 

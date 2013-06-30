@@ -1,7 +1,7 @@
 /*
  * timer.c
  *
- * Copyright 2009, 2010 by Anthony Howe. All rights reserved.
+ * Copyright 2009, 2013 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -19,6 +19,10 @@
 #endif
 
 #include <com/snert/lib/util/timer.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  *** Timer Thread

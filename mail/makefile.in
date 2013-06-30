@@ -88,8 +88,10 @@ $O$E :
 
 #######################################################################
 
-OBJS =  grey$O tlds$O MailSpan$O parsePath$O mime$O siq$O spf$O smdb$O \
+OBJS := grey$O tlds$O MailSpan$O parsePath$O mime$O siq$O spf$O smdb$O \
 	smtp2$O mfReply$O smf$O
+
+CLI :=	mime$E parsePath$E siq$E smtp2$E spf$E tlds$E
 
 .MAIN : build
 
@@ -103,6 +105,8 @@ title :
 	@echo
 
 build: title $(LIB) add-lib
+
+build-cli: title ${CLI}
 
 install: build
 	-cp -p mime$E smtp2$E spf$E ${bindir}
@@ -129,11 +133,7 @@ clean : title
 distclean: clean
 	-rm makefile
 
-${top_srcdir}/util/DebugMalloc.o : ${top_srcdir}/util/DebugMalloc.c
-	cd ${top_srcdir}/util ; make DebugMalloc.o
-
-debug : ${top_srcdir}/util/DebugMalloc.o
-	make CFLAGS_PREFIX='-I${top_srcdir}' LIBS_PREFIX='${top_srcdir}/util/DebugMalloc.o' build
+debug : build
 
 update-tlds: tlds-alpha-by-domain.txt two-level-tlds.txt three-level-tlds.txt
 

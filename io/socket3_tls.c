@@ -44,6 +44,10 @@
 #include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/util/Text.h>
 
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
+
 extern int socket3_debug;
 
 /***********************************************************************

@@ -1,7 +1,7 @@
 /*
  * Base64.c
  *
- * Copyright 2002, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2002, 2013 by Anthony Howe. All rights reserved.
  */
 
 #define NDEBUG
@@ -11,7 +11,13 @@
  ***********************************************************************/
 
 #include <stdlib.h>
+
+#include <com/snert/lib/version.h>
 #include <com/snert/lib/util/Base64.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  *** Global Variables & Constants

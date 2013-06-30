@@ -3,7 +3,7 @@
  *
  * RFC 3875 The Common Gateway Interface (CGI) Version 1.1
  *
- * Copyright 2004, 2012 by Anthony Howe. All rights reserved.
+ * Copyright 2004, 2013 by Anthony Howe. All rights reserved.
  */
 
 #ifndef CGI_CHUNK_SIZE
@@ -28,6 +28,9 @@
 
 #include <com/snert/lib/util/cgi.h>
 
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 extern char **environ;
 
 /***********************************************************************

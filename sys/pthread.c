@@ -1,15 +1,20 @@
 /*
  * pthread.c
  *
- * Copyright 2004, 2009 by Anthony Howe.  All rights reserved.
+ * Copyright 2004, 2013 by Anthony Howe.  All rights reserved.
  */
 
 #include <com/snert/lib/version.h>
 
 #include <errno.h>
+
 #include <com/snert/lib/sys/pthread.h>
 #include <com/snert/lib/type/queue.h>
 #include <com/snert/lib/util/timer.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 #if defined(__WIN32__)
 

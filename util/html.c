@@ -8,13 +8,16 @@
  *** No configuration below this point.
  ***********************************************************************/
 
-#include <com/snert/lib/version.h>
-
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <com/snert/lib/version.h>
 #include <com/snert/lib/util/html.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  ***

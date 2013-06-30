@@ -3,7 +3,7 @@
  *
  * Variable length buffer.
  *
- * Copyright 2001, 2012 by Anthony Howe. All rights reserved.
+ * Copyright 2001, 2013 by Anthony Howe. All rights reserved.
  */
 
 #ifndef BUF_GROWTH
@@ -22,6 +22,10 @@
 #include <string.h>
 
 #include <com/snert/lib/util/Buf.h>
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 static void
 bounds(Buf *a, size_t *offp, size_t *lenp)

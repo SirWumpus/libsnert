@@ -1,7 +1,7 @@
 /*
  * parsePath.c
  *
- * Copyright 2002, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2002, 2013 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -27,6 +27,10 @@
 #include <com/snert/lib/mail/MailSpan.h>
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/net/network.h>
+
+#ifdef DEBUG_MALLOC
+#include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  *** Global Variables & Constants

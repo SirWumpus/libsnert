@@ -107,9 +107,9 @@ build-tools: build
 	@echo '***************************************************************'
 	@echo
 	cd tools; ${MAKE} ${MFLAGS} build
-	cd type; ${MAKE} ${MFLAGS} kvmap$E kvmc$E kvmd$E mcc$E
-	cd mail; ${MAKE} ${MFLAGS} mime$E parsePath$E siq$E smtp2$E spf$E
-	cd net;  ${MAKE} ${MFLAGS} pdq$E server$E geturl$E
+	cd type; ${MAKE} ${MFLAGS} build-cli
+	cd mail; ${MAKE} ${MFLAGS} build-cli
+	cd net;  ${MAKE} ${MFLAGS} build-cli
 	cd util; ${MAKE} ${MFLAGS} build-cli
 	@echo
 	@echo '***************************************************************'
@@ -118,19 +118,23 @@ build-tools: build
 	@echo
 
 debug: title add-lib
-	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
-	@echo '==> building CLI test / tool variants'
+	@echo '==> Build threaded DebugMalloc$O'
 	@echo '***************************************************************'
 	@echo
-	cd type; ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' kvmap$E kvmc$E kvmd$E mcc$E
-	cd mail; ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' siq$E smtp2$E spf$E
-	cd net;  ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' pdq$E
-	cd util; ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-I${abs_srcdir}' LIBS_PREFIX='${abs_srcdir}/util/DebugMalloc.o' uri$E
+	cd util && ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-DDEBUG_MALLOC' dmalloct$O && cd ..
+	ar rc ${LIB} util/dmalloct$O
+	${RANLIB} ${LIB}
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-DDEBUG_MALLOC' $@ && cd .. ; done
+	cd tools; ${MAKE} ${MFLAGS} $@
+	cd type; ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-DDEBUG_MALLOC' build-cli
+	cd mail; ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-DDEBUG_MALLOC' build-cli
+	cd net;  ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-DDEBUG_MALLOC' build-cli
+	cd util; ${MAKE} ${MFLAGS} CFLAGS_PREFIX='-DDEBUG_MALLOC' build-cli
 	@echo
 	@echo '***************************************************************'
-	@echo Build ${BUILD} DONE
+	@echo @package_string@ -DDEBUG_MALLOC DONE
 	@echo '***************************************************************'
 	@echo
 
@@ -152,7 +156,6 @@ install: build-tools
 	@echo Build ${BUILD} DONE
 	@echo '***************************************************************'
 	@echo
-
 
 next-id:
 	expr `cat BUILD_ID.TXT` + 1 >BUILD_ID.TXT

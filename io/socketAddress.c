@@ -37,6 +37,10 @@
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/util/Text.h>
 
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
+#endif
+
 /***********************************************************************
  *** Socket Address
  ***********************************************************************/

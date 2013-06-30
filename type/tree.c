@@ -8,9 +8,14 @@
  *** No configuration below this point.
  ***********************************************************************/
 
-#include <com/snert/lib/version.h>
 #include <stdlib.h>
+
+#include <com/snert/lib/version.h>
 #include <com/snert/lib/type/tree.h>
+
+#ifdef DEBUG_MALLOC
+#include <com/snert/lib/util/DebugMalloc.h>
+#endif
 
 /***********************************************************************
  *** Low-level binary tree_ manipulation; not mutex protected.

@@ -3,7 +3,7 @@
  *
  * Threaded Server API
  *
- * Copyright 2008, 2010 by Anthony Howe. All rights reserved.
+ * Copyright 2008, 2013 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -43,6 +43,10 @@
 #ifdef __WIN32__
 # include <windows.h>
 # include <sddl.h>
+#endif
+
+#ifdef DEBUG_MALLOC
+# include <com/snert/lib/util/DebugMalloc.h>
 #endif
 
 /***********************************************************************
