@@ -25,6 +25,10 @@
 #define MAX_STATIC_MEMORY	(64 * 1024)
 #endif
 
+#ifndef MAX_DUMP_LENGTH
+#define MAX_DUMP_LENGTH		24
+#endif
+
 #ifndef DOH_BYTE
 #define DOH_BYTE		'>'
 #endif
@@ -189,6 +193,7 @@ int memory_exit = 1;
 int memory_signal = SIGNAL_MEMORY;
 int memory_show_free = 0;
 int memory_show_malloc = 0;
+int memory_dump_length = MAX_DUMP_LENGTH;
 int memory_thread_leak = 0;
 int memory_test_double_free = 1;
 int memory_freed_marker = FREED_BYTE;
@@ -232,7 +237,7 @@ thread_exit_report(void *data)
 				signal_error("thread #%lu memory marker corruption " BLOCK_FMT "\r\n", (unsigned long) pthread_self(), BLOCK_ARG(block));
 				return;
 			}
-			DebugMallocDump(&block[1]);
+			DebugMallocDump(&block[1], memory_dump_length);
 		}
 
 		err_msg("\tleaked blocks=%u\r\n", count);
@@ -339,12 +344,12 @@ DebugMallocSummary(void)
 }
 
 void
-DebugMallocDump(void *chunk)
+DebugMallocDump(void *chunk, size_t length)
 {
 	if (memory_init_state == MEMORY_INITIALISED) {
 		BlockData *block = &((BlockData *) chunk)[-1];
 		err_msg("\t" BLOCK_FMT " dump=", BLOCK_ARG(block));
-		dump((unsigned char *)chunk, block->size < 40 ? block->size : 40);
+		dump((unsigned char *)chunk, block->size < length ? block->size : length);
 	}
 }
 
@@ -378,6 +383,8 @@ init_common(void)
 
 	if ((value = getenv("MEMORY_SIGNUM")) != NULL)
 		memory_signal = (int) strtol(value, NULL, 0);
+	if ((value = getenv("MEMORY_DUMP_LENGTH")) != NULL)
+		memory_dump_length = (int) strtol(value, NULL, 0);
 	if ((value = getenv("MEMORY_FREE_CHUNK")) != NULL)
 		memory_free_chunk = (void *) strtol(value, NULL, 0);
 	if ((value = getenv("MEMORY_MALLOC_CHUNK")) != NULL)
@@ -558,7 +565,7 @@ _malloc(size_t size)
 	return (void *) (static_memory + aligned_used);
 }
 
-void
+__dead void
 (_exit)(int status)
 {
 	/* Have to initialise libc__exit before we can call it. */

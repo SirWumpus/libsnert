@@ -18,6 +18,7 @@ extern int memory_exit;
 extern int memory_signal;
 extern int memory_show_free;
 extern int memory_show_malloc;
+extern int memory_dump_length;
 extern int memory_thread_leak;
 extern int memory_test_double_free;
 
@@ -41,7 +42,7 @@ extern void *DebugRealloc(void *chunk, size_t size, const char *file, unsigned l
 
 extern void DebugMallocReport(void);
 extern void DebugMallocSummary(void);
-extern void DebugMallocDump(void *chunk);
+extern void DebugMallocDump(void *chunk, size_t length);
 extern void DebugMallocHere(void *chunk, const char *file, unsigned line);
 
 #define free(p)				DebugFree(p, __FILE__, __LINE__)

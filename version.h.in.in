@@ -63,6 +63,35 @@ extern "C" {
 #define _REENTRANT	1
 #define _THERAD_SAFE	1
 
+/*
+ * Macro to test if we're using a GNU C compiler of a specific vintage
+ * or later, for e.g. features that appeared in a particular version
+ * of GNU C.  Usage:
+ *
+ *      #if __GNUC_PREREQ__(major, minor)
+ *      ...cool feature...
+ *      #else
+ *      ...delete feature...
+ *      #endif
+ */
+#ifdef __GNUC__
+# define __GNUC_PREREQ__(x, y)                                           \
+        ((__GNUC__ == (x) && __GNUC_MINOR__ >= (y)) ||                  \
+         (__GNUC__ > (x)))
+#else
+# define __GNUC_PREREQ__(x, y)   0
+#endif
+
+#ifndef __dead
+# if __GNUC_PREREQ__(2, 5)
+#  define __dead          __attribute__((__noreturn__))
+# elif defined(__GNUC__)
+#  define __dead          volatile
+# else
+#  define __dead
+# endif
+#endif
+
 typedef struct {
 	int major;
 	int minor;
