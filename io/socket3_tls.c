@@ -14,6 +14,8 @@
 #define SOCKET3_WRITE_TIMEOUT	5000
 #endif
 
+#define DISABLE_SESS_CACHE
+
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/
@@ -449,14 +451,21 @@ socket3_init_tls(void)
 void
 socket3_fini_tls(void)
 {
+	int i, n;
+
 	if (socket3_initialised_tls) {
 		socket3_initialised_tls--;
 #ifdef HAVE_OPENSSL_SSL_H
 		if (0 < socket3_debug)
 			syslog(LOG_DEBUG, "socket3_fini_tls()");
+		ERR_free_strings();
 		SSL_CTX_free(ssl_ctx);
 		ssl_ctx = NULL;
 		EVP_cleanup();
+
+		n = CRYPTO_num_locks();
+		for (i = 0; i < n; i++)
+			sem_destroy(&locks[i]);
 		free(locks);
 #endif
 		socket3_fini_fd();

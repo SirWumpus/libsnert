@@ -85,11 +85,29 @@ const char **tld_level_2 = tld_2;
 const char **tld_level_3 = tld_3;
 
 static const char **tld_level_0 = tld_0;
-static const char ***nth_tld[] = { &tld_level_0, &tld_level_1, &tld_level_2, &tld_level_3, NULL };
+static const char ***nth_tld[] = {
+	&tld_level_0,
+	&tld_level_1,
+	&tld_level_2,
+	&tld_level_3,
+	NULL
+};
 
 /***********************************************************************
  *** Routines
- ***********************************************************************/
+ ***********
+ ************************************************************/
+
+void
+tld_at_exit(void)
+{
+	if (tld_level_1 != tld_1)
+		free(tld_level_1);
+	if (tld_level_2 != tld_2)
+		free(tld_level_2);
+	if (tld_level_3 != tld_3)
+		free(tld_level_3);
+}
 
 /**
  * @param filepath
@@ -161,32 +179,6 @@ tldLoadTable(const char *filepath, const char ***table)
 	return 0;
 }
 
-#ifdef OLD
-static int
-tldCopyTable(const char **source, const char ***target)
-{
-	size_t length, i;
-	const char **words;
-
-	free(*target);
-	*target = NULL;
-
-	for (length = 0; source[length] != NULL; length++)
-		;
-
-	if ((words = malloc((length+1) * sizeof (const char *))) == NULL)
-		return -1;
-
-	for (i = 0; i < length; i++)
-		words[i] = source[i];
-
-	words[i] = NULL;
-	*target = words;
-
-	return 0;
-}
-#endif
-
 int
 tldInit(void)
 {
@@ -244,11 +236,6 @@ indexValidNthTLD(const char *domain, int level)
 		errno = EINVAL;
 		return -1;
 	}
-
-#ifdef OLD
-	if (!tld_init_done && tldInit())
-		return -1;
-#endif
 
 	length = strlen(domain);
 	rootdot = (0 < length && domain[length-1] == '.');

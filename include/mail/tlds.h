@@ -39,6 +39,8 @@ extern const char *tlds_level_2[];
  */
 extern const char *tlds_level_3[];
 
+extern void tld_at_exit(void);
+
 /**
  * @return
  *	Zero on success, otherwise -1 on error.

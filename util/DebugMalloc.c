@@ -591,6 +591,15 @@ __dead void
 	if (memory_init_state == MEMORY_INITIALISE)
 		init();
 
+#ifdef HAVE_SYS_RESOURCE_H
+#include <sys/resource.h>
+{
+	struct rusage rusage;
+	(void) getrusage(RUSAGE_SELF, &rusage);
+	err_msg("RSS: %-14ld\r\n", rusage.ru_maxrss);
+}
+#endif
+
 	DebugMallocSummary();
 	DebugMallocReport();
 
