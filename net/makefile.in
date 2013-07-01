@@ -150,7 +150,7 @@ formatIP$E: formatIP.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}formatIP$E formatIP.c  $(LIBSNERT) ${LIBS} ${LIB_WS2_32}
 
 server$E : server.c
-	${CC} -DTEST ${CFLAGS_PTHREAD} ${CFLAGS} ${LDFLAGS_PTHREAD} ${LDFLAGS} ${CC_E}server$E server.c $(LIBSNERT) ${LIB_PTHREAD} ${NETWORK_LIBS} ${LIBS}
+	${CC} -DTEST ${CFLAGS} ${CFLAGS_PTHREAD} ${LDFLAGS} ${LDFLAGS_PTHREAD} ${CC_E}server$E server.c $(LIBSNERT) ${LIB_PTHREAD} ${NETWORK_LIBS} ${LIBS}
 
 ${HDIR}/http.h : ${IDIR}/io/socket3.h ${IDIR}/pt/pt.h ${IDIR}/util/Buf.h \
 	${IDIR}/util/uri.h ${IDIR}/sys/Time.h

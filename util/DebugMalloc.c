@@ -140,6 +140,7 @@ extern ssize_t write(int, const void *, size_t);
 
 #define BLOCK_FMT		"chunk=0x%lx size=%lu " HERE_FMT
 #define BLOCK_ARG(b)		&(b)[1], (b)->size, (b)->file, (b)->line
+#define BASIC_CRC(b)		((unsigned long)(b) ^ (b)->size ^ (unsigned long)(b)->file ^ (b)->line)
 
 typedef enum {
 	MEMORY_INITIALISE,
@@ -148,7 +149,12 @@ typedef enum {
 } MemoryInit;
 
 typedef struct block_data {
+#ifdef OVER_KILL
+/* In theory we don't need the leading boundary, if the CRC
+ * includes all the sensitive fields, but not the links.
+ */
 	unsigned char before[PAD_SIZE];
+#endif
 	size_t size;
 	unsigned line;
 	const char *file;
@@ -199,9 +205,13 @@ int memory_test_double_free = 1;
 int memory_freed_marker = FREED_BYTE;
 int memory_lower_marker = DAH_BYTE;
 int memory_upper_marker = DOH_BYTE;
-void *memory_free_chunk = NULL;
-void *memory_malloc_chunk = NULL;
 unsigned long memory_report_interval = 0;
+
+size_t memory_free_chunk_size;
+void *memory_free_chunk = NULL;
+
+size_t memory_malloc_chunk_size;
+void *memory_malloc_chunk = NULL;
 
 /***********************************************************************
  ***
@@ -219,6 +229,7 @@ static pthread_t main_thread;
 static void
 thread_exit_report(void *data)
 {
+	size_t size;
 	unsigned count;
 	BlockData *block = data;
 
@@ -232,15 +243,17 @@ thread_exit_report(void *data)
 		else
 			err_msg("thread #%lx:\r\n", (unsigned long) pthread_self());
 
+		size = 0;
 		for (count = 0; block != NULL; block = block->next, count++) {
-			if (block->crc != ((unsigned long) block ^ block->size)) {
+			if (block->crc != BASIC_CRC(block)) {
 				signal_error("thread #%lu memory marker corruption " BLOCK_FMT "\r\n", (unsigned long) pthread_self(), BLOCK_ARG(block));
 				return;
 			}
 			DebugMallocDump(&block[1], memory_dump_length);
+			size += block->size;
 		}
 
-		err_msg("\tleaked blocks=%u\r\n", count);
+		err_msg("\tleaked blocks=%u size=%lu\r\n", count, size);
 
 		if (memory_thread_leak && 0 < count)
 			signal_error("thread report abort\r\n");
@@ -371,7 +384,7 @@ DebugMallocHere(void *chunk, const char *file, unsigned line)
 static void
 init_common(void)
 {
-	char *value;
+	char *value, *stop;
 
 	if ((value = getenv("MEMORY")) != NULL) {
 		memory_show_free = (strchr(value, 'F') != NULL);
@@ -385,10 +398,16 @@ init_common(void)
 		memory_signal = (int) strtol(value, NULL, 0);
 	if ((value = getenv("MEMORY_DUMP_LENGTH")) != NULL)
 		memory_dump_length = (int) strtol(value, NULL, 0);
-	if ((value = getenv("MEMORY_FREE_CHUNK")) != NULL)
-		memory_free_chunk = (void *) strtol(value, NULL, 0);
-	if ((value = getenv("MEMORY_MALLOC_CHUNK")) != NULL)
-		memory_malloc_chunk = (void *) strtol(value, NULL, 0);
+	if ((value = getenv("MEMORY_FREE_CHUNK")) != NULL) {
+		memory_free_chunk = (void *) strtoul(value, &stop, 0);
+		if (*stop == ':')
+			memory_free_chunk_size = strtoul(stop+1, NULL, 0);
+	}
+	if ((value = getenv("MEMORY_MALLOC_CHUNK")) != NULL) {
+		memory_malloc_chunk = (void *) strtoul(value, &stop, 0);
+		if (*stop == ':')
+			memory_malloc_chunk_size = strtoul(stop+1, NULL, 0);
+	}
 	if ((value = getenv("MEMORY_REPORT_INTERVAL")) != NULL)
 		memory_report_interval = (unsigned long) strtol(value, NULL, 0);
 #ifdef __WIN32__
@@ -602,11 +621,13 @@ void *
 	return DebugRealloc(chunk, size, unknown, 0);
 }
 
-static void
-DebugCheckBoundaries(BlockData *block, const char *file, unsigned line)
+void
+DebugMallocCheckBoundaries(void *chunk, const char *file, unsigned line)
 {
+	BlockData *block;
 	unsigned char *p, *q;
-	unsigned char *chunk = (unsigned char *) &block[1];
+
+	block = &((BlockData *) chunk)[-1];
 
 	if (memory_test_double_free) {
 		/* Look for double-free first, since the block structure
@@ -636,6 +657,7 @@ DebugCheckBoundaries(BlockData *block, const char *file, unsigned line)
 		}
 	}
 
+#ifdef OVER_KILL
 	/* Check the leading boundary marker */
 	p = block->before;
 	q = p + sizeof (block->before);
@@ -645,6 +667,7 @@ DebugCheckBoundaries(BlockData *block, const char *file, unsigned line)
 			return;
 		}
 	}
+#endif
 
 	/* Check the boundary marker between end of chunk and end of block. */
 	p = (unsigned char *) &block[1] + block->size;
@@ -654,17 +677,6 @@ DebugCheckBoundaries(BlockData *block, const char *file, unsigned line)
 			signal_error(HERE_FMT "memory overrun " BLOCK_FMT "\r\n", HERE_ARG, BLOCK_ARG(block));
 			return;
 		}
-	}
-
-	if (memory_test_double_free) {
-		/* Wipe the WHOLE memory area including the space
-		 * for the lower and upper boundaries.
-		 */
-		size_t block_size =
-			  ALIGN_SIZE(sizeof (*block), ALIGNMENT_SIZE)
-			+ ALIGN_SIZE(block->size, ALIGNMENT_SIZE)
-			+ ALIGNMENT_SIZE;
-		(void) memset(block, memory_freed_marker, block_size);
 	}
 }
 
@@ -707,7 +719,7 @@ void
 		+ ALIGN_SIZE(size, ALIGNMENT_SIZE)
 		+ ALIGNMENT_SIZE;
 
-	if (block->crc != ((unsigned long) block ^ size)) {
+	if (block->crc != BASIC_CRC(block)) {
 		/* Can't report size as it is probably corrupted. */
 		if (*(unsigned char *) chunk == memory_freed_marker) {
 			signal_error(HERE_FMT "double free chunk=0x%lx\r\n", HERE_ARG, (long) chunk);
@@ -738,7 +750,18 @@ void
 	if (memory_show_free)
 		DebugMallocHere0(chunk, file, line, "free");
 
-	DebugCheckBoundaries(block, HERE_ARG);
+	DebugMallocCheckBoundaries(chunk, HERE_ARG);
+
+	if (memory_test_double_free) {
+		/* Wipe the WHOLE memory area including the space
+		 * for the lower and upper boundaries.
+		 */
+		size_t block_size =
+			  ALIGN_SIZE(sizeof (*block), ALIGNMENT_SIZE)
+			+ ALIGN_SIZE(block->size, ALIGNMENT_SIZE)
+			+ ALIGNMENT_SIZE;
+		(void) memset(block, memory_freed_marker, block_size);
+	}
 
 	/* The libc free has its own mutex locking. */
 	(*libc_free)(block);
@@ -756,8 +779,11 @@ void
 	if (0 < size && ((unsigned char *) chunk)[size - 1] != memory_freed_marker)
 		memory_test_double_free = 0;
 #endif
-	if (chunk == memory_free_chunk)
-		signal_error(HERE_FMT "memory stop free on chunk=0x%lx\r\n", HERE_ARG, (long) chunk);
+	if (chunk == memory_free_chunk
+	&& (memory_free_chunk_size == 0 || size == memory_free_chunk_size)) {
+		err_msg(HERE_FMT "memory stop free on chunk=0x%lx\r\n", HERE_ARG, (long) chunk);
+		raise(SIGSTOP);
+	}
 
 	if (0 < memory_report_interval && memory_free_count % memory_report_interval == 0)
 		DebugMallocSummary();
@@ -800,7 +826,9 @@ void *
 
 	/* Allocate enough space to include some boundary markers.
 	 *
+#ifdef OVER_KILL
 	 * block.before	| DA DA DA DA DA DA DA DA ...
+#endif
 	 * block	| ...
 	 * block.after	| D0 D0 D0 D0 D0 D0 D0 D0 ...
 	 * chunk	| FF ?? ?? ?? ?? ?? ?? ?? ...
@@ -826,8 +854,9 @@ void *
 
 	/* Fill in the boundary markers. */
 	(void) memset(block, memory_upper_marker, block_size);
+#ifdef OVER_KILL
 	(void) memset(block->before, memory_lower_marker, sizeof (block->before));
-
+#endif
 	/* Zero the chunk. */
 	(void) memset((char *) chunk, 0, size);
 
@@ -839,10 +868,10 @@ void *
 		head->prev = block;
 	(void) pthread_setspecific(thread_key, block);
 
-	block->crc = (unsigned long) block ^ size;
 	block->size = size;
 	block->file = file;
 	block->line = line;
+	block->crc = BASIC_CRC(block);
 
 #ifdef NOPE
 	/* When we allocate a previously freed chunk, write a single value
@@ -855,8 +884,11 @@ void *
 	if (memory_show_malloc)
 		DebugMallocHere0(chunk, file, line, "malloc");
 
-	if (chunk == memory_malloc_chunk)
-		signal_error(HERE_FMT "memory stop malloc on " BLOCK_FMT "\r\n", HERE_ARG, BLOCK_ARG(block));
+	if (chunk == memory_malloc_chunk
+	&& (memory_malloc_chunk_size == 0 || size == memory_malloc_chunk_size)) {
+		err_msg(HERE_FMT "memory stop malloc on " BLOCK_FMT "\r\n", HERE_ARG, BLOCK_ARG(block));
+		raise(SIGSTOP);
+	}
 
 	return chunk;
 }

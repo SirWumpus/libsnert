@@ -44,6 +44,7 @@ extern void DebugMallocReport(void);
 extern void DebugMallocSummary(void);
 extern void DebugMallocDump(void *chunk, size_t length);
 extern void DebugMallocHere(void *chunk, const char *file, unsigned line);
+extern void DebugMallocCheckBoundaries(void *chunk, const char *file, unsigned line);
 
 #define free(p)				DebugFree(p, __FILE__, __LINE__)
 #define malloc(n)			DebugMalloc(n, __FILE__, __LINE__)
@@ -57,6 +58,7 @@ extern void DebugMallocHere(void *chunk, const char *file, unsigned line);
 #define DebugCalloc(m, n, f, l)		calloc(m, n)
 #define DebugRealloc(p, s, f, l)	realloc(p, s);
 
+#define DebugMallocCheckBoundaries(...)
 #define DebugMallocReport()
 #define DebugMallocSummary()
 #define DebugMallocDump(...)

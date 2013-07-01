@@ -2873,8 +2873,11 @@ pdqOpen(void)
 {
 	PDQ *pdq = NULL;
 
-	if (servers == NULL && pdqInit())
-		goto error0;
+	if (servers == NULL) {
+		if (pdqInit())
+			goto error0;
+		(void) atexit(pdqFini);
+	}
 
 	if ((pdq = malloc(sizeof (PDQ))) == NULL)
 		goto error0;

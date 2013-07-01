@@ -578,7 +578,7 @@ error0:
  *	A pointer to an Option structure to initialise.
  */
 void
-optionInitOption(Option *o)
+optionResetOption(Option *o)
 {
 	if (o->initial != o->string)
 		free(o->string);
@@ -614,7 +614,7 @@ optionInit(Option *table[], ...)
 
 	for (opt = table; opt != NULL; opt = va_arg(list, Option **)) {
 		for ( ; *opt != NULL; opt++) {
-			optionInitOption(*opt);
+			optionResetOption(*opt);
 		}
 	}
 

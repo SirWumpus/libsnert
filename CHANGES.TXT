@@ -66,7 +66,7 @@ is no set schedule for releases.
 	In the case of BarricadeMX:
 
 	1. Make sure that socke close functions no longer do a shutdown
-	   SHUT_WR as a default matter of corse.
+	   SHUT_WR as a default matter of course.
 	2. Set linger timeout to 0 on new client connections, assumes
 	   most connections drop by client or if dropped by application.
 	3. On SMTP QUIT set the linger timeout to about 3 or so seconds
@@ -77,6 +77,9 @@ is no set schedule for releases.
 
 	Thsi one explained linger more clearly...
 	http://alas.matf.bg.ac.rs/manuals/lspe/snode=105.html
+
+   -	Removed socketFdClose(); not required with socketClose() and
+   	socket3_close() changes above with respect to shutdown.
 
    !	Fix socket3_set_ca_certs() to check if the cert_dir and ca_chain
 	exist before calling SSL_CTX_load_verify_locations().
@@ -98,11 +101,17 @@ is no set schedule for releases.
 
   !!	Fixed memory leak of PDQ_SECTION_QUERY in pdqListPruneMatch().
 
+  !!	Fixed memory leak in socketClose() due to socket3 converion.
+
    !	Updated IANA TLD list.
 
    +	Added binary search tree API.
 
    +	Added pthread_spin_* API detection.
+
+   !	Renamed optionInitOption() to optionResetOption; since it has
+	always restored the Option to initial state, freeing previous
+	values.
 
 --1.75.22--
 

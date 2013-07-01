@@ -36,9 +36,9 @@ extern void optionInit(Option *table[], ...);
 
 /**
  * @param o
- *	A pointer to an Option structure to initialise.
+ *	A pointer to an Option structure to initialise/reset.
  */
-extern void optionInitOption(Option *o);
+extern void optionResetOption(Option *o);
 
 /**
  * @param table

@@ -595,6 +595,7 @@ serverFini(Server *server)
 		VectorDestroy(server->interfaces);
 		free(server->interfaces_ready);
 		free(server->interfaces_fd);
+		socketFini();
 	}
 }
 

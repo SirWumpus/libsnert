@@ -233,16 +233,6 @@ socketFdOpen(SOCKET fd)
 	return s;
 }
 
-void
-socketFdClose(Socket2 *s)
-{
-	if (s != NULL) {
-		/* Close without shutdown of connection. */
-		closesocket(socketGetFd(s));
-		free(s);
-	}
-}
-
 /**
  * @param addr
  *	A SocketAddress pointer. For a client, this will be the
@@ -650,6 +640,7 @@ socketClose(Socket2 *s)
 
 	if (s != NULL) {
 		socket3_close(socketGetFd(s));
+		free(s);
 	}
 }
 
