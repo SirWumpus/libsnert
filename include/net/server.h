@@ -109,10 +109,6 @@ extern "C" {
 # endif
 #endif /* __MINGW32__ */
 
-#undef SERVER_CATCH_USER_SIGNALS
-#undef SERVER_CATCH_ALARMS_SIGNALS
-#define SERVER_CATCH_ULIMIT_SIGNALS	1
-
 #define SOCKET_SET_NAGLE(s, f)		0
 
 /***********************************************************************

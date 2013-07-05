@@ -704,6 +704,8 @@ main(int argc, char **argv)
 		(*get_fn)(argv[argi]);
 	}
 
+	socket3_fini();
+
 	return EXIT_SUCCESS;
 }
 #endif /* TEST */

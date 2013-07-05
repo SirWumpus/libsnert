@@ -26,7 +26,7 @@
 #endif
 
 #ifndef MAX_DUMP_LENGTH
-#define MAX_DUMP_LENGTH		24
+#define MAX_DUMP_LENGTH		16
 #endif
 
 #ifndef DOH_BYTE
@@ -136,11 +136,11 @@ extern ssize_t write(int, const void *, size_t);
 #endif
 
 #define HERE_FMT		"%s:%u "
-#define HERE_ARG		file, line
+#define HERE_ARG		here, line
 
 #define BLOCK_FMT		"chunk=0x%lx size=%lu " HERE_FMT
-#define BLOCK_ARG(b)		&(b)[1], (b)->size, (b)->file, (b)->line
-#define BASIC_CRC(b)		((unsigned long)(b) ^ (b)->size ^ (unsigned long)(b)->file ^ (b)->line)
+#define BLOCK_ARG(b)		(unsigned long)&(b)[1], (unsigned long)(b)->size, (b)->here, (b)->line
+#define BASIC_CRC(b)		((unsigned long)(b) ^ (b)->size ^ (unsigned long)(b)->here ^ (b)->line)
 
 typedef enum {
 	MEMORY_INITIALISE,
@@ -157,7 +157,8 @@ typedef struct block_data {
 #endif
 	size_t size;
 	unsigned line;
-	const char *file;
+	const char *here;
+	pthread_t thread;
 	unsigned long crc;
 	struct block_data *prev;
 	struct block_data *next;
@@ -168,7 +169,6 @@ typedef struct block_data {
 #define ALIGN_PAD(sz, pow2)	(ALIGN_SIZE(sz, pow2) - sz)
 
 static const char *unknown = "(unknown)";
-static void dump(unsigned char *chunk, size_t size);
 static void signal_error(char *fmt, ...);
 
 static void (*libc__exit)(int);
@@ -203,8 +203,10 @@ int memory_dump_length = MAX_DUMP_LENGTH;
 int memory_thread_leak = 0;
 int memory_test_double_free = 1;
 int memory_freed_marker = FREED_BYTE;
+#ifdef OVER_KILL
 int memory_lower_marker = DAH_BYTE;
-int memory_upper_marker = DOH_BYTE;
+#endif
+int memory_marker = DOH_BYTE;
 unsigned long memory_report_interval = 0;
 
 size_t memory_free_chunk_size;
@@ -226,37 +228,37 @@ static BlockData *main_head;
 
 static pthread_t main_thread;
 
+/*
+ * Dump the list of allocated memory at thread exit.
+ */
 static void
 thread_exit_report(void *data)
 {
 	size_t size;
 	unsigned count;
-	BlockData *block = data;
+	BlockData *block = data, *next;
 
-	/* Clear the thread key data to avoid thread key cleanup loop. */
-	(void) pthread_setspecific(thread_key, NULL);
-
-	/* Dump the list of allocated memory at thread exit. */
 	if (block != NULL) {
-		if (main_thread == pthread_self())
-			err_msg("main_thread:\r\n");
+		/* Clear thread data to avoid thread key cleanup loop. */
+		(void) pthread_setspecific(thread_key, NULL);
+
+		if (main_thread == block->thread)
+			(void) fprintf(stderr, "main:\r\n");
 		else
-			err_msg("thread #%lx:\r\n", (unsigned long) pthread_self());
+			(void) fprintf(stderr, "thread 0x%lx:\r\n", (unsigned long) block->thread);
 
 		size = 0;
-		for (count = 0; block != NULL; block = block->next, count++) {
-			if (block->crc != BASIC_CRC(block)) {
-				signal_error("thread #%lu memory marker corruption " BLOCK_FMT "\r\n", (unsigned long) pthread_self(), BLOCK_ARG(block));
-				return;
-			}
-			DebugMallocDump(&block[1], memory_dump_length);
+		for (count = 0; block != NULL; block = next, count++) {
+			/* The thread data cleanup will be called before
+			 * the thread releases its pthread_t data, which
+			 * can result in a spurious leak being reported.
+			 */
+			next = block->next;
 			size += block->size;
+			DebugMallocDump(&block[1], memory_dump_length);
 		}
 
-		err_msg("\tleaked blocks=%u size=%lu\r\n", count, size);
-
-		if (memory_thread_leak && 0 < count)
-			signal_error("thread report abort\r\n");
+		(void) fprintf(stderr, "\tleaked blocks=%u size=%lu\r\n", count, (unsigned long) size);
 	}
 }
 
@@ -266,60 +268,13 @@ DebugMallocReport(void)
 	thread_exit_report(pthread_getspecific(thread_key));
 }
 
-void
-err_msgv(char *fmt, va_list args)
-{
-	int len;
-	char buf[255];
-
-	if (fmt != NULL) {
-		len = vsnprintf(buf, sizeof (buf), fmt, args);
-		(void) write(STDERR_FILENO, buf, len);
-	}
-}
-
-void
-err_msg(char *fmt, ...)
-{
-	va_list args;
-
-	va_start(args, fmt);
-	err_msgv(fmt, args);
-	va_end(args);
-}
-
-static void
-dump(unsigned char *chunk, size_t size)
-{
-	unsigned char hex[4];
-
-	hex[0] = '\\';
-	hex[1] = 'x';
-
-	for ( ; 0 < size; size--, chunk++) {
-		if (isprint(*chunk)) {
-			(void) write(2, chunk, 1);
-		} else {
-			hex[3] = *chunk & 0xF;
-			hex[3] += (hex[3] < 0xA) ? '0' : ('A' - 10);
-
-			hex[2] = (*chunk >> 4) & 0xF;
-			hex[2] += (hex[2] < 0xA) ? '0' : ('A' - 10);
-
-			(void) write(STDERR_FILENO, hex, sizeof (hex));
-		}
-	}
-
-	write(STDERR_FILENO, "\r\n", STRLEN("\r\n"));
-}
-
 static void
 signal_error(char *fmt, ...)
 {
 	va_list args;
 
 	va_start(args, fmt);
-	err_msgv(fmt, args);
+	(void) vfprintf(stderr, fmt, args);
 	va_end(args);
 
 	if (0 < memory_signal) {
@@ -338,21 +293,21 @@ void
 DebugMallocSummary(void)
 {
 	if (main_thread == 0 || main_thread == pthread_self())
-		err_msg("main_thread:\r\n");
+		(void) fprintf(stderr, "main_thread:\r\n");
 	else
-		err_msg("thread #%lx:\r\n", (unsigned long) pthread_self());
+		(void) fprintf(stderr, "thread #%lx:\r\n", (unsigned long) pthread_self());
 
-	err_msg(
+	(void) fprintf(stderr,
 		"\t malloc: %-14lu  free: %-14lu  lost: %-14ld\r\n",
 		memory_allocation_count, memory_free_count,
 		memory_allocation_count - memory_free_count
 	);
 
-	err_msg(
+	(void) fprintf(stderr,
 		"\t_malloc: %-14lu _free: %-14lu _lost: %-14ld _used: %-14ld\r\n",
 		static_allocation_count, static_free_count,
 		static_allocation_count - static_free_count,
-		static_used
+		(unsigned long) static_used
 	);
 }
 
@@ -361,24 +316,35 @@ DebugMallocDump(void *chunk, size_t length)
 {
 	if (memory_init_state == MEMORY_INITIALISED) {
 		BlockData *block = &((BlockData *) chunk)[-1];
-		err_msg("\t" BLOCK_FMT " dump=", BLOCK_ARG(block));
-		dump((unsigned char *)chunk, block->size < length ? block->size : length);
+		(void) fprintf(stderr, "\t" BLOCK_FMT " dump=", BLOCK_ARG(block));
+
+		if (block->size < length)
+			length = block->size;
+
+		for ( ; 0 < length; length--, chunk++) {
+			if (isprint(*(char *)chunk))
+				(void) fprintf(stderr, "%c", *(char *)chunk);
+			else
+				(void) fprintf(stderr, "\\x%02X", *(char *)chunk);
+		}
+
+		(void) fprintf(stderr, "\r\n");
 	}
 }
 
 static void
-DebugMallocHere0(void *chunk, const char *file, unsigned line, const char *tag)
+DebugMallocHere0(void *chunk, const char *here, unsigned line, const char *tag)
 {
 	if (memory_init_state == MEMORY_INITIALISED) {
 		BlockData *block = &((BlockData *) chunk)[-1];
-		err_msg(HERE_FMT "%s " BLOCK_FMT "\r\n", HERE_ARG, tag, BLOCK_ARG(block));
+		(void) fprintf(stderr, HERE_FMT "%s " BLOCK_FMT "\r\n", HERE_ARG, tag, BLOCK_ARG(block));
 	}
 }
 
 void
-DebugMallocHere(void *chunk, const char *file, unsigned line)
+DebugMallocHere(void *chunk, const char *here, unsigned line)
 {
-	DebugMallocHere0(chunk, file, line, "info");
+	DebugMallocHere0(chunk, here, line, "info");
 }
 
 static void
@@ -412,11 +378,11 @@ init_common(void)
 		memory_report_interval = (unsigned long) strtol(value, NULL, 0);
 #ifdef __WIN32__
 	if (atexit(DebugMallocReport)) {
-		err_msg(HERE_FMT "atexit() error\r\n", __FILE__, __LINE__);
+		(void) fprintf(stderr, HERE_FMT "atexit() error\r\n", __FILE__, __LINE__);
 		exit(EX_OSERR);
 	}
 	if (atexit(DebugMallocSummary)) {
-		err_msg(HERE_FMT "atexit() error\r\n", __FILE__, __LINE__);
+		(void) fprintf(stderr, HERE_FMT "atexit() error\r\n", __FILE__, __LINE__);
 		exit(EX_OSERR);
 	}
 #endif
@@ -436,7 +402,7 @@ void
 memory_free(void *chunk)
 {
 	if (LocalFree(chunk) != NULL) {
-		err_msg("free failed chunk=%lx", (long) chunk);
+		(void) fprintf(stderr, "free failed chunk=%lx", (long) chunk);
 		raise(SIGNAL_MEMORY);
 		exit(EX_DATAERR);
 	}
@@ -454,7 +420,7 @@ void
 memory_free(void *chunk)
 {
 	if (!HeapFree(GetProcessHeap(), 0, chunk)) {
-		err_msg("free failed chunk=%lx", (long) chunk);
+		(void) fprintf(stderr, "free failed chunk=%lx", (long) chunk);
 		raise(SIGNAL_MEMORY);
 		exit(EX_DATAERR);
 	}
@@ -503,25 +469,25 @@ init(void)
 
 	libc = dlopen(LIBC_PATH, RTLD_NOW);
 	if ((err = dlerror()) != NULL) {
-		err_msg("libc.so load error: %s\r\n", err);
+		(void) fprintf(stderr, "libc.so load error: %s\r\n", err);
 		exit(EX_OSERR);
 	}
 
   	libc_malloc = (void *(*)(size_t)) dlsym(libc, "malloc");
 	if ((err = dlerror()) != NULL) {
-		err_msg("libc malloc() not found: %s\r\n", err);
+		(void) fprintf(stderr, "libc malloc() not found: %s\r\n", err);
 		exit(EX_OSERR);
 	}
 
   	libc_free = (void (*)(void *)) dlsym(libc, "free");
 	if ((err = dlerror()) != NULL) {
-		err_msg("libc free() not found: %s\r\n", err);
+		(void) fprintf(stderr, "libc free() not found: %s\r\n", err);
 		exit(EX_OSERR);
 	}
 
   	libc__exit = dlsym(libc, "_exit");
 	if ((err = dlerror()) != NULL) {
-		err_msg("libc _exit() not found: %s\r\n", err);
+		(void) fprintf(stderr, "libc _exit() not found: %s\r\n", err);
 		exit(EX_OSERR);
 	}
 
@@ -587,16 +553,25 @@ _malloc(size_t size)
 __dead void
 (_exit)(int status)
 {
+	char buffer[128];
+
+	/* Force any previous stdio buffers to be freed. */
+	(void) setvbuf(stdin, NULL, _IONBF, 0);
+	(void) setvbuf(stdout, NULL, _IONBF, 0);
+
+	/* Use a temporary "static" output buffer. */
+	(void) setvbuf(stderr, buffer, _IOLBF, sizeof (buffer));
+
 	/* Have to initialise libc__exit before we can call it. */
 	if (memory_init_state == MEMORY_INITIALISE)
 		init();
 
 #ifdef HAVE_SYS_RESOURCE_H
-#include <sys/resource.h>
+# include <sys/resource.h>
 {
 	struct rusage rusage;
 	(void) getrusage(RUSAGE_SELF, &rusage);
-	err_msg("RSS: %-14ld\r\n", rusage.ru_maxrss);
+	(void) fprintf(stderr, "RSS: %-14ld\r\n", rusage.ru_maxrss);
 }
 #endif
 
@@ -631,7 +606,7 @@ void *
 }
 
 void
-DebugMallocCheckBoundaries(void *chunk, const char *file, unsigned line)
+DebugMallocAssert(void *chunk, const char *here, unsigned line)
 {
 	BlockData *block;
 	unsigned char *p, *q;
@@ -660,7 +635,7 @@ DebugMallocCheckBoundaries(void *chunk, const char *file, unsigned line)
 	p = block->after;
 	q = chunk;
 	for ( ; p < q; p++) {
-		if (*p != memory_upper_marker) {
+		if (*p != memory_marker) {
 			signal_error(HERE_FMT "memory underun (a) " BLOCK_FMT "\r\n", HERE_ARG, BLOCK_ARG(block));
 			return;
 		}
@@ -682,7 +657,7 @@ DebugMallocCheckBoundaries(void *chunk, const char *file, unsigned line)
 	p = (unsigned char *) &block[1] + block->size;
 	q = p + ALIGN_PAD(block->size, ALIGNMENT_SIZE) + ALIGNMENT_SIZE;
 	for ( ; p < q; p++) {
-		if (*p != memory_upper_marker) {
+		if (*p != memory_marker) {
 			signal_error(HERE_FMT "memory overrun " BLOCK_FMT "\r\n", HERE_ARG, BLOCK_ARG(block));
 			return;
 		}
@@ -690,7 +665,7 @@ DebugMallocCheckBoundaries(void *chunk, const char *file, unsigned line)
 }
 
 void
-(DebugFree)(void *chunk, const char *file, unsigned line)
+(DebugFree)(void *chunk, const char *here, unsigned line)
 {
 	size_t size, block_size;
 	BlockData *block, *head;
@@ -757,9 +732,9 @@ void
 	(void) pthread_setspecific(thread_key, head);
 
 	if (memory_show_free)
-		DebugMallocHere0(chunk, file, line, "free");
+		DebugMallocHere0(chunk, here, line, "free");
 
-	DebugMallocCheckBoundaries(chunk, HERE_ARG);
+	DebugMallocAssert(chunk, HERE_ARG);
 
 	if (memory_test_double_free) {
 		/* Wipe the WHOLE memory area including the space
@@ -790,7 +765,7 @@ void
 #endif
 	if (chunk == memory_free_chunk
 	&& (memory_free_chunk_size == 0 || size == memory_free_chunk_size)) {
-		err_msg(HERE_FMT "memory stop free on chunk=0x%lx\r\n", HERE_ARG, (long) chunk);
+		(void) fprintf(stderr, HERE_FMT "memory stop free on chunk=0x%lx\r\n", HERE_ARG, (long) chunk);
 		raise(SIGSTOP);
 	}
 
@@ -799,7 +774,7 @@ void
 }
 
 void *
-(DebugMalloc)(size_t size, const char *file, unsigned line)
+(DebugMalloc)(size_t size, const char *here, unsigned line)
 {
 	void *chunk;
 	size_t block_size;
@@ -862,7 +837,7 @@ void *
 	chunk = &block[1];
 
 	/* Fill in the boundary markers. */
-	(void) memset(block, memory_upper_marker, block_size);
+	(void) memset(block, memory_marker, block_size);
 #ifdef OVER_KILL
 	(void) memset(block->before, memory_lower_marker, sizeof (block->before));
 #endif
@@ -878,8 +853,9 @@ void *
 	(void) pthread_setspecific(thread_key, block);
 
 	block->size = size;
-	block->file = file;
+	block->here = here;
 	block->line = line;
+	block->thread = pthread_self();
 	block->crc = BASIC_CRC(block);
 
 #ifdef NOPE
@@ -891,11 +867,11 @@ void *
 		*(unsigned char *) chunk = MALLOC_BYTE;
 #endif
 	if (memory_show_malloc)
-		DebugMallocHere0(chunk, file, line, "malloc");
+		DebugMallocHere0(chunk, here, line, "malloc");
 
 	if (chunk == memory_malloc_chunk
 	&& (memory_malloc_chunk_size == 0 || size == memory_malloc_chunk_size)) {
-		err_msg(HERE_FMT "memory stop malloc on " BLOCK_FMT "\r\n", HERE_ARG, BLOCK_ARG(block));
+		(void) fprintf(stderr, HERE_FMT "memory stop malloc on " BLOCK_FMT "\r\n", HERE_ARG, BLOCK_ARG(block));
 		raise(SIGSTOP);
 	}
 
@@ -903,7 +879,7 @@ void *
 }
 
 void *
-(DebugRealloc)(void *chunk, size_t size, const char *file, unsigned line)
+(DebugRealloc)(void *chunk, size_t size, const char *here, unsigned line)
 {
 	void *replacement;
 	BlockData *block;
@@ -921,12 +897,12 @@ void *
 }
 
 void *
-(DebugCalloc)(size_t m, size_t n, const char *file, unsigned line)
+(DebugCalloc)(size_t m, size_t n, const char *here, unsigned line)
 {
 	void *chunk;
 
 	if ((chunk = DebugMalloc(m * n, HERE_ARG)) != NULL)
-		memset(chunk, 0, m * n);
+		(void) memset(chunk, 0, m * n);
 
 	return chunk;
 }

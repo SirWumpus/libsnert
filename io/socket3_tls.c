@@ -14,6 +14,7 @@
 #define SOCKET3_WRITE_TIMEOUT	5000
 #endif
 
+#undef USE_SEM_T
 #define DISABLE_SESS_CACHE
 
 /***********************************************************************
@@ -36,9 +37,6 @@
 #if defined(HAVE_SYSLOG_H) && ! defined(__MINGW32__)
 # include <syslog.h>
 #endif
-#ifdef HAVE_SEMAPHORE_H
-# include <semaphore.h>
-#endif
 #ifdef HAVE_SYS_STAT_H
 # include <sys/stat.h>
 #endif
@@ -48,6 +46,28 @@
 
 #ifdef DEBUG_MALLOC
 # include <com/snert/lib/util/DebugMalloc.h>
+#endif
+
+#ifndef LOCK_T
+# ifdef USE_SEM_T
+#  ifdef HAVE_SEMAPHORE_H
+#   include <semaphore.h>
+#  endif
+#  define LOCK_T			sem_t
+#  define LOCK_INIT(L)			sem_init(L, 0, 1)
+#  define LOCK_FREE(L)			sem_destroy(L)
+#  define LOCK_LOCK(L)			sem_wait(L)
+#  define LOCK_TRYLOCK(L)		sem_trywait(L)
+#  define LOCK_UNLOCK(L)		sem_post(L)
+# else
+#  include <com/snert/lib/sys/pthread.h>
+#  define LOCK_T			pthread_mutex_t
+#  define LOCK_INIT(L)			pthread_mutex_init(L, NULL)
+#  define LOCK_FREE(L)			pthread_mutex_destroy(L)
+#  define LOCK_LOCK(L)			pthread_mutex_lock(L)
+#  define LOCK_TRYLOCK(L)		pthread_mutex_trylock(L)
+#  define LOCK_UNLOCK(L)		pthread_mutex_unlock(L)
+# endif
 #endif
 
 extern int socket3_debug;
@@ -74,7 +94,7 @@ socket3_verify_cb(int preverify_ok, X509_STORE_CTX *x509_ctx)
 	return 1;
 }
 
-static sem_t *locks;
+static LOCK_T *locks;
 
 static void
 socket3_lock_cb(int mode, int n, const char *file, int line)
@@ -83,14 +103,14 @@ socket3_lock_cb(int mode, int n, const char *file, int line)
 		syslog(LOG_DEBUG, "socket3_lock_cb(%d, %d, %s, %d)", mode, n, file, line);
 
 	if (mode & CRYPTO_LOCK)
-		(void) sem_wait(&locks[n]);
+		(void) LOCK_LOCK(&locks[n]);
 	else
-		(void) sem_post(&locks[n]);
+		(void) LOCK_UNLOCK(&locks[n]);
 }
 
 # ifdef _REENTRANT
 #  if OPENSSL_VERSION_NUMBER < 0x00909000L
-#include <com/snert/lib/sys/pthread.h>
+#   include <com/snert/lib/sys/pthread.h>
 
 unsigned long
 socket3_id_cb(void)
@@ -101,7 +121,7 @@ socket3_id_cb(void)
 # endif
 
 struct CRYPTO_dynlock_value {
-	sem_t lock;
+	LOCK_T lock;
 };
 
 static struct CRYPTO_dynlock_value *
@@ -113,7 +133,7 @@ socket3_dynlock_create_cb(const char *file, int line)
 		syslog(LOG_DEBUG, "socket3_dynlock_create_cb(%s, %d)", file, line);
 
 	if ((dynlock = malloc(sizeof (*dynlock))) != NULL)
-		sem_init(&dynlock->lock, 0, 1);
+		LOCK_INIT(&dynlock->lock);
 
 	return dynlock;
 }
@@ -125,7 +145,7 @@ socket3_dynlock_free_cb(struct CRYPTO_dynlock_value *dynlock, const char *file, 
 		syslog(LOG_DEBUG, "socket3_dynlock_free_cb(%lx, %s, %d)", (unsigned long) dynlock, file, line);
 
 	if (dynlock != NULL) {
-		sem_destroy(&dynlock->lock);
+		LOCK_FREE(&dynlock->lock);
 		free(dynlock);
 	}
 }
@@ -137,9 +157,9 @@ socket3_dynlock_lock_cb(int mode, struct CRYPTO_dynlock_value *dynlock, const ch
 		syslog(LOG_DEBUG, "socket3_dynlock_lock_cb(%d, %lx, %s, %d)", mode, (unsigned long) dynlock, file, line);
 
 	if (mode & CRYPTO_LOCK)
-		(void) sem_wait(&dynlock->lock);
+		(void) LOCK_LOCK(&dynlock->lock);
 	else
-		(void) sem_post(&dynlock->lock);
+		(void) LOCK_UNLOCK(&dynlock->lock);
 }
 
 static char *ssl_error[] = {
@@ -387,7 +407,7 @@ socket3_init_tls(void)
 		return SOCKET_ERROR;
 
 	for (i = 0; i < n; i++)
-		sem_init(&locks[i], 0, 1);
+		LOCK_INIT(&locks[i]);
 
 	CRYPTO_set_locking_callback(socket3_lock_cb);
 
@@ -465,7 +485,7 @@ socket3_fini_tls(void)
 
 		n = CRYPTO_num_locks();
 		for (i = 0; i < n; i++)
-			sem_destroy(&locks[i]);
+			LOCK_FREE(&locks[i]);
 		free(locks);
 #endif
 		socket3_fini_fd();

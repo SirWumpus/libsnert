@@ -122,26 +122,7 @@ serverSignalsInit(ServerSignals *signals)
 # ifdef SIGTERM
 	(void) sigaddset(&signals->signal_set, SIGTERM);
 # endif
-# ifdef SERVER_CATCH_USER_SIGNALS
-#  ifdef SIGUSR1
-	(void) sigaddset(&signals->signal_set, SIGUSR1);
-#  endif
-#  ifdef SIGUSR2
-	(void) sigaddset(&signals->signal_set, SIGUSR2);
-#  endif
-# endif
-# ifdef SERVER_CATCH_ALARMS_SIGNALS
-#  ifdef SIGALRM
-	(void) sigaddset(&signals->signal_set, SIGALRM);
-#  endif
-#  ifdef SIGPROF
-	(void) sigaddset(&signals->signal_set, SIGPROF);
-#  endif
-#  ifdef SIGVTALRM
-	(void) sigaddset(&signals->signal_set, SIGVTALRM);
-#  endif
-# endif /* SERVER_CATCH_ALARMS_SIGNALS */
-# ifdef SERVER_CATCH_ULIMIT_SIGNALS
+# ifdef SERVER_CATCH_ULIMIT_SIGNALS /* Block to be removed */
 #  ifdef SIGXCPU
 	(void) sigaddset(&signals->signal_set, SIGXCPU);
 #  endif
@@ -149,6 +130,7 @@ serverSignalsInit(ServerSignals *signals)
 	(void) sigaddset(&signals->signal_set, SIGXFSZ);
 #  endif
 # endif /* SERVER_CATCH_ULIMIT_SIGNALS */
+
         if (pthread_sigmask(SIG_BLOCK, &signals->signal_set, NULL)) {
 		syslog(LOG_ERR, log_init, SERVER_FILE_LINENO, strerror(errno), errno);
 		return -1;
@@ -194,26 +176,7 @@ serverSignalsLoop(ServerSignals *signals)
 			}
 			/*@fallthrough@*/
 # endif
-# ifdef SERVER_CATCH_USER_SIGNALS
-#  ifdef SIGUSR1
-		case SIGUSR1:
-#  endif
-#  ifdef SIGUSR2
-		case SIGUSR2:
-#  endif
-# endif
-# ifdef SERVER_CATCH_ALARMS_SIGNALS
-#  ifdef SIGALRM
-		case SIGALRM:
-#  endif
-#  ifdef SIGPROF
-		case SIGPROF:
-#  endif
-#  ifdef SIGVTALRM
-		case SIGVTALRM:
-#  endif
-# endif /* SERVER_CATCH_ALARMS_SIGNALS */
-# ifdef SERVER_CATCH_ULIMIT_SIGNALS
+# ifdef SERVER_CATCH_ULIMIT_SIGNALS /* Block to be removed */
 #  ifdef SIGXCPU
 		case SIGXCPU:
 #  endif
@@ -1036,7 +999,7 @@ serverWorkerCancel(List *list, ListItem *node, void *data)
 #endif
 #if defined(__unix__) &&  defined(HAVE_PTHREAD_CANCEL)
 	(void) pthread_cancel(worker->thread);
-# if defined(HAVE_PTHREAD_KILL)
+# if defined(__linux__) && defined(HAVE_PTHREAD_KILL)
 	/* Attempt to unblock IO, like epoll_wait(), within a
 	 * thread that fail to implement cancellation points.
 	 */
@@ -1050,9 +1013,9 @@ serverWorkerCancel(List *list, ListItem *node, void *data)
 	return 0;
 }
 
-#if defined(HAVE_PTHREAD_KILL)
+#if defined(__linux__) && defined(HAVE_PTHREAD_KILL)
 static void
-sig_usr1(int signum)
+sig_noop(int signum)
 {
 	/* Do nothing */
 }
@@ -1067,11 +1030,11 @@ serverStop(Server *server, int slow_quit)
 	if (server == NULL)
 		return;
 
-#if defined(HAVE_PTHREAD_KILL)
+#if defined(__linux__) && defined(HAVE_PTHREAD_KILL)
 	/* Setup no-op signal handler that can be raised in order to
 	 * unblock epoll_wait, which is not a pthread cancellation point.
 	 */
-	signal(SIGUSR1, sig_usr1);
+	signal(SIGUSR1, sig_noop);
 #endif
 
 	/* Stop accepting new sessions. */
@@ -1544,6 +1507,13 @@ serverOptions(int argc, char **argv)
 			exit(EX_USAGE);
 		}
 	}
+
+	if (min_threads <= 0)
+		min_threads = 1;
+	if (max_threads <= 0)
+		max_threads = 1;
+	if (max_threads < min_threads)
+		min_threads = max_threads;
 }
 
 typedef struct {
@@ -1605,11 +1575,6 @@ serverMain(void)
 		serverSetStackSize(service->server, SERVER_STACK_SIZE);
 	}
 
-#ifdef NOPE
-#if defined(__OpenBSD__) || defined(__FreeBSD__)
-	(void) processDumpCore(2);
-#endif
-#endif
 	if (processDropPrivilages("nobody", "nobody", "/tmp", 0))
 		goto error2;
 #if defined(__linux__)

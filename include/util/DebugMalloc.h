@@ -30,26 +30,23 @@ extern void *memory_free_chunk;
 extern void *memory_malloc_chunk;
 extern unsigned long memory_report_interval;
 
-extern void err_msgv(char *fmt, va_list args);
-extern void err_msg(char *fmt, ...);
-
 #if defined(DEBUG_MALLOC)
 
-extern void  DebugFree(void *chunk, const char *file, unsigned line);
-extern void *DebugMalloc(size_t size, const char *file, unsigned line);
-extern void *DebugCalloc(size_t n, size_t size, const char *file, unsigned line);
-extern void *DebugRealloc(void *chunk, size_t size, const char *file, unsigned line);
+extern void  DebugFree(void *chunk, const char *here, unsigned line);
+extern void *DebugMalloc(size_t size, const char *here, unsigned line);
+extern void *DebugCalloc(size_t n, size_t size, const char *here, unsigned line);
+extern void *DebugRealloc(void *chunk, size_t size, const char *here, unsigned line);
 
 extern void DebugMallocReport(void);
 extern void DebugMallocSummary(void);
 extern void DebugMallocDump(void *chunk, size_t length);
-extern void DebugMallocHere(void *chunk, const char *file, unsigned line);
-extern void DebugMallocCheckBoundaries(void *chunk, const char *file, unsigned line);
+extern void DebugMallocHere(void *chunk, const char *here, unsigned line);
+extern void DebugMallocAssert(void *chunk, const char *here, unsigned line);
 
-#define free(p)				DebugFree(p, __FILE__, __LINE__)
-#define malloc(n)			DebugMalloc(n, __FILE__, __LINE__)
-#define calloc(m,n)			DebugCalloc(m, n, __FILE__, __LINE__)
-#define realloc(p,n)			DebugRealloc(p, n, __FILE__, __LINE__)
+#define free(p)				DebugFree(p, __func__, __LINE__)
+#define malloc(n)			DebugMalloc(n, __func__, __LINE__)
+#define calloc(m,n)			DebugCalloc(m, n, __func__, __LINE__)
+#define realloc(p,n)			DebugRealloc(p, n, __func__, __LINE__)
 
 #else
 
@@ -58,7 +55,7 @@ extern void DebugMallocCheckBoundaries(void *chunk, const char *file, unsigned l
 #define DebugCalloc(m, n, f, l)		calloc(m, n)
 #define DebugRealloc(p, s, f, l)	realloc(p, s);
 
-#define DebugMallocCheckBoundaries(...)
+#define DebugMallocAssert(...)
 #define DebugMallocReport()
 #define DebugMallocSummary()
 #define DebugMallocDump(...)
