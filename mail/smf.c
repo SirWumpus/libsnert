@@ -1891,72 +1891,11 @@ smfHeaderRemove(SMFICTX *ctx, char *field)
 	return smfi_chgheader(ctx, field, 1, NULL);
 }
 
-#ifdef DISABLED_BY_ACH_20070530
-/* David F. Skoll can now say "I told you so." */
-/*** REMOVAL OF THIS CODE IS IN VIOLATION OF THE TERMS OF THE SOFTWARE
- *** LICENSE AS AGREED TO BY DOWNLOADING OR INSTALLING THIS SOFTWARE.
- ***/
-void *
-smfLicenseControl(void *data)
-{
-	SMTP session;
-	char stamp[40];
-	struct tm local;
-	time_t now = time(NULL);
-	SMFICTX *ctx = (SMFICTX *) data;
-	char *j = smfi_getsymval(ctx, "j");
-	char *if_name = smfi_getsymval(ctx, smMacro_if_name);
-	char *if_addr = smfi_getsymval(ctx, smMacro_if_addr);
-
-	if (if_addr == NULL)
-		if_addr = "127.0.0.1";
-	if (if_name == NULL)
-		if_name = "localhost";
-
-#ifdef HAVE_TZSET
-	tzset();
-#endif
-	(void) localtime_r(&now, &local);
-	(void) strftime(stamp, sizeof (stamp), "%a, %d %b %Y %H:%M:%S %z", &local);
-
-	memset(&session, 0, sizeof (session));
-	(void) smtpOpen(&session, "");
-
-	if (smtpAddRcpt(&session, "notify@milter.info") == 0) {
-		(void) smtpPrintf(
-			&session, "Received: from %s by %s (%s [%s]); %s\r\n",
-			smfDesc->package, j, if_name, if_addr, stamp
-		);
-		(void) smtpPrintf(
-			&session, "Subject: %s/%d.%d.%d (%s [%s])\r\n",
-			smfDesc->package, smfDesc->major, smfDesc->minor, smfDesc->build,
-			smfOptInterfaceName.string, smfOptInterfaceIp.string
-		);
-		(void) smtpPrintf(&session, "Priority: normal\r\n");
-		(void) smtpPrintf(&session, "\r\n");
-		(void) smtpPrintf(
-			&session, "libsnert=%d.%d.%d\r\n",
-			LibSnert.major, LibSnert.minor, LibSnert.build
-		);
-
-		/* In response to complaints about insufficient disclosure
-		 * of "phone home" code and/or proper logging of there of.
-		 */
-		smfLog(SMF_LOG_INFO, "IP address and version details reported to SnertSoft");
-	}
-
-	smtpClose(&session);
-
-	return NULL;
-}
-#endif
-
 unsigned short
 smfOpenProlog(SMFICTX *ctx, char *client_name, _SOCK_ADDR *raw_client_addr, char *client_addr, long length)
 {
-	int notify = 0;
 	unsigned short cid;
-	static int notified = 0;
+	static int initialised = 0;
 	static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 	if (pthread_mutex_lock(&mutex))
@@ -1967,8 +1906,6 @@ smfOpenProlog(SMFICTX *ctx, char *client_name, _SOCK_ADDR *raw_client_addr, char
 		smfCount = 1;
 
 	cid = smfCount;
-	notify = !notified;
-	notified = 1;
 
 	if (pthread_mutex_unlock(&mutex))
 		syslog(LOG_ERR, "mutex unlock in smfOpenProlog() failed: %s (%d)", strerror(errno), errno);
@@ -2006,21 +1943,7 @@ smfOpenProlog(SMFICTX *ctx, char *client_name, _SOCK_ADDR *raw_client_addr, char
 		TextCopy(client_addr, length, "127.0.0.1");
 	}
 
-	if (notify) {
-#ifdef DISABLED_BY_ACH_20070530
-/* David F. Skoll can now say "I told you so." */
-		/*** REMOVAL OF THIS CODE IS IN VIOLATION OF THE TERMS OF
-		 *** THE SOFTWARE LICENSE AS AGREED TO BY DOWNLOADING OR
-		 *** INSTALLING THIS SOFTWARE.
-		 ***
-		 *** This operation can take some time, so we want do it
-	 	 *** outside of the critical section above and in its own
-	 	 *** thread.
-		 ***/
-		pthread_t thread;
-		(void) pthread_create(&thread, NULL, smfLicenseControl, ctx);
-		(void) pthread_detach(thread);
-#endif
+	if (!initialised) {
 #ifndef HAVE_SMFI_OPENSOCKET
 		/* With pre-8.13 libmilter libraries, we have to wait
 		 * until after the first connection, when the sendmail
@@ -2029,6 +1952,7 @@ smfOpenProlog(SMFICTX *ctx, char *client_name, _SOCK_ADDR *raw_client_addr, char
 		 */
 		smfSetProcessOwner(smfDesc);
 #endif
+		initialised = 1;
 	}
 
 	return cid;
