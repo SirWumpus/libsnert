@@ -390,6 +390,11 @@ Comment:  HTTP URI with non-generic URI scheme part, missing slash eg: http:/ ..
  Y  -  Y  -	http:/grandpalacegoldcasino.pl/
 
 ----=_test_boundary
+Comment:  HTTP URI with email in path-info.
+
+ Y  -  Y  -	http://scoaladesucces.ro/visa/acaro@gmx.de
+
+----=_test_boundary
 Comment: no last newline.
 
  Y  -  N  -	URI at EOF without a newline http://no-newline.com/

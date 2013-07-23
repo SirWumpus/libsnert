@@ -543,14 +543,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	if (value[0] == '/' && (value[1] == '/' || 0 < uriGetSchemePort(uri))) {
 		/* net_path (2396) / authority (rfc 3986) */
 		value += 1 + (value[1] == '/');
-
-		if ((uri->host = strchr(value, '@')) != NULL) {
-			uri->userInfo = value;
-			*uri->host++ = '\0';
-		} else {
-			uri->host = value;
-		}
-
+		uri->host = value;
 		uriDecodeSelf(uri->host);
 
 		if (0 < (span = alt_spanHost((unsigned char *)uri->host, 0))) {
@@ -564,6 +557,13 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 				uri->scheme -= uri->scheme != NULL;
 				uri->path[-1] = '\0';
 				uri->host--;
+			}
+
+			/* Handle authority before host. */
+			if ((mark = strchr(uri->host, '@')) != NULL) {
+				uri->userInfo = uri->host;
+				*mark = '\0';
+				uri->host = mark+1;
 			}
 
 			/* Check for colon-port following host. */

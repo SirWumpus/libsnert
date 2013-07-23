@@ -1,4 +1,4 @@
-uri.txt 51:
+uri.txt 55:
 	uri=example.com
 	uriDecoded=example.com
 	scheme=http
@@ -9,7 +9,7 @@ uri.txt 51:
 	path=
 	query=
 	fragment=
-uri.txt 53:
+uri.txt 57:
 	uri=www.-123.com
 	uriDecoded=www.-123.com
 	scheme=http
@@ -20,7 +20,7 @@ uri.txt 53:
 	path=
 	query=
 	fragment=
-uri.txt 55:
+uri.txt 59:
 	uri=www.123-.com
 	uriDecoded=www.123-.com
 	scheme=http
@@ -31,7 +31,7 @@ uri.txt 55:
 	path=
 	query=
 	fragment=
-uri.txt 57:
+uri.txt 61:
 	uri=www.singlequote.com
 	uriDecoded=www.singlequote.com
 	scheme=http
@@ -42,7 +42,7 @@ uri.txt 57:
 	path=
 	query=
 	fragment=
-uri.txt 59:
+uri.txt 63:
 	uri=www.doublequote.com
 	uriDecoded=www.doublequote.com
 	scheme=http
@@ -53,7 +53,7 @@ uri.txt 59:
 	path=
 	query=
 	fragment=
-uri.txt 61:
+uri.txt 65:
 	uri=www.parenthesis.com
 	uriDecoded=www.parenthesis.com
 	scheme=http
@@ -64,7 +64,7 @@ uri.txt 61:
 	path=
 	query=
 	fragment=
-uri.txt 71:
+uri.txt 75:
 	uri=cid:12345.67890@snert.com
 	uriDecoded=cid:12345.67890@snert.com
 	scheme=cid
@@ -75,7 +75,7 @@ uri.txt 71:
 	path=
 	query=
 	fragment=
-uri.txt 81:
+uri.txt 85:
 	uri=http://127.0.0.1/
 	uriDecoded=http://127.0.0.1/
 	scheme=http
@@ -86,7 +86,7 @@ uri.txt 81:
 	path=/
 	query=
 	fragment=
-uri.txt 83:
+uri.txt 87:
 	uri=http://127.0.0.2/
 	uriDecoded=http://127.0.0.2/
 	scheme=http
@@ -97,7 +97,7 @@ uri.txt 83:
 	path=/
 	query=
 	fragment=
-uri.txt 84:
+uri.txt 88:
 	uri=127.0.0.0/8
 	uriDecoded=127.0.0.0/8
 	scheme=ip
@@ -108,7 +108,7 @@ uri.txt 84:
 	path=
 	query=
 	fragment=
-uri.txt 86:
+uri.txt 90:
 	uri=https://www.snert.com/
 	uriDecoded=https://www.snert.com/
 	scheme=https
@@ -119,7 +119,7 @@ uri.txt 86:
 	path=/
 	query=
 	fragment=
-uri.txt 88:
+uri.txt 92:
 	uri=http://samba.snert.com:901/
 	uriDecoded=http://samba.snert.com:901/
 	scheme=http
@@ -130,7 +130,7 @@ uri.txt 88:
 	path=/
 	query=
 	fragment=
-uri.txt 89:
+uri.txt 93:
 	uri=http://snert/
 	uriDecoded=http://snert/
 	scheme=http
@@ -141,7 +141,7 @@ uri.txt 89:
 	path=/
 	query=
 	fragment=
-uri.txt 92:
+uri.txt 96:
 	uri=mailto:achowe@snert.com
 	uriDecoded=achowe@snert.com
 	scheme=mailto
@@ -152,7 +152,7 @@ uri.txt 92:
 	path=
 	query=
 	fragment=
-uri.txt 93:
+uri.txt 97:
 	uri=remove@goldrush411.biz
 	uriDecoded=remove@goldrush411.biz
 	scheme=mailto
@@ -163,7 +163,7 @@ uri.txt 93:
 	path=
 	query=
 	fragment=
-uri.txt 95:
+uri.txt 99:
 	uri=fbfhbj5df33sdvbn8tg.com
 	uriDecoded=fbfhbj5df33sdvbn8tg.com
 	scheme=http
@@ -174,7 +174,7 @@ uri.txt 95:
 	path=
 	query=
 	fragment=
-uri.txt 99:
+uri.txt 103:
 	uri=reachdirect.info
 	uriDecoded=reachdirect.info
 	scheme=http
@@ -185,7 +185,7 @@ uri.txt 99:
 	path=
 	query=
 	fragment=
-uri.txt 103:
+uri.txt 107:
 	uri=http://translate.google.com/translate?u=www.fsl.com&langpair=en%7Cen&hl=en
 	uriDecoded=http://translate.google.com/translate?u=www.fsl.com&langpair=en|en&hl=en
 	scheme=http
@@ -196,7 +196,7 @@ uri.txt 103:
 	path=/translate
 	query=u=www.fsl.com&langpair=en|en&hl=en
 	fragment=
-uri.txt 103:
+uri.txt 107:
 	uri=www.fsl.com
 	uriDecoded=www.fsl.com
 	scheme=http
@@ -207,7 +207,7 @@ uri.txt 103:
 	path=
 	query=
 	fragment=
-uri.txt 106:
+uri.txt 110:
 	uri=http://autotrader.com/redirect/redirector_link.jsp?to_url=http://ic.fm0rt.com
 	uriDecoded=http://autotrader.com/redirect/redirector_link.jsp?to_url=http://ic.fm0rt.com
 	scheme=http
@@ -218,7 +218,7 @@ uri.txt 106:
 	path=/redirect/redirector_link.jsp
 	query=to_url=http://ic.fm0rt.com
 	fragment=
-uri.txt 106:
+uri.txt 110:
 	uri=http://ic.fm0rt.com
 	uriDecoded=http://ic.fm0rt.com
 	scheme=http
@@ -229,7 +229,7 @@ uri.txt 106:
 	path=
 	query=
 	fragment=
-uri.txt 106:
+uri.txt 110:
 	uri=ic.fm0rt.com
 	uriDecoded=ic.fm0rt.com
 	scheme=http
@@ -240,7 +240,7 @@ uri.txt 106:
 	path=
 	query=
 	fragment=
-uri.txt 107:
+uri.txt 111:
 	uri=http://ad.doubleclick.net/clk;29825968;12395550;w?http://www.bocajava.com/referral.do?promo=ediets0027text
 	uriDecoded=http://ad.doubleclick.net/clk;29825968;12395550;w?http://www.bocajava.com/referral.do?promo=ediets0027text
 	scheme=http
@@ -251,7 +251,7 @@ uri.txt 107:
 	path=/clk;29825968;12395550;w
 	query=http://www.bocajava.com/referral.do?promo=ediets0027text
 	fragment=
-uri.txt 107:
+uri.txt 111:
 	uri=http://www.bocajava.com/referral.do?promo=ediets0027text
 	uriDecoded=http://www.bocajava.com/referral.do?promo=ediets0027text
 	scheme=http
@@ -262,7 +262,7 @@ uri.txt 107:
 	path=/referral.do
 	query=promo=ediets0027text
 	fragment=
-uri.txt 107:
+uri.txt 111:
 	uri=www.bocajava.com
 	uriDecoded=www.bocajava.com
 	scheme=http
@@ -273,7 +273,7 @@ uri.txt 107:
 	path=
 	query=
 	fragment=
-uri.txt 107:
+uri.txt 111:
 	uri=referral.do?promo=ediets0027text
 	uriDecoded=referral.do?promo=ediets0027text
 	scheme=http
@@ -284,7 +284,7 @@ uri.txt 107:
 	path=
 	query=promo=ediets0027text
 	fragment=
-uri.txt 110:
+uri.txt 114:
 	uri=http://rds.yahoo.com/S=8805213/K=computer/v=1/SID=a/l=WS1/R=1/SS=19512237/IPC=us/SHE=0/H=0/SIG=92qylAS97/EXP=020672989/*-http://xplrhto.s00p.net/
 	uriDecoded=http://rds.yahoo.com/S=8805213/K=computer/v=1/SID=a/l=WS1/R=1/SS=19512237/IPC=us/SHE=0/H=0/SIG=92qylAS97/EXP=020672989/*-http://xplrhto.s00p.net/
 	scheme=http
@@ -295,7 +295,7 @@ uri.txt 110:
 	path=/S=8805213/K=computer/v=1/SID=a/l=WS1/R=1/SS=19512237/IPC=us/SHE=0/H=0/SIG=92qylAS97/EXP=020672989/*-http://xplrhto.s00p.net/
 	query=
 	fragment=
-uri.txt 110:
+uri.txt 114:
 	uri=/S=8805213/K=computer/v=1/SID=a/l=WS1/R=1/SS=19512237/IPC=us/SHE=0/H=0/SIG=92qylAS97/EXP=020672989/*-http://xplrhto.s00p.net/
 	uriDecoded=http://xplrhto.s00p.net/
 	scheme=http
@@ -306,7 +306,7 @@ uri.txt 110:
 	path=/
 	query=
 	fragment=
-uri.txt 110:
+uri.txt 114:
 	uri=xplrhto.s00p.net
 	uriDecoded=xplrhto.s00p.net
 	scheme=http
@@ -317,7 +317,7 @@ uri.txt 110:
 	path=
 	query=
 	fragment=
-uri.txt 112:
+uri.txt 116:
 	uri=http://dect.myspace.com/event.ng/Type=click&Redirect=http://pillenhaus.ch
 	uriDecoded=http://dect.myspace.com/event.ng/Type=click&Redirect=http://pillenhaus.ch
 	scheme=http
@@ -328,7 +328,7 @@ uri.txt 112:
 	path=/event.ng/Type=click&Redirect=http://pillenhaus.ch
 	query=
 	fragment=
-uri.txt 112:
+uri.txt 116:
 	uri=http://pillenhaus.ch
 	uriDecoded=http://pillenhaus.ch
 	scheme=http
@@ -339,7 +339,7 @@ uri.txt 112:
 	path=
 	query=
 	fragment=
-uri.txt 112:
+uri.txt 116:
 	uri=event.ng
 	uriDecoded=event.ng
 	scheme=http
@@ -350,7 +350,7 @@ uri.txt 112:
 	path=
 	query=
 	fragment=
-uri.txt 112:
+uri.txt 116:
 	uri=pillenhaus.ch
 	uriDecoded=pillenhaus.ch
 	scheme=http
@@ -361,7 +361,7 @@ uri.txt 112:
 	path=
 	query=
 	fragment=
-uri.txt 118:
+uri.txt 122:
 	uri=http://www.zdnetasia.com/search/results.htm?query=mari+misato+at+dynamix+%3CIFRAME%20src=//72.232.39.252/a/%3E.html
 	uriDecoded=http://www.zdnetasia.com/search/results.htm?query=mari misato at dynamix <IFRAME src=//72.232.39.252/a/>.html
 	scheme=http
@@ -372,7 +372,7 @@ uri.txt 118:
 	path=/search/results.htm
 	query=query=mari misato at dynamix <IFRAME src=//72.232.39.252/a/>.html
 	fragment=
-uri.txt 118:
+uri.txt 122:
 	uri=72.232.39.252
 	uriDecoded=72.232.39.252
 	scheme=ip
@@ -383,7 +383,7 @@ uri.txt 118:
 	path=
 	query=
 	fragment=
-uri.txt 120:
+uri.txt 124:
 	uri=http://www.google.com/pagead/iclk?sa=l&ai=EJVqDJ&num=65520&adurl=http://%73%6B%69%6E%61%70%70%6C%65%2E%63%6F%6D
 	uriDecoded=http://www.google.com/pagead/iclk?sa=l&ai=EJVqDJ&num=65520&adurl=http://skinapple.com
 	scheme=http
@@ -394,7 +394,7 @@ uri.txt 120:
 	path=/pagead/iclk
 	query=sa=l&ai=EJVqDJ&num=65520&adurl=http://skinapple.com
 	fragment=
-uri.txt 120:
+uri.txt 124:
 	uri=http://skinapple.com
 	uriDecoded=http://skinapple.com
 	scheme=http
@@ -405,7 +405,7 @@ uri.txt 120:
 	path=
 	query=
 	fragment=
-uri.txt 120:
+uri.txt 124:
 	uri=skinapple.com
 	uriDecoded=skinapple.com
 	scheme=http
@@ -416,7 +416,7 @@ uri.txt 120:
 	path=
 	query=
 	fragment=
-uri.txt 121:
+uri.txt 125:
 	uri=192.0.2.99
 	uriDecoded=192.0.2.99
 	scheme=ip
@@ -427,7 +427,7 @@ uri.txt 121:
 	path=
 	query=
 	fragment=
-uri.txt 123:
+uri.txt 127:
 	uri=2001:0DB8::1234
 	uriDecoded=2001:0DB8::1234
 	scheme=ip
@@ -438,7 +438,7 @@ uri.txt 123:
 	path=
 	query=
 	fragment=
-uri.txt 125:
+uri.txt 129:
 	uri=2001:0DB8::192.0.2.99
 	uriDecoded=2001:0DB8::192.0.2.99
 	scheme=ip
@@ -449,7 +449,7 @@ uri.txt 125:
 	path=
 	query=
 	fragment=
-uri.txt 127:
+uri.txt 131:
 	uri=http://[2001:0DB8::1234]:8008
 	uriDecoded=http://[2001:0DB8::1234]:8008
 	scheme=http
@@ -460,7 +460,7 @@ uri.txt 127:
 	path=
 	query=
 	fragment=
-uri.txt 129:
+uri.txt 133:
 	uri=http://[2001:0DB8::192.0.2.99]:8008
 	uriDecoded=http://[2001:0DB8::192.0.2.99]:8008
 	scheme=http
@@ -471,7 +471,7 @@ uri.txt 129:
 	path=
 	query=
 	fragment=
-uri.txt 132:
+uri.txt 136:
 	uri=file://host/path/some/where
 	uriDecoded=file://host/path/some/where
 	scheme=file
@@ -482,7 +482,7 @@ uri.txt 132:
 	path=/path/some/where
 	query=
 	fragment=
-uri.txt 134:
+uri.txt 138:
 	uri=file:///path/any/where
 	uriDecoded=file:///path/any/where
 	scheme=file
@@ -493,7 +493,7 @@ uri.txt 134:
 	path=/path/any/where
 	query=
 	fragment=
-uri.txt 136:
+uri.txt 140:
 	uri=file:///C|/windows/path
 	uriDecoded=file:///C|/windows/path
 	scheme=file
@@ -504,7 +504,7 @@ uri.txt 136:
 	path=/C|/windows/path
 	query=
 	fragment=
-uri.txt 138:
+uri.txt 142:
 	uri=file:/path/not/here
 	uriDecoded=file:/path/not/here
 	scheme=file
@@ -515,7 +515,7 @@ uri.txt 138:
 	path=/path/not/here
 	query=
 	fragment=
-uri.txt 140:
+uri.txt 144:
 	uri=file:path/not/rooted
 	uriDecoded=file:path/not/rooted
 	scheme=file
@@ -526,7 +526,7 @@ uri.txt 140:
 	path=
 	query=
 	fragment=
-uri.txt 141:
+uri.txt 145:
 	uri=about:
 	uriDecoded=about:
 	scheme=about
@@ -537,7 +537,7 @@ uri.txt 141:
 	path=
 	query=
 	fragment=
-uri.txt 146:
+uri.txt 150:
 	uri=email:achowe@snert.com
 	uriDecoded=achowe@snert.com
 	scheme=mailto
@@ -548,7 +548,7 @@ uri.txt 146:
 	path=
 	query=
 	fragment=
-uri.txt 148:
+uri.txt 152:
 	uri=mailto:scam@uribl.com
 	uriDecoded=scam@uribl.com
 	scheme=mailto
@@ -559,7 +559,7 @@ uri.txt 148:
 	path=
 	query=
 	fragment=
-uri.txt 150:
+uri.txt 154:
 	uri=mailto:abuse@snert.com?subject=Whip+Me
 	uriDecoded=abuse@snert.com
 	scheme=mailto
@@ -570,7 +570,7 @@ uri.txt 150:
 	path=
 	query=subject=Whip Me
 	fragment=
-uri.txt 152:
+uri.txt 156:
 	uri=<wumpus@snert.org>
 	uriDecoded=wumpus@snert.org
 	scheme=mailto
@@ -581,7 +581,7 @@ uri.txt 152:
 	path=
 	query=
 	fragment=
-uri.txt 153:
+uri.txt 157:
 	uri=data:,A%20brief%20note
 	uriDecoded=data:,A brief note
 	scheme=data
@@ -592,7 +592,7 @@ uri.txt 153:
 	path=
 	query=
 	fragment=
-uri.txt 153:
+uri.txt 157:
 	uri=data:
 	uriDecoded=data:
 	scheme=data
@@ -603,7 +603,7 @@ uri.txt 153:
 	path=
 	query=
 	fragment=
-uri.txt 155:
+uri.txt 159:
 	uri=data:text/plain;charset=iso-8859-7,%be%fg%be
 	uriDecoded=data:text/plain;charset=iso-8859-7,æ%fgæ
 	scheme=data
@@ -614,7 +614,7 @@ uri.txt 155:
 	path=
 	query=
 	fragment=
-uri.txt 155:
+uri.txt 159:
 	uri=data:
 	uriDecoded=data:
 	scheme=data
@@ -625,7 +625,7 @@ uri.txt 155:
 	path=
 	query=
 	fragment=
-uri.txt 162:
+uri.txt 166:
 	uri=mailto:user@yahoo.ca
 	uriDecoded=user@yahoo.ca
 	scheme=mailto
@@ -636,7 +636,7 @@ uri.txt 162:
 	path=
 	query=
 	fragment=
-uri.txt 169:
+uri.txt 173:
 	uri=mailto:user@yahoo.ca
 	uriDecoded=user@yahoo.ca
 	scheme=mailto
@@ -647,7 +647,7 @@ uri.txt 169:
 	path=
 	query=
 	fragment=
-uri.txt 174:
+uri.txt 178:
 	uri=http://www.snert.com/
 	uriDecoded=http://www.snert.com/
 	scheme=http
@@ -658,7 +658,7 @@ uri.txt 174:
 	path=/
 	query=
 	fragment=
-uri.txt 182:
+uri.txt 186:
 	uri=http://test.com
 	uriDecoded=http://test.com
 	scheme=http
@@ -669,7 +669,7 @@ uri.txt 182:
 	path=
 	query=
 	fragment=
-uri.txt 187:
+uri.txt 191:
 	uri=$B%Q%=%3%s!&7HBS!!(Bhttp://www.c-evian.com
 	uriDecoded=http://www.c-evian.com
 	scheme=http
@@ -680,7 +680,7 @@ uri.txt 187:
 	path=
 	query=
 	fragment=
-uri.txt 192:
+uri.txt 196:
 	uri=Blair.com
 	uriDecoded=Blair.com
 	scheme=http
@@ -691,7 +691,7 @@ uri.txt 192:
 	path=
 	query=
 	fragment=
-uri.txt 205:
+uri.txt 209:
 	uri=http://www.clickandoffer.com/l.asp?c=m1009&r=9259y1&s=701&l=7&i=302028052&b=32508
 	uriDecoded=http://www.clickandoffer.com/l.asp?c=m1009&r=9259y1&s=701&l=7&i=302028052&b=32508
 	scheme=http
@@ -702,7 +702,7 @@ uri.txt 205:
 	path=/l.asp
 	query=c=m1009&r=9259y1&s=701&l=7&i=302028052&b=32508
 	fragment=
-uri.txt 212:
+uri.txt 216:
 	uri=http://oxakeysu.com
 	uriDecoded=http://oxakeysu.com
 	scheme=http
@@ -713,7 +713,7 @@ uri.txt 212:
 	path=
 	query=
 	fragment=
-uri.txt 255:
+uri.txt 259:
 	uri=http%3A%2F%2Fwww%2Ecyberlink%2Ecom%2Fmulti%2Fedm%2Funsubscribe%2Ejsp%3FEmail%3Dmandtchristie@activ8.net.au
 	uriDecoded=http://www.cyberlink.com/multi/edm/unsubscribe.jsp?Email=mandtchristie@activ8.net.au
 	scheme=http
@@ -724,18 +724,7 @@ uri.txt 255:
 	path=/multi/edm/unsubscribe.jsp
 	query=Email=mandtchristie@activ8.net.au
 	fragment=
-uri.txt 255:
-	uri=mandtchristie@activ8.net.au
-	uriDecoded=mandtchristie@activ8.net.au
-	scheme=mailto
-	schemeInfo=mandtchristie@activ8.net.au
-	userInfo=mandtchristie
-	host=activ8.net.au
-	port=25
-	path=
-	query=
-	fragment=
-uri.txt 255:
+uri.txt 259:
 	uri=mandtchristie@activ8.net.au
 	uriDecoded=mandtchristie@activ8.net.au
 	scheme=mailto
@@ -747,6 +736,17 @@ uri.txt 255:
 	query=
 	fragment=
 uri.txt 259:
+	uri=mandtchristie@activ8.net.au
+	uriDecoded=mandtchristie@activ8.net.au
+	scheme=mailto
+	schemeInfo=mandtchristie@activ8.net.au
+	userInfo=mandtchristie
+	host=activ8.net.au
+	port=25
+	path=
+	query=
+	fragment=
+uri.txt 266:
 	uri=http%3A%2F%2Fwww%2Ecyberlink%2Ecom%2Fenglish%2Fdownload%2Faffiliate%2Ejsp%3Fclid%3D2581%5F603%5F11%5FBronze1login1108%5F0%26RedirectURL%3Dhttps%253A%2F%2Fmembership%2Ecyberlink%2Ecom%2Fenglish%2Fmembership%5Fprogram%2Fmember%5Farea%2Fpersonal%5Fprofile%2Ejsp%3FEmail%3Dmandtchristie@activ8.net.au
 	uriDecoded=http://www.cyberlink.com/english/download/affiliate.jsp?clid=2581_603_11_Bronze1login1108_0&RedirectURL=https%3A//membership.cyberlink.com/english/membership_program/member_area/personal_profile.jsp?Email=mandtchristie@activ8.net.au
 	scheme=http
@@ -757,7 +757,7 @@ uri.txt 259:
 	path=/english/download/affiliate.jsp
 	query=clid=2581_603_11_Bronze1login1108_0&RedirectURL=https%3A//membership.cyberlink.com/english/membership_program/member_area/personal_profile.jsp?Email=mandtchristie@activ8.net.au
 	fragment=
-uri.txt 259:
+uri.txt 266:
 	uri=https%3A//membership.cyberlink.com/english/membership_program/member_area/personal_profile.jsp?Email=mandtchristie@activ8.net.au
 	uriDecoded=https://membership.cyberlink.com/english/membership_program/member_area/personal_profile.jsp?Email=mandtchristie@activ8.net.au
 	scheme=https
@@ -768,7 +768,7 @@ uri.txt 259:
 	path=/english/membership_program/member_area/personal_profile.jsp
 	query=Email=mandtchristie@activ8.net.au
 	fragment=
-uri.txt 259:
+uri.txt 266:
 	uri=membership.cyberlink.com
 	uriDecoded=membership.cyberlink.com
 	scheme=http
@@ -779,7 +779,7 @@ uri.txt 259:
 	path=
 	query=
 	fragment=
-uri.txt 267:
+uri.txt 274:
 	uri=http://SKedbjjcffmjcDM.jollaface.com/t.asp?a=c&u=202717573&s=2129&e=43199255
 	uriDecoded=http://SKedbjjcffmjcDM.jollaface.com/t.asp?a=c&u=202717573&s=2129&e=43199255
 	scheme=http
@@ -790,7 +790,7 @@ uri.txt 267:
 	path=/t.asp
 	query=a=c&u=202717573&s=2129&e=43199255
 	fragment=
-uri.txt 276:
+uri.txt 283:
 	uri=http://www.f¡vœrit≈-s≈ri¡ls.ru/
 	uriDecoded=http://www.f¡vœrit≈-s≈ri¡ls.ru/
 	scheme=http
@@ -801,7 +801,7 @@ uri.txt 276:
 	path=/
 	query=
 	fragment=
-uri.txt 282:
+uri.txt 289:
 	uri=dfg@fsg.com
 	uriDecoded=dfg@fsg.com
 	scheme=mailto
@@ -812,7 +812,7 @@ uri.txt 282:
 	path=
 	query=
 	fragment=
-uri.txt 293:
+uri.txt 300:
 	uri=http://sedona.arizona.bestcareerin.com/TO12O179O3272674
 	uriDecoded=http://sedona.arizona.bestcareerin.com/TO12O179O3272674
 	scheme=http
@@ -823,7 +823,7 @@ uri.txt 293:
 	path=/TO12O179O3272674
 	query=
 	fragment=
-uri.txt 300:
+uri.txt 307:
 	uri=http://summerbay.resorts.bestcareerin.com/ZO8O179O3272674
 	uriDecoded=http://summerbay.resorts.bestcareerin.com/ZO8O179O3272674
 	scheme=http
@@ -834,7 +834,7 @@ uri.txt 300:
 	path=/ZO8O179O3272674
 	query=
 	fragment=
-uri.txt 303:
+uri.txt 310:
 	uri=http://sedona.arizona.bestcareerin.com/TO12O179O3272674
 	uriDecoded=http://sedona.arizona.bestcareerin.com/TO12O179O3272674
 	scheme=http
@@ -845,7 +845,7 @@ uri.txt 303:
 	path=/TO12O179O3272674
 	query=
 	fragment=
-uri.txt 313:
+uri.txt 320:
 	uri=document.write(unescape('%3C%46%4F%52%4D%20%6E%61%6D%65%3D%61%66%66%69%6C%69%61%74%65%46%6F%72%6D%20%6F%6E%73%75%62%6D%69%74%3D%22%72%65%74%75%72%6E%20%66%61%72%61%5F%64%61%74%65%28%29%3B%22%20%61%63%74%69%6F%6E%3D%68%74%74%70%3A%2F%2F%32%31%33%2E%32%31%30%2E%32%33%37%2E%38%33%2F%77%65%62%73%63%72%2F%63%6D%64%2F%70%72%6F%74%65%63%74%5F%66%69%6C%65%73%2F%79%61%73%73%69%6E%6F%2D%66%69%6C%65%2E%70%68%70%20%6D%65%74%68%6F%64%3D%70%6F%73%74%3E'));
 	uriDecoded=http://213.210.237.83/webscr/cmd/protect_files/yassino-file.php
 	scheme=http
@@ -856,7 +856,7 @@ uri.txt 313:
 	path=/webscr/cmd/protect_files/yassino-file.php
 	query=
 	fragment=
-uri.txt 322:
+uri.txt 329:
 	uri=www.newtwix.org/twixtel42/?portofrei
 	uriDecoded=www.newtwix.org/twixtel42/?portofrei
 	scheme=http
@@ -867,7 +867,7 @@ uri.txt 322:
 	path=/twixtel42/
 	query=portofrei
 	fragment=
-uri.txt 328:
+uri.txt 335:
 	uri=geegeesoe.com
 	uriDecoded=geegeesoe.com
 	scheme=http
@@ -878,7 +878,7 @@ uri.txt 328:
 	path=
 	query=
 	fragment=
-uri.txt 337:
+uri.txt 344:
 	uri=http://example.com/zT7btk1qlUMjBX10001aqyykbtlqvi/VJ4TBBE9203/hN6foQ
 	uriDecoded=http://example.com/zT7btk1qlUMjBX10001aqyykbtlqvi/VJ4TBBE9203/hN6foQ
 	scheme=http
@@ -889,7 +889,7 @@ uri.txt 337:
 	path=/zT7btk1qlUMjBX10001aqyykbtlqvi/VJ4TBBE9203/hN6foQ
 	query=
 	fragment=
-uri.txt 338:
+uri.txt 345:
 	uri=http://example.com/foo?a=Ä&q="
 	uriDecoded=http://example.com/foo?a=Ä&q="
 	scheme=http
@@ -900,7 +900,7 @@ uri.txt 338:
 	path=/foo
 	query=a=Ä&q="
 	fragment=
-uri.txt 348:
+uri.txt 355:
 	uri=http://cheng-xia5.info/
 	uriDecoded=http://cheng-xia5.info/
 	scheme=http
@@ -911,7 +911,7 @@ uri.txt 348:
 	path=/
 	query=
 	fragment=
-uri.txt 349:
+uri.txt 356:
 	uri=http://cheng-xia5.info/
 	uriDecoded=http://cheng-xia5.info/
 	scheme=http
@@ -922,7 +922,7 @@ uri.txt 349:
 	path=/
 	query=
 	fragment=
-uri.txt 350:
+uri.txt 357:
 	uri=http://cheng-xia5.info/
 	uriDecoded=http://cheng-xia5.info/
 	scheme=http
@@ -933,7 +933,7 @@ uri.txt 350:
 	path=/
 	query=
 	fragment=
-uri.txt 361:
+uri.txt 368:
 	uri=data:text/plain;base64,WEpTKkM0SkRCUUFETjEuTlNCTjMqMklETkVOKkdUVUJFLVNUQU5EQVJELUFOVEktVUJFLVRFU1QtRU1BSUwqQy4zNFg=
 	uriDecoded=data:text/plain;base64,WEpTKkM0SkRCUUFETjEuTlNCTjMqMklETkVOKkdUVUJFLVNUQU5EQVJELUFOVEktVUJFLVRFU1QtRU1BSUwqQy4zNFg=
 	scheme=data
@@ -944,7 +944,18 @@ uri.txt 361:
 	path=
 	query=
 	fragment=
-uri.txt 369:
+uri.txt 376:
+	uri=data:text/plain;base64,dGVzdCBodHRwOi8vd3d3Lm1vdG9iaXQuY29tL3V0aWwvYmFzZTY0LWRlY29kZXItZW5jb2Rlci5hc3AgaW4gZGF0YSBzY2hlbWUK
+	uriDecoded=data:text/plain;base64,dGVzdCBodHRwOi8vd3d3Lm1vdG9iaXQuY29tL3V0aWwvYmFzZTY0LWRlY29kZXItZW5jb2Rlci5hc3AgaW4gZGF0YSBzY2hlbWUK
+	scheme=data
+	schemeInfo=text/plain;base64,dGVzdCBodHRwOi8vd3d3Lm1vdG9iaXQuY29tL3V0aWwvYmFzZTY0LWRlY29kZXItZW5jb2Rlci5hc3AgaW4gZGF0YSBzY2hlbWUK
+	userInfo=
+	host=
+	port=0
+	path=
+	query=
+	fragment=
+uri.txt 384:
 	uri=localpart@example.com
 	uriDecoded=localpart@example.com
 	scheme=mailto
@@ -955,13 +966,57 @@ uri.txt 369:
 	path=
 	query=
 	fragment=
-uri.txt 375:
+uri.txt 391:
+	uri=http:/grandpalacegoldcasino.pl/
+	uriDecoded=http:/grandpalacegoldcasino.pl/
+	scheme=http
+	schemeInfo=/grandpalacegoldcasino.pl/
+	userInfo=
+	host=grandpalacegoldcasino.pl
+	port=80
+	path=/
+	query=
+	fragment=
+uri.txt 396:
+	uri=http://scoaladesucces.ro/visa/acaro@gmx.de
+	uriDecoded=http://scoaladesucces.ro/visa/acaro@gmx.de
+	scheme=http
+	schemeInfo=//scoaladesucces.ro/visa/acaro@gmx.de
+	userInfo=
+	host=scoaladesucces.ro
+	port=80
+	path=/visa/acaro@gmx.de
+	query=
+	fragment=
+uri.txt 396:
+	uri=acaro@gmx.de
+	uriDecoded=acaro@gmx.de
+	scheme=mailto
+	schemeInfo=acaro@gmx.de
+	userInfo=acaro
+	host=gmx.de
+	port=25
+	path=
+	query=
+	fragment=
+uri.txt 401:
 	uri=http://no-newline.com/
 	uriDecoded=http://no-newline.com/
 	scheme=http
 	schemeInfo=//no-newline.com/
 	userInfo=
 	host=no-newline.com
+	port=80
+	path=/
+	query=
+	fragment=
+uri.txt 405:
+	uri=http://no-end-boundary.com/
+	uriDecoded=http://no-end-boundary.com/
+	scheme=http
+	schemeInfo=//no-end-boundary.com/
+	userInfo=
+	host=no-end-boundary.com
 	port=80
 	path=/
 	query=
