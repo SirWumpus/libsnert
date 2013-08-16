@@ -1,7 +1,7 @@
 /*
  * ansi.c
  *
- * Copyright 2003 by Anthony Howe.  All rights reserved.
+ * Copyright 2003, 2013 by Anthony Howe.  All rights reserved.
  */
 
 #include <stdio.h>
@@ -17,7 +17,9 @@ char usage[] =
 "cr\t\tcarriage return\n"
 "esc\t\tASCII escape\n"
 "lf\t\tline feed\n"
+"sp\t\tspace\n"
 "tab\t\ttab\n"
+"vt\t\tvertical tab\n"
 
 "\n"
 "\033[4mANSI cursor motion:\033[0m\n"
@@ -101,7 +103,7 @@ char usage[] =
 "backslash (\\) are treated as a literal word. Some ANSI terminal\n"
 "emulators do not support all possible escape sequences.\n"
 "\n"
-"\033[1mansi/1.0 Copyright 2003 by Anthony Howe. All rights reserved.\033[0m\n"
+"\033[1mansi/1.1 Copyright 2003, 2013 by Anthony Howe. All rights reserved.\033[0m\n"
 ;
 
 int
@@ -130,6 +132,8 @@ char *single[][2] = {
 	{ "\r", 	"cr" },
 	{ "\n", 	"lf" },
 	{ "\n", 	"nl" },
+	{ "\v", 	"vt" },
+	{ " ", 		"sp" },
 	{ "\t", 	"tab" },
 	{ "\r\n", 	"crlf" },
 	{ "\007", 	"bell" },
