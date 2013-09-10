@@ -1725,8 +1725,8 @@ AC_DEFUN(SNERT_BUILD_THREADED_SQLITE3,[
 				)
 				AS_IF([test ${platform} != 'Darwin'],[sqlite3_configure_options="${sqlite3_configure_options} --enable-static --disable-shared"])
 
-				echo CFLAGS="'${sqlite3_cflags} ${CFLAGS} ${CFLAGS_PTHREAD}'" LDFLAGS="'${LDFLAGS} ${LDFLAGS_PTHREAD}'" ./configure  ${sqlite3_configure_options}
-				CFLAGS="${sqlite3_cflags} ${CFLAGS} ${CFLAGS_PTHREAD}" LDFLAGS="${LDFLAGS} ${LDFLAGS_PTHREAD}" ./configure  ${sqlite3_configure_options}
+				echo ./configure CFLAGS="'${sqlite3_cflags}'" ${sqlite3_configure_options}
+				./configure CFLAGS="${sqlite3_cflags}" ${sqlite3_configure_options}
 				echo
 			fi
 			echo

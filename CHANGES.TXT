@@ -57,6 +57,22 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.24--
+
+   *    Upgraded SQLite to 3.8.0.2
+
+   !	Updated SNERT_BUILD_THREADED_SQLITE3 for latest SQLite build.
+
+   ! 	Minor addition to ansi tool.
+
+   !	Fix bug where an email address in the URI path info would be
+	mistaken for URI authority and so cause a mis-parse of the URI.
+	eg:
+
+        http://scoaladesucces.ro/visa/acaro@gmx.de
+
+	Reported by Alex Broens.
+
 --1.75.23--
 
    !	Fix socket3_close() to address TIME_WAIT (socket zombie) issue
