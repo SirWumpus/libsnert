@@ -303,7 +303,7 @@ AS_IF([test ${with_db:-default} != 'no'],[
 	for d in $BDB_BASE_DIRS ; do
 		if test -d "$d/include" ; then
 			bdb_dir_list="$bdb_dir_list $d"
-			bdb_i_dirs=`ls -d $d/include/db[[0-9]]* $d/include/db $d/include 2>/dev/null | sort -r`
+			bdb_i_dirs=`ls -d $d/include/db[[0-9]]* $d/include/db $d/include/. 2>/dev/null | sort -r`
 
 			for BDB_I_DIR in $bdb_i_dirs ; do
 				AC_MSG_CHECKING([for db.h in $BDB_I_DIR])
@@ -312,12 +312,12 @@ AS_IF([test ${with_db:-default} != 'no'],[
 					AC_MSG_RESULT(yes)
 					v=`basename $BDB_I_DIR`
 					if test $v = 'include' ; then
-						 v=''
+						 v='.'
 					fi
 
-					if test -d $d/lib64/$v -a $v != '.' ; then
+					if test -d $d/lib64/$v -a "$v" != '.' ; then
 						BDB_L_DIR="$d/lib64/$v"
-					elif test -d $d/lib/$v -a $v != '.'; then
+					elif test -d $d/lib/$v -a "$v" != '.'; then
 						BDB_L_DIR="$d/lib/$v"
 					elif test -d $d/lib64 ; then
 						BDB_L_DIR="$d/lib64"
