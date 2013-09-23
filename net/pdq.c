@@ -1869,6 +1869,7 @@ pdq_name_copy(struct udp_packet *packet, unsigned char *ptr, unsigned char *buf,
 
 	if (ptr < (unsigned char *) &packet->header) {
 		syslog(LOG_WARN, "%s.%d: below bounds!!!", __FUNCTION__, __LINE__);
+		pdqLogPacket(packet, 0);
 		return -1;
 	}
 
@@ -1884,6 +1885,7 @@ pdq_name_copy(struct udp_packet *packet, unsigned char *ptr, unsigned char *buf,
 		/* Do we still have room in the buffer for the next label. */
 		if (remaining <= *ptr) {
 			syslog(LOG_ERR, "%s.%d: buffer overflow!!!", __FUNCTION__, __LINE__);
+			pdqLogPacket(packet, 0);
 			return -1;
 		}
 
@@ -1898,6 +1900,7 @@ pdq_name_copy(struct udp_packet *packet, unsigned char *ptr, unsigned char *buf,
 	if (packet_end <= ptr) {
 		*buf = '\0';
 		syslog(LOG_ERR, "%s.%d: out of bounds!!! start of buf=\"%40s\"", __FUNCTION__, __LINE__, buf0);
+		pdqLogPacket(packet, 0);
 		return -1;
 	}
 
@@ -1909,6 +1912,7 @@ pdq_name_copy(struct udp_packet *packet, unsigned char *ptr, unsigned char *buf,
 
 	if (remaining < 1) {
 		syslog(LOG_ERR, "%s.%d: buffer underflow!!!", __FUNCTION__, __LINE__);
+		pdqLogPacket(packet, 0);
 		return -1;
 	}
 

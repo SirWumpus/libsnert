@@ -64,6 +64,11 @@ is no set schedule for releases.
 	is installed (FreeBSD, NetBSD) caused and empty shell variable
 	to generate an error.
 
+   !	Added packet dump logging in pdq_name_copy() for buffer under/over
+	errors in order to determine whether packets are mailformed (OxC0
+	compression) or internal error. Reported by Alex Broens.
+
+
 --1.75.24--
 
    *    Upgraded SQLite to 3.8.0.2
