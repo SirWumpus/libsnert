@@ -138,7 +138,6 @@ debug : build
 update-tlds: tlds-alpha-by-domain.txt two-level-tlds.txt three-level-tlds.txt
 
 tlds-alpha-by-domain.txt:
-	mv tlds-alpha-by-domain.txt tlds-alpha-by-domain.txt.bak
 	wget -r -O tlds-alpha-by-domain.txt http://data.iana.org/TLD/tlds-alpha-by-domain.txt
 
 tlds-alpha-by-domain.c : tlds.sed tlds-alpha-by-domain.txt

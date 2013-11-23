@@ -1,7 +1,7 @@
 /*
- * uri.h
+ * b64.h
  *
- * Copyright 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2006, 2013 by Anthony Howe. All rights reserved.
  */
 
 #ifndef __com_snert_lib_util_b64_h__

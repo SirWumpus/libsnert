@@ -4,6 +4,7 @@
  * Copyright 1993, 2004 by Anthony Howe.  All rights reserved.
  */
 
+#include <ctype.h>
 #include <stdio.h>
 
 typedef struct {

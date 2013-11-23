@@ -881,6 +881,15 @@ typedef int socklen_t;
 #undef CFLAGS_SSL
 #undef LDFLAGS_SSL
 
+/*
+ * Common Hashes
+ */
+#undef HAVE_MD4_H
+#undef HAVE_MD5_H
+#undef HAVE_RMD160_H
+#undef HAVE_SHA1_H
+#undef HAVE_SHA2_H
+
 #ifdef TO_BE_REMOVED
 /* 2011-4-19 The need for this 8.13 / 8.14 transition handling
  * has been discontinued. After five years, packages that fail

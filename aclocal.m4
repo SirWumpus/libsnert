@@ -1416,6 +1416,16 @@ AC_DEFUN(SNERT_REGEX,[
 ])
 
 dnl
+dnl SNERT_HASHES
+dnl
+AC_DEFUN(SNERT_HASHES,[
+	echo
+	echo "Check for common hashes..."
+	echo
+	AC_CHECK_HEADERS([md4.h md5.h rmd160.h sha1.h sha2.h],[],[],[/* */])
+])
+
+dnl
 dnl SNERT_TERMIOS
 dnl
 AC_DEFUN(SNERT_TERMIOS,[

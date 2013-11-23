@@ -1,7 +1,7 @@
 /*
  * b64.c
  *
- * Copyright 2002, 2006 by Anthony Howe. All rights reserved.
+ * Copyright 2006, 2013 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -18,7 +18,7 @@
  *** Base 64 Decoding
  ***********************************************************************/
 
-enum {
+typedef enum {
 	BASE64_START,
 	BASE64_DECODE_A,
 	BASE64_DECODE_B,
@@ -31,12 +31,7 @@ enum {
 	BASE64_ENCODE_A,
 	BASE64_ENCODE_B,
 	BASE64_ENCODE_C,
-	BASE64_ENCODE_D,
-	BASE64_ENCODE_PAD4,
-	BASE64_ENCODE_PAD3,
-	BASE64_ENCODE_PAD2,
-	BASE64_ENCODE_PAD1,
-};
+} BASE64_STATE;
 
 #define BASE64_PAD_CHARACTER		'='
 #define BASE64_DECODESET_LENGTH		256
