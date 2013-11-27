@@ -993,7 +993,7 @@ socket3_multicast(SOCKET fd, SocketAddress *group, int join)
 int
 socket3_multicast_loopback(SOCKET fd, int family, int flag)
 {
-	int rc;
+	int rc = 0;
 	char byte = flag;
 	unsigned word = flag;
 
@@ -1026,7 +1026,7 @@ socket3_multicast_loopback(SOCKET fd, int family, int flag)
 int
 socket3_multicast_ttl(SOCKET fd, int family, int ttl)
 {
-	int rc;
+	int rc = 0;
 
 	switch (family) {
 	case AF_INET:
@@ -1233,7 +1233,7 @@ int (*socket3_wait_fn)(SOCKET, long, unsigned) = socket3_wait_select;
 int
 socket3_wait_fd(SOCKET fd, long ms, unsigned rw_flags)
 {
-	int rc;
+	int rc = 0;
 
 	if (socket3_wait_fn == NULL)
 		return errno = EIO;

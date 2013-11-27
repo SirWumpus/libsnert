@@ -4,8 +4,6 @@
  * Copyright 2002, 2013 by Anthony Howe. All rights reserved.
  */
 
-#define NDEBUG
-
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/

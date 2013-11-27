@@ -242,6 +242,7 @@ socket3_get_field(SOCKET fd, X509_Field field, char *buffer, size_t size)
 	switch (field) {
 	case X509_Issuer: name = X509_get_issuer_name(peer); break;
 	case X509_Subject: name = X509_get_subject_name(peer); break;
+	default: return 0;
 	}
 
 	value = X509_NAME_oneline(name, NULL, 512);

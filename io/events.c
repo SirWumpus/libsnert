@@ -379,11 +379,11 @@ events_wait_kqueue(Events *loop, long ms)
 	saved_errno = errno;
 
 	(void) time(&now);
-	if (SIGSETJMP(loop->on_error, 1) != 0)
-		goto next_event;
 	for (i = 0; i < fd_ready; i++) {
-		k_ev = &((struct kevent *) loop->set)[i];
+		if (SIGSETJMP(loop->on_error, 1) != 0)
+			continue;
 
+		k_ev = &((struct kevent *) loop->set)[i];
 		if ((event = (Event *)k_ev->udata) == NULL || !event->enabled)
 			continue;
 
@@ -419,8 +419,6 @@ events_wait_kqueue(Events *loop, long ms)
 			if (event->on.io != NULL)
 				(*event->on.io)(loop, event, 0);
 		}
-next_event:
-		;
 	}
 error1:
 	saved_errno = errno;
@@ -487,11 +485,11 @@ events_wait_epoll(Events *loop, long ms)
 	saved_errno = errno;
 
 	(void) time(&now);
-	if (SIGSETJMP(loop->on_error, 1) != 0)
-		goto next_event;
 	for (i = 0; i < fd_ready; i++) {
-		e_ev = &((struct epoll_event *) loop->set)[i];
+		if (SIGSETJMP(loop->on_error, 1) != 0)
+			continue;
 
+		e_ev = &((struct epoll_event *) loop->set)[i];
 		if ((event = e_ev->data.ptr) == NULL || !event->enabled)
 			continue;
 
@@ -514,8 +512,6 @@ events_wait_epoll(Events *loop, long ms)
 			if (event->on.io != NULL)
 				(*event->on.io)(loop, event, 0);
 		}
-next_event:
-		;
 	}
 error1:
 	saved_errno = errno;
@@ -574,14 +570,13 @@ events_wait_poll(Events *loop, long ms)
 
 	saved_errno = errno;
 
-	(void) time(&now);
-	if (SIGSETJMP(loop->on_error, 1) != 0)
-		goto next_event;
-
 	fd_active = 0;
+	(void) time(&now);
 	for (node = loop->events.head; node != NULL; node = node->next) {
-		event = node->data;
+		if (SIGSETJMP(loop->on_error, 1) != 0)
+			continue;
 
+		event = node->data;
 		if (!event->enabled)
 			continue;
 
@@ -608,8 +603,6 @@ events_wait_poll(Events *loop, long ms)
 					(*event->on.io)(loop, event, 0);
 			}
 		}
-next_event:
-		;
 	}
 error0:
 	return errno;

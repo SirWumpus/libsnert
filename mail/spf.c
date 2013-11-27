@@ -389,6 +389,7 @@ spfCheck(spfContext *ctx, const char *domain, const char *alt_txt)
 	txt = NULL;
 	err = NULL;
 	term = NULL;
+	explain = NULL;
 	qualifier = SPF_NONE;
 
 	if (ctx == NULL || domain == NULL) {

@@ -11,6 +11,8 @@
 #include <com/snert/lib/version.h>
 
 #ifdef HAVE_UNISTD_H
+# undef _GNU_SOURCE
+# define _GNU_SOURCE
 # include <unistd.h>
 #endif
 #ifdef HAVE_SYS_TYPES_H
@@ -144,6 +146,8 @@ processDropPrivilages(const char *run_user, const char *run_group, const char *r
 
 		/* Drop group privileges permanently. */
 # if defined(HAVE_SETRESGID)
+		/* Even with _GNU_SOURCE defined, unistd.h still fails to declare this. */
+		extern int setresgid(gid_t, gid_t, gid_t);
 		(void) setresgid(process_gid, process_gid, process_gid);
 # elif defined(HAVE_SETREGID)
 		(void) setregid(process_gid, process_gid);

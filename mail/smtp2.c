@@ -33,10 +33,8 @@
 #endif
 
 #ifdef HAVE_UNISTD_H
-# ifdef __linux__
-#  /* See Linux man setresgid */
-#  define _GNU_SOURCE
-# endif
+# undef _GNU_SOURCE
+# define _GNU_SOURCE
 # include <unistd.h>
 #endif
 

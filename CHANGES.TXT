@@ -64,6 +64,11 @@ is no set schedule for releases.
 
    !	Minor fixes to aclocal.m4 libmilter detection for debian.
 
+  !!	Fix numerous gcc compiler warnings. In particular fixed
+	potential SPF seg.fault due to uninitialised variable. Also
+	fixed potential seg.fault or inifinite loop in events_wait_*()
+	when an error happens and longjmp is performed to process the
+	next event. Reported by Guenter Grodotzki.
 
 --1.75.25--
 

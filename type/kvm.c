@@ -1858,7 +1858,7 @@ kvm_recv(Socket2 *s, unsigned char **data, unsigned long *length)
 
 	/* Read leading decimal length. */
 	number[0] = '\0';
-	for (i = 0; i < sizeof (number)-1; i++) {
+	for (i = 0; i < sizeof (number)-2; i++) {
 		if (!socketHasInput(s, timeout)) {
 			/* No input ready. */
 				syslog(LOG_ERR, "%s.%d: read error: %s (%d)", __FUNCTION__, __LINE__, strerror(errno), errno);
@@ -1876,7 +1876,11 @@ kvm_recv(Socket2 *s, unsigned char **data, unsigned long *length)
 		}
 	}
 
+	/* NUL terminate after the delimiter. The loop above stops at
+	 * the 2nd last byte of the array, leaving space for the NUL.
+	 */
 	number[i+1] = '\0';
+
 	if (i <= 0 || number[i] != ':') {
 		/* No input or invalid format. */
 		syslog(LOG_ERR, "%s.%d: invalid length \"%s\"", __FUNCTION__, __LINE__, number);

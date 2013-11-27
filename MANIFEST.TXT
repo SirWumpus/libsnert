@@ -57,6 +57,7 @@ com/snert/src/lib/mail/makefile.in
 com/snert/src/lib/mail/parsePath.c
 com/snert/src/lib/mail/parsePath.expect
 com/snert/src/lib/mail/grey.c
+com/snert/src/lib/mail/gtube.txt
 com/snert/src/lib/mail/siq.c
 com/snert/src/lib/mail/smdb.c
 com/snert/src/lib/mail/smdb-old.c

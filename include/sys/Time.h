@@ -13,9 +13,8 @@
 
 #ifdef __linux__
 /* Enable support for BSD time zone field extensions to struct tm. */
-# ifndef _BSD_SOURCE
-#  define _BSD_SOURCE
-# endif
+# undef _GNU_SOURCE
+# define _GNU_SOURCE		/* Includes _BSD_SOURCE */
 #endif
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>

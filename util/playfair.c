@@ -105,6 +105,7 @@ playfair_init(Playfair *pf, const char *alphabet, const char *key)
 	if (alphabet[i] != '\0')
 		return 1;
 
+	map[0] = map[1] = 0;
 	if (set_length == 25) {
 		if (strchr(set, 'I') == NULL && strchr(set, 'J') != NULL) {
 			map[0] = 'I';

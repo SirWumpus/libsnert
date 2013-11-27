@@ -57,6 +57,9 @@ LIB_PTHREAD = @HAVE_LIB_PTHREAD@
 $O$E :
 	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
 
+.c.i:
+	${CC} -E ${CFLAGS} $*.c >$*.i
+
 #######################################################################
 
 OBJS =	Mutex$O Shared$O Thread$O gmtime_r$O Time$O TimeStamp$O \
