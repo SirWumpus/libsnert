@@ -45,14 +45,13 @@ hashmap_get(void *_self, void *key)
 {
 	hashmap *self = _self;
 	unsigned long index;
-	map_entry **prev, *entry;
+	map_entry *entry;
 
 	if (self == NULL || key == NULL)
 		return NULL;
 
 	index = ((atom *) key)->hashcode(key) % TABLE_SIZE;
 	entry = ((map_entry **) self->base)[index];
-	prev = &((map_entry **) self->base)[index];
 
 	for ( ; entry != NULL; entry = entry->next) {
 		if (((atom *) key)->compare(key, entry->key) == 0)

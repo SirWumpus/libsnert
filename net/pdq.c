@@ -3044,7 +3044,6 @@ pdqSetLinearQuery(PDQ *pdq, int flag)
 int
 pdqQuery(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *ns)
 {
-	long length;
 	PDQ_query *query;
 	char *buffer = NULL;
 
@@ -3059,7 +3058,7 @@ pdqQuery(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char 
 		if ((buffer = malloc(DOMAIN_SIZE)) == NULL)
 			goto error1;
 
-		length = reverseIp(name, buffer, DOMAIN_SIZE, 1);
+		(void) reverseIp(name, buffer, DOMAIN_SIZE, 1);
 		name = buffer;
 	}
 

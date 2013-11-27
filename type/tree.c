@@ -166,7 +166,7 @@ tree_remove_node(Tree *node, Tree *child)
 	node_data = node->data;
 	tree_free(node, NULL);
 
-	return node->data;
+	return node_data;
 }
 
 /**

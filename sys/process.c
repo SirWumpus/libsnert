@@ -1,7 +1,7 @@
 /*
  * process.c
  *
- * Copyright 2004, 2007 by Anthony Howe. All rights reserved.
+ * Copyright 2004, 2013 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -10,6 +10,9 @@
 
 #include <com/snert/lib/version.h>
 
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
 #endif

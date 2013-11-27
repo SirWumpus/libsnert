@@ -57,6 +57,14 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+
+--1.75.26--
+
+   *    Upgraded SQLite to 3.8.1.0
+
+   !	Minor fixes to aclocal.m4 libmilter detection for debian.
+
+
 --1.75.25--
 
    !	Fix SNERT_BERKELEY_DB handling of $d/include when there are no

@@ -2894,11 +2894,9 @@ error0:
 void
 serverOptions(int argc, char **argv)
 {
-	int argi;
-
 	/* Parse command line options looking for a file= option. */
 	optionInit(opt_table, NULL);
-	argi = optionArrayL(argc, argv, opt_table, NULL);
+	(void) optionArrayL(argc, argv, opt_table, NULL);
 
 	/* Parse the option file followed by the command line options again. */
 	if (opt_file.string != NULL && *opt_file.string != '\0') {

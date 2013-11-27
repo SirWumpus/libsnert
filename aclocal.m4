@@ -578,13 +578,17 @@ AC_DEFUN(SNERT_LIBMILTER,[
 	saved_ldflags="$LDFLAGS"
 
 if test ${with_milter:-default} != 'no' ; then
-	for d in "$with_milter" /usr/local /usr/pkg ; do
+	for d in "$with_milter" /usr /usr/local /usr/pkg ; do
 		unset ac_cv_search_smfi_main
 		unset ac_cv_header_libmilter_mfapi_h
 
 		if test X$d != X ; then
 			CFLAGS_MILTER="-I$d/include"
-			LDFLAGS_MILTER="-L$d/lib"
+			if test -d $d/lib/libmilter ; then
+				LDFLAGS_MILTER="-L$d/lib/libmilter"
+			else
+				LDFLAGS_MILTER="-L$d/lib"
+			fi
 		fi
 		echo "trying with $LDFLAGS_MILTER ..."
 
