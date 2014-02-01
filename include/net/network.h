@@ -42,6 +42,7 @@ extern "C" {
 /* Space for a full-size domain string, plus terminating NULL byte.
  */
 #define DOMAIN_SIZE			256
+#define DOMAIN_STRING_LENGTH		DOMAIN_SIZE        	/* depricated */
 
 /* These macros intended to retrieve network numeric data types stored
  * at odd memory addresses, which can cause some bus errors on certain

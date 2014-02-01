@@ -1027,7 +1027,7 @@ AC_DEFUN(SNERT_PROCESS,[
 	echo
 	AC_CHECK_HEADER([unistd.h],[
 		AC_DEFINE_UNQUOTED(HAVE_UNISTD_H)
-		AC_CHECK_FUNCS([getuid getgid setuid setgid])
+		AC_CHECK_FUNCS([getopt getuid getgid setuid setgid])
 		AC_CHECK_FUNCS([geteuid getegid seteuid setegid getpgid setpgid])
 		AC_CHECK_FUNCS([getresuid getresgid setresuid setresgid])
 		AC_CHECK_FUNCS([setreuid getgroups setgroups initgroups])
@@ -1077,6 +1077,19 @@ AC_DEFUN(SNERT_SETJMP,[
 #endif
 		])
 		AC_CHECK_FUNCS([setjmp longjmp sigsetjmp siglongjmp])
+	])
+])
+
+dnl
+dnl SNERT_OPTIONS
+dnl
+AC_DEFUN(SNERT_OPTIONS,[
+	echo
+	echo "Check for option support..."
+	echo
+	AC_CHECK_HEADER([unistd.h], [
+		AC_DEFINE_UNQUOTED(HAVE_UNISTD_H)
+		AC_CHECK_FUNCS([getopt])
 	])
 ])
 

@@ -234,6 +234,7 @@ typedef unsigned long time_t;
 #undef HAVE_SYS_STAT_H
 #undef HAVE_UNISTD_H
 #undef HAVE_UTIME_H
+#undef HAVE_GETOPT
 #undef HAVE_CHDIR
 #undef HAVE_CHMOD
 #undef HAVE_CHOWN

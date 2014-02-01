@@ -129,7 +129,7 @@ b64Decode(B64 *b64, int x)
 		break;
 	case BASE64_DECODE_B:
 		/* If we found the padding character, then an error
-		 * occured since we don't have insufficient bits to
+		 * occured since we don't have sufficient bits to
 		 * decode the first octet.
 		 */
 		if (value == 64)
@@ -183,7 +183,7 @@ b64Decode(B64 *b64, int x)
 		}
 		return BASE64_ERROR;
 	case BASE64_EOF:
-		/* To reuse this object, must rset. */
+		/* To reuse this object, must reset. */
 		return BASE64_EOF;
 	default:
 		/* Flipped from encoding to decoding mid-stream? */
