@@ -36,6 +36,9 @@ typedef enum {
 #define BASE64_PAD_CHARACTER		'='
 #define BASE64_DECODESET_LENGTH		256
 
+#define BASE64_INPUT_BLOCK		57
+#define BASE64_OUTPUT_BLOCK		(BASE64_INPUT_BLOCK / 3 * 4)
+
 static int decodeSet[BASE64_DECODESET_LENGTH];
 
 /* RFC 2045
@@ -255,7 +258,7 @@ b64DecodeBuffer(B64 *b64, const char *input, size_t in_length, unsigned char *ou
 	if (out_length != NULL)
 		*out_length = olen;
 
-	return (b64->_state = BASE64_DECODE_A || b64->_state == BASE64_EOF) ? 0 : BASE64_NEXT;
+	return (b64->_state == BASE64_DECODE_A || b64->_state == BASE64_EOF) ? 0 : BASE64_NEXT;
 }
 
 /**
@@ -539,21 +542,21 @@ main(int argc, char **argv)
 		}
 	} else if (use_buffer_version) {
 		size_t output_length = 0;
-		static unsigned char input[57];
-		static char output[57 / 3 * 4 + 1];
+		static unsigned char input[BASE64_INPUT_BLOCK];
+		static char output[BASE64_OUTPUT_BLOCK + 1];
 
 		while (0 < (length = fread(input, 1, sizeof (input), stdin))) {
 			b64EncodeBuffer(&b64, input, length, output, sizeof (output), &output_length);
-			if (76 <= output_length) {
+			if (BASE64_OUTPUT_BLOCK <= output_length) {
 				fputs(output, stdout);
-				fputs("\r\n",stdout);
+				fputs("\r\n", stdout);
 				output_length = 0;
 			}
 		}
 
 		b64EncodeFinish(&b64, output, sizeof (output), &output_length, mark_end);
 		fputs(output, stdout);
-		fputs("\r\n",stdout);
+		fputs("\r\n", stdout);
 	} else {
 		char *encoded;
 

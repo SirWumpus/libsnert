@@ -20,7 +20,6 @@ typedef struct {
 #define	BASE64_EOF			(-1)
 #define BASE64_NEXT			(-2)
 #define	BASE64_ERROR			(-3)
-#define BASE64_READY			(-4)
 #define BASE64_IS_OCTET(x)		(0 <= (x))
 
 /**
