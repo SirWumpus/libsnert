@@ -382,16 +382,29 @@ b64EncodeBuffer(B64 *b64, const unsigned char *input, size_t in_size, char *outp
 	if (input == NULL)
 		in_size = 0;
 
+#define V2
+#ifdef V2
+	/* Resuming a partially filled buffer, roll length back to
+	 * start of last quantum in buffer for _b64Encode().
+	 */
+	olen = (out_length == NULL ? 0 : (*out_length -  (*out_length % 4)));
+#else
 	olen = (out_length == NULL ? 0 : *out_length);
+#endif
 	out_size--;
 
 	for (ilen = 0; ilen < in_size; ilen++) {
+#ifdef V2
+		if (_b64Encode(b64, input[ilen], output+olen) != NULL) {
+			olen += 4;
+		}
+#else
 		switch (b64->_state) {
 		case BASE64_START:
 		case BASE64_ENCODE_A:
 			output[olen++] = encodeSet[(input[ilen] >> 2) & 0x3f];
 			b64->_hold = (input[ilen] << 4) & 0x30;
-			b64->_state =BASE64_ENCODE_B;
+			b64->_state = BASE64_ENCODE_B;
 			break;
 
 		case BASE64_ENCODE_B:
@@ -406,7 +419,23 @@ b64EncodeBuffer(B64 *b64, const unsigned char *input, size_t in_size, char *outp
 			b64->_state = BASE64_ENCODE_A;
 			break;
 		}
+#endif
 	}
+
+#ifdef V2
+	/* Adjust output length for partial quantum. */
+	switch (b64->_state) {
+	case BASE64_ENCODE_C:
+		olen++;
+		/*@fallthrough@*/
+	case BASE64_ENCODE_B:
+		olen++;
+		/*@fallthrough@*/
+	case BASE64_ENCODE_A:
+	case BASE64_START:
+		break;
+	}
+#endif
 
 	/* Null terminate the output buffer. */
 	output[olen] = '\0';
@@ -542,8 +571,8 @@ main(int argc, char **argv)
 		}
 	} else if (use_buffer_version) {
 		size_t output_length = 0;
-		static unsigned char input[BASE64_INPUT_BLOCK];
 		static char output[BASE64_OUTPUT_BLOCK + 1];
+		static unsigned char input[BASE64_INPUT_BLOCK];
 
 		while (0 < (length = fread(input, 1, sizeof (input), stdin))) {
 			b64EncodeBuffer(&b64, input, length, output, sizeof (output), &output_length);
@@ -566,15 +595,15 @@ main(int argc, char **argv)
 				fputs(encoded, stdout);
 				length += 4;
 			}
-			if (76 <= length) {
-				fputs("\r\n",stdout);
+			if (BASE64_OUTPUT_BLOCK <= length) {
+				fputs("\r\n", stdout);
 				length = 0;
 			}
 		}
 
 		encoded = b64Encode(&b64, mark_end ? -2 : -1);
 		fputs(encoded, stdout);
-		fputs("\r\n",stdout);
+		fputs("\r\n", stdout);
 	}
 
 	return EXIT_SUCCESS;

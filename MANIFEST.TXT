@@ -1,5 +1,5 @@
 org/sqlite/makefile
-org/sqlite/sqlite-autoconf-3080100.tar.gz
+org/sqlite/sqlite-autoconf-3080301.tar.gz
 com/snert/lib/Log.pm
 com/snert/include/com/snert/lib
 com/snert/include/org/valgrind
@@ -345,6 +345,7 @@ com/snert/src/lib/tools/echo.c
 com/snert/src/lib/tools/echod.c
 com/snert/src/lib/tools/filed.c
 com/snert/src/lib/tools/flip.c
+com/snert/src/lib/tools/fmtjson.c
 com/snert/src/lib/tools/grouplist.c
 com/snert/src/lib/tools/here-i-am.c
 com/snert/src/lib/tools/taglengths.c

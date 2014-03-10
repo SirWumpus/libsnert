@@ -2093,7 +2093,9 @@ AC_DEFUN(SNERT_INIT,[
 ])
 
 AC_DEFUN(SNERT_FINI,[
-	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_CFLAGS, ["$CFLAGS"])
+	dnl Escape double-quotes in CFLAGS for -DMACRO='"string"' case.
+	quote_cflags=$(echo $CFLAGS | sed -e's/"/\\&/g')
+	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_CFLAGS, ["$quote_cflags"])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_LDFLAGS, ["$LDFLAGS"])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_LIBS, ["$LIBS"])
 

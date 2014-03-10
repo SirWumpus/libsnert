@@ -81,7 +81,7 @@ $O$E :
 
 #######################################################################
 
-ORIGINAL	= ansi$E flip$E pad$E popin$E uue$E show$E range$E sqlargs$E \
+ORIGINAL	= ansi$E flip$E fmtjson$E pad$E popin$E uue$E show$E range$E sqlargs$E \
 		  counter$E clamstream$E dnsd$E secho$E sechod$E natsort$E
 MEH_TOOLS	= sendform$E nph-download.cgi here-i-am$E where-are-you$E \
 		  ziplist$E rarlist$E taglengths$E rsleep$E
@@ -144,10 +144,10 @@ sechod$E : ${top_srcdir}/io/socket3$O ${top_srcdir}/io/socket3_tls$O sechod.c
 	$(CC) ${CFLAGS_SSL} $(CFLAGS) ${LDFLAGS_SSL} $(LDFLAGS) $(CC_E)sechod$E sechod.c $(LIBSNERT) ${HAVE_LIBSSL} ${HAVE_LIBCRYPTO} $(LIBS) ${NETWORK_LIBS}
 
 ansi$E : ansi.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)ansi$E ansi.c ${LIBS_PREFIX}
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)ansi$E ansi.c 
 
 pad$E : pad.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)pad$E pad.c ${LIBS_PREFIX}
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)pad$E pad.c
 
 clamstream$E : ${top_srcdir}/io/socket2$O clamstream.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)clamstream$E clamstream.c $(LIBSNERT) $(LIBS) ${NETWORK_LIBS}
@@ -156,7 +156,10 @@ socketsink$E : ${top_srcdir}/io/socket2$O socketsink.c
 	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)socketsink$E socketsink.c $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
 
 flip$E : flip.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)flip$E flip.c $(LIBSNERT) ${LIBS_PREFIX}
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)flip$E flip.c 
+
+fmtjson$E : fmtjson.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)fmtjson$E fmtjson.c 
 
 strings$E : strings.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)strings$E strings.c $(LIBSNERT) ${LIBS_PREFIX}
@@ -186,7 +189,7 @@ echo$E : echo.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)echo$E echo.c $(LIBSNERT) ${LIBS_PREFIX}
 
 range$E : range.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)range$E range.c ${LIBS_PREFIX}
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)range$E range.c 
 
 rsleep$E : rsleep.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)rsleep$E rsleep.c $(LIBSNERT) ${LIBS_PREFIX}
