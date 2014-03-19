@@ -181,7 +181,7 @@ static char *ssl_error[] = {
  *	-EAGAIN		repeat operation
  */
 static int
-socket3_check_io_state_tls(SSL *ssl, int code)
+socket3_check_io_state_tls(SSL *ssl, int code, const char *caller_fn)
 {
 	unsigned long err_num;
 	int err, fd = SSL_get_fd(ssl);
@@ -206,7 +206,10 @@ socket3_check_io_state_tls(SSL *ssl, int code)
 	*msg = '\0';
 	if (0 < (err_num = ERR_peek_error()))
 		ERR_error_string_n(err_num, msg, sizeof (msg));
-	syslog(LOG_ERR, "fd=%d errno=%d ssl=%s %s", SSL_get_fd(ssl), errno, ssl_error[err], msg);
+	syslog(
+		LOG_ERR, "%s: fd=%d errno=%d ssl=%s %s",
+		TextEmpty(caller_fn), SSL_get_fd(ssl), errno, ssl_error[err], msg
+	);
 
 	return SOCKET_ERROR;
 }
@@ -629,7 +632,7 @@ socket3_start_tls(SOCKET fd, int is_server, long ms)
 	}
 
 	while ((err = SSL_do_handshake(ssl)) < 1) {
-		if (0 <= (err = socket3_check_io_state_tls(ssl, err)))
+		if (0 <= (err = socket3_check_io_state_tls(ssl, err, __func__)))
 			break;
 		if (err != -EAGAIN)
 			goto error1;
@@ -819,7 +822,7 @@ socket3_peek_tls(SOCKET fd, unsigned char *buffer, long size, SocketAddress *fro
 	if (ssl != NULL && from == NULL) {
 		ERR_clear_error();
 		while ((ret = SSL_peek(ssl, buffer, (int) size)) < 1) {
-			if ((ret = socket3_check_io_state_tls(ssl, ret)) != -EAGAIN)
+			if ((ret = socket3_check_io_state_tls(ssl, ret, __func__)) != -EAGAIN)
 				break;
 		}
 
@@ -860,7 +863,7 @@ socket3_read_tls(SOCKET fd, unsigned char *buffer, long size, SocketAddress *fro
 	if (ssl != NULL && from == NULL) {
 		ERR_clear_error();
 		while ((ret = SSL_read(ssl, buffer, (int) size)) < 1) {
-			if ((ret = socket3_check_io_state_tls(ssl, ret)) != -EAGAIN)
+			if ((ret = socket3_check_io_state_tls(ssl, ret, __func__)) != -EAGAIN)
 				break;
 		}
 
@@ -902,7 +905,7 @@ socket3_write_tls(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to
 	if (ssl != NULL && to == NULL) {
 		ERR_clear_error();
 		while ((ret = SSL_write(ssl, buffer, (int) size)) < 1) {
-			if ((ret = socket3_check_io_state_tls(ssl, ret)) != -EAGAIN)
+			if ((ret = socket3_check_io_state_tls(ssl, ret, __func__)) != -EAGAIN)
 				break;
 		}
 
@@ -979,7 +982,7 @@ socket3_end_tls(SOCKET fd)
 	if (ssl != NULL) {
 		socket3_set_userdata(fd, NULL);
 		while ((ret = SSL_shutdown(ssl)) < 1) {
-			if ((rc = socket3_check_io_state_tls(ssl, ret)) != -EAGAIN)
+			if ((rc = socket3_check_io_state_tls(ssl, ret, __func__)) != -EAGAIN)
 				break;
 		}
 		SSL_free(ssl);

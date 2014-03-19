@@ -77,6 +77,8 @@ tools/natsort
 tools/nph-download.cgi
 tools/pad
 tools/popin
+tools/imapin
+tools/fmtjson
 tools/range
 tools/rarlist
 tools/rsleep

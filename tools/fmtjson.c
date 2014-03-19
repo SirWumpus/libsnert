@@ -1,16 +1,19 @@
 /*
- * Simple indent(1) like example.
+ * Simple indent(1) like tool.
+ *
+ * Copyright 2014 by Anthony Howe. All rights reserved.
  */
 
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <getopt.h>
 #include <sysexits.h>
 
 static const char newline[] = "\n";
 
-void 
+void
 print_indent(FILE *out, const char *indent, int count)
 {
 	int i;
@@ -20,7 +23,7 @@ print_indent(FILE *out, const char *indent, int count)
 }
 
 void
-json_reader_dump(FILE *in, const char *indent, FILE *out) 
+json_reader_dump(FILE *in, const char *indent, FILE *out)
 {
 	int escape = 0;
 	int octet, level = 0, quote = 0;
@@ -66,7 +69,7 @@ json_reader_dump(FILE *in, const char *indent, FILE *out)
 				break;
 			fputs(newline, out);
 			print_indent(out, indent, --level);
-			if (level < 0) 
+			if (level < 0)
 				fprintf(stderr, "%c inbalance\n", octet);
 			break;
 
