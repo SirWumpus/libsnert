@@ -27,6 +27,10 @@ extern "C" {
 # endif
 #endif
 
+#if defined(__WIN32__) || defined(__CYGWIN__)
+# include <windows.h>
+#endif
+
 #include <com/snert/lib/sys/pthread.h>
 
 /***********************************************************************

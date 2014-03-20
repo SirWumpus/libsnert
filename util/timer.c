@@ -73,7 +73,7 @@ timerThread(void *_data)
 
 	PTHREAD_MUTEX_UNLOCK(&timer->mutex);
 
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 	pthread_exit(NULL);
 #endif
 	return NULL;
@@ -84,7 +84,7 @@ timerThread(void *_data)
 static int
 timerIsCanceled(Timer *timer)
 {
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 	return WaitForSingleObject(timer->cancel_event, 0) == WAIT_OBJECT_0;
 #else
 	return 0;
@@ -112,7 +112,7 @@ timerThread(void *_data)
 #ifdef __unix__
 		pthread_testcancel();
 #endif
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 		if (timerIsCanceled(timer))
 			break;
 #endif
@@ -120,7 +120,7 @@ timerThread(void *_data)
 #ifdef __unix__
 		pthread_testcancel();
 #endif
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 		if (timerIsCanceled(timer))
 			break;
 #endif
@@ -180,7 +180,7 @@ timerCreate(TimerTask task, void *data, CLOCK *delay, CLOCK *period, size_t stac
 	if (pthread_mutex_init(&timer->mutex, NULL))
 		goto error2;
 #endif
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 	timer->cancel_event = CreateEvent(NULL, 0, 0, NULL);
 #endif
 #if defined(HAVE_PTHREAD_ATTR_INIT)
@@ -249,7 +249,7 @@ timerFree(void *_timer)
 # endif
 		PTHREAD_MUTEX_UNLOCK(&timer->mutex);
 #endif
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 		SetEvent(timer->cancel_event);
 #endif
 		(void) pthread_join(timer->thread, NULL);
@@ -257,7 +257,7 @@ timerFree(void *_timer)
 		(void) pthread_cond_destroy(&timer->cv);
 		(void) pthreadMutexDestroy(&timer->mutex);
 #endif
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 		CloseHandle(timer->cancel_event);
 #endif
 		if (timer->free_data != NULL)
