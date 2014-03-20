@@ -175,7 +175,7 @@ struct timer {
 	pthread_cond_t cv;
 	pthread_mutex_t mutex;
 #endif
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 	HANDLE cancel_event;
 #endif
 	CLOCK delay;

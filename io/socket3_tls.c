@@ -384,7 +384,6 @@ socket3_set_cert_key_chain(const char *key_cert_pem, const char *key_pass)
 }
 
 static int socket3_initialised_tls = 0;
-static unsigned char session_id_ctx[] = "libsnert-socket3";
 
 /**
  * Initialise the socket and SSL/TLS subsystems.
@@ -401,6 +400,7 @@ socket3_init_tls(void)
 #ifdef HAVE_OPENSSL_SSL_H
 {
 	int i, n;
+	static unsigned char session_id_ctx[] = "libsnert-socket3";
 
 	SSL_library_init();
 	SSL_load_error_strings();

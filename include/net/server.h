@@ -127,7 +127,7 @@ struct server_worker {
 	ListItem node;
 	pthread_t thread;
 	volatile int running;
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 	HANDLE kill_event;
 #endif
 	/* Public */
@@ -174,7 +174,7 @@ struct server_session {
 	ListItem node;
 	pthread_t thread;
 	ServerInterface *iface;
-#if defined(__WIN32__)
+#if defined(__WIN32__) || defined(__CYGWIN__)
 	HANDLE kill_event;
 #endif
 	/* Public data. */
@@ -261,7 +261,7 @@ extern void serverAtForkPrepare(Server *server);
 extern void serverAtForkParent(Server *server);
 extern void serverAtForkChild(Server *server);
 
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 typedef enum {
 	SIGNAL_QUIT = 0,
 	SIGNAL_TERM = 1,
@@ -275,7 +275,7 @@ typedef struct {
 #ifdef __unix__
 	sigset_t signal_set;
 #endif
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(__CYGWIN__)
 	HANDLE signal_event[SIGNAL_LENGTH];
 #endif
 	ServerSignalHook sig_hup;

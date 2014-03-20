@@ -1782,8 +1782,9 @@ AC_DEFUN(SNERT_NETWORK,[
 	echo "Check for Network services..."
 	echo
 	SNERT_CHECK_PREDEFINE(__WIN32__)
+	SNERT_CHECK_PREDEFINE(__CYGWIN__)
 
-	if test "$ac_cv_define___WIN32__" = 'no' ; then
+	if test "$ac_cv_define___WIN32__" = 'no' -a "$ac_cv_define___CYGWIN__" = 'no' ; then
 		AC_SEARCH_LIBS([socket], [socket nsl])
 		AC_SEARCH_LIBS([inet_aton], [socket nsl resolv])
 
@@ -1850,14 +1851,14 @@ dnl #endif
 		AC_CHECK_HEADER(winsock2.h,[
 			AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_]winsock2.h))
 		],[],[
-#if defined(__WIN32__) && defined(HAVE_WINDOWS_H)
+#if ( defined(__WIN32__) || defined(__CYGWIN__) ) && defined(HAVE_WINDOWS_H)
 # include  <windows.h>
 #endif
 		])
 		AC_CHECK_HEADER(ws2tcpip.h,[
 			AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_]ws2tcpip.h))
 		],[],[
-#if defined(__WIN32__)
+#if defined(__WIN32__) || defined(__CYGWIN__)
 # if defined(HAVE_WINDOWS_H)
 #  include  <windows.h>
 # endif
@@ -1906,7 +1907,7 @@ dnl #endif
 		done
 	fi
 
-	if test ${platform:-UNKNOWN} = 'CYGWIN' -o ${ac_cv_define___WIN32__:-no} != 'no'; then
+	if test ${ac_cv_define___CYGWIN__:-no} != 'no' -o ${ac_cv_define___WIN32__:-no} != 'no'; then
 		AC_SUBST(HAVE_LIB_WS2_32, '-lws2_32')
 		AC_SUBST(HAVE_LIB_IPHLPAPI, '-lIphlpapi')
 		NETWORK_LIBS="-lws2_32 -lIphlpapi $NETWORK_LIBS"
@@ -1914,7 +1915,7 @@ dnl #endif
 	fi
 
 		AC_CHECK_TYPES([struct sockaddr_in6, struct in6_addr, struct sockaddr_un, socklen_t],[],[],[
-#if defined(__WIN32__)
+#if defined(__WIN32__) || defined(__CYGWIN__)
 # define WINVER	0x0501
 # if defined(HAVE_WINDOWS_H)
 #  include  <windows.h>
@@ -1947,7 +1948,7 @@ dnl #endif
 #endif
 		])
 		AC_CHECK_MEMBERS([struct sockaddr.sa_len, struct sockaddr_in.sin_len, struct sockaddr_in6.sin6_len, struct sockaddr_un.sun_len],[],[],[
-#if defined(__WIN32__)
+#if defined(__WIN32__) || defined(__CYGWIN__)
 # define WINVER	0x0501
 # if defined(HAVE_WINDOWS_H)
 #  include  <windows.h>

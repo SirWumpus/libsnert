@@ -228,10 +228,10 @@ distclean: title
 	-rm -rf autom4te.cache configure.lineno version.h.in
 	-rm -f *.log *.o *.obj *.tds *.stackdump core *.core core.*
 	-rm -f config.log config.status install.sh makefile version.sh
-	if test -e ${LIBSNERT_SQLITE3_DIR}/include/sqlite3.h; then \
+	if test -f "${LIBSNERT_SQLITE3_DIR}/include/sqlite3.h" ; then \
 	    rm -rf ${LIBSNERT_SQLITE3_DIR}/bin ${LIBSNERT_SQLITE3_DIR}/include ${LIBSNERT_SQLITE3_DIR}/lib ; \
+	    cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION} ; ${MAKE} ${MFLAGS} $@ ; \
 	fi
-	cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}; ${MAKE} ${MFLAGS} $@
 	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'

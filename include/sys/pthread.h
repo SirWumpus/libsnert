@@ -11,7 +11,7 @@
 extern "C" {
 # endif
 
-# if defined(__WIN32__)
+# if defined(__WIN32__) && !defined(__CYGWIN__)
 #  include <windows.h>
 #  include <com/snert/lib/sys/Time.h>
 

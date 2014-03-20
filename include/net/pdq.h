@@ -23,7 +23,7 @@ extern "C" {
 
 #include <stdio.h>
 
-#if defined(__WIN32__)
+#if defined(__WIN32__) || defined(__CYGWIN__)
 # if defined(__VISUALC__)
 #  define _WINSOCK2API_
 # endif
