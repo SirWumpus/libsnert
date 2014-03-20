@@ -475,11 +475,11 @@ socket3_init_tls(void)
 void
 socket3_fini_tls(void)
 {
-	int i, n;
-
 	if (socket3_initialised_tls) {
 		socket3_initialised_tls--;
 #ifdef HAVE_OPENSSL_SSL_H
+{
+		int i, n;
 		if (0 < socket3_debug)
 			syslog(LOG_DEBUG, "socket3_fini_tls()");
 		ERR_free_strings();
@@ -491,6 +491,7 @@ socket3_fini_tls(void)
 		for (i = 0; i < n; i++)
 			LOCK_FREE(&locks[i]);
 		free(locks);
+}
 #endif
 		socket3_fini_fd();
 	}

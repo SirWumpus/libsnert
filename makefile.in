@@ -239,6 +239,11 @@ distclean: title
 	@echo '***************************************************************'
 	@echo
 
+links:
+	cd ../.. ;  mkdir -p lib include/org include/com/snert ; \
+	cd include/org ; ln -s ../../src/lib/include/valgrind . ; \
+	cd ../com/snert ; ln -s ../../../src/lib/include lib
+
 predefines:
 	gcc ${CFLAGS} -dM -E -xc /dev/null
 

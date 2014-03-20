@@ -1693,11 +1693,12 @@ dnl
 dnl SNERT_BUILD_THREADED_SQLITE3
 dnl
 AC_DEFUN(SNERT_BUILD_THREADED_SQLITE3,[
+AS_IF([test ${with_sqlite3:-default} = 'default'],[
 	echo
-	AC_MSG_CHECKING([build threaded SQLite3])
+	AC_MSG_CHECKING([for bundled SQLite3])
+
 	AC_SUBST(LIBSNERT_SQLITE3_DIR, ../../../../org/sqlite)
-	supplied_sqlite3_tar_gz=`ls -t1 ${LIBSNERT_SQLITE3_DIR}/sqlite*.gz | wc -l`
-	if test ${with_sqlite3:-default} = 'default' -a $supplied_sqlite3_tar_gz -gt 0; then
+	AS_IF([ test `ls -t1 ${LIBSNERT_SQLITE3_DIR}/sqlite*.gz | wc -l` -gt 0 ],[
 		AC_MSG_RESULT([yes])
 
 		libsnertdir=`pwd`
@@ -1715,7 +1716,7 @@ AC_DEFUN(SNERT_BUILD_THREADED_SQLITE3,[
 		AC_SUBST(LIBSNERT_SQLITE3_VERSION, ${dir})
 
 		echo "sqlite directory... $with_sqlite3"
-		echo "libsnert supplied version..." ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}
+		echo "bundled version..." ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}
 		AC_MSG_CHECKING([for previously built threaded SQLite3])
 		if test -f "$with_sqlite3/include/sqlite3.h"; then
 			AC_MSG_RESULT([yes])
@@ -1726,13 +1727,13 @@ AC_DEFUN(SNERT_BUILD_THREADED_SQLITE3,[
 			AC_MSG_RESULT($tarfile)
 
 			AC_MSG_CHECKING([if unpacked])
-			if test -d $dir ; then
+			AS_IF([ test -d $dir ],[
 				AC_MSG_RESULT([yes])
-			else
+			],[
 				tar -zxf $tarfile
 				AC_MSG_RESULT([unpacked])
 				make patch
-			fi
+			])
 
 			cd $dir
 			AC_MSG_CHECKING([sqlite3 build directory])
@@ -1766,10 +1767,11 @@ AC_DEFUN(SNERT_BUILD_THREADED_SQLITE3,[
 		SQLITE3_I_DIR="-I$with_sqlite3/include"
 		SQLITE3_L_DIR="-L$with_sqlite3/lib"
 		cd $libsnertdir
-	else
+	],[
 		AC_MSG_RESULT([no])
-	fi
+	])
 	echo
+])
 ])
 
 dnl

@@ -42,6 +42,10 @@
 extern long getpid(void);
 #endif
 
+#if defined(__CYGWIN__) || defined(__MINGW32__) || defined(__BORLANDC__)
+# include <io.h>
+#endif
+
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/io/posix.h>
 #include <com/snert/lib/sys/Time.h>
