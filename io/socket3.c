@@ -995,7 +995,6 @@ socket3_multicast_loopback(SOCKET fd, int family, int flag)
 {
 	int rc = 0;
 	char byte = flag;
-	unsigned word = flag;
 
 	switch (family) {
 	case AF_INET:
@@ -1004,8 +1003,11 @@ socket3_multicast_loopback(SOCKET fd, int family, int flag)
 
 #ifdef HAVE_STRUCT_SOCKADDR_IN6
 	case AF_INET6:
+{
+		unsigned word = flag;
 		rc = setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &word, sizeof (word));
 		break;
+}
 #endif
 	}
 	UPDATE_ERRNO;

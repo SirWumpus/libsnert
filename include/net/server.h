@@ -17,11 +17,15 @@ extern "C" {
  ***
  ***********************************************************************/
 
-#ifdef NDEBUG
+#if defined(NDEBUG) || ! defined(__linux__) 
 # define NVALGRIND
 #endif
 #include <org/valgrind/valgrind.h>
 #include <org/valgrind/memcheck.h>
+
+#if defined(__WIN32__) || defined(__CYGWIN__)
+# include <windows.h>
+#endif
 
 #ifdef __sun__
 # define _POSIX_PTHREAD_SEMANTICS
