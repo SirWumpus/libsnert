@@ -123,9 +123,9 @@ extern int h_error;
 # define closesocket			close
 # define UPDATE_ERRNO
 
-#ifndef SOCKET
-#define SOCKET				int
-#endif
+# ifndef SOCKET
+#  define SOCKET			int
+# endif
 
 # ifndef EWOULDBLOCK
 #  define EWOULDBLOCK			EAGAIN
@@ -145,7 +145,7 @@ extern int h_error;
 #endif
 
 #ifndef SOCKET_BUFSIZ
-#define SOCKET_BUFSIZ			1024
+# define SOCKET_BUFSIZ			1024
 #endif
 #define SOCKET_ERROR			(-1)
 #define SOCKET_EOF			(-2)

@@ -1858,6 +1858,7 @@ dnl #endif
 #endif
 		])
 		AC_CHECK_HEADER(ws2tcpip.h,[
+			AC_SUBST(HAVE_LIB_WS2_32, '-lws2_32')
 			AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_]ws2tcpip.h))
 		],[],[
 #if defined(__WIN32__)
@@ -1870,6 +1871,7 @@ dnl #endif
 #endif
 		])
 		AC_CHECK_HEADER(Iphlpapi.h,[
+			AC_SUBST(HAVE_LIB_IPHLPAPI, '-lIphlpapi')
 			AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_]Iphlpapi.h))
 		],[],[
 #if defined(__WIN32__) 
@@ -1919,8 +1921,6 @@ dnl #endif
 	fi
 
 	if test ${ac_cv_define___CYGWIN__:-no} != 'no' -o ${ac_cv_define___WIN32__:-no} != 'no'; then
-		AC_SUBST(HAVE_LIB_WS2_32, '-lws2_32')
-		AC_SUBST(HAVE_LIB_IPHLPAPI, '-lIphlpapi')
 		NETWORK_LIBS="-lws2_32 -lIphlpapi $NETWORK_LIBS"
 		AC_SUBST(NETWORK_LIBS, ${NETWORK_LIBS})
 	fi

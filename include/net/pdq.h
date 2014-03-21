@@ -23,7 +23,7 @@ extern "C" {
 
 #include <stdio.h>
 
-#if defined(__WIN32__) || defined(__CYGWIN__)
+#if defined(__WIN32__) 
 # if defined(__VISUALC__)
 #  define _WINSOCK2API_
 # endif
@@ -33,8 +33,12 @@ extern "C" {
  */
 # define WINVER		0x0501
 
-# include <windows.h>
-# include <winsock2.h>
+# ifdef HAVE_WINDOWS_H
+#  include <windows.h>
+# endif
+# ifdef HAVE_WINSOCK2_H
+#  include <winsock2.h>
+# endif
 # define ETIMEDOUT	WSAETIMEDOUT
 #else
 # include <sys/types.h>
@@ -64,7 +68,7 @@ extern "C" {
 #include <com/snert/lib/type/Vector.h>
 
 #ifndef SOCKET
-#define SOCKET				int
+# define SOCKET				int
 #endif
 
 /***********************************************************************
