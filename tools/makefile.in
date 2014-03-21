@@ -83,8 +83,7 @@ $O$E :
 
 ORIGINAL	= ansi$E flip$E fmtjson$E pad$E popin$E uue$E show$E range$E sqlargs$E \
 		  counter$E clamstream$E dnsd$E secho$E sechod$E natsort$E
-MEH_TOOLS	= sendform$E nph-download.cgi here-i-am$E where-are-you$E \
-		  ziplist$E rarlist$E taglengths$E rsleep$E
+MEH_TOOLS	= sendform$E nph-download.cgi ziplist$E rarlist$E taglengths$E rsleep$E
 MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E \
 		  echod$E
 UNIX 		= filed zoned mailgroup socketsink$E tee$E

@@ -53,7 +53,7 @@
 # endif
 #endif
 
-#if defined(__BORLANDC__) || defined(__CYGWIN__)
+#ifdef HAVE_IO_H
 # include <io.h>
 #endif
 

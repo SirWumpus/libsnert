@@ -42,7 +42,7 @@
 extern long getpid(void);
 #endif
 
-#if defined(__CYGWIN__) || defined(__MINGW32__) || defined(__BORLANDC__)
+#if HAVE_IO_H
 # include <io.h>
 #endif
 

@@ -347,7 +347,6 @@ com/snert/src/lib/tools/filed.c
 com/snert/src/lib/tools/flip.c
 com/snert/src/lib/tools/fmtjson.c
 com/snert/src/lib/tools/grouplist.c
-com/snert/src/lib/tools/here-i-am.c
 com/snert/src/lib/tools/taglengths.c
 com/snert/src/lib/tools/kat.c
 com/snert/src/lib/tools/mail-cycle.sh
@@ -382,7 +381,6 @@ com/snert/src/lib/tools/strings.c
 com/snert/src/lib/tools/tee.c
 com/snert/src/lib/tools/time2date.c
 com/snert/src/lib/tools/uue.c
-com/snert/src/lib/tools/where-are-you.c
 com/snert/src/lib/tools/zoned.c
 com/snert/src/lib/tools/ziplist.c
 com/snert/src/lib/tools/ZipFormat-6.3.2.txt

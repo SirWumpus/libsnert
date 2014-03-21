@@ -31,6 +31,7 @@ m4_define([SNERT_GCC_SETTINGS],[
 		GCC_MINOR=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC_MINOR__ \(.*\)/\1/p'`
 dnl		AS_IF([test $GCC_MAJOR -ge 4],[CFLAGS="-Wno-pointer-sign $CFLAGS"])
 		AS_IF([test $GCC_MAJOR -ge 3],[CFLAGS="-Wno-char-subscripts $CFLAGS"])
+		AS_IF([test $GCC_MAJOR -ge 4 -a ${platform:-UNKNOWN} = 'CYGWIN'],[CFLAGS="-Wunused-but-set-variable $CFLAGS"])
 		CFLAGS="-Wall $CFLAGS"
 	])
 	AS_IF([test ${enable_debug:-no} = 'no'],[
@@ -44,7 +45,6 @@ dnl		AS_IF([test $GCC_MAJOR -ge 4],[CFLAGS="-Wno-pointer-sign $CFLAGS"])
 		AS_IF([test ${enable_debug:-no} = 'no'],[CFLAGS="-s ${CFLAGS}"])
 		CFLAGS="-I/usr/include/w32api ${CFLAGS}"
 		LDFLAGS="-L/usr/lib/w32api ${LDFLAGS}"
-		AS_IF([test $GCC_MAJOR -ge 4],[CFLAGS="-Wunused-but-set-variable $CFLAGS"])
 
 dnl 		if test ${enable_win32:-no} = 'yes'; then
 dnl 			dnl -s		strip, no symbols
@@ -508,10 +508,7 @@ AC_DEFUN(SNERT_PLATFORM,[
 		isDebian='yes'
 	fi
 
-	AC_CHECK_TOOL(MD5SUM, md5sum)
-	if test ${MD5SUM:-no} = 'no' ; then
-		AC_CHECK_TOOL(MD5SUM, md5)
-	fi
+	AC_PATH_PROGS([MD5SUM],[md5sum md5])
 
 	case "$platform" in
 	NetBSD)
@@ -519,22 +516,8 @@ AC_DEFUN(SNERT_PLATFORM,[
 		;;
 	esac
 
-
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_PLATFORM, [["${platform}"]])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_BUILD_HOST, [["`hostname`"]])
-
-dnl	case $platform in
-dnl	Linux*)
-dnl		kernel=`uname -r`
-dnl		case "$kernel" in
-dnl		1.*|2.0.*)
-dnl			echo "Linux kernel... $kernel"
-dnl			dnl Older Linux kernels have a broken poll() where it
-dnl			dnl might block indefinitely in nanosleep().
-dnl			AC_DEFINE_UNQUOTED(HAS_BROKEN_POLL)
-dnl			;;
-dnl		esac
-dnl	esac
 ])
 
 dnl
@@ -544,18 +527,13 @@ AC_DEFUN(SNERT_CHECK_CONFIGURE,[
 	# When we have no makefile, do it ourselves...
 dnl	snert_configure_command="$[]0 $[]@"
 
-	AC_CHECK_TOOL([AUTOCONF], [autoconf-2.61])
-	if test ${AUTOCONF:-no} = 'no' ; then
-		AC_CHECK_TOOL([AUTOCONF], [autoconf-2.59])
-		if test ${AUTOCONF:-no} = 'no' ; then
-			AC_CHECK_TOOL([AUTOCONF], [autoconf], [true])
-		fi
-	fi
+	AC_PATH_PROGS([AUTOCONF],[autoconf-2.69 autoconf-2.59 autoconf],[no],[/usr/pkg/bin /usr/local/bin /usr/bin])
 
 	if test ${AUTOCONF:-no} != 'no' -a \( aclocal.m4 -nt configure -o configure.in -nt configure -o configure.ac -nt configure \); then
 		echo 'Rebuilding the configure script first...'
 		${AUTOCONF} -f
 		echo 'Restarting configure script...'
+		echo
 		echo $snert_configure_command
  		exec $snert_configure_command
 	fi
@@ -929,13 +907,8 @@ AC_DEFUN(SNERT_FUNC_FLOCK,[
 	echo
 	echo "Check for flock() support..."
 	echo
-	AC_CHECK_HEADER(sys/file.h, [
-		AC_DEFINE_UNQUOTED(HAVE_SYS_FILE_H)
-
-		SNERT_CHECK_DEFINE(LOCK_SH, sys/file.h)
-		if test $ac_cv_define_LOCK_SH = 'yes'; then
-			AC_CHECK_FUNC(flock)
-		fi
+	AC_CHECK_HEADERS([sys/file.h], [
+		AC_CHECK_FUNCS(flock)
 	])
 ])
 
@@ -1405,6 +1378,8 @@ AC_DEFUN(SNERT_EXTRA_STDIO,[
 	echo
 	echo "Check for supplemental stdio support..."
 	echo
+	SNERT_CHECK_PREDEFINE(__CYGWIN__)
+	AC_CHECK_HEADERS([io.h])
 	AC_CHECK_FUNCS(getdelim getline)
 ])
 
@@ -1848,7 +1823,7 @@ dnl #endif
 			])
 		])
 	else
-		AC_CHECK_HEADERS(windows.h io.h)
+		AC_CHECK_HEADERS(windows.h)
 		AC_CHECK_HEADER(winsock2.h,[
 			AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_]winsock2.h))
 		],[],[

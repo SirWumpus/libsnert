@@ -19,7 +19,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#if defined(__BORLANDC__)
+#if defined(__BORLANDC__) || defined(__CYGWIN__)
 # include <io.h>
 #endif
 

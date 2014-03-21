@@ -10,6 +10,10 @@
 #include <string.h>
 #include <limits.h>
 
+#ifdef HAVE_IO_H
+# include <io.h>
+#endif
+
 #include <com/snert/lib/crc/Crc.h>
 #include <com/snert/lib/io/posix.h>
 #include <com/snert/lib/io/Error.h>

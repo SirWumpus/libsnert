@@ -23,6 +23,10 @@
 #include <com/snert/lib/io/file.h>
 #include <com/snert/lib/io/posix.h>
 
+#ifdef HAVE_IO_H
+# include <io.h>
+#endif
+
 /***********************************************************************
  *** Global Variables
  ***********************************************************************/

@@ -10,6 +10,10 @@
 #include <fcntl.h>
 #include <stdio.h>
 
+#ifdef HAVE_IO_H
+# include <io.h>
+#endif
+
 #include <com/snert/lib/io/posix.h>
 #include <com/snert/lib/io/Error.h>
 #include <com/snert/lib/util/Text.h>

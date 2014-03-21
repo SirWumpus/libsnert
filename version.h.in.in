@@ -177,7 +177,6 @@ extern VersionInfo LibSnert;
 /*
  * Assumed defaults for types when not defined.
  */
-/* OLD #if !defined(HAVE_GID_T) && !defined(__CYGWIN__) */
 #ifndef HAVE_GID_T
 typedef int gid_t;
 #endif
@@ -194,7 +193,6 @@ typedef HANDLE pid_t;
 typedef int pid_t;
 # endif
 #endif
-/* OLD #if !defined(HAVE_UID_T) && !defined(__CYGWIN__) */
 #ifndef HAVE_UID_T
 typedef int uid_t;
 #endif
