@@ -1784,7 +1784,7 @@ AC_DEFUN(SNERT_NETWORK,[
 	SNERT_CHECK_PREDEFINE(__WIN32__)
 	SNERT_CHECK_PREDEFINE(__CYGWIN__)
 
-	if test "$ac_cv_define___WIN32__" = 'no' -a "$ac_cv_define___CYGWIN__" = 'no' ; then
+	if test "$ac_cv_define___WIN32__" = 'no' ; then
 		AC_SEARCH_LIBS([socket], [socket nsl])
 		AC_SEARCH_LIBS([inet_aton], [socket nsl resolv])
 
@@ -1851,19 +1851,30 @@ dnl #endif
 		AC_CHECK_HEADER(winsock2.h,[
 			AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_]winsock2.h))
 		],[],[
-#if ( defined(__WIN32__) || defined(__CYGWIN__) ) && defined(HAVE_WINDOWS_H)
-# include  <windows.h>
+#if defined(__WIN32__) 
+# if defined(HAVE_WINDOWS_H)
+#  include  <windows.h>
+# endif
 #endif
 		])
 		AC_CHECK_HEADER(ws2tcpip.h,[
 			AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_]ws2tcpip.h))
 		],[],[
-#if defined(__WIN32__) || defined(__CYGWIN__)
+#if defined(__WIN32__)
 # if defined(HAVE_WINDOWS_H)
 #  include  <windows.h>
 # endif
 # if defined(HAVE_WINSOCK2_H)
 #  include  <winsock2.h>
+# endif
+#endif
+		])
+		AC_CHECK_HEADER(Iphlpapi.h,[
+			AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_]Iphlpapi.h))
+		],[],[
+#if defined(__WIN32__) 
+# if defined(HAVE_WINDOWS_H)
+#  include  <windows.h>
 # endif
 #endif
 		])

@@ -58,7 +58,7 @@ extern int h_error;
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/io/socketAddress.h>
 
-#if defined(__WIN32__) || defined(__CYGWIN__)
+#if defined(__WIN32__) 
 # if defined(__VISUALC__)
 #  define _WINSOCK2API_
 # endif
@@ -68,8 +68,12 @@ extern int h_error;
  */
 # define WINVER		0x0501
 
-# include <ws2tcpip.h>	/* includes winsock2.h -> windows.h */
-# include <Iphlpapi.h>
+# ifdef HAVE_WS2TCPIP_H
+#  include <ws2tcpip.h>	/* includes winsock2.h -> windows.h */
+# endif
+# ifdef HAVE_IPHLPAPI_H
+#  include <Iphlpapi.h>
+# endif
 
 # ifndef ETIMEDOUT
 #  define ETIMEDOUT			WSAETIMEDOUT
