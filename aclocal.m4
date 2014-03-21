@@ -44,6 +44,7 @@ dnl		AS_IF([test $GCC_MAJOR -ge 4],[CFLAGS="-Wno-pointer-sign $CFLAGS"])
 		AS_IF([test ${enable_debug:-no} = 'no'],[CFLAGS="-s ${CFLAGS}"])
 		CFLAGS="-I/usr/include/w32api ${CFLAGS}"
 		LDFLAGS="-L/usr/lib/w32api ${LDFLAGS}"
+		AS_IF([test $GCC_MAJOR -ge 4],[CFLAGS="-Wunused-but-set-variable $CFLAGS"])
 
 dnl 		if test ${enable_win32:-no} = 'yes'; then
 dnl 			dnl -s		strip, no symbols
@@ -1926,7 +1927,7 @@ dnl #endif
 	fi
 
 		AC_CHECK_TYPES([struct sockaddr_in6, struct in6_addr, struct sockaddr_un, socklen_t],[],[],[
-#if defined(__WIN32__) || defined(__CYGWIN__)
+#if defined(__WIN32__)
 # define WINVER	0x0501
 # if defined(HAVE_WINDOWS_H)
 #  include  <windows.h>
@@ -1959,7 +1960,7 @@ dnl #endif
 #endif
 		])
 		AC_CHECK_MEMBERS([struct sockaddr.sa_len, struct sockaddr_in.sin_len, struct sockaddr_in6.sin6_len, struct sockaddr_un.sun_len],[],[],[
-#if defined(__WIN32__) || defined(__CYGWIN__)
+#if defined(__WIN32__)
 # define WINVER	0x0501
 # if defined(HAVE_WINDOWS_H)
 #  include  <windows.h>
