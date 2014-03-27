@@ -173,6 +173,14 @@ extern VersionInfo LibSnert;
 #undef HAVE_SIZE_T
 #undef HAVE_SSIZE_T
 #undef HAVE_TIME_T
+#undef HAVE_INTPTR_T		
+#undef HAVE_UINTPTR_T	
+
+/*
+ * C99/C11 
+ */
+#undef HAVE_INTMAX_T
+#undef HAVE_UINTMAX_T
 
 /*
  * Assumed defaults for types when not defined.

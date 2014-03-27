@@ -57,6 +57,21 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.28--
+
+   *	Upgraded SQLite to 3.8.4.2
+
+   *	Updated the TLD list.
+
+   !	Added configure checks for some newer C99/C11 int types.
+
+--1.75.27--
+
+  !!	Fix socket3_close_tls() and socket3_shutdown_tls() to both use
+	socket3_end_tls() when terminating TLS connections. 
+
+   !	Fixed socket3_close_fd() read/discard loop to use socket3_read_fd(),
+	instead of socket3_read() to avoid the read hook call.
 
 --1.75.26--
 
