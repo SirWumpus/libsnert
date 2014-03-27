@@ -663,7 +663,7 @@ socket3_close_fd(SOCKET fd)
 		 * is closed by consuming and discarding any waiting data.
 		 */
 		(void) socket3_set_nonblocking(fd, 1);
-		while (0 < socket3_read(fd, buffer, sizeof (buffer), NULL))
+		while (0 < socket3_read_fd(fd, buffer, sizeof (buffer), NULL))
 			;
 
 		closesocket(fd);

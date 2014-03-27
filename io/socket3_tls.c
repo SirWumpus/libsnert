@@ -650,7 +650,7 @@ socket3_start_tls(SOCKET fd, int is_server, long ms)
 	if (0 < socket3_debug) {
 		char cipher[SOCKET_CIPHER_STRING_SIZE];
 		(void) socket3_get_cipher_tls(fd, cipher, sizeof (cipher));
-		syslog(LOG_DEBUG, "fd=%d %s", (int) fd, cipher);
+		syslog(LOG_DEBUG, "%s: fd=%d %s", __func__, (int) fd, cipher);
 	}
 
 	return 0;
@@ -983,7 +983,8 @@ socket3_end_tls(SOCKET fd)
 	if (ssl != NULL) {
 		socket3_set_userdata(fd, NULL);
 		while ((ret = SSL_shutdown(ssl)) < 1) {
-			if ((rc = socket3_check_io_state_tls(ssl, ret, __func__)) != -EAGAIN)
+			if (ret < 0
+			&& (rc = socket3_check_io_state_tls(ssl, ret, __func__)) != -EAGAIN)
 				break;
 		}
 		SSL_free(ssl);
@@ -1008,18 +1009,9 @@ socket3_end_tls(SOCKET fd)
 int
 socket3_shutdown_tls(SOCKET fd, int shut)
 {
-#ifdef HAVE_OPENSSL_SSL_H
-	SSL *ssl = socket3_get_userdata(fd);
-
 	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "socket3_shutdown_tls(%d, %d)", (int) fd, shut);
-
-	if (ssl != NULL) {
-		socket3_set_userdata(fd, NULL);
-		(void) SSL_shutdown(ssl);
-		SSL_free(ssl);
-	}
-#endif
+	socket3_end_tls(fd);
 	return socket3_shutdown_fd(fd, shut);
 }
 
@@ -1035,5 +1027,6 @@ socket3_close_tls(SOCKET fd)
 {
 	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "socket3_close_tls(%d)", (int) fd);
+	socket3_end_tls(fd);
 	socket3_close_fd(fd);
 }
