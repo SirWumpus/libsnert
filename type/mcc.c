@@ -1043,7 +1043,7 @@ mccPutKeyValue(mcc_handle *mcc, const char *key, const char *value, unsigned lon
 	row.ttl = ttl;
 	row.expires = time(NULL) + ttl;
 
-	length = vsnprintf((char *)MCC_PTR_K(&row), MCC_DATA_SIZE, "%s", (char *)key);
+	length = snprintf((char *)MCC_PTR_K(&row), MCC_DATA_SIZE, "%s", (char *)key);
 	MCC_SET_K_SIZE(&row, length);
 
 	length = snprintf((char *)MCC_PTR_V(&row), MCC_GET_V_SPACE(&row), "%s", value);
