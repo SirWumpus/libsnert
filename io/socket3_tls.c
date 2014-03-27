@@ -974,7 +974,6 @@ int
 socket3_end_tls(SOCKET fd)
 {
 #ifdef HAVE_OPENSSL_SSL_H
-	int ret, rc;
 	SSL *ssl = socket3_get_userdata(fd);
 
 	if (0 < socket3_debug)
@@ -982,13 +981,18 @@ socket3_end_tls(SOCKET fd)
 
 	if (ssl != NULL) {
 		socket3_set_userdata(fd, NULL);
-		while ((ret = SSL_shutdown(ssl)) < 1) {
-			if (ret < 0
-			&& (rc = socket3_check_io_state_tls(ssl, ret, __func__)) != -EAGAIN)
-				break;
-		}
+
+		/* See https://www.openssl.org/docs/ssl/SSL_shutdown.html 
+		 * concerning the 2-step nature of SSL_shutdown().
+		 */
+		if (SSL_shutdown(ssl) == 0)
+			(void) SSL_shutdown(ssl);
+
+		/*** Ignore checking for errors from SSL_shutdown(), 
+		 *** since we're freeing the SSL context anyway.
+		 ***/
+
 		SSL_free(ssl);
-		return rc;
 	}
 #endif
 	return 0;

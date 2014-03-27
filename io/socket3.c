@@ -6,6 +6,8 @@
  * Copyright 2001, 2011 by Anthony Howe. All rights reserved.
  */
 
+#define SOCKET_ZOMBIE
+
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/
@@ -651,13 +653,12 @@ socket3_accept(SOCKET fd, SocketAddress *addrp)
 void
 socket3_close_fd(SOCKET fd)
 {
-	unsigned char buffer[512];
-
 	if (0 < socket3_debug)
 		syslog(LOG_DEBUG, "socket3_close_fd(%d)", (int) fd);
 
 	if (fd != SOCKET_ERROR) {
-//		socket3_shutdown(fd, SHUT_WR);
+#ifdef SOCKET_ZOMBIE
+		unsigned char buffer[512];
 
 		/* Avoid TIME_WAIT state "socket zombie" when a connection
 		 * is closed by consuming and discarding any waiting data.
@@ -665,7 +666,7 @@ socket3_close_fd(SOCKET fd)
 		(void) socket3_set_nonblocking(fd, 1);
 		while (0 < socket3_read_fd(fd, buffer, sizeof (buffer), NULL))
 			;
-
+#endif
 		closesocket(fd);
 	}
 
