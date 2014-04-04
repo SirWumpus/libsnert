@@ -57,6 +57,14 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.29--
+
+   *	Upgraded SQLite to 3.8.4.3
+
+  !!	Back out a PDQ change from 1.75.19 (b8ea01d8d3b) for CNAME->MX 
+	chain processing that broke CNAME loop and depth detection
+	and caused an infinite loop crash. Reported by Steven Freegard.
+
 --1.75.28--
 
    *	Upgraded SQLite to 3.8.4.2
@@ -64,6 +72,9 @@ is no set schedule for releases.
    *	Updated the TLD list.
 
    !	Added configure checks for some newer C99/C11 int types.
+
+  !!    Fix problem with socket3_end_tls() handling of SSL_shutdown()
+	driving CPU high on some systems.
 
 --1.75.27--
 

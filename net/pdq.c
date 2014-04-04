@@ -3428,7 +3428,7 @@ pdqListHasValidSOA(PDQ_rr *list, const char *name)
 PDQ_rr *
 pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *ns)
 {
-	PDQ_rr *rr, *chain;
+	PDQ_rr *rr;
 	PDQ_QUERY *answer;
 
 	answer = NULL;
@@ -3456,28 +3456,11 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 	if (answer != NULL && answer->rcode == PDQ_RCODE_OK && !pdq->short_query
 	&& (type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA)) {
 		if (debug)
-			syslog(LOG_DEBUG, "pdqGet() related CNAME, A/AAAA records...");
+			syslog(LOG_DEBUG, "pdqGet() related A/AAAA records...");
 		for (rr = answer->rr.next; rr != NULL; rr = rr->next) {
 			if (rr->section == PDQ_SECTION_QUERY)
 				continue;
-			if (rr->type == PDQ_TYPE_CNAME) {
-				/* "domain IN MX ." is a short hand to indicate
-				 * that a domain has no MX records. No point in
-				 * looking up A/AAAA records. Like wise for NS
-				 * and SOA records.
-				 */
-				if (strcmp(".", ((PDQ_MX *) rr)->host.string.value) == 0)
-					continue;
-
-				if (pdqListFindName(rr->next, class, type, ((PDQ_MX *) rr)->host.string.value) == NULL) {
-					if (0 < debug)
-						syslog(LOG_DEBUG, "follow CNAME %s ...", ((PDQ_MX *) rr)->host.string.value);
-					chain = pdqGet(pdq, class, type, ((PDQ_MX *) rr)->host.string.value, ns);
-					if (0 < debug)
-						syslog(LOG_DEBUG, "done CNAME %s", ((PDQ_MX *) rr)->host.string.value);
-					rr->next = pdqListAppend(rr->next, chain);
-				}
-			} else if (rr->type == type) {
+			if (rr->type == type) {
 				/* "domain IN MX ." is a short hand to indicate
 				 * that a domain has no MX records. No point in
 				 * looking up A/AAAA records. Like wise for NS
@@ -4658,7 +4641,7 @@ main(int argc, char **argv)
 
 		if (pdqIsCircular(list)) {
 			pdqListDump(stdout, list);
-			printf("%s %s %s: INFINITE CNAME LOOP!\n", argv[i+1], pdqClassName(class), argv[i]);
+			printf("%s %s %s: CNAME LOOP OR TOO DEEP!\n", argv[i+1], pdqClassName(class), argv[i]);
 			pdqListFree(list);
 		} else {
 			answers = pdqListAppend(answers, list);
