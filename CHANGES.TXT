@@ -63,7 +63,12 @@ is no set schedule for releases.
 
   !!	Back out a PDQ change from 1.75.19 (b8ea01d8d3b) for CNAME->MX 
 	chain processing that broke CNAME loop and depth detection
-	and caused an infinite loop crash. Reported by Steven Freegard.
+	and caused an infinite loop crash. Reported by Steve Freegard.
+
+  !!	Fix mccPutRowLocal() to always include the created timestamp. 
+	The SQLite behaviour for "INSERT OR REPLACE" is NOT the same as
+	"INSERT" or "UPDATE"; the missing columns during a REPLACE subject
+	to any CREATE TABLE defaults. Reported by Steve Freegard.
 
 --1.75.28--
 

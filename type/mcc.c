@@ -557,9 +557,12 @@ mccPutRowLocal(mcc_handle *mcc, mcc_row *row)
 
 	if (1 < debug)
 		syslog(
-			LOG_DEBUG, "mccPutRowLocal key=%d:" MCC_FMT_K " value=%d:" MCC_FMT_V,
+			LOG_DEBUG, 
+			"%s key=%d:" MCC_FMT_K " value=%d:" MCC_FMT_V " expires=" MCC_FMT_E " created=" MCC_FMT_C,
+			__FUNCTION__,
 			MCC_GET_K_SIZE(row), MCC_FMT_K_ARG(row),
-			MCC_GET_V_SIZE(row), MCC_FMT_V_ARG(row)
+			MCC_GET_V_SIZE(row), MCC_FMT_V_ARG(row),
+			MCC_FMT_E_ARG(row), MCC_FMT_C_ARG(row)
 		);
 
 	if (sqlite3_bind_text(mcc->replace, 1, (const char *) MCC_PTR_K(row), MCC_GET_K_SIZE(row), SQLITE_TRANSIENT) != SQLITE_OK)
@@ -567,6 +570,8 @@ mccPutRowLocal(mcc_handle *mcc, mcc_row *row)
 	if (sqlite3_bind_text(mcc->replace, 2, (const char *) MCC_PTR_V(row), MCC_GET_V_SIZE(row), SQLITE_TRANSIENT) != SQLITE_OK)
 		goto error1;
 	if (sqlite3_bind_int(mcc->replace, 3, (int) row->expires) != SQLITE_OK)
+		goto error1;
+	if (sqlite3_bind_int(mcc->replace, 4, (int) row->created) != SQLITE_OK)
 		goto error1;
 	if (mccSqlStep(mcc, mcc->replace, MCC_SQL_REPLACE) == SQLITE_DONE)
 		rc = MCC_OK;
@@ -624,7 +629,7 @@ mccSend(mcc_handle *mcc, mcc_row *row, uint8_t command)
 	row->v_size = ntohs(row->v_size);
 
 	if (1 < debug)
-		syslog(LOG_DEBUG, "mccSend command=%c key=" MCC_FMT_K, MCC_GET_COMMAND(row), MCC_FMT_K_ARG(row));
+		syslog(LOG_DEBUG, "%s command=%c key=" MCC_FMT_K, __FUNCTION__, MCC_GET_COMMAND(row), MCC_FMT_K_ARG(row));
 
 	return rc;
 }
@@ -979,7 +984,7 @@ mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *r
 		goto error0;
 
 	if (1 < debug)
-		syslog(LOG_DEBUG, "mccGetKey key=%.*s", length, key);
+		syslog(LOG_DEBUG, "%s key=%.*s", __FUNCTION__, length, key);
 
 	if (sqlite3_bind_text(mcc->select_one, 1, (const char *) key, length, SQLITE_STATIC) != SQLITE_OK)
 		goto error0;
@@ -1010,6 +1015,19 @@ mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *r
 		 * can reset the statement's state machine.
 		 */
 		(void) sqlite3_reset(mcc->select_one);
+
+		if (1 < debug) {
+			syslog(
+				LOG_DEBUG, 
+				"%s key=%d:" MCC_FMT_K " value=%d:" MCC_FMT_V 
+				" expires=" MCC_FMT_E " created=" MCC_FMT_C " ttl=" MCC_FMT_TTL,
+				__FUNCTION__,
+				MCC_GET_K_SIZE(row), MCC_FMT_K_ARG(row),
+				MCC_GET_V_SIZE(row), MCC_FMT_V_ARG(row),
+				MCC_FMT_E_ARG(row), MCC_FMT_C_ARG(row),
+				MCC_FMT_TTL_ARG(row)
+			);
+		}
 	}
 	(void) sqlite3_clear_bindings(mcc->select_one);
 error0:
@@ -1175,7 +1193,7 @@ mccExpireRows(mcc_handle *mcc, time_t *when)
 		goto error0;
 
 	if (1 < debug)
-		syslog(LOG_DEBUG, "mccExpireRows when=%lu", (unsigned long) *when);
+		syslog(LOG_DEBUG, "%s when=%lu", __FUNCTION__, (unsigned long) *when);
 
 	if (sqlite3_bind_int(mcc->expire, 1, (int)(uint32_t) *when) != SQLITE_OK)
 		goto error0;
@@ -1403,7 +1421,7 @@ void
 mccFini(void)
 {
 	if (0 < debug)
-		syslog(LOG_DEBUG, "mccFini()");
+		syslog(LOG_DEBUG, "%s", __FUNCTION__);
 
 	/* Stop these threads before releasing the rest. */
 	mccStopListener();

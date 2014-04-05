@@ -109,11 +109,18 @@ typedef struct {
 #define MCC_FMT_V		"%.*s"
 #define MCC_FMT_V_ARG(p)	MCC_GET_V_SIZE(p), MCC_PTR_V(p)
 
+#define MCC_FMT_TTL		"%lu"
+#define MCC_FMT_TTL_ARG(p)	(unsigned long)(p)->ttl
+#define MCC_FMT_C		"%lu"
+#define MCC_FMT_C_ARG(p)	(unsigned long)(p)->created
+#define MCC_FMT_E		"%lu"
+#define MCC_FMT_E_ARG(p)	(unsigned long)(p)->expires
+
 #define MCC_SQL_CREATE_TABLE	\
 "CREATE TABLE mcc( k TEXT PRIMARY KEY, v TEXT, e INTEGER, c INTEGER DEFAULT (strftime('%s', 'now')) );"
 
 #define MCC_SQL_REPLACE		\
-"INSERT OR REPLACE INTO mcc (k,v,e) VALUES(?1,?2,?3);"
+"INSERT OR REPLACE INTO mcc (k,v,e,c) VALUES(?1,?2,?3,?4);"
 
 #define MCC_SQL_BEGIN		\
 "BEGIN IMMEDIATE;"
