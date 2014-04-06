@@ -5,7 +5,7 @@
  *
  * RFC 1035 (DNS), 1886 (IPv6), 2821 (SMTP), 2874 (IPv6), 3596 (IPv6)
  *
- * Copyright 2002, 2013 by Anthony Howe. All rights reserved.
+ * Copyright 2002, 2014 by Anthony Howe. All rights reserved.
  */
 
 #ifndef MAX_CNAME_DEPTH
@@ -21,7 +21,7 @@
 #endif
 
 #ifndef SOCKET3_WAIT_NEXT_PACKET_MS
-#define SOCKET3_WAIT_NEXT_PACKET_MS		5
+#define SOCKET3_WAIT_NEXT_PACKET_MS		50
 #endif
 
 #ifndef ETC_HOSTS
@@ -109,6 +109,7 @@
 #define SHIFT_RCODE		0
 
 #define LABEL_LENGTH		63
+#define PRIVILIGED_PORTS	1024
 
 /***********************************************************************
  *** Internal types.
@@ -1219,7 +1220,7 @@ pdqListFind(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *name)
  *
  * @return
  *	NULL if not found, PDQ_CNAME_TOO_DEEP, or PDQ_CNAME_IS_CIRCULAR.
- *	Otherwise a pointer to PDQ_rr A or AAAA record.
+ *	Otherwise a pointer to PDQ_rr of the requested type.
  */
 PDQ_rr *
 pdqListFindName(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *name)
@@ -2920,7 +2921,7 @@ pdqOpen(void)
 		if (pdq_parse_ns(local_ip, &local) == 0) {
 			local.sa.sa_family = servers[0].sa.sa_family;
 			for (i = 0; i < MAX_SPR_ATTEMPTS; i++) {
-				if (!pdq_bind_port(pdq->fd, &local, 1025 + RANDOM_NUMBER(64510)))
+				if (!pdq_bind_port(pdq->fd, &local, PRIVILIGED_PORTS + RANDOM_NUMBER(65535 - PRIVILIGED_PORTS)))
 					break;
 			}
 		}
@@ -3457,9 +3458,9 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 	&& (type == PDQ_TYPE_MX || type == PDQ_TYPE_NS || type == PDQ_TYPE_SOA)) {
 		if (debug)
 			syslog(LOG_DEBUG, "pdqGet() related A/AAAA records...");
-		for (rr = answer->rr.next; rr != NULL; rr = rr->next) {
-			if (rr->section == PDQ_SECTION_QUERY)
-				continue;
+		for (rr = answer->rr.next; (rr = pdqListFindName(rr, class, type, rr->name.string.value)) != NULL; rr = rr->next) {
+			if (rr == PDQ_CNAME_TOO_DEEP || rr == PDQ_CNAME_IS_CIRCULAR)	
+				break;
 			if (rr->type == type) {
 				/* "domain IN MX ." is a short hand to indicate
 				 * that a domain has no MX records. No point in
@@ -3469,9 +3470,9 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 				if (strcmp(".", ((PDQ_MX *) rr)->host.string.value) == 0)
 					continue;
 
-				if (pdqListFindName(rr->next, class, PDQ_TYPE_A, ((PDQ_MX *) rr)->host.string.value) == NULL)
+				if (pdqListFindName(rr, class, PDQ_TYPE_A, ((PDQ_MX *) rr)->host.string.value) == NULL)
 					(void) pdqQuery(pdq, class, PDQ_TYPE_A, ((PDQ_MX *) rr)->host.string.value, ns);
-				if (pdqListFindName(rr->next, class, PDQ_TYPE_AAAA, ((PDQ_MX *) rr)->host.string.value) == NULL)
+				if (pdqListFindName(rr, class, PDQ_TYPE_AAAA, ((PDQ_MX *) rr)->host.string.value) == NULL)
 					(void) pdqQuery(pdq, class, PDQ_TYPE_AAAA, ((PDQ_MX *) rr)->host.string.value, ns);
 			}
 		}

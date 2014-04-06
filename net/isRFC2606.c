@@ -1,7 +1,7 @@
 /*
  * isRFC2606.c
  *
- * Copyright 2002, 2013 by Anthony Howe. All rights reserved.
+ * Copyright 2002, 2014 by Anthony Howe. All rights reserved.
  */
 
 
@@ -65,7 +65,7 @@ isReservedTLD(const char *path, unsigned long flags)
 
 	/* This is NOT an RFC 2606 reserved domain, but is in common
 	 * usage, because of broken Microsoft MCSE recommendations
-	 * concerning Active Directory. See RFC 6762.
+	 * concerning Active Directory. Now reserved by RFC 6762.
 	 */
 	if ((flags & IS_TLD_LOCAL) && TextInsensitiveCompare(dot, ".local") == 0)
 		return 1;
@@ -74,6 +74,10 @@ isReservedTLD(const char *path, unsigned long flags)
 	 * usage.
 	 */
 	if ((flags & IS_TLD_LAN) && TextInsensitiveCompare(dot, ".lan") == 0)
+		return 1;
+	
+	/* This is NOT official. See https://en.wikipedia.org/wiki/Top-level_domain#Pseudo-domains */
+	if ((flags & IS_TLD_HOME) && TextInsensitiveCompare(dot, ".home") == 0)
 		return 1;
 
 	p = dot+1 - (sizeof ("example.")-1);
