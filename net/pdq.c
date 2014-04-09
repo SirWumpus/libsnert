@@ -1275,12 +1275,14 @@ pdqListFindName(PDQ_rr *list, PDQ_class class, PDQ_type type, const char *name)
 						return PDQ_CNAME_IS_CIRCULAR;
 					}
 				}
-
+#ifdef OUT_OF_ORDER_CNAME
+/* In practice CNAME lookups will happen in order, so this precaution unnecessary. */
 				/* Restart the search for the next name
 				 * in case the records are not in order.
 				 */
 				next = list;
 				continue;
+#endif
 			}
 		}
 	}
