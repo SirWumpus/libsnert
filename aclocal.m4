@@ -1379,8 +1379,8 @@ AC_DEFUN(SNERT_EXTRA_STDIO,[
 	echo "Check for supplemental stdio support..."
 	echo
 	SNERT_CHECK_PREDEFINE(__CYGWIN__)
-	AC_CHECK_HEADERS([io.h])
-	AC_CHECK_FUNCS(getdelim getline)
+	AC_CHECK_HEADERS([io.h err.h])
+	AC_CHECK_FUNCS(getdelim getline getprogname setprogname err errx warn warnx verr verrx vwarn vwarnx)
 ])
 
 dnl
@@ -2088,7 +2088,7 @@ AC_DEFUN(SNERT_FINI,[
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_CFLAGS, ["$quote_cflags"])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_LDFLAGS, ["$LDFLAGS"])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_LIBS, ["$LIBS"])
-
+	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_SHARE, ["$datarootdir/share"])
 ])
 
 dnl
@@ -2103,6 +2103,8 @@ AC_DEFUN(SNERT_SUMMARY,[
 	AC_MSG_RESULT([  CFLAGS.........: $CFLAGS])
 	AC_MSG_RESULT([  LDFLAGS........: $LDFLAGS])
 	AC_MSG_RESULT([  LIBS...........: $LIBS])
+	AC_MSG_RESULT([  prefix.........: $prefix])
+	AC_MSG_RESULT([  datarootdir....: $datarootdir])
 ])
 
 dnl if ! grep -q "^milter:" /etc/group; then

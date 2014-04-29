@@ -122,6 +122,7 @@ main(int argc, char **argv)
 
      /* read lines into an array */
      while (1) {
+	  char **replace; 
 	  line = NULL;
 	  bufsize = 0;
 	  if ((linelen = getline(&line, &bufsize, stdin)) <= 0)
@@ -129,11 +130,13 @@ main(int argc, char **argv)
 	  if (line[linelen-1] == '\n')
 	       line[--linelen] = 0;
 	  nlines++;
-	  list = (char **) realloc(list, nlines * sizeof list[0]);
-	  if (!list) {
+	  replace = (char **) realloc(list, nlines * sizeof list[0]);
+	  if (replace == NULL) {
 	       perror("allocate list");
+	       free(list);
 	       return 1;
 	  }
+	  list = replace;
 	  list[nlines-1] = line;
      }
 

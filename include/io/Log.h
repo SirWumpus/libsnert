@@ -48,12 +48,7 @@ extern /*@observer@*/ const char *LogGetProgramName(void);
 extern void LogSetProgramName(const char *);
 extern void LogSetMask(unsigned mask);
 
-#ifdef REPLACED_BY_LogSetMask
-extern void LogSetLevel(int level);
-#else
 #define LogSetLevel(x)	LogSetMask(x)
-
-#endif
 
 /*
  * Write to log file.

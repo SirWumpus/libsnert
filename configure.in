@@ -347,6 +347,8 @@ echo $PACKAGE_NAME/$package_major.$package_minor.$package_build
 echo $package_copyright
 echo
 AC_MSG_RESULT([  Platform............: $platform $CC])
+AC_MSG_RESULT([  prefix..............: $prefix])
+AC_MSG_RESULT([  datarootdir.........: $datarootdir])
 AC_MSG_RESULT([  Berkeley DB.........: $bdb_version "$CFLAGS_DB" "$LDFLAGS_DB" "${HAVE_LIB_DB}"])
 AC_MSG_RESULT([  Lua.................: "$CFLAGS_LUA" "$LDFLAGS_LUA" "$HAVE_LIB_LUA"])
 AC_MSG_RESULT([  libev...............: "$CFLAGS_LIBEV" "$LDFLAGS_LIBEV" "$HAVE_LIB_LIBEV"])

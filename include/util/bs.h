@@ -9,9 +9,7 @@
 #ifndef __com_snert_lib_util_bs_h__
 #define __com_snert_lib_util_bs_h__	1
 
-#ifndef BUFSIZ
 #include <stdio.h>
-#endif
 
 #ifdef __cplusplus
 extern "C" {

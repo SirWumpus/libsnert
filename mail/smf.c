@@ -1223,6 +1223,7 @@ smfAccessAuth(smfWork *work, const char *tag, const char *auth, const char *mail
 
 	if (buflen <= snprintf(buf, buflen, "%s%s", tag, auth)) {
 		(void) smfReply(work, 553, "5.1.0", "internal error, buffer overflow");
+		free(buf);
 		return SMDB_ACCESS_ERROR;
 	}
 

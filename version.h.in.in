@@ -36,6 +36,8 @@ extern "C" {
 #undef LIBSNERT_BUILD_HOST
 #undef LIBSNERT_PLATFORM
 
+#undef LIBSNERT_SHARE
+
 #ifndef __@platform@__
 #define __@platform@__		1
 #endif
@@ -518,8 +520,21 @@ union semun {
 /*
  * Extra Stdio Functions
  */
+#undef HAVE_IO_H
 #undef HAVE_GETDELIM
 #undef HAVE_GETLINE
+
+#undef HAVE_GETPROGNAME
+#undef HAVE_SETPROGNAME
+#undef HAVE_ERR_H
+#undef HAVE_ERR
+#undef HAVE_ERRX
+#undef HAVE_WARN
+#undef HAVE_WARNX
+#undef HAVE_VERR
+#undef HAVE_VERRX
+#undef HAVE_VWARN
+#undef HAVE_VWARNX
 
 /*
  * Extra String Functions
@@ -900,33 +915,6 @@ typedef int socklen_t;
 #undef HAVE_SHA1_H
 #undef HAVE_SHA2_H
 
-#ifdef TO_BE_REMOVED
-/* 2011-4-19 The need for this 8.13 / 8.14 transition handling
- * has been discontinued. After five years, packages that fail
- * to move with the times will cause milters to that require
- * the extra features to not build or not function properly.
- *
- * See also aclocal.m4 SNERT_LIBMILTER.
- */
-#undef HAVE_STRUCT_SMFIDESC_XXFI_UNKNOWN
-#undef HAVE_STRUCT_SMFIDESC_XXFI_DATA
-
-#ifndef HAVE_SMFI_VERSION
-/* sendmail 8.14 redefined SMFI_VERSION to encode major, minor, and patch
- * level. Prior to that SMFI_VERSION=2 for a stock 8.13.x with values 3
- * and 4 corresponding to enhancements not enabled by default.
- */
-# if defined(HAVE_STRUCT_SMFIDESC_XXFI_DATA)
-#  define SET_SMFI_VERSION	4
-# elif defined(HAVE_STRUCT_SMFIDESC_XXFI_UNKNOWN)
-#  define SET_SMFI_VERSION	3
-# else
-#  define SET_SMFI_VERSION	2
-# endif
-#endif
-
-#endif /* TO_BE_REMOVED */
-
 
 #undef HAVE_POP_BEFORE_SMTP
 
@@ -963,30 +951,6 @@ typedef int socklen_t;
 
 /* This has been used fairly consistently in Snert code since 1990. */
 #define EXIT_USAGE	2	/* Invalid or missing command-line option. */
-
-/* These are ment to match sysexits.h (values from OpenBSD) which
- * does not exist in Windows MING support.
- */
-#ifdef EX_NOHOST
-# define EXIT_HOST	EX_NOHOST
-#else
-# define EXIT_HOST	68	/* Host does not exist or doesn't answer. */
-#endif
-#ifdef EX_NOUSER
-# define EXIT_USER	EX_NOUSER
-#else
-# define EXIT_USER	67	/* Invalid username, password, account. */
-#endif
-#ifdef EX_NOINPUT
-# define EXIT_INPUT	EX_NOINPUT
-#else
-# define EXIT_INPUT	66	/* File input, format, or syntax error. */
-#endif
-#ifdef EX_IOERR
-# define EXIT_IO	EX_IOERR
-#else
-# define EXIT_IO	74	/* Generic read/write error. */
-#endif
 
 #define QUOTE(x)	QUOTE_THIS(x)
 #define QUOTE_THIS(x)	#x

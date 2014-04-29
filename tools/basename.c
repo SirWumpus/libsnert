@@ -22,18 +22,14 @@ char **argv;
 
 	(void) program("basename");
 
-	if (getopt(argc, argv, "") != -1
-	or argc <= optind or optind + 2 < argc)
+	if (getopt(argc, argv, "") != -1 || argc <= optind or optind + 2 < argc)
 		usage(usage_msg);
 
-	(void) printf(
-		"%s\n",
-		str = basename(
-			argv[optind],
-			optind < argc ? argv[optind+1] : (char *) 0,
-			DIRECTORY_SEPARATOR
-		)
+	str = basename(
+		argv[optind], optind < argc ? argv[optind+1] : (char *) 0, 
+		DIRECTORY_SEPARATOR
 	);
+	(void) printf("%s\n", str);
 	free(str);
 
 	return 0;

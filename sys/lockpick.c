@@ -292,6 +292,7 @@ lp_check_lock(pthread_mutex_t *m, int blocking, const char *file, unsigned line)
 	if (lp_mutex_lock_fn == NULL)
 		lp_init();
 #endif
+	rc = 0;
 	pthread_testcancel();
 	PTHREAD_MUTEX_LOCK(&lp_mutex);
 
@@ -309,8 +310,6 @@ lp_check_lock(pthread_mutex_t *m, int blocking, const char *file, unsigned line)
 		} else {
 			rc = 0;
 		}
-	} else {
-		rc = 0;
 	}
 
 	PTHREAD_MUTEX_UNLOCK(&lp_mutex);
@@ -332,6 +331,7 @@ lp_check_unlock(pthread_mutex_t *m, const char *file, unsigned line)
 	if (lp_mutex_unlock_fn == NULL)
 		lp_init();
 #endif
+	rc = 0;
 	pthread_testcancel();
 	PTHREAD_MUTEX_LOCK(&lp_mutex);
 

@@ -179,15 +179,6 @@ mxConnect(SMTP *session, const char *domain)
 		}
 	}
 
-#ifdef THIS_IS_SUSPECT
-/* This is suspect- consider what happens when the A record points
- * to 127.0.0.1. The DNS MX lookup code already handles implicit MX 0
- * rule, so we don't need to repeat it here. If the MX pruning reduced
- * the list to zero, then thats correct.
- */
-	if (socket == NULL && socketOpenClient(domain, SMTP_PORT, SMTP_CONNECT_TIMEOUT, NULL, &socket) == 0)
-		SYSLOG(LOG_DEBUG, TAG_FORMAT "mx-domain=%s connected to MX %d %s", TAG_ARGS, domain, mx->preference, (char *) mx->value);
-#endif
 	VectorDestroy(mxlist);
 
 	return socket;

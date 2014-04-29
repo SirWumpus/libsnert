@@ -2024,6 +2024,7 @@ kvm_get_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 	if (self == NULL || key == NULL)
 		goto error0;
 
+	MEMSET(&result, 0, sizeof (result)); 
 	PTHREAD_MUTEX_LOCK(&self->_mutex);
 	if (kvm_check_socket(self))
 		goto error1;
@@ -2121,6 +2122,7 @@ kvm_remove_socket(struct kvm *self, kvm_data *key)
 	if (self == NULL || key == NULL)
 		goto error0;
 
+	MEMSET(&result, 0, sizeof (result)); 
 	PTHREAD_MUTEX_LOCK(&self->_mutex);
 	if (kvm_check_socket(self))
 		goto error1;

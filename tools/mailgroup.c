@@ -188,7 +188,8 @@ main(int argc, char **argv)
 	if (0 < TextInputLine(stdin, buffer, sizeof (buffer))) {
 		if (sscanf(buffer, "From %255s ", return_path) != 1) {
 			fprintf(stderr, "failed to parse From line, buffer='%s'\n", buffer);
-			return EX_IOERR;
+			rc = EX_IOERR;
+			goto error1;
 		}		
 	}
 
@@ -219,7 +220,7 @@ main(int argc, char **argv)
 			rc = 1;
 		}
 	}
-
+error1:
 	(void) fclose(tmp);
 
 	return rc;

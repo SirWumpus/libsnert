@@ -1802,57 +1802,6 @@ pdqString(PDQ_rr *record)
  *** Response Record Name Routines
  ***********************************************************************/
 
-#ifdef NOT_USED
-/*
- * Return the string length of the resource record name refered to
- * by ptr within the message. The length includes for name label
- * (dot) delimiters and the final root label.
- *
- * An error here would tend to indicate corrupt or hacked packets.
- */
-static long
-pdq_name_length(struct udp_packet *packet, unsigned char *ptr)
-{
-	long length;
-	unsigned short offset;
-	unsigned char *packet_end;
-
-	packet_end = (unsigned char *) &packet->header + packet->length;
-
-	if (ptr < (unsigned char *) &packet->header) {
-		syslog(LOG_ERR, "pdq_name_length() below bounds!!!");
-		return -1;
-	}
-
-	for (length = 0; ptr < packet_end && *ptr != 0; ) {
-		if ((*ptr & 0xc0) == 0xc0) {
-			offset = NET_GET_SHORT(ptr) & 0x3fff;
-			ptr = (unsigned char *) &packet->header + offset;
-			continue;
-		}
-
-		length += *ptr + 1;
-		ptr += *ptr + 1;
-	}
-
-	/* Special case where the label is only the root segment (dot). */
-	if (length == 0)
-		length = 1;
-
-	if (packet_end <= ptr) {
-		syslog(LOG_ERR, "pdq_name_length() out of bounds!!!");
-		return -1;
-	}
-
-	if (DOMAIN_SIZE <= length) {
-		syslog(LOG_ERR, "pdq_name_length() domain name too long!!!");
-		return -1;
-	}
-
-	return length;
-}
-#endif
-
 /*
  * Copy the string of the resource record name refered to by ptr
  * within the message into a buffer of size bytes. The name
@@ -3881,120 +3830,6 @@ pdq_list_find_5A_by_name(PDQ *pdq, PDQ_class class, const char *name, PDQ_rr **l
 	return a_rr;
 }
 
-#undef ORIGINAL
-#ifdef ORIGINAL
-PDQ_rr *
-pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *ns)
-{
-	int old_linear_query, old_basic_query;
-	PDQ_rr *ns_list, *ns_rr, *a_rr, *answer;
-
-	answer = NULL;
-
-	/* Also skip extra 5A lookups for all TLD servers. The IP
-	 * address of an NS, if not already supplied will be fetched
-	 * only as required.
-	 */
-	old_basic_query = pdqSetBasicQuery(pdq, 1);
-
-	/* Do NOT perform parallel queries on root or TLD servers. */
-	old_linear_query = pdqSetLinearQuery(pdq, 1);
-
-	if (ns == NULL) {
-		/* From the top. */
-		ns_list = root_hints;
-	} else {
-		ns_list = pdqGet(pdq, class, PDQ_TYPE_NS, name, ns);
-		if (ns_list != NULL && (ns_list->flags & PDQ_BITS_AA)) {
-			(void) pdqSetBasicQuery(pdq, old_basic_query);
-			(void) pdqSetLinearQuery(pdq, old_linear_query);
-
-			/* Do we have an authoritative result with no answer section? */
-			if (ns_list->rcode != PDQ_RCODE_OK || ns_list->ancount == 0) {
-				/* Then use NS glue records of immediate parent zone. */
-				pdqListFree(ns_list);
-				return (PDQ_rr *) 1;
-			}
-
-			/* Found authoritative NS servers. */
-			return ns_list;
-		}
-	}
-
-	for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
-		if (ns_rr->rcode != PDQ_RCODE_OK || (ns_rr->type != PDQ_TYPE_NS && ns_rr->type != PDQ_TYPE_CNAME))
-			continue;
-
-		a_rr = pdq_list_find_5A_by_name(pdq, class, ((PDQ_NS *) ns_rr)->host.string.value, &ns_rr->next);
-		if (a_rr == NULL)
-			continue;
-
-		if (0 <debug)
-			syslog(LOG_DEBUG, "pdqRootGet %s %s %s @%s (%s)", name, pdqClassName(class), pdqTypeName(type), ((PDQ_NS *) ns_rr)->host.string.value, ((PDQ_AAAA *) a_rr)->address.string.value);
-
-		answer = pdqRootGet(pdq, class, PDQ_TYPE_NS, name, ((PDQ_AAAA *) a_rr)->address.string.value);
-		if (answer != NULL) {
-			if (answer == (PDQ_rr *) 1) {
-				if (0 < debug)
-					syslog(LOG_DEBUG, "glue records %s %s %s", name, pdqClassName(class), pdqTypeName(type));
-
-				/* Make it look like an authoriative answer.
-				 * Required for dnsListQueryNs.
-				 */
-				for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
-					if (ns_rr->type == PDQ_TYPE_NS)
-						ns_rr->section = PDQ_SECTION_ANSWER;
-				}
-
-				answer = ns_list;
-				ns_list = NULL;
-			}
-
-			if (answer->rcode == PDQ_RCODE_OK)
-				break;
-
-			pdqListFree(answer);
-			answer = NULL;
-		}
-	}
-
-	(void) pdqSetBasicQuery(pdq, old_basic_query);
-
-	if (ns_list != root_hints) {
-		pdqListFree(ns_list);
-	} else if (type != PDQ_TYPE_NS) {
-		/* We should have a set of hopefully authoritative
-		 * NS servers or NS glue records.
-		 */
-		ns_list = answer;
-		answer = NULL;
-		for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
-			if (ns_rr->rcode != PDQ_RCODE_OK
-			|| (ns_rr->type != PDQ_TYPE_NS && ns_rr->type != PDQ_TYPE_CNAME))
-				continue;
-
-			a_rr = pdq_list_find_5A_by_name(pdq, class, ((PDQ_NS *) ns_rr)->host.string.value, &ns_rr->next);
-			if (a_rr == NULL)
-				continue;
-
-			answer = pdqGet(pdq, class, type, name, ((PDQ_AAAA *) a_rr)->address.string.value);
-			if (answer != NULL) {
-				if (answer->rcode == PDQ_RCODE_OK)
-					break;
-				pdqListFree(answer);
-				answer = NULL;
-			}
-		}
-		pdqListFree(ns_list);
-	}
-
-	(void) pdqSetLinearQuery(pdq, old_linear_query);
-
-	return answer;
-}
-#else
-
-
 PDQ_rr *
 pdqRootGetNS(PDQ *pdq, PDQ_class class, const char *name)
 {
@@ -4118,7 +3953,6 @@ pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const cha
 
 	return answer;
 }
-#endif
 
 /***********************************************************************
  *** Initialisation

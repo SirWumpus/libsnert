@@ -95,14 +95,6 @@ LogSetMask(unsigned mask)
 	logMask = mask;
 }
 
-#ifdef REPLACED_BY_LogSetMask
-void
-LogSetLevel(int level)
-{
-	logMask = LOG_UPTO(level);
-}
-#endif
-
 int
 LogPrintV(int level, const char *msg, va_list args)
 {

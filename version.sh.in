@@ -6,6 +6,10 @@
 #
 #######################################################################
 
+prefix=@prefix@
+datarootdir=@datarootdir@
+datadir=@datadir@
+
 libsnert_srcdir='@abs_top_srcdir@'
 SNERT_TARDIR=${libsnert_srcdir}/../../../..
 SNERT_INCDIR=${libsnert_srcdir}/../../include
@@ -20,6 +24,8 @@ LIBSNERT_STRING='@package_string@'
 LIBSNERT_AUTHOR='@PACKAGE_BUGREPORT@'
 LIBSNERT_COPYRIGHT='@package_copyright@'
 LIBSNERT_UNAME='@platform@'
+
+LIBSNERT_SHARE=${datarootdir}/libsnert
 
 EXEEXT='@EXEEXT@'
 LIBEXT='@LIBEXT@'

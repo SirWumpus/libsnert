@@ -9,6 +9,10 @@
 #ifndef __com_snert_lib_io_Error_h__
 #define __com_snert_lib_io_Error_h__	1
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef BUFSIZ
 #include <stdio.h>
 #endif

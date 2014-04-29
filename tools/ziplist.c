@@ -377,8 +377,9 @@ ziplist(const char *filename)
 			if (zip64 != NULL) {
 				while (0 < zip64->compressed_size) {
 					if (fseek(fp, hdr.extra_length, SEEK_CUR)) {
-							printf("seek error\n");
-							goto error0;
+						printf("seek error\n");
+						goto error0;
+					}
 				}
 			}
 

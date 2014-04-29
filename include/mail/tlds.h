@@ -15,6 +15,16 @@ extern "C" {
 
 #define MAX_TLD_LEVELS	3
 
+#ifndef TLD_LEVEL_1		
+#define TLD_LEVEL_1				LIBSNERT_SHARE "/tlds_level_1"
+#endif
+#ifndef TLD_LEVEL_2		
+#define TLD_LEVEL_2				LIBSNERT_SHARE "/tlds_level_2"
+#endif
+#ifndef TLD_LEVEL_2		
+#define TLD_LEVEL_2				LIBSNERT_SHARE "/tlds_level_3"
+#endif
+
 extern Option tldOptLevel1;
 extern Option tldOptLevel2;
 extern Option tldOptLevel3;
