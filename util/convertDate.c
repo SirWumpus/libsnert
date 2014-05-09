@@ -1,7 +1,7 @@
 /*
  * convertDate.c
  *
- * Internet Date & Time parsing functions based on RFC 2822.
+ * Internet Date & Time parsing functions based on RFC 2822, 3339.
  *
  * Copyright 2003, 2013 by Anthony Howe.  All rights reserved.
  */
@@ -647,14 +647,15 @@ convertISO8601Tz(const char *s, long *zone, const char **stop)
 }
 
 /*
- * ISO 8601 format
+ * RFC 3339, subset of ISO 8601 format
  *
- *	yyyy ["-"] mm ["-"] dd [ "T" HH [":"] MM [[":"] SS] ]
+ *	yyyy ["-"] mm ["-"] dd [ "T" HH [":"] MM [[":"] SS [ ( "," | "." ) s* ] ] ]
  */
 int
 convertISO8601(const char *s, long *year, long *month, long *day, long *hour, long *minute, long *second, const char **stop)
 {
 	const char *next;
+	unsigned long frac;
 
 	*year = strntoul(s, &next, 4);
 	if (next - s != 4)
@@ -693,6 +694,11 @@ convertISO8601(const char *s, long *year, long *month, long *day, long *hour, lo
 	if (s < next && next - s != 2)
 		return -1;
 
+	/* Fractional seconds currently optional and ignored. */
+	s = next;
+	s += (*s == ',' || *s == '.');
+	frac = strtoul(s, (char **) &next, 10);
+
 	if (stop != NULL)
 		*stop = next;
 
@@ -730,9 +736,11 @@ convertISO8601(const char *s, long *year, long *month, long *day, long *hour, lo
  *
  *	date := yyyy ["-"] mm ["-"] dd [ "T" time ]
  *
- *	time := HH [":"] MM [ [":"] SS ][tz]
+ *	time := HH [":"] MM [ [":"] SS [ ( "," | "." ) s* ] ] [tz]
  *
- *	tz   := "Z" | ( "+" | "-" ) HH[[":"]MM]
+ *	tz   := "Z" | ( "+" | "-" ) HH [ [":"] MM ]
+ * 
+ * Fractional seconds are currently parsed, but ignored by this API.
  *
  * If the time zone is missing, then GMT (+0000) is assumed, which may
  * cause undefined results if the time values are used for non-local
