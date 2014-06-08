@@ -29,6 +29,11 @@ extern cipher_ct cipher_ct37;
 extern cipher_ct cipher_ct46;
 extern cipher_ct cipher_ct106;
 
+/**
+ * CT0
+ *
+ * Place holder used for pass-through without conversion.
+ */
 cipher_ct cipher_ct0 = {
 	0,
 	NULL,
@@ -102,23 +107,23 @@ cipher_ct cipher_ct46 = {
  * Based on US QWERTY keyboard layout of printable ASCII and whitespace.
  * Assumes lower case alpha is predominate, with most frequent English
  * lower case letters using single digits, including space and linefeed.
- * Remaining double digit layout corresponds to QWERTY unshifted, shifted,
- * and ASCII whitespace including escape.
+ * Remaining double digit layout corresponds to QWERTY unshifted with
+ * controls, shifted, and ASCII bell other whitespace.
  *
- *          0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
- *        -------------------------------------------------
- *        | s  e  n  o  r  i  t  a  SP LF
- *      A | `  1  2  3  4  5  6  8  8  9  0  -  =  q  w  y
- *      B | u  p  [  ]  \  d  f  g  h  j  k  l  ;  '  z  x
- *      C | c  v  b  m  ,  .  /  ~  !  @  #  $  %  ^  &  *
- *      D | (  )  _  +  Q  W  E  R  T  Y  U  I  O  P  {  }
- *	E | |  A  S  D  F  G  H  J  K  L  :  "  Z  X  C  V
- *      F | B  N  M  <  >  ?  BS HT VT FF CR ES
+ *	    0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
+ *	  -------------------------------------------------
+ *	  | s  e  n  o  r  i  t  a  SP LF
+ *	A | ES `  1  2  3  4  5  6  7  8  9  0  -  =  BS HT
+ *	B | q  w  y  u  p  [  ]  \  d  f  g  h  j  k  l  ;
+ *	C | '  CR z  x  c  v  b  m  ,  .  /  ~  !  @  #  $
+ *	D | %  ^  &  *  (  )  _  +  Q  W  E  R  T  Y  U  I
+ *	E | O  P  {  }  |  A  S  D  F  G  H  J  K  L  :  "
+ *	F | Z  X  C  V  B  N  M  <  >  ?  BE VT FF
  */
 cipher_ct cipher_ct106 = {
 	106,
-	"senorita \n`1234567890-=qwyup[]\\dfghjkl;'zxcvbm,./~!@#$%^&*"
-	"()_+QWERTYUIOP{}|ASDFGHJKL:\"ZXCVBNM<>?\b\t\v\f\r\33....",
+	"senorita \n\33`1234567890-=\b\tqwyup[]\\dfghjkl;'\rzxcvbm,./~!@#$"
+	"%^&*()_+QWERTYUIOP{}|ASDFGHJKL:\"ZXCVBNM<>?\a\v\f...",
 	{
 	"0123456789AAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCC"
 	"DDDDDDDDDDDDDDDDEEEEEEEEEEEEEEEEFFFFFFFFFFFFFFFF",

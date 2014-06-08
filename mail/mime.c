@@ -14,6 +14,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -24,6 +25,7 @@
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/mail/mime.h>
 #include <com/snert/lib/util/Text.h>
+#include <com/snert/lib/sys/sysexits.h>
 
 #ifdef DEBUG_MALLOC
 #include <com/snert/lib/util/DebugMalloc.h>
@@ -55,6 +57,7 @@ static int debug;
 
 static int mimeStateHdr(Mime *m, int ch);
 static int mimeStateBdy(Mime *m, int ch);
+static int mimeStateHdrStart(Mime *m, int ch);
 static int mimeStateQpEqual(Mime *m, int ch);
 static int mimeStateHdrValue(Mime *m, int ch);
 
@@ -92,18 +95,45 @@ mimeDebug(int level)
 	debug = level;
 }
 
+static void
+mimeDoHook(Mime *m, ptrdiff_t func_off)
+{
+	MimeHook func;
+	ptrdiff_t free_off;
+	MimeHooks *hook, *next;
+
+	LOGIF("%s(0x%lX, %d)", __func__, (long)m, func_off);
+
+	free_off = offsetof(MimeHooks, free_hook);
+	for (hook = m->mime_hook; hook != NULL; hook = next) {
+		next = hook->next;
+		func = *(MimeHook *)((char *)hook + func_off);
+		if (func != NULL)
+			(*func)(m, func_off == free_off ? hook : hook->data);
+	}
+}
+
+void
+mimeHdrStart(Mime *m)
+{
+	LOGHOOK(m);
+	mimeDoHook(m, offsetof(MimeHooks, hdr_start));
+}
+
+void
+mimeHdrFinish(Mime *m)
+{
+	LOGHOOK(m);
+	mimeDoHook(m, offsetof(MimeHooks, hdr_finish));
+}
+
 void
 mimeDecodeFlush(Mime *m)
 {
-	MimeHooks *hook;
-
 	LOGHOOK(m);
 	if (0 < m->decode.length) {
 		if (!mimeIsAnyHeader(m)) {
-			for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
-				if (hook->decode_flush != NULL)
-					(*hook->decode_flush)(m, hook->data);
-			}
+			mimeDoHook(m, offsetof(MimeHooks, decode_flush));
 		}
 		MEMSET(m->decode.buffer, 0, m->decode.length);
 		m->decode.length = 0;
@@ -256,16 +286,11 @@ mimeStateQpEqual(Mime *m, int ch)
 void
 mimeSourceFlush(Mime *m)
 {
-	MimeHooks *hook;
-
 	LOGHOOK(m);
 	if (0 < m->source.length) {
 		if (!mimeIsAnyHeader(m)) {
 			m->source.buffer[m->source.length] = '\0';
-			for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
-				if (hook->source_flush != NULL)
-					(*hook->source_flush)(m, hook->data);
-			}
+			mimeDoHook(m, offsetof(MimeHooks, source_flush));
 		}
 		MEMSET(m->source.buffer, 0, m->source.length);
 		m->source.length = 0;
@@ -275,26 +300,16 @@ mimeSourceFlush(Mime *m)
 void
 mimeBodyStart(Mime *m)
 {
-	MimeHooks *hook;
-
 	LOGHOOK(m);
-	for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
-		if (hook->body_start != NULL)
-			(*hook->body_start)(m, hook->data);
-	}
+	mimeDoHook(m, offsetof(MimeHooks, body_start));
 }
 
 void
 mimeBodyFinish(Mime *m)
 {
-	MimeHooks *hook;
-
 	LOGHOOK(m);
 	if (!mimeIsAnyHeader(m)) {
-		for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
-			if (hook->body_finish != NULL)
-				(*hook->body_finish)(m, hook->data);
-		}
+		mimeDoHook(m, offsetof(MimeHooks, body_finish));
 	}
 }
 
@@ -428,7 +443,7 @@ mimeStateBoundary(Mime *m, int ch)
 			m->state.has_content_type = 0;
 			m->state.is_message_rfc822 = 0;
 			m->state.encoding = MIME_NONE;
-			m->state.source_state = mimeStateHdr;
+			m->state.source_state = mimeStateHdrStart;
 		} else {
 			LOGVOL(1, "not a boundary");
 
@@ -599,6 +614,7 @@ mimeStateEOH(Mime *m, int ch)
 	m->source.buffer[0] = '\0';
 	m->source.length = 0;
 
+	mimeHdrFinish(m);
 	mimeBodyStart(m);
 
 	/* HACK for uri.c:
@@ -626,8 +642,6 @@ mimeStateEOH(Mime *m, int ch)
 static int
 mimeStateHdrLF(Mime *m, int ch)
 {
-	MimeHooks *hook;
-
 	LOGSTATE(m, ch);
 
 	if (ch == ASCII_CR) {
@@ -679,10 +693,7 @@ mimeStateHdrLF(Mime *m, int ch)
 			}
 
 			LOGHOOK(m);
-			for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
-				if (hook->header != NULL)
-					(*hook->header)(m, hook->data);
-			}
+			mimeDoHook(m, offsetof(MimeHooks, header));
 			mimeSourceFlush(m);
 
 			m->source.buffer[m->source.length++] = ch;
@@ -720,6 +731,16 @@ mimeStateHdrValue(Mime *m, int ch)
 }
 
 static int
+mimeStateHdrStart(Mime *m, int ch)
+{
+	LOGSTATE(m, ch);
+	m->state.source_state = mimeStateHdr;
+	mimeDoHook(m, offsetof(MimeHooks, hdr_start));
+
+	return mimeStateHdr(m, ch);
+}
+
+static int
 mimeStateHdr(Mime *m, int ch)
 {
 	int i;
@@ -746,9 +767,10 @@ mimeStateHdr(Mime *m, int ch)
 			else if (m->throw.ready)
 				LONGJMP(m->throw.error, MIME_ERROR_NO_EOH);
 		} else if (m->throw.ready) {
-			LONGJMP(m->throw.error, MIME_ERROR_HDR_NAME);
+			LONGJMP(m->throw.error, MIME_ERROR_HEADER_NAME);
 		}
 
+		mimeHdrFinish(m);
 		mimeBodyStart(m);
 		m->state.source_state = mimeStateHdrBdy;
 		for (i = 0; i < m->source.length; i++)
@@ -829,15 +851,9 @@ mimeHooksAdd(Mime *m, MimeHooks *hook)
 void
 mimeFree(Mime *m)
 {
-	MimeHooks *hook, *next;
-
 	LOGHOOK(m);
 	if (m != NULL) {
-		for (hook = m->mime_hook; hook != NULL; hook = next) {
-			next = hook->next;
-			if (hook->free != NULL)
-				(*hook->free)(m, hook);
-		}
+		mimeDoHook(m, offsetof(MimeHooks, free_hook));
 		free(m);
 	}
 }
@@ -854,7 +870,7 @@ void
 mimeHeadersFirst(Mime *m, int flag)
 {
 	LOGHOOK(m);
-	m->state.source_state = flag ? mimeStateHdr : mimeStateBdy;
+	m->state.source_state = flag ? mimeStateHdrStart : mimeStateBdy;
 }
 
 /**
@@ -887,6 +903,21 @@ mimeIsHeaders(Mime *m)
 	return m->mime_part_number == 0 && mimeIsAnyHeader(m);
 }
 
+void
+mimeMsgStart(Mime *m)
+{
+	LOGHOOK(m);
+	mimeReset(m);
+	mimeDoHook(m, offsetof(MimeHooks, msg_start));
+}
+
+void
+mimeMsgFinish(Mime *m)
+{
+	LOGHOOK(m);
+	mimeDoHook(m, offsetof(MimeHooks, msg_finish));
+}
+
 /**
  * @param m
  *	Pointer to a Mime context structure.
@@ -912,9 +943,9 @@ mimeNextCh(Mime *m, int ch)
 	if (ch != EOF) {
 		if (ch < 0 || 255 < ch) {
 			if (m->throw.ready)
-				LONGJMP(m->throw.error, MIME_ERROR_INVALID);
+				LONGJMP(m->throw.error, MIME_ERROR_INVALID_BYTE);
 			errno = EINVAL;
-			return MIME_ERROR_INVALID;
+			return MIME_ERROR_INVALID_BYTE;
 		}
 
 		m->mime_part_length++;
@@ -933,8 +964,10 @@ mimeNextCh(Mime *m, int ch)
 	if (ch == EOF || sizeof (m->source.buffer)-1 <= m->source.length)
 		mimeSourceFlush(m);
 
-	if (ch == EOF)
+	if (ch == EOF) {
 		mimeBodyFinish(m);
+		mimeMsgFinish(m);
+	}
 
 	return MIME_ERROR_OK;
 }
@@ -961,6 +994,7 @@ int extract_part = -1;
 int enable_decode;
 int enable_throw;
 int generate_md5;
+int json_dump;
 
 Mime *mime;
 
@@ -968,9 +1002,11 @@ Mime *mime;
 static char usage[] =
 "usage: mime [-v] -l < message\n"
 "       mime [-v] -p num [-dem] < message\n"
+"       mime [-v] -j [-e] < message\n"
 "\n"
 "-d\t\tdecode base64 or quoted-printable\n"
 "-e\t\treport parsing errors\n"
+"-j\t\tJSON dump\n"
 "-l\t\tlist MIME part headers\n"
 "-m\t\tgenerate MD5s for MIME part\n"
 "-p num\t\textract MIME part\n"
@@ -1061,6 +1097,128 @@ md5_decode_flush(Mime *m, void *data)
 		md5_append(&md5->decode, m->decode.buffer, m->decode.length);
 }
 
+md5_mime_state md5_state;
+
+MimeHooks md5_hook = {
+	(void *)&md5_state,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	md5_body_start,
+	md5_body_finish,
+	md5_source_flush,
+	md5_decode_flush,
+	(MimeHookOctet) NULL,
+	NULL
+};
+
+void
+json_msg_start(Mime *m, void *data)
+{
+	LOGCB(m, data);
+	printf("[\n");
+}
+
+void
+json_msg_finish(Mime *m, void *data)
+{
+	LOGCB(m, data);
+	printf("]\n");
+}
+
+char *
+json_encode(const char *string, size_t length)
+{
+	char *encoded, *t;
+	const char *s, *j;
+
+	if ((encoded = malloc(length * 6 + 1)) != NULL) {
+		t = encoded;
+		for (s = string; *s != '\0'; s++) {
+			if ((j = asJson(*s)) == NULL)
+				continue;
+			(void) strcpy(t, j);
+			t += strlen(j);
+		}
+	}
+
+	return encoded;
+}
+
+void
+json_headers_start(Mime *m, void *data)
+{
+	LOGCB(m, data);
+	printf("\t{\n\t\t\"headers\": [\n");
+}
+
+void
+json_headers_finish(Mime *m, void *data)
+{
+	LOGCB(m, data);
+	printf("\t\t],\n");
+}
+
+void
+json_header(Mime *m, void *data)
+{
+	char *js;
+
+	LOGCB(m, data);
+	if ((js = json_encode((char *)m->source.buffer, m->source.length)) != NULL) {
+		printf("\t\t\t\"%s\",\n", js);
+		free(js);
+	}
+}
+
+void
+json_body_start(Mime *m, void *data)
+{
+	LOGCB(m, data);
+	printf("\t\t\"body\": \"");
+}
+
+void
+json_body_source(Mime *m, void *data)
+{
+	LOGCB(m, data);
+//	fwrite(m->source.buffer, 1, m->source.length, stdout);
+}
+
+void
+json_body_finish(Mime *m, void *data)
+{
+	LOGCB(m, data);
+	printf("\",\n\t},\n");
+}
+
+void
+json_decode_octet(Mime *m, int ch, void *data)
+{
+	LOGCB(m, data);
+	if (0 <= ch)
+		(void) fputs(asJson(ch), stdout);
+}
+
+MimeHooks json_hook = {
+	(void *)NULL,
+	NULL,
+	json_msg_start,
+	json_msg_finish,
+	json_headers_start,
+	json_header,
+	json_headers_finish,
+	json_body_start,
+	json_body_finish,
+	NULL,
+	NULL,
+	json_decode_octet,
+	NULL
+};
+
 void
 listHeaders(Mime *m, void *_data)
 {
@@ -1115,13 +1273,11 @@ processInput(Mime *m, FILE *fp)
 	LOGTRACE();
 
 	if (fp != NULL) {
-		mimeReset(m);
-
+		mimeMsgStart(m);
 		do {
 			ch = fgetc(fp);
 			(void) mimeNextCh(m, ch);
 		} while (ch != EOF);
-
 		(void) fflush(stdout);
 	}
 }
@@ -1146,16 +1302,17 @@ main(int argc, char **argv)
 {
 	int ch;
 	MimeHooks hook;
-	md5_mime_state md5;
-	MimeHooks md5_hook = { (void *)&md5, NULL, NULL, md5_body_start, md5_body_finish, md5_source_flush, md5_decode_flush };
 
-	while ((ch = getopt(argc, argv, "delmp:v")) != -1) {
+	while ((ch = getopt(argc, argv, "dejlmp:v")) != -1) {
 		switch (ch) {
 		case 'd':
 			enable_decode = 1;
 			break;
 		case 'e':
 			enable_throw = 1;
+			break;
+		case 'j':
+			json_dump = 1;
 			break;
 		case 'l':
 			list_parts = 1;
@@ -1171,13 +1328,13 @@ main(int argc, char **argv)
 			break;
 		default:
 			(void) fprintf(stderr, usage);
-			exit(2);
+			exit(EX_USAGE);
 		}
 	}
 
-	if (!list_parts && extract_part < 0) {
+	if (!json_dump && !list_parts && extract_part < 0) {
 		(void) fprintf(stderr, usage);
-		exit(2);
+		exit(EX_USAGE);
 	}
 	if (0 < debug) {
 		LogOpen("(standard error)");
@@ -1186,32 +1343,36 @@ main(int argc, char **argv)
 
 	if ((mime = mimeCreate()) == NULL) {
 		fprintf(stderr, "mimeCreate error: %s (%d)\n", strerror(errno), errno);
-		exit(1);
+		exit(EX_SOFTWARE);
 	}
 
 	memset(&hook, 0, sizeof (hook));
 
-	if (list_parts) {
-		hook.header = listHeaders;
-		hook.body_start = listEndHeaders;
-	} else if (enable_decode) {
-		hook.decode_flush = printDecode;
-		hook.body_finish = printFinish;
+	if (json_dump) {
+		mimeHooksAdd(mime, &json_hook);
 	} else {
-		hook.source_flush = printSource;
-		hook.body_finish = printFinish;
+		if (list_parts) {
+			hook.header = listHeaders;
+			hook.body_start = listEndHeaders;
+		} else if (enable_decode) {
+			hook.decode_flush = printDecode;
+			hook.body_finish = printFinish;
+		} else {
+			hook.source_flush = printSource;
+			hook.body_finish = printFinish;
+		}
+
+		mimeHooksAdd(mime, &hook);
+
+		if (generate_md5)
+			mimeHooksAdd(mime, &md5_hook);
 	}
-
-	mimeHooksAdd(mime, &hook);
-
-	if (generate_md5)
-		mimeHooksAdd(mime, &md5_hook);
 
 	if (enable_throw) {
 		if ((ch = SETJMP(mime->throw.error)) != MIME_ERROR_OK) {
 			if (ch != MIME_ERROR_BREAK) {
 				fprintf(stderr, "mime error: %d\n", ch);
-				exit(1);
+				exit(EX_DATAERR);
 			}
 			goto done;
 		}
@@ -1226,7 +1387,7 @@ main(int argc, char **argv)
 done:
 	mimeFree(mime);
 
-	return 0;
+	return EX_OK;
 }
 
 #endif /* TEST */

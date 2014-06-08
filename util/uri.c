@@ -1332,7 +1332,7 @@ uriMimeInit(UriMimeHook uri_found_cb, int all, void *data)
 		hold->uri_found_cb = uri_found_cb;
 
 		hold->hook.data = hold;
-		hold->hook.free = uri_mime_free;
+		hold->hook.free_hook = uri_mime_free;
 		hold->hook.header = uri_mime_header;
 		hold->hook.body_start = uri_mime_body_start;
 		hold->hook.body_finish = uri_mime_body_finish;

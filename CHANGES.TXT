@@ -61,12 +61,17 @@ is no set schedule for releases.
 
    *	Updated the TLD list.
 
-   !	In pdqListFindName() assume CNAME lookups happen in order, so no need
-	to restart searches from the top for next CNAME in the chain or the
-	desire target record.
+   !    In pdqListFindName() assume CNAME lookups happen in order, so no
+   	need to restart searches from the top for next CNAME in the chain 
+	or the desire target record.
 
    !	cppcheck the code. Fixed minor leaks in some error code. Removed
 	dead code that only served as reminders what not to do.
+
+   !	Replace cipher.c with IOCCC enhanced version.
+
+   !	Added extra hooks to MIME API. Added -j option to mime tool to
+	dump email message as JSON output. Commissined by Vika S.
 
 --1.75.30--
 

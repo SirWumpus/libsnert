@@ -151,6 +151,19 @@ extern int TextNull(const char *s);
 extern int TextBackslash(char);
 
 /**
+ * @param octet
+ *	An octet or EOF (-1).
+ *
+ * @return
+ *	A printable C string pointer; NULL on EOF or octect out of range.
+ *	Control characters and high octets converted to a escaped format.
+ */
+extern const char *asEscape(int octet);
+extern const char *asJson(int octet);
+extern const char *asCarat(int octet);
+extern const char *asControl(int octet);
+
+/**
  * <p>
  * The given string contains a list of substrings separated by the
  * specified delimiter characters. The substrings may contain quoted

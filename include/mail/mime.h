@@ -65,8 +65,12 @@ typedef struct {
 
 typedef struct mime_hooks {
 	void *data;				/* Data for parser call-backs. */
-	MimeHook free;				/* How to clean up hooks & data. */
+	MimeHook free_hook;			/* How to clean up hooks & data. */
+	MimeHook msg_start;			/* Start of message. */
+	MimeHook msg_finish;			/* End of message. */
+	MimeHook hdr_start;			/* Start of message or MIME headers. */
 	MimeHook header;			/* On complete header line. */
+	MimeHook hdr_finish;			/* End of message or MIME headers. */
 	MimeHook body_start;			/* At end of MIME headers, start of MIME body. */
 	MimeHook body_finish;			/* At end of MIME body, start of next MIME headers. */
 	MimeHook source_flush;			/* When source buffer is flushed. */
@@ -79,8 +83,8 @@ typedef enum {
 	MIME_ERROR_OK,
 	MIME_ERROR_BREAK,
 	MIME_ERROR_NULL,
-	MIME_ERROR_INVALID,
-	MIME_ERROR_HDR_NAME,
+	MIME_ERROR_INVALID_BYTE,
+	MIME_ERROR_HEADER_NAME,
 	MIME_ERROR_NO_EOH
 } MimeErrorCode;
 
@@ -130,6 +134,13 @@ extern void mimeFree(Mime *);
 /**
  * @param m
  *	Pointer to a Mime context structure.
+ */
+extern void mimeMsgStart(Mime *m);
+extern void mimeMsgFinish(Mime *m);
+
+/**
+ * @param m
+ *	Pointer to a Mime context structure.
  *
  * @param ch
  *	Next input octet to parse.
@@ -138,18 +149,6 @@ extern void mimeFree(Mime *);
  *	Zero to continue, otherwise non-zero on error.
  */
 extern MimeErrorCode mimeNextCh(Mime *, int);
-
-#ifdef GONE
-/**
- * @param m
- *	Pointer to a Mime context structure.
- *
- * @param ch
- *	Parsed input octet to add to the decode buffer.
- */
-extern void mimeDecodeBodyAdd(Mime *m, int ch);
-extern void mimeDecodeHeaderAdd(Mime *m, int ch);
-#endif
 
 /**
  * @param m

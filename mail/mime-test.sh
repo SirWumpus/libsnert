@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/ksh
 echo $KSH_VERSION
 
 make mime >/dev/null
@@ -22,20 +22,20 @@ echo "MD5=${MD5}"
 
 function check_mime
 {
-	file=$1
+	typeset file=$1
 	echo "$ ./mime -l ${file} " >>${file}.out
-	num_parts=`./mime -l ${file} | tee -a ${file}.out | sed -n -e '$s/://p' | tr -d '\015'`
+	typeset num_parts=`./mime -l ${file} | tee -a ${file}.out | sed -n -e '$s/://p' | tr -d '\015'`
 	if test ${num_parts} -eq 0 ; then
 		num_parts=1
 	fi
 
-	i=0
+	typeset -i i=0
 	while test $i -le ${num_parts} ; do
-		encoded=`./mime -l ${file} | sed -n -e "/^${i}: X-MD5-Encoded:/s/^${i}: X-MD5-Encoded: //p" | tr -d '[:space:]'`
-		decoded=`./mime -l ${file} | sed -n -e "/^${i}: X-MD5-Decoded:/s/^${i}: X-MD5-Decoded: //p" | tr -d '[:space:]'`
+		typeset encoded=`./mime -l ${file} | sed -n -e "/^${i}: X-MD5-Encoded:/s/^${i}: X-MD5-Encoded: //p" | tr -d '[:space:]'`
+		typeset decoded=`./mime -l ${file} | sed -n -e "/^${i}: X-MD5-Decoded:/s/^${i}: X-MD5-Decoded: //p" | tr -d '[:space:]'`
 
 		echo "$ ./mime -p${i} ${file} " >>${file}.out
-		computed=`./mime -p${i} ${file} | tee -a ${file}.out | tee $$.tmp | $MD5 | sed -e 's/ \*-//'`
+		typeset computed=`./mime -p${i} ${file} | tee -a ${file}.out | tee $$.tmp | $MD5 | sed -e 's/ \*-//'`
 
 		if test -n "${encoded}" -a ${computed} != ${encoded:-undef} ; then
 			echo "${file}: part $i encoded $encoded computed $computed" | tee -a ${file}.out
