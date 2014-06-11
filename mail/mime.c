@@ -7,8 +7,9 @@
  */
 
 /*
- * Define if headers is an array of name/value objects (1) or
- * array of strings (2).
+ * Define style of headers in an array of strings (0, unknow), an array
+ * of name/value objects (1), or array of name/value objects by header
+ * name and excluding Resent-*, Received*, and X-* headers (2).
  */
 #ifndef HEADER_OBJECT
 #define HEADER_OBJECT	1
@@ -1127,52 +1128,61 @@ MimeHooks md5_hook = {
  * JSON Schema
  *
  * {
- *     "$schema": "http://json-schema.org/draft-04/schema#",
- *     "id": "message.json#",
- *     "type": "array",
- *     "description": "Array of MIME parts. Part 0 is the top level message's
- *      headers and message body or MIME prologue for a multipart. The last
- *      MIME part, the epilogue, is typically empty.",
- *     "items": {
- *         "id": "#part",
- *         "type": "object",
- *         "properties": {
- *             "headers": {
- *                 "type": "array",
- *                 "decription": "Some headers can be appear multiple times,
- *                  such as Received header and the Resent-* family. Original
- *                  order has to be maintained for digital signatures and
- *                  Resent header groups.",
- *                 "items": {
-#if defined(HEADER_OBJECT) && HEADER_OBJECT == 1
- *                     "id": "#header"
- *                     "type": "object",
- *                     "properties": {
- *                         "name": {
- *                             "type": "string",
- *                         },
- *                         "value": {
- *                             "type": "string",
- *                         },
- *                     },
+ *	"$schema": "http://json-schema.org/draft-04/schema#",
+ *	"id": "message.json#",
+ *	"type": "array",
+ *	"description": "Array of MIME parts. Part 0 is the top level message's
+ *	 headers and message body or MIME prologue for a multipart. The last
+ *	 MIME part, the epilogue, is typically empty.",
+ *	"items": {
+ *	    "id": "#part",
+ *	    "type": "object",
+ *	    "properties": {
+ *		"headers": {
+ *		"type": "array",
+ *		"decription": "Some headers can be appear multiple times,
+ *		 such as Received header and the Resent-* family. Original
+ *		 order has to be maintained for digital signatures and
+ *		 Resent header groups.",
+ *		"items": {
+ *		    "id": "#header"
+#if defined(HEADER_OBJECT) && HEADER_OBJECT == 2
+ *		    "type": "object",
+ *		    "description": "A name/value object by header name and
+ *		     excluding Resent-*, Received*, and X-* headers."
+ *		    "patternProperties": {
+ *			"[a-z][0-9a-z_]*": {
+ *			    "type": "string",
+ *			},
+ *		    },
+ *		    "required": [ "date", "from", "message_id", ],
+#elif defined(HEADER_OBJECT) && HEADER_OBJECT == 1
+ *		    "type": "object",
+ *		    "properties": {
+ *			"name": {
+ *			    "type": "string",
+ *			},
+ *			"value": {
+ *			    "type": "string",
+ *			},
+ *		    },
 #else
- *                     "id": "#header"
- *                     "type": "string",
- *                     "description": "A header string in form of 'Name: Value'.
- *                      The original white space following the colon is retained.",
+ *		    "type": "string",
+ *		    "description": "A header string in form of 'Name: Value'.
+ *		     The original white space following the colon is retained.",
 #endif
- *                 },
- *                 "minItems": 1,
- *                 "uniqueItems": false,
- *             },
- *             "body": {
- *                 "type": "string",
- *             },
- *         },
- *         "requires": [ "headers", "body" ],
- *     },
- *     "mimItems": 1,
- *     "uniqueItems": false,
+ *		},
+ *		    "minItems": 1,
+ *		    "uniqueItems": false,
+ *		},
+ *		"body": {
+ *		    "type": "string",
+ *		},
+ *	    },
+ *	    "requires": [ "headers", "body" ],
+ *	},
+ *	"mimItems": 1,
+ *	"uniqueItems": false,
  * }
  */
 
@@ -1230,7 +1240,21 @@ json_header(Mime *m, void *data)
 
 	LOGCB(m, data);
 	if ((js = json_encode((char *)m->source.buffer, m->source.length)) != NULL) {
-#if defined(HEADER_OBJECT) && HEADER_OBJECT == 1
+#if defined(HEADER_OBJECT) && HEADER_OBJECT == 2
+		/* Skip X- extension headers, */
+		if (TextInsensitiveStartsWith(js, "X-") < 0
+		/* Resent- header blocks, */
+		&&  TextInsensitiveStartsWith(js, "Resent-") < 0
+		/* Received, and Received-SPF. */
+		&&  TextInsensitiveStartsWith(js, "Received") < 0
+		) {
+			int colon = strcspn(js, ":");
+			int spaces = strspn(js+colon+1, " \t")+1;
+			TextLower(js, -1);
+			TextTransliterate(js, "-", "_", -1);
+			printf("\t\t\t{ \"%.*s\": \"%s\", },\n", colon, js, js+colon+spaces);
+		}
+#elif defined(HEADER_OBJECT) && HEADER_OBJECT == 1
 		int colon = strcspn(js, ":");
 		int spaces = strspn(js+colon+1, " \t")+1;
 		printf("\t\t\t{ \"name\": \"%.*s\", \"value\": \"%s\", },\n", colon, js, js+colon+spaces);
