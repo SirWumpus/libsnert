@@ -3,8 +3,16 @@
  *
  * RFC 2045, 2046, 2047
  *
- * Copyright 2007, 2013 by Anthony Howe. All rights reserved.
+ * Copyright 2007, 2014 by Anthony Howe. All rights reserved.
  */
+
+/*
+ * Define if headers is an array of name/value objects (1) or
+ * array of strings (2).
+ */
+#ifndef HEADER_OBJECT
+#define HEADER_OBJECT	1
+#endif
 
 /***********************************************************************
  *** No configuration below this point.
@@ -1115,6 +1123,59 @@ MimeHooks md5_hook = {
 	NULL
 };
 
+/*
+ * JSON Schema
+ *
+ * {
+ *     "$schema": "http://json-schema.org/draft-04/schema#",
+ *     "id": "message.json#",
+ *     "type": "array",
+ *     "description": "Array of MIME parts. Part 0 is the top level message's
+ *      headers and message body or MIME prologue for a multipart. The last
+ *      MIME part, the epilogue, is typically empty.",
+ *     "items": {
+ *         "id": "#part",
+ *         "type": "object",
+ *         "properties": {
+ *             "headers": {
+ *                 "type": "array",
+ *                 "decription": "Some headers can be appear multiple times,
+ *                  such as Received header and the Resent-* family. Original
+ *                  order has to be maintained for digital signatures and
+ *                  Resent header groups.",
+ *                 "items": {
+#if defined(HEADER_OBJECT) && HEADER_OBJECT == 1
+ *                     "id": "#header"
+ *                     "type": "object",
+ *                     "properties": {
+ *                         "name": {
+ *                             "type": "string",
+ *                         },
+ *                         "value": {
+ *                             "type": "string",
+ *                         },
+ *                     },
+#else
+ *                     "id": "#header"
+ *                     "type": "string",
+ *                     "description": "A header string in form of 'Name: Value'.
+ *                      The original white space following the colon is retained.",
+#endif
+ *                 },
+ *                 "minItems": 1,
+ *                 "uniqueItems": false,
+ *             },
+ *             "body": {
+ *                 "type": "string",
+ *             },
+ *         },
+ *         "requires": [ "headers", "body" ],
+ *     },
+ *     "mimItems": 1,
+ *     "uniqueItems": false,
+ * }
+ */
+
 void
 json_msg_start(Mime *m, void *data)
 {
@@ -1169,7 +1230,13 @@ json_header(Mime *m, void *data)
 
 	LOGCB(m, data);
 	if ((js = json_encode((char *)m->source.buffer, m->source.length)) != NULL) {
+#if defined(HEADER_OBJECT) && HEADER_OBJECT == 1
+		int colon = strcspn(js, ":");
+		int spaces = strspn(js+colon+1, " \t")+1;
+		printf("\t\t\t{ \"name\": \"%.*s\", \"value\": \"%s\", },\n", colon, js, js+colon+spaces);
+#else
 		printf("\t\t\t\"%s\",\n", js);
+#endif
 		free(js);
 	}
 }

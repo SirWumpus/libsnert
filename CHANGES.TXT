@@ -62,21 +62,21 @@ is no set schedule for releases.
    *	Updated the TLD list.
 
    !    In pdqListFindName() assume CNAME lookups happen in order, so no
-   	need to restart searches from the top for next CNAME in the chain 
+   	need to restart searches from the top for next CNAME in the chain
 	or the desire target record.
 
    !	cppcheck the code. Fixed minor leaks in some error code. Removed
 	dead code that only served as reminders what not to do.
 
-   !	Replace cipher.c with IOCCC enhanced version.
+   !	Complete replacement of cipher API based on previous IOCCC entry.
 
    !	Added extra hooks to MIME API. Added -j option to mime tool to
 	dump email message as JSON output. Commissined by Vika S.
 
 --1.75.30--
 
-   !	Fixed pdqGet() to address the original CNAME->MX lookup issue 
-	reported by Steve Fregard for 1.75.19. Updated test.snert.net 
+   !	Fixed pdqGet() to address the original CNAME->MX lookup issue
+	reported by Steve Fregard for 1.75.19. Updated test.snert.net
 	to better exercise these cases:
 
 		pdq mx chain0.test.snert.net
@@ -88,11 +88,11 @@ is no set schedule for releases.
 
    *	Upgraded SQLite to 3.8.4.3
 
-  !!	Back out a PDQ change from 1.75.19 (b8ea01d8d3b) for CNAME->MX 
+  !!	Back out a PDQ change from 1.75.19 (b8ea01d8d3b) for CNAME->MX
 	chain processing that broke CNAME loop and depth detection
 	and caused an infinite loop crash. Reported by Steve Freegard.
 
-  !!	Fix mccPutRowLocal() to always include the created timestamp. 
+  !!	Fix mccPutRowLocal() to always include the created timestamp.
 	The SQLite behaviour for "INSERT OR REPLACE" is NOT the same as
 	"INSERT" or "UPDATE"; the missing columns during a REPLACE subject
 	to any CREATE TABLE defaults. Reported by Steve Freegard.
@@ -111,7 +111,7 @@ is no set schedule for releases.
 --1.75.27--
 
   !!	Fix socket3_close_tls() and socket3_shutdown_tls() to both use
-	socket3_end_tls() when terminating TLS connections. 
+	socket3_end_tls() when terminating TLS connections.
 
    !	Fixed socket3_close_fd() read/discard loop to use socket3_read_fd(),
 	instead of socket3_read() to avoid the read hook call.
