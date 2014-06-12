@@ -111,7 +111,7 @@ mimeDoHook(Mime *m, ptrdiff_t func_off)
 	ptrdiff_t free_off;
 	MimeHooks *hook, *next;
 
-	LOGIF("%s(0x%lX, %d)", __func__, (long)m, func_off);
+	LOGIF("%s(0x%lX, %ld)", __func__, (long)m, func_off);
 
 	free_off = offsetof(MimeHooks, free_hook);
 	for (hook = m->mime_hook; hook != NULL; hook = next) {
