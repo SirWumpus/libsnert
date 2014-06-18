@@ -61,11 +61,21 @@ static mapping map_escape[] = {
 	{ 0, (char *) 0 }
 };
 
+/*
+ * RFC 7159, ECMA-404, http://json.org/
+ *
+ * http://www.rfc-editor.org/errata_search.php?rfc=4627
+ *
+ * Denotes that solidus (/) 0x2F _can_ be escaped "\/", but not that it
+ * should be. The ECMA grammar is a parsing grammar, not a generating
+ * grammar.
+ */
 static mapping map_json[] = {
-	/* http://json.org/ */
 	{ '"',	"\\\"" },
 	{ '\\', "\\\\" },
+#ifdef ESCAPE_SOLIDUS
 	{ '/',	"\\/" },
+#endif
 	{ 8,  	"\\b" },
 	{ 12,	"\\f" },
 	{ 10,	"\\n" },

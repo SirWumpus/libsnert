@@ -22,14 +22,9 @@
 #define VECTOR_GROWTH		1000
 #endif
 
-#define REF_VECTOR(v)		((Vector)(v))
-#define REF_OBJECT(v)		((Object)(v))
-
 /***********************************************************************
  *** Instance methods
  ***********************************************************************/
-
-/*@access Object@*/
 
 void **
 VectorBase(Vector self)
@@ -89,7 +84,7 @@ VectorSetDestroyEntry(Vector self, void (*fn)(void *))
 	if (self == NULL)
 		errno = EFAULT;
 	else
-		self->_free = fn;
+		self->_free_entry = fn;
 }
 
 /*
@@ -178,10 +173,10 @@ VectorRemoveSome(Vector self, long index, long length)
 	for (i = index, j = index + length; i < j; i++) {
 		if ((obj = self->_base[i]) != NULL) {
 			/* Are we destroying objects or unknow types? */
-			if (self->_free == NULL)
+			if (self->_free_entry == NULL)
 				obj->destroy(obj);
 			else
-				(*self->_free)(obj);
+				(*self->_free_entry)(obj);
 		}
 	}
 
@@ -313,10 +308,10 @@ VectorSet(Vector self, long index, void *data)
 
 	if (value != NULL && value != data) {
 		/*@-branchstate@*/
-		if (self->_free == NULL)
+		if (self->_free_entry == NULL)
 			value->destroy(value);
 		else
-			(*self->_free)(value);
+			(*self->_free_entry)(value);
 		/*@=branchstate@*/
 	}
 }
@@ -488,7 +483,7 @@ VectorCreate(long capacity)
 		return NULL;
 	}
 
-	self->_free = FreeStub;
+	self->_free_entry = FreeStub;
 	self->_size = capacity;
 	self->_length = 0;
 

@@ -47,17 +47,21 @@ extern "C" {
  *	[,,]		[] [] []	(null)
  *	[]		[]		(null)
  *
- *	TOKEN_KEEP_QUOTES
- *	
- *	If set, then do not strip quotes.
- *
- *	TOKEN_KEEP_BACKSLASH
- *	
- *	If set, then do not strip backslash escape.
- *
  *	TOKEN_KEEP_ESCAPES
- *	
- *	If set, then do not strip backslash escape nor quotes.
+ *
+ *	The token might have backslash escapes that are suppose to be
+ *	part of the token, like a regex string /RE/ where you need to
+ *	keep any "\/" between the open and closing slashes. We still
+ *	need to recognise escapes and not convert them to a literal.
+ *
+ *	TOKEN_IGNORE_QUOTES
+ *
+ *	Disable any special processing of quoted substrings; quotes
+ *	are treated as literals.
+ *
+ *	TOKEN_KEEP_ASIS
+ *
+ *	Shorthand for TOKEN_KEEP_BACKSLASH | TOKEN_IGNORE_QUOTES.
  *
  * @return
  *	An allocated token.
@@ -67,9 +71,9 @@ extern "C" {
 extern char *TokenNext(const char *, const char **, const char *, int);
 
 #define TOKEN_KEEP_EMPTY	0x0001
-#define TOKEN_KEEP_QUOTES	0x0002
-#define TOKEN_KEEP_BACKSLASH	0x0004
-#define TOKEN_KEEP_ESCAPES	(TOKEN_KEEP_QUOTES|TOKEN_KEEP_BACKSLASH)
+#define TOKEN_KEEP_BACKSLASH	0x0002
+#define TOKEN_IGNORE_QUOTES	0x0004
+#define TOKEN_KEEP_ASIS		(TOKEN_KEEP_BACKSLASH|TOKEN_IGNORE_QUOTES)
 
 /**
  * <p>

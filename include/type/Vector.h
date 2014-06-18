@@ -15,7 +15,7 @@ typedef struct vector {
 	long _size;
 	long _length;
 	void **_base;
-	void (*_free)(void *);
+	void (*_free_entry)(void *);
 } *Vector;
 
 /*@-exportlocal@*/

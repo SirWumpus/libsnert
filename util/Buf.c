@@ -110,7 +110,7 @@ BufFini(void *_buf)
 int
 BufInit(Buf *a, size_t size)
 {
-	if ((a->bytes = malloc(size)) == NULL)
+	if (a == NULL || (a->bytes = malloc(size)) == NULL)
 		return -1;
 
 	a->free = BufFini;
@@ -124,8 +124,17 @@ BufInit(Buf *a, size_t size)
 void
 BufFree(void *_buf)
 {
-	BufFini(_buf);
-	free(_buf);
+	Buf *buf = _buf;
+
+	if (buf != NULL) {
+		(void) BufFini(buf);
+
+		/* Guard against against incorrect use of BufFree()
+		 * used in place of BufFini().
+		 */
+		if (buf->free == BufFree)
+			free(buf);
+	}
 }
 
 Buf *

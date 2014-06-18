@@ -55,17 +55,21 @@
  *	[,,]		[] [] []	(null)
  *	[]		[]		(null)
  *
- *	TOKEN_KEEP_QUOTES
- *
- *	If set, then do not strip quotes.
- *
  *	TOKEN_KEEP_BACKSLASH
  *
- *	If set, then do not strip backslash escape.
+ *	The token might have backslash escapes that are suppose to be
+ *	part of the token, like a regex string /RE/ where you need to
+ *	keep any "\/" between the open and closing slashes. We still
+ *	need to recognise escapes and not convert them to a literal.
  *
- *	TOKEN_KEEP_ESCAPES
+ *	TOKEN_IGNORE_QUOTES
  *
- *	If set, then do not strip backslash escape nor quotes.
+ *	Disable any special processing of quoted substrings; quotes
+ *	are treated as literals.
+ *
+ *	TOKEN_KEEP_ASIS
+ *
+ *	Shorthand for TOKEN_KEEP_BACKSLASH | TOKEN_IGNORE_QUOTES.
  *
  * @return
  *	An allocated token string.
@@ -110,6 +114,8 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 
 		switch (*s) {
 		case '"': case '\'':
+			if (flags & TOKEN_IGNORE_QUOTES)
+				break;
 			if (quote == 0)
 				quote = *s;
 			else if (*s == quote)
@@ -138,20 +144,22 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 
 		switch (*string) {
 		case '"': case '\'':
-			if (flags & TOKEN_KEEP_QUOTES)
-				*t++ = *string;
+			if (flags & TOKEN_IGNORE_QUOTES)
+				break;
 			if (quote == 0)
+				/* Open quote. */
 				quote = *string;
 			else if (*string == quote)
+				/* Close quote. */
 				quote = 0;
-			else if (!(flags & TOKEN_KEEP_QUOTES))
-				*t++ = *string;
+			else
+				/* The other quote within a quoted string. */
+				break;
 			continue;
 		case '\\':
+			escape = 1;
 			if (flags & TOKEN_KEEP_BACKSLASH)
 				*t++ = *string;
-			else
-				escape = 1;
 			continue;
 		}
 

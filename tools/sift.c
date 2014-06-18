@@ -544,9 +544,9 @@ init_rule(char *line)
 		goto error0;
 	if ((rule = calloc(1, sizeof (*rule))) == NULL)
 		goto error0;
-	if ((rule->pattern = TokenNext(line, &next, "/", TOKEN_KEEP_ESCAPES)) == NULL)
+	if ((rule->pattern = TokenNext(line, &next, "/", TOKEN_KEEP_ASIS)) == NULL)
 		goto error1;
-	if ((fields = TextSplit(next, ";", TOKEN_KEEP_ESCAPES)) == NULL)
+	if ((fields = TextSplit(next, ";", TOKEN_KEEP_ASIS)) == NULL)
 		goto error1;
 
 	if ((err = regcomp(&rule->re, rule->pattern, REG_EXTENDED|REG_NEWLINE)) != 0) {
@@ -857,7 +857,7 @@ do_command(struct pattern_rule *rule, const char *command, const char *line, reg
 	char *cmd, *expand;
 
 	/* Parse field="..." */
-	cmd = TokenNext(strchr(command, '=')+1, NULL, "\n", TOKEN_KEEP_BACKSLASH);
+	cmd = TokenNext(strchr(command, '=')+1, NULL, "\n", TOKEN_KEEP_ASIS);
 
 	/* Replace #n matched sub-expressions. */
 	expand = replace_references('#', cmd, line, parens, rule->re.re_nsub);

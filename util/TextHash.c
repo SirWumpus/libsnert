@@ -32,7 +32,7 @@ TextHash(unsigned long hash, const char *s)
 		hash = 5381;
 
 	while (*s != '\0')
-		/* D.J. Bernstein Hash version 2 */
+ 		/* D.J. Bernstien Hash version 2 (+ replaced by ^). */
 		hash = ((hash << 5) + hash) ^ *s++;
 
 	return hash;

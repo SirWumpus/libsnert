@@ -194,17 +194,21 @@ extern const char *asControl(int octet);
  *	[,,]		[] [] []	(empty vector)
  *	[]		[]		(empty vector)
  *
- *	TOKEN_KEEP_QUOTES
- *
- *	If set, then do not strip quotes.
- *
  *	TOKEN_KEEP_BACKSLASH
  *
- *	If set, then do not strip backslash escape.
+ *	The token might have backslash escapes that are suppose to be
+ *	part of the token, like a regex string /RE/ where you need to
+ *	keep any "\/" between the open and closing slashes. We still
+ *	need to recognise escapes and not convert them to a literal.
  *
- *	TOKEN_KEEP_ESCAPES
+ *	TOKEN_IGNORE_QUOTES
  *
- *	If set, then do not strip backslash escape nor quotes.
+ *	Disable any special processing of quoted substrings; quotes
+ *	are treated as literals.
+ *
+ *	TOKEN_KEEP_ASIS
+ *
+ *	Shorthand for TOKEN_KEEP_BACKSLASH | TOKEN_IGNORE_QUOTES.
  *
  * @return
  *	A vector of C strings.

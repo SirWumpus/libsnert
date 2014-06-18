@@ -56,7 +56,7 @@ extern Buf *BufCreate(size_t capacity);
 
 /**
  * @param _buf
- *	A Buf structure, previously initialised by BufInit(),
+ *	A Buf structure, previously returned by BufCreate(),
  *	to be freed.
  */
 #define BufDestroy BufFree

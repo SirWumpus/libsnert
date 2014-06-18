@@ -97,7 +97,7 @@ OBJS = \
 	uriIsDomainBL$O uri$O option$O sqlite3$O time62$O timespec$O timeval$O timer$O \
 	token_bucket$O buffer$O
 
-TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E \
+TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E TextSplit$E \
        DebugMalloc$E ixhash$E md4$E md5$E htmlstrip$E TextCopy$E TextMatch$E \
        TextTransliterate$E TextSensitiveEndsWith$E TextInsensitiveEndsWith$E \
        ProcTitle$E timer$E dmalloct$E
@@ -178,6 +178,9 @@ TextC$E: TextC.c
 
 TokenSplit$E: TokenCount$O TextBackslash$O TokenSplitA$O TokenSplit.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TokenSplit$E TokenSplit.c $(LIB)
+
+TextSplit$E: TokenNext$O TextSplit.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextSplit$E TextSplit.c TokenNext$O $(LIB)
 
 Cache$E: DebugMalloc$O ../io/flock.c Cache.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Cache$E Cache.c  ../io/flock.c $(LIBSNERT) ${LIBS}

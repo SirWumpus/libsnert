@@ -7,12 +7,14 @@
  */
 
 /*
- * Define style of headers in an array of strings (0, unknow), an array
- * of name/value objects (1), or array of name/value objects by header
- * name and excluding Resent-*, Received*, and X-* headers (2).
+ * Define style of headers container.
  */
-#ifndef HEADER_OBJECT
-#define HEADER_OBJECT	1
+#define	HDRS_ARRAY_STRINGS	0	/* Ordered */
+#define HDRS_ARRAY_OBJECTS	1	/* Ordered */
+#define	HDRS_OBJECT		2	/* Excludes Resent-* blocks and unordered headers. */
+
+#ifndef HEADERS_OBJECT
+#define HEADERS_OBJECT		HDRS_OBJECT
 #endif
 
 /***********************************************************************
@@ -111,7 +113,7 @@ mimeDoHook(Mime *m, ptrdiff_t func_off)
 	ptrdiff_t free_off;
 	MimeHooks *hook, *next;
 
-	LOGIF("%s(0x%lX, %ld)", __func__, (long)m, func_off);
+	LOGIF("%s(0x%lX, %ld)", __func__, (long)m, (long)func_off);
 
 	free_off = offsetof(MimeHooks, free_hook);
 	for (hook = m->mime_hook; hook != NULL; hook = next) {
@@ -660,6 +662,8 @@ mimeStateHdrLF(Mime *m, int ch)
 		m->source.length--;
 	} else if (ch == ASCII_SPACE || ch == ASCII_TAB) {
 		/* Folded header, resume header gathering. */
+		if (ch == ASCII_TAB)
+			m->source.buffer[m->source.length-1] = ASCII_SPACE;
 		m->state.source_state = mimeStateHdrValue;
 	} else {
 		if (0 < m->source.length) {
@@ -893,7 +897,8 @@ int
 mimeIsAnyHeader(Mime *m)
 {
 	LOGHOOK(m);
-	return	m->state.source_state == mimeStateHdr
+	return	m->state.source_state == mimeStateHdrStart
+		|| m->state.source_state == mimeStateHdr
 		|| m->state.source_state == mimeStateHdrValue
 	;
 }
@@ -975,7 +980,6 @@ mimeNextCh(Mime *m, int ch)
 
 	if (ch == EOF) {
 		mimeBodyFinish(m);
-		mimeMsgFinish(m);
 	}
 
 	return MIME_ERROR_OK;
@@ -1124,67 +1128,66 @@ MimeHooks md5_hook = {
 	NULL
 };
 
-/*
+/*jslint white: true
+ *
  * JSON Schema
  *
  * {
  *	"$schema": "http://json-schema.org/draft-04/schema#",
  *	"id": "message.json#",
- *	"type": "array",
  *	"description": "Array of MIME parts. Part 0 is the top level message's
  *	 headers and message body or MIME prologue for a multipart. The last
  *	 MIME part, the epilogue, is typically empty.",
+ *	"type": "array",
  *	"items": {
  *	    "id": "#part",
  *	    "type": "object",
  *	    "properties": {
  *		"headers": {
- *		"type": "array",
- *		"decription": "Some headers can be appear multiple times,
- *		 such as Received header and the Resent-* family. Original
- *		 order has to be maintained for digital signatures and
- *		 Resent header groups.",
- *		"items": {
- *		    "id": "#header"
-#if defined(HEADER_OBJECT) && HEADER_OBJECT == 2
- *		    "type": "object",
- *		    "description": "A name/value object by header name and
- *		     excluding Resent-*, Received*, and X-* headers."
+ *		    "decription": "Some headers can be appear multiple times,
+ *		     such as Received, Received-SPF, and the Resent-* family.
+ *		     Original order has to be maintained for digital signatures
+ *		     and Resent blocks.",
+ *
+ *		    "type": [ "array", "object", ],
+ *
+ *		    "items": {
+ *			"id": "#header",
+ *			"type": [ "string", "array", "object", ],
+ *			"patternProperties": {
+ *			    "[a-z][0-9a-z_]*": {
+ *				"type": "string",
+ *			    },
+ *			},
+ *			"required": [ "date", "from", "message_id", ],
+ *		    },
+ *		    "minItems": 1,
+ *
  *		    "patternProperties": {
  *			"[a-z][0-9a-z_]*": {
  *			    "type": "string",
  *			},
  *		    },
  *		    "required": [ "date", "from", "message_id", ],
-#elif defined(HEADER_OBJECT) && HEADER_OBJECT == 1
- *		    "type": "object",
- *		    "properties": {
- *			"name": {
- *			    "type": "string",
- *			},
- *			"value": {
- *			    "type": "string",
- *			},
- *		    },
-#else
- *		    "type": "string",
- *		    "description": "A header string in form of 'Name: Value'.
- *		     The original white space following the colon is retained.",
-#endif
- *		},
- *		    "minItems": 1,
- *		    "uniqueItems": false,
  *		},
  *		"body": {
  *		    "type": "string",
  *		},
  *	    },
- *	    "requires": [ "headers", "body" ],
+ *	    "requires": [ "headers", "body", ],
  *	},
  *	"mimItems": 1,
- *	"uniqueItems": false,
  * }
  */
+
+char headers_open[] = "[[{[";
+char headers_close[] = "]]}]";
+
+typedef struct {
+	long hdrs_style;
+	Vector received;
+	Vector recipients;
+} json_mime_state;
 
 void
 json_msg_start(Mime *m, void *data)
@@ -1220,47 +1223,105 @@ json_encode(const char *string, size_t length)
 }
 
 void
+json_join_quoted_item(Buf *buf, const char *str, const char *indent)
+{
+	char *encoded;
+
+	if ((encoded = json_encode(str, strlen(str))) != NULL) {
+		(void) BufAddString(buf, indent);
+		(void) BufAddString(buf, "\"");
+		(void) BufAddString(buf, encoded);
+		(void) BufAddString(buf, "\",\n");
+		free(encoded);
+	}
+}
+
+void
 json_headers_start(Mime *m, void *data)
 {
+	json_mime_state *j = data;
+
 	LOGCB(m, data);
-	printf("\t{\n\t\t\"headers\": [\n");
+	printf("\t{\n\t\t\"headers\": %c\n", headers_open[j->hdrs_style]);
 }
 
 void
 json_headers_finish(Mime *m, void *data)
 {
+	char **args;
+	json_mime_state *j = data;
+
 	LOGCB(m, data);
-	printf("\t\t],\n");
+	if (m->mime_part_number == 0) {
+		Buf join;
+
+		if (j->hdrs_style == HDRS_OBJECT && !BufInit(&join, 100)) {
+			if (0 < VectorLength(j->received)) {
+				for (args = (char **)VectorBase(j->received); *args != NULL; args++) {
+					json_join_quoted_item(&join, *args, "\t\t\t\t");
+				}
+				printf("\t\t\t\"received\": [\n%s\t\t\t],\n", BufBytes(&join));
+			}
+			BufSetLength(&join, 0);
+			if (0 < VectorLength(j->recipients)) {
+				for (args = (char **)VectorBase(j->recipients); *args != NULL; args++) {
+					json_join_quoted_item(&join, *args, "\t\t\t\t");
+				}
+				printf("\t\t\t\"to\": [\n%s\t\t\t],\n", BufBytes(&join));
+			}
+			BufFini(&join);
+		}
+	}
+
+	printf("\t\t%c,\n", headers_close[j->hdrs_style]);
 }
 
 void
 json_header(Mime *m, void *data)
 {
 	char *js;
+	int colon, spaces;
+	json_mime_state *j = data;
 
 	LOGCB(m, data);
 	if ((js = json_encode((char *)m->source.buffer, m->source.length)) != NULL) {
-#if defined(HEADER_OBJECT) && HEADER_OBJECT == 2
-		/* Skip X- extension headers, */
-		if (TextInsensitiveStartsWith(js, "X-") < 0
-		/* Resent- header blocks, */
-		&&  TextInsensitiveStartsWith(js, "Resent-") < 0
-		/* Received, and Received-SPF. */
-		&&  TextInsensitiveStartsWith(js, "Received") < 0
-		) {
-			int colon = strcspn(js, ":");
-			int spaces = strspn(js+colon+1, " \t")+1;
-			TextLower(js, -1);
-			TextTransliterate(js, "-", "_", -1);
-			printf("\t\t\t{ \"%.*s\": \"%s\", },\n", colon, js, js+colon+spaces);
+		colon = strcspn(js, ":");
+		spaces = strspn(js+colon+1, " \t")+1;
+
+		if (0 < TextInsensitiveStartsWith(js, "Received:")) {
+			(void) VectorAdd(j->received, TextDup(js+colon+spaces));
 		}
-#elif defined(HEADER_OBJECT) && HEADER_OBJECT == 1
-		int colon = strcspn(js, ":");
-		int spaces = strspn(js+colon+1, " \t")+1;
-		printf("\t\t\t{ \"name\": \"%.*s\", \"value\": \"%s\", },\n", colon, js, js+colon+spaces);
-#else
-		printf("\t\t\t\"%s\",\n", js);
-#endif
+		if (0 < TextInsensitiveStartsWith(js, "To:")) {
+			char **items;
+			Vector list = TextSplit(js+colon+spaces, ",", 0);
+			for (items = (char **)VectorBase(list); *items != NULL; items++) {
+				if (!VectorAdd(j->recipients, *items))
+					*items = NULL;
+			}
+			VectorDestroy(list);
+		}
+
+		switch (j->hdrs_style) {
+		case HDRS_OBJECT:
+			if (TextInsensitiveStartsWith(js, "To") < 0
+			/* Resent- header blocks, */
+			&&  TextInsensitiveStartsWith(js, "Resent-") < 0
+			/* Received, and Received-SPF. */
+			&&  TextInsensitiveStartsWith(js, "Received") < 0
+			) {
+				TextLower(js, colon);
+				printf("\t\t\t\"%.*s\": \"%s\",\n", colon, js, js+colon+spaces);
+			}
+			break;
+
+		case HDRS_ARRAY_OBJECTS:
+			TextLower(js, colon);
+			printf("\t\t\t{ \"%.*s\": \"%s\", },\n", colon, js, js+colon+spaces);
+			break;
+
+		default:
+			printf("\t\t\t\"%s\",\n", js);
+		}
 		free(js);
 	}
 }
@@ -1270,13 +1331,6 @@ json_body_start(Mime *m, void *data)
 {
 	LOGCB(m, data);
 	printf("\t\t\"body\": \"");
-}
-
-void
-json_body_source(Mime *m, void *data)
-{
-	LOGCB(m, data);
-//	fwrite(m->source.buffer, 1, m->source.length, stdout);
 }
 
 void
@@ -1294,8 +1348,10 @@ json_decode_octet(Mime *m, int ch, void *data)
 		(void) fputs(asJson(ch), stdout);
 }
 
+json_mime_state json_state = { HEADERS_OBJECT };
+
 MimeHooks json_hook = {
-	(void *)NULL,
+	(void *)&json_state,
 	NULL,
 	json_msg_start,
 	json_msg_finish,
@@ -1370,6 +1426,7 @@ processInput(Mime *m, FILE *fp)
 			(void) mimeNextCh(m, ch);
 		} while (ch != EOF);
 		(void) fflush(stdout);
+		mimeMsgFinish(m);
 	}
 }
 
@@ -1394,7 +1451,7 @@ main(int argc, char **argv)
 	int ch;
 	MimeHooks hook;
 
-	while ((ch = getopt(argc, argv, "dejlmp:v")) != -1) {
+	while ((ch = getopt(argc, argv, "dejJ:lmp:v")) != -1) {
 		switch (ch) {
 		case 'd':
 			enable_decode = 1;
@@ -1402,6 +1459,10 @@ main(int argc, char **argv)
 		case 'e':
 			enable_throw = 1;
 			break;
+		case 'J':
+			/* Undocumented option for experimenting. */
+			json_state.hdrs_style = strtol(optarg, NULL, 10);
+			/*@fallthrough@*/
 		case 'j':
 			json_dump = 1;
 			break;
@@ -1427,6 +1488,10 @@ main(int argc, char **argv)
 		(void) fprintf(stderr, usage);
 		exit(EX_USAGE);
 	}
+	if (json_state.hdrs_style < HDRS_ARRAY_STRINGS || HDRS_OBJECT < json_state.hdrs_style) {
+		(void) fprintf(stderr, "-J must be 0, 1, or 2.\n");
+		exit(EX_USAGE);
+	}
 	if (0 < debug) {
 		LogOpen("(standard error)");
 		LogSetProgramName("mime");
@@ -1440,6 +1505,11 @@ main(int argc, char **argv)
 	memset(&hook, 0, sizeof (hook));
 
 	if (json_dump) {
+		if ((json_state.recipients = VectorCreate(10)) == NULL
+		||  (json_state.received = VectorCreate(10)) == NULL) {
+			fprintf(stderr, "%s", strerror(errno));
+			exit(EX_SOFTWARE);
+		}
 		mimeHooksAdd(mime, &json_hook);
 	} else {
 		if (list_parts) {
@@ -1476,6 +1546,8 @@ main(int argc, char **argv)
 		processInput(mime, stdin);
 	}
 done:
+	VectorDestroy(json_state.recipients);
+	VectorDestroy(json_state.received);
 	mimeFree(mime);
 
 	return EX_OK;

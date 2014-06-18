@@ -73,6 +73,9 @@ is no set schedule for releases.
    !	Added extra hooks to MIME API. Added -j option to mime tool to
 	dump email message as JSON output. Commissined by Vika S.
 
+   !	Revised behaviour of TOKEN_KEEP_BACKSLASH and TOKEN_KEEP_QOUTES
+	to be more clear and renamed the constants.
+
 --1.75.30--
 
    !	Fixed pdqGet() to address the original CNAME->MX lookup issue
