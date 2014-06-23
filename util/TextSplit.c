@@ -93,10 +93,11 @@ typedef struct {
 	const char *delims;
 	int flags;
 	int expect_length;
-	const char *expect_items[4];
+	const char *expect_items[5];
 } test_case;
 
 static test_case tests[] = {
+
 	/* Empty string and empty delimeters. */
 	{ "", 		"", TOKEN_KEEP_EMPTY, 1, { "" } },
 	{ "", 		"", 0, 0 },
@@ -158,6 +159,19 @@ static test_case tests[] = {
 
 	/* Keep backslash escapes and ignore quotes. */
 	{ "/a'\\/b\\/'c/ tail",	"/ ", TOKEN_KEEP_ASIS, 2, { "a'\\/b\\/'c", "tail" } },
+
+	/* Open & close delimiters. */
+	{ "a{b}c", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_OPEN_CLOSE, 3, { "a", "{b}", "c" } },
+	{ "a{b}c", "{}", TOKEN_KEEP_OPEN_CLOSE, 3, { "a", "{b}", "c" } },
+
+	/* Nested braces. */
+	{ "a{{b}}c", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_OPEN_CLOSE, 3, { "a", "{{b}}", "c" } },
+	{ "a{{b\\{c}}d", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_OPEN_CLOSE, 3, { "a", "{{b{c}}", "d" } },
+	{ "a{{b\\{c}}d", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_OPEN_CLOSE|TOKEN_KEEP_BACKSLASH, 3, { "a", "{{b\\{c}}", "d" } },
+	{ "a{{b[(<c}}d", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_OPEN_CLOSE, 3, { "a", "{{b[(<c}}", "d" } },
+
+// Consider split braces,
+//	{ "a{b,c}d", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_OPEN_CLOSE, 4, { "a", "{b", "c}", "d" } },
 
 	{ NULL, NULL, 0, 0 }
 };

@@ -74,14 +74,17 @@
  * @return
  *	An allocated token string.
  *
- * @see #TextBackslash(char)
+ * @see
+ *	TextBackslash(char)
  */
 char *
 TokenNext(const char *string, const char **stop, const char *delims, int flags)
 {
 	char *token, *t;
 	const char *s;
-	int quote = 0, escape = 0, length;
+	int quote = 0, escape = 0, span, open_delim, close_delim, bcount;
+	static const char open_delims[] = "<({[";
+	static const char close_delims[] = ">)}]";
 
 	if (string == NULL) {
 		if (stop != NULL)
@@ -96,7 +99,12 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 	/* Skip leading delimiters? */
 	if (!(flags & TOKEN_KEEP_EMPTY)) {
 		/* Find start of next token. */
-		string += strspn(string, delims);
+		span = strspn(string, delims);
+		string += span;
+
+		if ((flags & TOKEN_KEEP_OPEN_CLOSE)
+		&& 0 < span && strchr(open_delims, string[-1]) != NULL)
+			string--;
 
 		if (*string == '\0') {
 			if (stop != NULL)
@@ -105,8 +113,25 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 		}
 	}
 
+	bcount = 0;
+	open_delim = close_delim = EOF;
+	if ((flags & TOKEN_KEEP_OPEN_CLOSE)
+	&& (t = strchr(open_delims, *string)) != NULL
+	&& strchr(delims, *t) != NULL) {
+		/* String starts with an open delimiter that is in
+		 * the set of delims.
+		 */
+		close_delim = close_delims[t - open_delims];
+		open_delim = *t;
+
+		/* Both open and close must be in set of delims. */
+		if (strchr(delims, close_delim) == NULL) {
+			open_delim = close_delim = EOF;
+		}
+	}
+
 	/* Find end of token. */
-	for (s = string; *s != '\0'; ++s) {
+	for (s = string; *s != '\0'; s++) {
 		if (escape) {
 			escape = 0;
 			continue;
@@ -126,8 +151,17 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 			continue;
 		}
 
-		if (quote == 0 && strchr(delims, *s) != NULL)
-			break;
+		if (quote == 0) {
+			if (*s == open_delim) {
+				bcount++;
+			} else if (*s == close_delim) {
+				bcount--;
+			}
+			if (bcount == 0 && strchr(delims, *s) != NULL) {
+				s += *s == close_delim;
+				break;
+			}
+		}
 	}
 
 	token = malloc((s - string) + 1);
@@ -135,7 +169,7 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 		return NULL;
 
 	/* Copy token, removing quotes and backslashes. */
-	for (t = token; string < s; ++string) {
+	for (t = token; string < s; string++) {
 		if (escape) {
 			*t++ = (char) TextBackslash(*string);
 			escape = 0;
@@ -163,31 +197,48 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 			continue;
 		}
 
-		if (quote == 0 && strchr(delims, *string) != NULL)
-			break;
+		if (quote == 0) {
+			if (*string == open_delim) {
+				bcount++;
+			} else if (*string == close_delim) {
+				bcount--;
+			}
+			if (bcount == 0 && strchr(delims, *string) != NULL) {
+				if (*string == close_delim)
+					/* The delimiter is consumed below. */
+					*t++ = *string;
+				break;
+			}
+		}
+//		if (quote == 0 && *string != open_delim && strchr(delims, *string) != NULL) {
+//			if (*string == close_delim)
+//				/* The delimiter is consumed below. */
+//				*t++ = *string;
+//			break;
+//		}
 
 		*t++ = *string;
 	}
 	*t = '\0';
 
-	if (*s == '\0') {
+	if (*string == '\0') {
 		/* Token found and end of string reached.
 		 * Next iteration should return no token.
 		 */
-		s = NULL;
+		string = NULL;
 	} else {
-		length = strspn(s, delims);
-		if (flags & TOKEN_KEEP_EMPTY) {
-			/* Consume only a single delimter. */
-			s += length <= 0 ? 0 : 1;
-		} else {
-			/* Consume one or more delimeters. */
-			s += length;
-		}
+		/* Consume delimiter, provided it is not an open
+		 * delmiter we're suppose to keep for the next
+		 * token iteration.
+		 */
+		string += (flags & TOKEN_KEEP_OPEN_CLOSE) == 0
+			|| (t = strchr(open_delims, *string)) == NULL
+			|| strchr(delims, *t) == NULL
+		;
 	}
 
 	if (stop != NULL)
-		*stop = s;
+		*stop = string;
 
 	return token;
 }

@@ -73,6 +73,7 @@ extern char *TokenNext(const char *, const char **, const char *, int);
 #define TOKEN_KEEP_EMPTY	0x0001
 #define TOKEN_KEEP_BACKSLASH	0x0002
 #define TOKEN_IGNORE_QUOTES	0x0004
+#define TOKEN_KEEP_OPEN_CLOSE	0x0008
 #define TOKEN_KEEP_ASIS		(TOKEN_KEEP_BACKSLASH|TOKEN_IGNORE_QUOTES)
 
 /**
