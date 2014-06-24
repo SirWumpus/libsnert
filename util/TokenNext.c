@@ -71,6 +71,23 @@
  *
  *	Shorthand for TOKEN_KEEP_BACKSLASH | TOKEN_IGNORE_QUOTES.
  *
+ *	TOKEN_KEEP_BRACKETS
+ *
+ *	Split strings with brackets, keeping the open and close:
+ *	parenthesis, "(" and ")"; angle brackets, "<" and ">"; square
+ *	brackets, "[" and "]"; and/or braces, "{" and "}" grouped
+ *	together. Both open and close brackets must in the set of
+ *	delimiters. For example:
+ *
+ *	string		delims	vector
+ *	-------------------------------------------
+ *	"a{b}c"		"{}"	"a", "{b}", "c"
+ *	"a{{b}}c"	"{}"	"a", "{{b}}", "c"
+ *	"a{{b\{c}}d"	"{}"	"a", "{{b{c}}", "d"
+ *	"a{{b[(<c}}d"	"{}"	"a", "{{b[(<c}}", "d"
+ *	"a{b{c}{d}e}f"	"{}"	"a", "{b{c}{d}e}", "f"
+ *	"<>a{b<c>d}<e>"	"{}<>"	"<>", "a", "{b<c>d}", "<e>", ""
+ *
  * @return
  *	An allocated token string.
  *
@@ -102,7 +119,7 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 		span = strspn(string, delims);
 		string += span;
 
-		if ((flags & TOKEN_KEEP_OPEN_CLOSE)
+		if ((flags & TOKEN_KEEP_BRACKETS)
 		&& 0 < span && strchr(open_delims, string[-1]) != NULL)
 			string--;
 
@@ -115,7 +132,7 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 
 	bcount = 0;
 	open_delim = close_delim = EOF;
-	if ((flags & TOKEN_KEEP_OPEN_CLOSE)
+	if ((flags & TOKEN_KEEP_BRACKETS)
 	&& (t = strchr(open_delims, *string)) != NULL
 	&& strchr(delims, *t) != NULL) {
 		/* String starts with an open delimiter that is in
@@ -210,13 +227,6 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 				break;
 			}
 		}
-//		if (quote == 0 && *string != open_delim && strchr(delims, *string) != NULL) {
-//			if (*string == close_delim)
-//				/* The delimiter is consumed below. */
-//				*t++ = *string;
-//			break;
-//		}
-
 		*t++ = *string;
 	}
 	*t = '\0';
@@ -231,7 +241,7 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 		 * delmiter we're suppose to keep for the next
 		 * token iteration.
 		 */
-		string += (flags & TOKEN_KEEP_OPEN_CLOSE) == 0
+		string += (flags & TOKEN_KEEP_BRACKETS) == 0
 			|| (t = strchr(open_delims, *string)) == NULL
 			|| strchr(delims, *t) == NULL
 		;

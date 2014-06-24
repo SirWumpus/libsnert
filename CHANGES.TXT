@@ -74,7 +74,8 @@ is no set schedule for releases.
 	dump email message as JSON output. Commissined by Vika S.
 
    !	Revised behaviour of TOKEN_KEEP_BACKSLASH and TOKEN_KEEP_QOUTES
-	to be more clear and renamed the constants.
+	to be more clear and renamed the constants. Added
+	TOKEN_KEEP_BRACKETS.
 
 --1.75.30--
 

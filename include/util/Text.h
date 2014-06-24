@@ -210,6 +210,23 @@ extern const char *asControl(int octet);
  *
  *	Shorthand for TOKEN_KEEP_BACKSLASH | TOKEN_IGNORE_QUOTES.
  *
+ *	TOKEN_KEEP_BRACKETS
+ *
+ *	Split strings with brackets, keeping the open and close:
+ *	parenthesis, "(" and ")"; angle brackets, "<" and ">"; square
+ *	brackets, "[" and "]"; and/or braces, "{" and "}" grouped
+ *	together. Both open and close brackets must in the set of
+ *	delimiters. For example:
+ *
+ *	string		delims	vector
+ *	-------------------------------------------
+ *	"a{b}c"		"{}"	"a", "{b}", "c"
+ *	"a{{b}}c"	"{}"	"a", "{{b}}", "c"
+ *	"a{{b\{c}}d"	"{}"	"a", "{{b{c}}", "d"
+ *	"a{{b[(<c}}d"	"{}"	"a", "{{b[(<c}}", "d"
+ *	"a{b{c}{d}e}f"	"{}"	"a", "{b{c}{d}e}", "f"
+ *	"<>a{b<c>d}<e>"	"{}<>"	"<>", "a", "{b<c>d}", "<e>", ""
+ *
  * @return
  *	A vector of C strings.
  */

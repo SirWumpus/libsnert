@@ -63,6 +63,23 @@ extern "C" {
  *
  *	Shorthand for TOKEN_KEEP_BACKSLASH | TOKEN_IGNORE_QUOTES.
  *
+ *	TOKEN_KEEP_BRACKETS
+ *
+ *	Split strings with brackets, keeping the open and close:
+ *	parenthesis, "(" and ")"; angle brackets, "<" and ">"; square
+ *	brackets, "[" and "]"; and/or braces, "{" and "}" grouped
+ *	together. Both open and close brackets must in the set of
+ *	delimiters. For example:
+ *
+ *	string		delims	vector
+ *	-------------------------------------------
+ *	"a{b}c"		"{}"	"a", "{b}", "c"
+ *	"a{{b}}c"	"{}"	"a", "{{b}}", "c"
+ *	"a{{b\{c}}d"	"{}"	"a", "{{b{c}}", "d"
+ *	"a{{b[(<c}}d"	"{}"	"a", "{{b[(<c}}", "d"
+ *	"a{b{c}{d}e}f"	"{}"	"a", "{b{c}{d}e}", "f"
+ *	"<>a{b<c>d}<e>"	"{}<>"	"<>", "a", "{b<c>d}", "<e>", ""
+ *
  * @return
  *	An allocated token.
  *
@@ -73,7 +90,7 @@ extern char *TokenNext(const char *, const char **, const char *, int);
 #define TOKEN_KEEP_EMPTY	0x0001
 #define TOKEN_KEEP_BACKSLASH	0x0002
 #define TOKEN_IGNORE_QUOTES	0x0004
-#define TOKEN_KEEP_OPEN_CLOSE	0x0008
+#define TOKEN_KEEP_BRACKETS	0x0008
 #define TOKEN_KEEP_ASIS		(TOKEN_KEEP_BACKSLASH|TOKEN_IGNORE_QUOTES)
 
 /**

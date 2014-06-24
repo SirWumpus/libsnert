@@ -60,6 +60,23 @@
  *
  *	Shorthand for TOKEN_KEEP_BACKSLASH | TOKEN_IGNORE_QUOTES.
  *
+ *	TOKEN_KEEP_BRACKETS
+ *
+ *	Split strings with brackets, keeping the open and close:
+ *	parenthesis, "(" and ")"; angle brackets, "<" and ">"; square
+ *	brackets, "[" and "]"; and/or braces, "{" and "}" grouped
+ *	together. Both open and close brackets must in the set of
+ *	delimiters. For example:
+ *
+ *	string		delims	vector
+ *	-------------------------------------------
+ *	"a{b}c"		"{}"	"a", "{b}", "c"
+ *	"a{{b}}c"	"{}"	"a", "{{b}}", "c"
+ *	"a{{b\{c}}d"	"{}"	"a", "{{b{c}}", "d"
+ *	"a{{b[(<c}}d"	"{}"	"a", "{{b[(<c}}", "d"
+ *	"a{b{c}{d}e}f"	"{}"	"a", "{b{c}{d}e}", "f"
+ *	"<>a{b<c>d}<e>"	"{}<>"	"<>", "a", "{b<c>d}", "<e>", ""
+ *
  * @return
  *	A vector of C strings.
  */
@@ -93,7 +110,7 @@ typedef struct {
 	const char *delims;
 	int flags;
 	int expect_length;
-	const char *expect_items[5];
+	const char *expect_items[6];
 } test_case;
 
 static test_case tests[] = {
@@ -161,17 +178,19 @@ static test_case tests[] = {
 	{ "/a'\\/b\\/'c/ tail",	"/ ", TOKEN_KEEP_ASIS, 2, { "a'\\/b\\/'c", "tail" } },
 
 	/* Open & close delimiters. */
-	{ "a{b}c", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_OPEN_CLOSE, 3, { "a", "{b}", "c" } },
-	{ "a{b}c", "{}", TOKEN_KEEP_OPEN_CLOSE, 3, { "a", "{b}", "c" } },
+	{ "a{b}c", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_BRACKETS, 3, { "a", "{b}", "c" } },
+	{ "a{b}c", "{}", TOKEN_KEEP_BRACKETS, 3, { "a", "{b}", "c" } },
 
 	/* Nested braces. */
-	{ "a{{b}}c", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_OPEN_CLOSE, 3, { "a", "{{b}}", "c" } },
-	{ "a{{b\\{c}}d", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_OPEN_CLOSE, 3, { "a", "{{b{c}}", "d" } },
-	{ "a{{b\\{c}}d", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_OPEN_CLOSE|TOKEN_KEEP_BACKSLASH, 3, { "a", "{{b\\{c}}", "d" } },
-	{ "a{{b[(<c}}d", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_OPEN_CLOSE, 3, { "a", "{{b[(<c}}", "d" } },
+	{ "a{{b}}c", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_BRACKETS, 3, { "a", "{{b}}", "c" } },
+	{ "a{{b\\{c}}d", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_BRACKETS, 3, { "a", "{{b{c}}", "d" } },
+	{ "a{{b\\{c}}d", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_BRACKETS|TOKEN_KEEP_BACKSLASH, 3, { "a", "{{b\\{c}}", "d" } },
+	{ "a{{b[(<c}}d", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_BRACKETS, 3, { "a", "{{b[(<c}}", "d" } },
+	{ "a{b{c}{d}e}f", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_BRACKETS, 3, { "a", "{b{c}{d}e}", "f" } },
+	{ "<>a{b<c>d}<e>", "{}<>", TOKEN_KEEP_EMPTY|TOKEN_KEEP_BRACKETS, 5, { "<>", "a", "{b<c>d}", "<e>", "" } },
 
 // Consider split braces,
-//	{ "a{b,c}d", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_OPEN_CLOSE, 4, { "a", "{b", "c}", "d" } },
+//	{ "a{b,c}d", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_BRACKETS, 4, { "a", "{b", "c}", "d" } },
 
 	{ NULL, NULL, 0, 0 }
 };
