@@ -77,6 +77,11 @@ is no set schedule for releases.
 	to be more clear and renamed the constants. Added
 	TOKEN_KEEP_BRACKETS.
 
+   +	Added hash2.c/h for a new simplified hash table without all the
+	object nonsense.
+
+   +	Add uriFormat() to handle RFC 6570 level 3 URI Templates.
+
 --1.75.30--
 
    !	Fixed pdqGet() to address the original CNAME->MX lookup issue

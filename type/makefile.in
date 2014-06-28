@@ -85,9 +85,9 @@ $O$E :
 
 IDIR := ${top_srcdir}/include
 HDIR := ${IDIR}/type
-OBJS := Object$O Data$O Integer$O Decimal$O Hash$O Vector$O list$O tree$O \
+OBJS := Object$O Data$O Integer$O Decimal$O Hash$O Vector$O list$O hash2$O tree$O \
 	queue$O Text$O kvm$O mcc$O
-TEST := Object$E Data$E Integer$E Decimal$E Hash$E Vector$E tree$E Text$E
+TEST := Object$E Data$E Integer$E Decimal$E Hash$E Vector$E hash2$E tree$E Text$E
 CLI  := kvmap$E kvmc$E kvmd$E mcc$E
 
 .MAIN : build
@@ -143,6 +143,11 @@ lint: title
 	cd ../crc; ${MAKE} build; if test $$? -ne 0; then exit 1; fi
 
 list.c : ${HDIR}/list.h
+
+hash2.c : ${HDIR}/hash2.h
+
+hash2$E : hash2.c
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}hash2$E hash2.c
 
 tree.c : ${HDIR}/tree.h
 

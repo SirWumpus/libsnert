@@ -17,6 +17,7 @@ extern "C" {
 #include <com/snert/lib/util/b64.h>
 #include <com/snert/lib/util/option.h>
 #include <com/snert/lib/mail/mime.h>
+#include <com/snert/lib/type/hash2.h>
 
 typedef struct {
 	/* Complete URI */
@@ -150,7 +151,24 @@ extern void uriDecodeSelf(char *s);
  *	A pointer to an allocated C string containing the encoded URI.
  *	Its the caller's responsibility to free() this pointer.
  */
-extern char *uriEncode(const char *string);
+extern char *uriEncode(const char *s);
+
+/**
+ * @param s
+ *	A pointer to a URI decoded C string.
+ *
+ * @param flags
+ *	Bitwise-OR of flags:
+ *
+ *	URI_ENC_IGNORE_RESERVED		do not encode reserved characters
+ *
+ * @return
+ *	A pointer to an allocated C string containing the encoded URI.
+ *	Its the caller's responsibility to free() this pointer.
+ */
+extern char *uriEncode2(const char *s, int flags);
+
+#define URI_ENC_IGNORE_RESERVED		0x0001
 
 /**
  * @param url
@@ -256,6 +274,17 @@ extern int uriIsHostBL(const char *host, const char *dnsbl_suffix, unsigned long
  *	This structure and data are freed by mimeFree().
  */
 extern UriMime *uriMimeInit(UriMimeHook uri_found_cb, int is_text, void *data);
+
+/**
+ * @param fmt
+ *	A C string pointer to an RFC 6570 URI Template string
+ *	(level 3).
+ *
+ * @param vars
+ *	A hash table of key/value strings that can be referenced
+ *	from the URI template.
+ */
+extern char *uriFormat(const char *fmt, Hash *vars);
 
 #ifdef  __cplusplus
 }

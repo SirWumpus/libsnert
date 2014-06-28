@@ -94,7 +94,7 @@ OBJS = \
 	TextInsensitiveStartsWith$O TextSensitiveStartsWith$O TextHash$O TextDelim$O TextEmpty$O \
 	TextNull$O TextC$O setBitWord$O strlrcspn$O strlrspn$O strnatcmp$O bs$O Base64$O \
 	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O html$O htmlEntity$O \
-	uriIsDomainBL$O uri$O option$O sqlite3$O time62$O timespec$O timeval$O timer$O \
+	uriIsDomainBL$O uri$O uriFormat$O option$O sqlite3$O time62$O timespec$O timeval$O timer$O \
 	token_bucket$O buffer$O
 
 TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E TextSplit$E \
@@ -102,7 +102,7 @@ TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E TextSplit$E \
        TextTransliterate$E TextSensitiveEndsWith$E TextInsensitiveEndsWith$E \
        ProcTitle$E timer$E dmalloct$E
 
-CLI = b64$E convertDate$E uri$E urid$E playfair$E cipher$E TextFind$E
+CLI = b64$E convertDate$E uri$E uriFormat$E urid$E playfair$E cipher$E TextFind$E
 
 .MAIN : build
 
@@ -166,6 +166,9 @@ urid$E : ../include/mail/mime.h ../mail/mime$O \
 	../include/net/dnsList.h ../net/dnsList$O \
 	../include/net/pdq.h ../net/pdq$O htmlEntity$O cgi$O uri.c
 	$(CC) -DDAEMON ${CFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)urid$E uri.c ../mail/mime$O ../net/dnsList$O ../net/pdq$O $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
+
+uriFormat$E: uriFormat.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)uriFormat$E uriFormat.c ${LIB}
 
 sqlite3$O : sqlite3.c
 	${CC} ${CFLAGS_SQLITE3} ${CFLAGS} -c $*.c

@@ -146,6 +146,7 @@ com/snert/src/lib/type/kvmap.c
 com/snert/src/lib/type/kvmap.txt
 com/snert/src/lib/type/kvmc.c
 com/snert/src/lib/type/mcc.c
+com/snert/src/lib/type/hash2.c
 com/snert/src/lib/type/list.c
 com/snert/src/lib/type/tree.c
 com/snert/src/lib/type/queue.c
@@ -221,6 +222,7 @@ com/snert/src/lib/util/strtolTest.c
 com/snert/src/lib/util/strnatcmp.c
 com/snert/src/lib/util/token_bucket.c
 com/snert/src/lib/util/uri.c
+com/snert/src/lib/util/uriFormat.c
 com/snert/src/lib/util/uriIsDomainBL.c
 com/snert/src/lib/util/uri.txt
 com/snert/src/lib/util/uri.txt.out
@@ -285,6 +287,7 @@ com/snert/src/lib/include/type/Text.h
 com/snert/src/lib/include/type/Vector.h
 com/snert/src/lib/include/type/kvm.h
 com/snert/src/lib/include/type/mcc.h
+com/snert/src/lib/include/type/hash2.h
 com/snert/src/lib/include/type/list.h
 com/snert/src/lib/include/type/tree.h
 com/snert/src/lib/include/type/queue.h
