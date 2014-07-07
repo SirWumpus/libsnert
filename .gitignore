@@ -103,6 +103,7 @@ util/DebugMalloc
 util/dmalloct
 util/uri
 util/urid
+util/uriFormat
 util/b64
 util/cipher
 util/htmlstrip
@@ -115,3 +116,4 @@ util/TextFind
 util/uri-samples/*
 util/playfair
 util/victor
+

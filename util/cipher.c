@@ -84,7 +84,7 @@ cipher_ct cipher_ct37 = {
 /**
  * CT46 Straddling Checkerboard
  *
- *         0  1  2  3  4  5  6  7  8  9-c
+ *         0  1  2  3  4  5  6  7  8  9
  *       -------------------------------
  *       | R  E  A  N  O  I
  *     6 | B  C  D  F  G  H  J  K  L  M
@@ -108,7 +108,7 @@ cipher_ct cipher_ct46 = {
  * Assumes lower case alpha is predominate, with most frequent English
  * lower case letters using single digits, including space and linefeed.
  * Remaining double digit layout corresponds to QWERTY unshifted with
- * controls, shifted, and ASCII bell other whitespace.
+ * controls, shifted, ASCII bell, other other whitespace.
  *
  *	    0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
  *	  -------------------------------------------------

@@ -123,7 +123,7 @@ title :
 	@echo '***************************************************************'
 	@echo
 
-build: title add-lib
+build: title links add-lib
 	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
