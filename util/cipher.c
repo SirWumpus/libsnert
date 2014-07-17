@@ -108,7 +108,7 @@ cipher_ct cipher_ct46 = {
  * Assumes lower case alpha is predominate, with most frequent English
  * lower case letters using single digits, including space and linefeed.
  * Remaining double digit layout corresponds to QWERTY unshifted with
- * controls, shifted, ASCII bell, other other whitespace.
+ * controls, shifted, ASCII bell, and other whitespace.
  *
  *	    0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
  *	  -------------------------------------------------
