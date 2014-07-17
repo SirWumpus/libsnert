@@ -12,34 +12,38 @@ O = .@OBJEXT@
 E = @EXEEXT@
 .SUFFIXES : .c .i $O $A
 
-#
-# Paths for supporting headers and libraries.
-#
-top_srcdir 	= @top_srcdir@
-abs_srcdir 	= @abs_srcdir@
-SNERT_TARDIR	= @snert_tardir@
-SNERT_INCDIR	= @snert_incdir@
-SNERT_LIBDIR	= @snert_libdir@
+prefix		:= @prefix@
+exec_prefix	:= @exec_prefix@
+bindir		:= @bindir@
 
-prefix = @prefix@
-exec_prefix = @exec_prefix@
-bindir = @bindir@
+VPATH		:= @srcdir@
+srcdir		:= @srcdir@
+top_srcdir	:= @top_srcdir@
+abs_srcdir	:= @abs_srcdir@
 
-LIB		= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
-BAK		= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
-TGZ		= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
+builddir	:= @builddir@
+top_builddir	:= @top_builddir@
+abs_builddir	:= @abs_builddir@
 
-CC		= @CC@
-CC_E		= @CC_E@
-CC_O		= @CC_O@
-CFLAGS		= ${CFLAGS_PREFIX} @CFLAGS@
-LDFLAGS		= ${LDFLAGS_PREFIX} @LDFLAGS@
-LIBS		= ${LIBS_PREFIX} @LIBS@
+SNERT_TARDIR	:= ${top_srcdir}/../../../..
+SNERT_INCDIR	:= ${top_srcdir}/../../include
+SNERT_LIBDIR	:= ${top_srcdir}/../../lib
 
-XARGSI		= @XARGSI@
-RANLIB		= @RANLIB@
-ARCHIVE		= @ARCHIVE@
-COMPILE		= @COMPILE@
+LIB		:= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
+BAK		:= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
+TGZ		:= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
+
+CC		:= @CC@
+CC_E		:= @CC_E@
+CC_O		:= @CC_O@
+CFLAGS		 = ${CFLAGS_PREFIX} @CFLAGS@
+LDFLAGS		 = ${LDFLAGS_PREFIX} @LDFLAGS@
+LIBS		 = ${LIBS_PREFIX} @LIBS@
+
+XARGSI		:= @XARGSI@
+RANLIB		:= @RANLIB@
+ARCHIVE		:= @ARCHIVE@
+COMPILE		:= @COMPILE@
 
 LIBSNERT 	= @LIBSNERT@
 LIB_RT		= @HAVE_LIB_RT@
@@ -65,7 +69,7 @@ LDFLAGS_SQLITE3	= @LDFLAGS_SQLITE3@
 
 #%$O : %.c
 .c$O :
-	$(COMPILE)
+	${CC} ${CFLAGS} -c $<
 
 #(%) : %
 #	$(ARCHIVE)$*
@@ -97,7 +101,7 @@ all: build
 title :
 	@echo
 	@echo '***************************************************************'
-	@echo '==> '${abs_srcdir}
+	@echo '==> '${abs_builddir}
 	@echo '***************************************************************'
 	@echo
 
@@ -163,14 +167,14 @@ ${HDIR}/kvm.h : ${IDIR}/sys/pthread.h
 kvm.c : ${IDIR}/io/socket2.h ${HDIR}/kvm.h
 
 kvm$O : kvm.c
-	${CC} $(CFLAGS) ${CFLAGS_DB} ${CFLAGS_SQLITE3} -c $*.c
+	${CC} $(CFLAGS) ${CFLAGS_DB} ${CFLAGS_SQLITE3} -c ${srcdir}/$*.c
 
 ${HDIR}/mcc.h : ${IDIR}/io/socket2.h ${IDIR}/net/network.h ${IDIR}/sys/pthread.h ${HDIR}/Vector.h
 
 mcc.c : ${IDIR}/io/Log.h ${IDIR}/util/md5.h ${IDIR}/util/Text.h ${HDIR}/mcc.h
 
 mcc$O : mcc.c
-	${CC} $(CFLAGS) ${CFLAGS_SQLITE3} -c $*.c
+	${CC} $(CFLAGS) ${CFLAGS_SQLITE3} -c ${srcdir}/$*.c
 
 Vector.c : ${HDIR}/Vector.h
 
@@ -197,15 +201,15 @@ Text$E: ../util/DebugMalloc$O Vector$O ../util/Buf$O ../util/Text$O Text.c
 
 # This cannot be built until AFTER the lib/io routines have been built.
 kvmd$E : ../io/socket2$O kvm.c
-	${WRAPPER} $(CC) -DTEST_KVMD ${CFLAGS_PTHREAD} ${CFLAGS_DB} ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_PTHREAD} ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmd$E kvm.c ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
+	${WRAPPER} $(CC) -DTEST_KVMD ${CFLAGS_PTHREAD} ${CFLAGS_DB} ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_PTHREAD} ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmd$E ${srcdir}/kvm.c ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
 
 # This cannot be built until AFTER the lib/io routines have been built.
 kvmc$E : ../io/socket2$O kvm$O kvmc.c
-	${WRAPPER} $(CC) ${CFLAGS_PTHREAD} ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_PTHREAD} ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmc$E kvmc.c ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
+	${WRAPPER} $(CC) ${CFLAGS_PTHREAD} ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_PTHREAD} ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmc$E ${srcdir}/kvmc.c ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
 
 kvmap$E : kvm$O kvmap.c
-	${WRAPPER} $(CC) ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_PTHREAD} ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmap$E kvmap.c kvm$O ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
+	${WRAPPER} $(CC) ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_PTHREAD} ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmap$E ${srcdir}/kvmap.c kvm$O ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
 
 # This cannot be built until AFTER the lib/io routines have been built.
 mcc$E : ../io/socket2$O mcc.c
-	${WRAPPER} $(CC) -DTEST ${CFLAGS_PTHREAD} ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_PTHREAD} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)mcc$E mcc.c ${LIBSNERT} ${LIBS} ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
+	${WRAPPER} $(CC) -DTEST ${CFLAGS_PTHREAD} ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_PTHREAD} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)mcc$E ${srcdir}/mcc.c ${LIBSNERT} ${LIBS} ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}

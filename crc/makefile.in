@@ -12,42 +12,46 @@ O = .@OBJEXT@
 E = @EXEEXT@
 .SUFFIXES : .c $O $A
 
-#
-# Paths for supporting headers and libraries.
-#
-top_srcdir = @top_srcdir@
-abs_srcdir = @abs_srcdir@
-SNERT_TARDIR	= @snert_tardir@
-SNERT_INCDIR	= @snert_incdir@
-SNERT_LIBDIR	= @snert_libdir@
+prefix		:= @prefix@
+exec_prefix	:= @exec_prefix@
+bindir		:= @bindir@
 
-prefix = @prefix@
-exec_prefix = @exec_prefix@
-bindir = @bindir@
+VPATH		:= @srcdir@
+srcdir		:= @srcdir@
+top_srcdir	:= @top_srcdir@
+abs_srcdir	:= @abs_srcdir@
 
-LIB	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
-BAK	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
-TGZ	= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
+builddir	:= @builddir@
+top_builddir	:= @top_builddir@
+abs_builddir	:= @abs_builddir@
 
-CC	= @CC@
-CC_E	= @CC_E@
-CC_O	= @CC_O@
-CFLAGS	= ${CFLAGS_PREFIX} @CFLAGS@
-LDFLAGS	= ${LDFLAGS_PREFIX} @LDFLAGS@
-LIBS	= ${LIBS_PREFIX} @LIBS@
+SNERT_TARDIR	:= ${top_srcdir}/../../../..
+SNERT_INCDIR	:= ${top_srcdir}/../../include
+SNERT_LIBDIR	:= ${top_srcdir}/../../lib
 
-XARGSI	= @XARGSI@
-RANLIB	= @RANLIB@
-ARCHIVE	= @ARCHIVE@
-COMPILE	= @COMPILE@
+LIB		:= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
+BAK		:= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
+TGZ		:= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
 
-LIBSNERT = @LIBSNERT@
+CC		:= @CC@
+CC_E		:= @CC_E@
+CC_O		:= @CC_O@
+CFLAGS		 = ${CFLAGS_PREFIX} @CFLAGS@ -I${builddir}
+LDFLAGS		 = ${LDFLAGS_PREFIX} @LDFLAGS@
+LIBS		 = ${LIBS_PREFIX} @LIBS@
+
+XARGSI		:= @XARGSI@
+RANLIB		:= @RANLIB@
+ARCHIVE		:= @ARCHIVE@
+COMPILE		:= @COMPILE@
+
+LIBSNERT	:= @LIBSNERT@
 
 #######################################################################
 
 #%$O : %.c
 .c$O :
-	$(COMPILE)
+	${CC} ${CFLAGS} -c $<
 
 #(%) : %
 #	$(ARCHIVE)$*
@@ -71,7 +75,7 @@ all: build
 title :
 	@echo
 	@echo '***************************************************************'
-	@echo '==> '${abs_srcdir}
+	@echo '==> '${abs_builddir}
 	@echo '***************************************************************'
 	@echo
 
@@ -104,16 +108,16 @@ debug : build
 # Build functions.
 #
 crc12$O : crc12.tbl crcfn$O crc12.c
-	$(CC) $(CFLAGS) -c crc12.c
+	$(CC) $(CFLAGS) -c ${srcdir}/crc12.c
 
 crc16$O : crc16.tbl crcfn$O crc16.c
-	$(CC) $(CFLAGS) -c crc16.c
+	$(CC) $(CFLAGS) -c ${srcdir}/crc16.c
 
 crc32$O : crc32.tbl crcfn$O crc32.c
-	$(CC) $(CFLAGS) -c crc32.c
+	$(CC) $(CFLAGS) -c ${srcdir}/crc32.c
 
 crcccitt$O : crcccitt.tbl crcfn$O crcccitt.c
-	$(CC) $(CFLAGS) -c crcccitt.c
+	$(CC) $(CFLAGS) -c ${srcdir}/crcccitt.c
 
 #
 # Build tables.
@@ -133,12 +137,12 @@ crcccitt.tbl : crctable$E
 #
 # Build table generator.
 #
-../util/getopt$O: ../util/getopt.c
+${top_builddir}/util/getopt$O: ${top_srcdir}/util/getopt.c
+	cd ${top_builddir}/util ; make getopt$O
 
-crctable$E : ../util/getopt$O crctable.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)crctable$E crctable.c ../util/getopt$O
+crctable$E : ${top_builddir}/util/getopt$O crctable.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)crctable$E ${srcdir}/crctable.c ${top_builddir}/util/getopt$O
 
 Luhn$E: Luhn.c
-	$(CC) -DTEST $(CFLAGS) ${LDFLAGS} $(CC_E)Luhn$E Luhn.c ${LIBS_PREFIX} ${LIBSNERT}
-	-rm -f Luhn$O
+	$(CC) -DTEST $(CFLAGS) ${LDFLAGS} $(CC_E)Luhn$E ${srcdir}/Luhn.c
 

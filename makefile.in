@@ -6,39 +6,42 @@
 
 .POSIX :
 
-PACKAGE	= @PACKAGE_TARNAME@
-VERSION	= @PACKAGE_VERSION@
-
-
 .SUFFIXES :
 A = .@LIBEXT@
 O = .@OBJEXT@
 E = @EXEEXT@
 .SUFFIXES : .c .i $O $A
 
-#
-# Paths for supporting headers and libraries.
-#
-top_srcdir = @top_srcdir@
-abs_srcdir = @abs_srcdir@
-TOPDIR	 	= @abs_top_srcdir@
+PACKAGE		:= @PACKAGE_TARNAME@
+VERSION		:= @PACKAGE_VERSION@.${BUILD}
 
-SNERT_TARDIR	= @snert_tardir@
-SNERT_INCDIR	= @snert_incdir@
-SNERT_LIBDIR	= @snert_libdir@
+VPATH		:= @srcdir@
+srcdir		:= @srcdir@
+top_srcdir	:= @top_srcdir@
+abs_srcdir	:= @abs_srcdir@
 
-LIB	= $(SNERT_LIBDIR)/${PACKAGE}$A
-BAK	= $(SNERT_LIBDIR)/${PACKAGE}.bak
-TARFILE	= ${PACKAGE}-${VERSION}'.'${BUILD}.tar.gz
-TGZ	= $(SNERT_TARDIR)/${TARFILE}
+builddir	:= @builddir@
+top_builddir	:= @top_builddir@
+abs_builddir	:= @abs_builddir@
 
-TAR_I	= @TAR_I@
-BUILD	= `cat ${TOPDIR}/BUILD_ID.TXT`
-DEFINES = -DLIBSNERT_BUILD=${BUILD} -DLIBSNERT_BUILD_STRING='"'${BUILD}'"'
+SNERT_TARDIR	:= ${top_srcdir}/../../../..
+SNERT_INCDIR	:= ${top_srcdir}/../../include
+SNERT_LIBDIR	:= ${top_srcdir}/../../lib
 
-LIBSNERT_SHARE = @datarootdir@/${PACAKGE}
-LIBSNERT_SQLITE3_DIR = @LIBSNERT_SQLITE3_DIR@
-LIBSNERT_SQLITE3_VERSION = @LIBSNERT_SQLITE3_VERSION@
+TOPDIR	 	:= @abs_top_srcdir@
+
+LIB		:= $(SNERT_LIBDIR)/${PACKAGE}$A
+BAK		:= $(SNERT_LIBDIR)/${PACKAGE}.bak
+TARFILE		:= ${PACKAGE}-${VERSION}.tar.gz
+TGZ		:= $(SNERT_TARDIR)/${TARFILE}
+
+TAR_I		:= @TAR_I@
+BUILD		:= `cat ${abs_srcdir}/BUILD_ID.TXT`
+DEFINES 	:= -DLIBSNERT_BUILD=${BUILD} -DLIBSNERT_BUILD_STRING='"'${BUILD}'"'
+
+LIBSNERT_SHARE	:= @datarootdir@/${PACAKGE}
+LIBSNERT_SQLITE3_DIR := @LIBSNERT_SQLITE3_DIR@
+LIBSNERT_SQLITE3_VERSION := @LIBSNERT_SQLITE3_VERSION@
 
 CC		:= @CC@
 CC_E		:= @CC_E@
@@ -90,7 +93,7 @@ LDFLAGS_SQLITE3	:= @LDFLAGS_SQLITE3@
 
 #%$O : %.c
 .c$O :
-	$(COMPILE)
+	${CC} ${CFLAGS} -c $<
 
 #(%) : %
 #	$(ARCHIVE)$*
@@ -108,9 +111,9 @@ $O$E :
 
 #######################################################################
 
-OBJS = LibSnert$O
+OBJS 	= LibSnert$O
 
-SUBDIRS = crc object type util io net mail sys tools
+SUBDIRS = crc type util io net mail sys tools
 
 .MAIN : all
 
@@ -119,12 +122,12 @@ all: build-tools
 title :
 	@echo
 	@echo '***************************************************************'
-	@echo '==> '${abs_srcdir}
+	@echo '==> '${abs_builddir}
 	@echo '***************************************************************'
 	@echo
 
-build: title links add-lib
-	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
+build: title add-lib
+	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} build && cd .. ; done
 	@echo
 	@echo '***************************************************************'
 	@echo @package_string@ DONE
@@ -178,7 +181,7 @@ lint: title
 	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
-	@echo Build ${BUILD} DONE
+	@echo @package_string@  DONE
 	@echo '***************************************************************'
 	@echo
 
@@ -188,14 +191,14 @@ install: build-tools
 	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MFLAGS} $@ && cd .. ; done
 	@echo
 	@echo '***************************************************************'
-	@echo Build ${BUILD} DONE
+	@echo @package_string@  DONE
 	@echo '***************************************************************'
 	@echo
 
 next-id:
-	expr `cat BUILD_ID.TXT` + 1 >BUILD_ID.TXT
-	sed -e 's/LIBSNERT_BUILD [0-9]*/LIBSNERT_BUILD '`cat BUILD_ID.TXT`'/' $(SNERT_INCDIR)/com/snert/lib/version.h >$(SNERT_INCDIR)/com/snert/lib/version.h.new
-	sed -e 's/\(LIBSNERT_VERSION.*\.\)[0-9]*"/\1'`cat BUILD_ID.TXT`'"/' $(SNERT_INCDIR)/com/snert/lib/version.h.new >$(SNERT_INCDIR)/com/snert/lib/version.h
+	expr `cat ${top_srcdir}/BUILD_ID.TXT` + 1 >${top_srcdir}/BUILD_ID.TXT
+	sed -e 's/LIBSNERT_BUILD [0-9]*/LIBSNERT_BUILD '`cat ${top_srcdir}/BUILD_ID.TXT`'/' $(SNERT_INCDIR)/com/snert/lib/version.h >$(SNERT_INCDIR)/com/snert/lib/version.h.new
+	sed -e 's/\(LIBSNERT_VERSION.*\.\)[0-9]*"/\1'`cat ${top_srcdir}/BUILD_ID.TXT`'"/' $(SNERT_INCDIR)/com/snert/lib/version.h.new >$(SNERT_INCDIR)/com/snert/lib/version.h
 	rm -f $(SNERT_INCDIR)/com/snert/lib/version.h.new
 
 add-lib: ${OBJS}
@@ -204,25 +207,6 @@ add-lib: ${OBJS}
 	ar rc ${LIB} ${OBJS}
 	$(RANLIB) $(LIB)
 	@echo
-
-# Better method when you have too many files to pass on the command line.
-#add-lib: ${OBJS}
-#	@echo
-#	rm -f ${LIB}
-#	echo ${OBJS} | xargs ar rc ${LIB}
-#	$(RANLIB) $(LIB)
-#	@echo
-
-# Old method used with Borland C++ tools, which has the crappy tlib tool.
-#
-#add-lib:
-#	@echo
-#	for obj in $(OBJS); do $(ARCHIVE); done
-#	$(RANLIB) $(LIB)
-#	@echo
-
-LibSnert$O: BUILD_ID.TXT LibSnert.c
-	$(CC) $(DEFINES) -I${top_srcdir}/include $(CFLAGS) -c LibSnert.c
 
 clean: title
 	-rm -f $(LIB) $(BAK) td32.TR2
@@ -254,7 +238,7 @@ distclean: title
 	@echo '***************************************************************'
 	@echo
 
-links:
+links: ../../include/com/snert/lib
 	cd ../.. ;  mkdir -p lib include/org include/com/snert ; \
 	cd include/org ; ln -s ../../src/lib/include/valgrind . ; \
 	cd ../com/snert ; ln -s ../../../src/lib/include lib
@@ -271,7 +255,7 @@ flipunix: ../tools/flip
 flipdos: ../tools/flip.exe
 	-find ../.. -name "*.[ch]" -o -name "*.in" | $(XARGSI) -t ../tools/flip -d {}
 
-configure: BUILD_ID.TXT aclocal.m4 configure.in
+configure: ${top_srcdir}/BUILD_ID.TXT aclocal.m4 configure.in
 	${AUTOCONF} -f
 
 config.status: configure
@@ -287,9 +271,9 @@ list:
 	tar -tvzf $(TGZ)
 
 tar: configure
-	echo '${VERSION}.'`cat BUILD_ID.TXT` >VERSION.TXT
+	echo '${VERSION}' >VERSION.TXT
 	echo '${PACKAGE}-${VERSION}.tar.gz' >FILE.TXT
-	tar -C ${SNERT_TARDIR} ${TAR_I} MANIFEST.TXT -zcf ${TGZ}
+	tar -C ${SNERT_TARDIR} ${TAR_I} ${top_srcdir}/MANIFEST.TXT -zcf ${TGZ}
 	@echo
 	@echo '***************************************************************'
 	@cd ${SNERT_TARDIR}; ${MD5SUM} ${TARFILE}* | tee com/snert/src/lib/${PACKAGE}.md5

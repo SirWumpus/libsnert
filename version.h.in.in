@@ -175,11 +175,11 @@ extern VersionInfo LibSnert;
 #undef HAVE_SIZE_T
 #undef HAVE_SSIZE_T
 #undef HAVE_TIME_T
-#undef HAVE_INTPTR_T		
-#undef HAVE_UINTPTR_T	
+#undef HAVE_INTPTR_T
+#undef HAVE_UINTPTR_T
 
 /*
- * C99/C11 
+ * C99/C11
  */
 #undef HAVE_INTMAX_T
 #undef HAVE_UINTMAX_T
@@ -969,6 +969,18 @@ typedef int socklen_t;
 typedef int (*CmpFn)(void *a, void *b);
 
 /***********************************************************************
+ *** LibSnert Configure And Compile Time Information
+ ***********************************************************************/
+
+#ifndef LINE_WRAP
+#define LINE_WRAP			72
+#endif
+
+extern void printVar(int columns, const char *name, const char *value);
+extern void snertPrintVersion(void);
+extern void snertPrintInfo(void);
+
+/***********************************************************************
  *** Alternate Memory Allocator
  ***********************************************************************/
 
@@ -991,8 +1003,8 @@ typedef void (*FreeFn)(void *);
 # define CALLOC(n,s)		calloc((n),(s))
 #else
 # define MEMSET(p, b, s)	memset((p),(b),(s))
-# define MALLOC(s)		alt_malloc((s), 0, 0)
-# define CALLOC(n,s)		alt_calloc((n),(s), 0)
+# define MALLOC(s)		alt_malloc((s), ALT_MALLOC_BYTE(0))
+# define CALLOC(n,s)		alt_calloc((n),(s), ALT_MALLOC_BYTE(0))
 #endif
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SIZE_T)
@@ -1008,18 +1020,19 @@ typedef void (*FreeFn)(void *);
  * @param size
  *	The size in bytes of the area to allocate.
  *
- * @param fill_byte
- *	A byte value to be used to fill in the allocated area.
- *	with. Specify -1 to ignore.
- *
  * @param flags
  *	A bit-wise OR of assort ALT_MALLOC_ flags.
  */
-extern void *alt_malloc(size_t size, int fill_byte, unsigned flags);
+extern void *alt_malloc(size_t size, unsigned flags);
+
+extern void *alt_realloc(void *ptr, size_t size, unsigned flags);
 
 extern void *alt_calloc(size_t num_elements, size_t element_size, unsigned flags);
 
-#define ALT_MALLOC_ABORT	0x0001
+#define ALT_MALLOC_FILL		0x0100
+#define ALT_MALLOC_ABORT	0x0200
+#define ALT_MALLOC_BYTE_MASK	0x00FF
+#define ALT_MALLOC_BYTE(x)	(ALT_MALLOC_FILL|(unsigned char)(x))
 
 /***********************************************************************
  *** GNU Backtrace

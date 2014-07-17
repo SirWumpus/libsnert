@@ -1673,7 +1673,7 @@ AS_IF([test ${with_sqlite3:-default} = 'default'],[
 	echo
 	AC_MSG_CHECKING([for bundled SQLite3])
 
-	AC_SUBST(LIBSNERT_SQLITE3_DIR, ../../../../org/sqlite)
+	AC_SUBST(LIBSNERT_SQLITE3_DIR, ${srcdir}/../../../../org/sqlite)
 	AS_IF([ test `ls -t1 ${LIBSNERT_SQLITE3_DIR}/sqlite*.gz | wc -l` -gt 0 ],[
 		AC_MSG_RESULT([yes])
 
@@ -1692,7 +1692,7 @@ AS_IF([test ${with_sqlite3:-default} = 'default'],[
 		AC_SUBST(LIBSNERT_SQLITE3_VERSION, ${dir})
 
 		echo "sqlite directory... $with_sqlite3"
-		echo "bundled version..." ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION}
+		echo "bundled version..." ${LIBSNERT_SQLITE3_VERSION}
 		AC_MSG_CHECKING([for previously built threaded SQLite3])
 		if test -f "$with_sqlite3/include/sqlite3.h"; then
 			AC_MSG_RESULT([yes])
@@ -1827,7 +1827,7 @@ dnl #endif
 		AC_CHECK_HEADER(winsock2.h,[
 			AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_]winsock2.h))
 		],[],[
-#if defined(__WIN32__) 
+#if defined(__WIN32__)
 # if defined(HAVE_WINDOWS_H)
 #  include  <windows.h>
 # endif
@@ -1850,7 +1850,7 @@ dnl #endif
 			AC_SUBST(HAVE_LIB_IPHLPAPI, '-lIphlpapi')
 			AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_]Iphlpapi.h))
 		],[],[
-#if defined(__WIN32__) 
+#if defined(__WIN32__)
 # if defined(HAVE_WINDOWS_H)
 #  include  <windows.h>
 # endif
@@ -2033,8 +2033,8 @@ AC_DEFUN(SNERT_INIT,[
 
 	if test -f "$3" ; then
 		AC_SUBST(package_build, "`cat $3`")
-	elif test -f BUILD_ID.TXT ; then
-		AC_SUBST(package_build, "`cat BUILD_ID.TXT | tr -d '[\r\n]'`")
+	elif test -f $srcdir/BUILD_ID.TXT ; then
+		AC_SUBST(package_build, "`cat $srcdir/BUILD_ID.TXT | tr -d '[\r\n]'`")
 	fi
 
 	AC_SUBST(package_version, "${PACKAGE_VERSION}${package_build:+.}${package_build}")

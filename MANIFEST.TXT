@@ -127,12 +127,6 @@ com/snert/src/lib/sys/sys.c
 com/snert/src/lib/sys/pid.c
 com/snert/src/lib/sys/rlimits.c
 com/snert/src/lib/sys/winService.c
-com/snert/src/lib/object/Data2.c
-com/snert/src/lib/object/Integer2.c
-com/snert/src/lib/object/Hashmap.c
-com/snert/src/lib/object/Object2.c
-com/snert/src/lib/object/Real.c
-com/snert/src/lib/object/makefile.in
 com/snert/src/lib/type/Data.c
 com/snert/src/lib/type/Decimal.c
 com/snert/src/lib/type/Hash.c
@@ -214,6 +208,7 @@ com/snert/src/lib/util/md4.c
 com/snert/src/lib/util/md5.c
 com/snert/src/lib/util/playfair.c
 com/snert/src/lib/util/cipher.c
+com/snert/src/lib/util/printVar.c
 com/snert/src/lib/util/properties.txt
 com/snert/src/lib/util/setBitWord.c
 com/snert/src/lib/util/strlrcspn.c
@@ -277,7 +272,6 @@ com/snert/src/lib/include/sys/process.h
 com/snert/src/lib/include/sys/pthread.h
 com/snert/src/lib/include/sys/sysexits.h
 com/snert/src/lib/include/sys/winService.h
-com/snert/src/lib/include/object/Object.h
 com/snert/src/lib/include/type/Data.h
 com/snert/src/lib/include/type/Decimal.h
 com/snert/src/lib/include/type/Hash.h

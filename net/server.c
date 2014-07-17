@@ -59,40 +59,6 @@ static const char log_internal[] = "internal error %s(%d): %s (%d)";
 static const char log_buffer[] = "buffer overflow %s(%d)";
 
 /***********************************************************************
- *** Support Routines
- ***********************************************************************/
-
-void
-printVar(int columns, const char *name, const char *value)
-{
-	int length;
-	Vector list;
-	const char **args;
-
-	if (columns <= 0)
-		printf("%s=\"%s\"\n",  name, value);
-	else if ((list = TextSplit(value, " \t", 0)) != NULL && 0 < VectorLength(list)) {
-		args = (const char **) VectorBase(list);
-
-		length = printf("%s=\"'%s'", name, *args);
-		for (args++; *args != NULL; args++) {
-			/* Line wrap. */
-			if (columns <= length + strlen(*args) + 4) {
-				(void) printf("\n\t");
-				length = 8;
-			}
-			length += printf(" '%s'", *args);
-		}
-		if (columns <= length + 1) {
-			(void) printf("\n");
-		}
-		(void) printf("\"\n");
-
-		VectorDestroy(list);
-	}
-}
-
-/***********************************************************************
  *** Unix Signal Handling
  ***********************************************************************/
 

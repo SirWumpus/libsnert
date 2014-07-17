@@ -12,34 +12,38 @@ O = .@OBJEXT@
 E = @EXEEXT@
 .SUFFIXES : .c .i $O $A
 
-#
-# Paths for supporting headers and libraries.
-#
-top_srcdir = @top_srcdir@
-abs_srcdir = @abs_srcdir@
-SNERT_TARDIR	= @snert_tardir@
-SNERT_INCDIR	= @snert_incdir@
-SNERT_LIBDIR	= @snert_libdir@
+prefix		:= @prefix@
+exec_prefix	:= @exec_prefix@
+bindir		:= @bindir@
 
-prefix = @prefix@
-exec_prefix = @exec_prefix@
-bindir = @bindir@
+VPATH		:= @srcdir@
+srcdir		:= @srcdir@
+top_srcdir	:= @top_srcdir@
+abs_srcdir	:= @abs_srcdir@
 
-LIB	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
-BAK	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
-TGZ	= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
+builddir	:= @builddir@
+top_builddir	:= @top_builddir@
+abs_builddir	:= @abs_builddir@
 
-CC	= @CC@
-CC_E	= @CC_E@
-CC_O	= @CC_O@
-CFLAGS	= ${CFLAGS_PREFIX} @CFLAGS@
-LDFLAGS	= ${LDFLAGS_PREFIX} @LDFLAGS@
-LIBS	= ${LIBS_PREFIX} @LIBS@
+SNERT_TARDIR	:= ${top_srcdir}/../../../..
+SNERT_INCDIR	:= ${top_srcdir}/../../include
+SNERT_LIBDIR	:= ${top_srcdir}/../../lib
 
-XARGSI	= @XARGSI@
-RANLIB	= @RANLIB@
-ARCHIVE	= @ARCHIVE@
-COMPILE	= @COMPILE@
+LIB		:= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
+BAK		:= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
+TGZ		:= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
+
+CC		:= @CC@
+CC_E		:= @CC_E@
+CC_O		:= @CC_O@
+CFLAGS		 = ${CFLAGS_PREFIX} @CFLAGS@
+LDFLAGS		 = ${LDFLAGS_PREFIX} @LDFLAGS@
+LIBS		 = ${LIBS_PREFIX} @LIBS@
+
+XARGSI		:= @XARGSI@
+RANLIB		:= @RANLIB@
+ARCHIVE		:= @ARCHIVE@
+COMPILE		:= @COMPILE@
 
 LIBSNERT 	= @LIBSNERT@
 LIB_RT 		= @HAVE_LIB_RT@
@@ -65,7 +69,7 @@ LDFLAGS_SQLITE3	= @LDFLAGS_SQLITE3@
 
 #%$O : %.c
 .c$O :
-	$(COMPILE)
+	${CC} ${CFLAGS} -c $<
 
 #(%) : %
 #	$(ARCHIVE)$*
@@ -95,7 +99,7 @@ OBJS = \
 	TextNull$O TextC$O setBitWord$O strlrcspn$O strlrspn$O strnatcmp$O bs$O Base64$O \
 	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O html$O htmlEntity$O \
 	uriIsDomainBL$O uri$O uriFormat$O option$O sqlite3$O time62$O timespec$O timeval$O timer$O \
-	token_bucket$O buffer$O
+	token_bucket$O buffer$O printVar$O
 
 TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E TextSplit$E \
        DebugMalloc$E ixhash$E md4$E md5$E htmlstrip$E TextCopy$E TextMatch$E \
@@ -111,7 +115,7 @@ all: build
 title :
 	@echo
 	@echo '***************************************************************'
-	@echo '==> '${abs_srcdir}
+	@echo '==> '${abs_builddir}
 	@echo '***************************************************************'
 	@echo
 
@@ -157,33 +161,33 @@ BigInt$E : $(LIB) BigInt$O
 Memory$E: Memory.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Memory$E Memory.c
 
-uri$E : ../include/mail/mime.h ../mail/mime$O \
-	../include/net/dnsList.h ../net/dnsList$O \
-	../include/net/pdq.h ../net/pdq$O htmlEntity$O cgi$O uri.c
-	$(CC) -DTEST ${CFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)uri$E uri.c ../mail/mime$O ../net/dnsList$O ../net/pdq$O $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
+uri$E : ${top_srcdir}/include/mail/mime.h ${top_builddir}/mail/mime$O \
+	${top_srcdir}/include/net/dnsList.h ${top_builddir}/net/dnsList$O \
+	${top_srcdir}/include/net/pdq.h ${top_builddir}/net/pdq$O htmlEntity$O cgi$O uri.c
+	$(CC) -DTEST ${CFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)uri$E ${srcdir}/uri.c ${top_builddir}/mail/mime$O ${top_builddir}/net/dnsList$O ${top_builddir}/net/pdq$O $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
 
-urid$E : ../include/mail/mime.h ../mail/mime$O \
-	../include/net/dnsList.h ../net/dnsList$O \
-	../include/net/pdq.h ../net/pdq$O htmlEntity$O cgi$O uri.c
-	$(CC) -DDAEMON ${CFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)urid$E uri.c ../mail/mime$O ../net/dnsList$O ../net/pdq$O $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
+urid$E : ${top_srcdir}/include/mail/mime.h ${top_builddir}/mail/mime$O \
+	${top_srcdir}/include/net/dnsList.h ${top_builddir}/net/dnsList$O \
+	${top_srcdir}/include/net/pdq.h ${top_builddir}/net/pdq$O htmlEntity$O cgi$O uri.c
+	$(CC) -DDAEMON ${CFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)urid$E ${srcdir}/uri.c ${top_builddir}/mail/mime$O ${top_builddir}/net/dnsList$O ${top_builddir}/net/pdq$O $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
 
 uriFormat$E: uriFormat.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)uriFormat$E uriFormat.c ${LIB}
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)uriFormat$E ${srcdir}/uriFormat.c ${LIB}
 
 sqlite3$O : sqlite3.c
-	${CC} ${CFLAGS_SQLITE3} ${CFLAGS} -c $*.c
+	${CC} ${CFLAGS_SQLITE3} ${CFLAGS} -c ${srcdir}/$*.c
 
 Cache$O : Cache.c
-	${CC} ${CFLAGS_DB} $(CFLAGS) -c $*.c
+	${CC} ${CFLAGS_DB} $(CFLAGS) -c ${srcdir}/$*.c
 
 TextC$E: TextC.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextC$E TextC.c $(LIB)
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextC$E ${srcdir}/TextC.c $(LIB)
 
 TokenSplit$E: TokenCount$O TextBackslash$O TokenSplitA$O TokenSplit.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TokenSplit$E TokenSplit.c $(LIB)
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TokenSplit$E ${srcdir}/TokenSplit.c $(LIB)
 
 TextSplit$E: TokenNext$O TextSplit.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextSplit$E TextSplit.c TokenNext$O $(LIB)
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextSplit$E ${srcdir}/TextSplit.c TokenNext$O $(LIB)
 
 Cache$E: DebugMalloc$O ../io/flock.c Cache.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Cache$E Cache.c  ../io/flock.c $(LIBSNERT) ${LIBS}
@@ -195,34 +199,34 @@ Base64$E: Base64.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Base64$E Base64.c $(LIBSNERT) ${LIBS}
 
 b64$E: b64.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)b64$E b64.c $(LIBSNERT) ${LIBS}
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)b64$E ${srcdir}/b64.c $(LIBSNERT) ${LIBS}
 
 TextTransliterate$E: TextTransliterate.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextTransliterate$E TextTransliterate.c $(LIBSNERT) ${LIBS}
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextTransliterate$E ${srcdir}/TextTransliterate.c $(LIBSNERT) ${LIBS}
 
 TextSensitiveEndsWith$E: TextSensitiveEndsWith.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextSensitiveEndsWith$E TextSensitiveEndsWith.c $(LIBSNERT) ${LIBS}
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextSensitiveEndsWith$E ${srcdir}/TextSensitiveEndsWith.c $(LIBSNERT) ${LIBS}
 
 TextInsensitiveEndsWith$E: TextInsensitiveEndsWith.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextInsensitiveEndsWith$E TextInsensitiveEndsWith.c $(LIBSNERT) ${LIBS}
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextInsensitiveEndsWith$E ${srcdir}/TextInsensitiveEndsWith.c $(LIBSNERT) ${LIBS}
 
 TextCopy$E: TextCopy.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextCopy$E TextCopy.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextCopy$E ${srcdir}/TextCopy.c
 
 TextCat$E: TextCat.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextCat$E TextCat.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextCat$E ${srcdir}/TextCat.c
 
 TextMatch$E: TextMatch.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextMatch$E TextMatch.c $(LIBSNERT) ${LIBS}
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextMatch$E ${srcdir}/TextMatch.c $(LIBSNERT) ${LIBS}
 
 TextFind$E: TextFind.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextFind$E TextFind.c $(LIBSNERT) ${LIBS}
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextFind$E ${srcdir}/TextFind.c $(LIBSNERT) ${LIBS}
 
 text_find$E: text_find.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)text_find$E text_find.c $(LIBSNERT) ${LIBS}
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)text_find$E ${srcdir}/text_find.c $(LIBSNERT) ${LIBS}
 
 option$E: option.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)option$E option.c $(LIBSNERT) ${LIBS}
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)option$E ${srcdir}/option.c $(LIBSNERT) ${LIBS}
 
 DebugMalloc$O: DebugMalloc.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -c DebugMalloc.c
@@ -231,41 +235,41 @@ DebugMalloc$E: DebugMalloc$O DebugMallocTest.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)DebugMalloc$E DebugMallocTest.c DebugMalloc$O $(LIBSNERT) ${LIBS}
 
 dmalloct$O: DebugMalloc.c
-	$(CC) $(CFLAGS) ${CFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)dmalloct$O -c DebugMalloc.c
+	$(CC) $(CFLAGS) ${CFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)dmalloct$O -c ${srcdir}/DebugMalloc.c
 
 dmalloct$E: dmalloct$O DebugMallocTest.c
 	$(CC) -DTEST $(CFLAGS) ${CFLAGS_PTHREAD} $(LDFLAGS) ${LDFLAGS_PTHREAD} $(CC_E)dmalloct$E DebugMallocTest.c dmalloct$O $(LIBSNERT) ${LIBS} ${LIB_PTHREAD}
 
 convertDate$E: convertDate.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)convertDate$E convertDate.c $(LIBSNERT) ${LIBS}
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)convertDate$E ${srcdir}/convertDate.c $(LIBSNERT) ${LIBS}
 
 ProcTitle$E: ProcTitle.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)ProcTitle$E ProcTitle.c
 
 md4$E: md4.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)md4$E md4.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)md4$E ${srcdir}/md4.c
 
 md5$E: md5.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)md5$E md5.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)md5$E ${srcdir}/md5.c
 
 playfair$E: playfair.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)playfair$E playfair.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)playfair$E ${srcdir}/playfair.c
 
 victor$E: victor.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)victor$E victor.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)victor$E ${srcdir}/victor.c
 
 cipher$E: cipher.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)cipher$E cipher.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)cipher$E ${srcdir}/cipher.c
 
 time62$E : time62.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)time62$E time62.c
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)time62$E ${srcdir}/time62.c
 
 timer$E : timer.c
-	${CC} -DTEST ${CFLAGS} ${CFLAGS_PTHREAD} ${LDFLAGS} ${LDFLAGS_PTHREAD} $(CC_E)timer$E timer.c $(LIBSNERT) ${LIB_PTHREAD}
+	${CC} -DTEST ${CFLAGS} ${CFLAGS_PTHREAD} ${LDFLAGS} ${LDFLAGS_PTHREAD} $(CC_E)timer$E ${srcdir}/timer.c $(LIBSNERT) ${LIB_PTHREAD}
 
 htmlstrip$E : html.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)htmlstrip$E html.c $(LIBSNERT)
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} $(CC_E)htmlstrip$E ${srcdir}/html.c $(LIBSNERT)
 
 ixhash$E : ixhash.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)ixhash$E ixhash.c $(LIBSNERT) ${LIBS_PREFIX}
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)ixhash$E ${srcdir}/ixhash.c $(LIBSNERT) ${LIBS_PREFIX}
 

@@ -82,6 +82,19 @@ is no set schedule for releases.
 
    +	Add uriFormat() to handle RFC 6570 level 3 URI Templates.
 
+   -	Remove unused object/* code from libsnert distribution.
+
+   !	Updated configure, aclocal.m4, and makefile.in to support out of
+	source build directory (finally). Thanks Micah N Gorrell for the
+	nudge.
+
+   +	Add alt_realloc() sys/malloc.c.  Changed call signature of
+   	alt_malloc().
+
+   +	Added printVar(), which has been repeated into far too many
+   	programs. Also added snertPrintVersion(), snertPrintInfo() to
+   	simplify printVersion() and printInfo() in those same programs.
+
 --1.75.30--
 
    !	Fixed pdqGet() to address the original CNAME->MX lookup issue

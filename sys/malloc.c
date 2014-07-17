@@ -22,25 +22,19 @@
  * @param size
  *	The size in bytes of the area to allocate.
  *
- * @param fill_byte
- *	A byte value to be used to fill in the allocated area.
- *	with. Specify -1 to ignore.
- *
  * @param flags
  *	A bit-wise OR of assort ALT_MALLOC_ flags.
  */
 void *
-alt_malloc(size_t size, int fill_byte, unsigned flags)
+alt_malloc(size_t size, unsigned flags)
 {
 	void *mem;
 
-	if ((mem = malloc(size)) != NULL) {
-		if (0 <= fill_byte)
-			(void) memset(mem, fill_byte, size);
-	}
-
-	if ((flags & ALT_MALLOC_ABORT) && mem == NULL)
+	if ((mem = malloc(size)) == NULL && (flags & ALT_MALLOC_ABORT))
 		abort();
+
+	if (flags & ALT_MALLOC_FILL)
+		(void) memset(mem, flags & ALT_MALLOC_BYTE_MASK, size);
 
 	return mem;
 }
@@ -48,5 +42,18 @@ alt_malloc(size_t size, int fill_byte, unsigned flags)
 void *
 alt_calloc(size_t num_elements, size_t element_size, unsigned flags)
 {
-	return alt_malloc(num_elements * element_size, 0, flags);
+	return alt_malloc(num_elements * element_size, flags);
+}
+
+void *
+alt_realloc(void *orig, size_t size, unsigned flags)
+{
+	void *mem;
+
+	if ((mem = alt_calloc(size, 1, flags)) != NULL) {
+		(void) memcpy(mem, orig, size);
+		free(orig);
+	}
+
+	return mem;
 }

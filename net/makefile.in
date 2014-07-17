@@ -12,35 +12,38 @@ O = .@OBJEXT@
 E = @EXEEXT@
 .SUFFIXES : .c .i $O $A
 
-#
-# Paths for supporting headers and libraries.
-#
-top_srcdir = @top_srcdir@
-abs_srcdir = @abs_srcdir@
-SNERT_TARDIR	= @snert_tardir@
-SNERT_INCDIR	= @snert_incdir@
-SNERT_LIBDIR	= @snert_libdir@
+prefix		:= @prefix@
+exec_prefix	:= @exec_prefix@
+bindir		:= @bindir@
 
-prefix = @prefix@
-exec_prefix = @exec_prefix@
-bindir = @bindir@
+VPATH		:= @srcdir@
+srcdir		:= @srcdir@
+top_srcdir	:= @top_srcdir@
+abs_srcdir	:= @abs_srcdir@
 
-LIB	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
-BAK	= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
-TGZ	= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
+builddir	:= @builddir@
+top_builddir	:= @top_builddir@
+abs_builddir	:= @abs_builddir@
 
-CC		= @CC@
-CC_E	= @CC_E@
-CC_O	= @CC_O@
-CFLAGS	= ${CFLAGS_PREFIX} @CFLAGS@
-LDFLAGS	= ${LDFLAGS_PREFIX} @LDFLAGS@
-LIBS	= ${LIBS_PREFIX} @LIBS@
+SNERT_TARDIR	:= ${top_srcdir}/../../../..
+SNERT_INCDIR	:= ${top_srcdir}/../../include
+SNERT_LIBDIR	:= ${top_srcdir}/../../lib
 
+LIB		:= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
+BAK		:= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
+TGZ		:= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
 
-XARGSI	= @XARGSI@
-RANLIB	= @RANLIB@
-ARCHIVE	= @ARCHIVE@
-COMPILE	= @COMPILE@
+CC		:= @CC@
+CC_E		:= @CC_E@
+CC_O		:= @CC_O@
+CFLAGS		 = ${CFLAGS_PREFIX} @CFLAGS@
+LDFLAGS		 = ${LDFLAGS_PREFIX} @LDFLAGS@
+LIBS		 = ${LIBS_PREFIX} @LIBS@
+
+XARGSI		:= @XARGSI@
+RANLIB		:= @RANLIB@
+ARCHIVE		:= @ARCHIVE@
+COMPILE		:= @COMPILE@
 
 LIBSNERT 	= @LIBSNERT@
 LIB_RT 		= @HAVE_LIB_RT@
@@ -62,7 +65,7 @@ LDFLAGS_SQLITE3	= @LDFLAGS_SQLITE3@
 
 #%$O : %.c
 .c$O :
-	$(COMPILE)
+	${CC} ${CFLAGS} -c $<
 
 #(%) : %
 #	$(ARCHIVE)$*
@@ -113,7 +116,7 @@ distclean: clean
 title :
 	@echo
 	@echo '***************************************************************'
-	@echo '==> '${abs_srcdir}
+	@echo '==> '${abs_builddir}
 	@echo '***************************************************************'
 	@echo
 
@@ -132,34 +135,31 @@ lint: title
 	-splint -D_REENTRANT -U__WIN32__ -I${SNERT_INCDIR} +posixlib +boolint *.c
 
 findIP$E: findIP.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}findIP$E findIP.c  $(LIBSNERT) ${LIBS}
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}findIP$E ${srcdir}/findIP.c $(LIBSNERT) ${LIBS}
 
 ipinclient$E: ipinclient.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}ipinclient$E ipinclient.c  $(LIBSNERT) ${LIBS}
-
-ipinclient$O : ipinclient.c
-	${CC} ${CFLAGS} -c ipinclient.c
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}ipinclient$E ${srcdir}/ipinclient.c $(LIBSNERT) ${LIBS}
 
 dnsList$O : dnsList.c
-	${CC} ${CFLAGS_PTHREAD} ${CFLAGS} -c dnsList.c
+	${CC} ${CFLAGS_PTHREAD} ${CFLAGS} -c ${srcdir}/$*.c
 
-pdq$E : ${top_srcdir}/io/socket3$O pdq.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}pdq$E pdq.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
+pdq$E : ${top_builddir}/io/socket3$O pdq.c
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}pdq$E ${srcdir}/pdq.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
 
 formatIP$E: formatIP.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}formatIP$E formatIP.c  $(LIBSNERT) ${LIBS} ${LIB_WS2_32}
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}formatIP$E ${srcdir}/formatIP.c $(LIBSNERT) ${LIBS} ${LIB_WS2_32}
 
 server$E : server.c
-	${CC} -DTEST ${CFLAGS} ${CFLAGS_PTHREAD} ${LDFLAGS} ${LDFLAGS_PTHREAD} ${CC_E}server$E server.c $(LIBSNERT) ${LIB_PTHREAD} ${NETWORK_LIBS} ${LIBS}
+	${CC} -DTEST ${CFLAGS} ${CFLAGS_PTHREAD} ${LDFLAGS} ${LDFLAGS_PTHREAD} ${CC_E}server$E ${srcdir}/server.c $(LIBSNERT) ${LIB_PTHREAD} ${NETWORK_LIBS} ${LIBS}
 
 ${HDIR}/http.h : ${IDIR}/io/socket3.h ${IDIR}/pt/pt.h ${IDIR}/util/Buf.h \
 	${IDIR}/util/uri.h ${IDIR}/sys/Time.h
 
 http.c : ${IDIR}/util/convertDate.h ${IDIR}/util/time62.h ${IDIR}/util/Text.h \
-	${IDIR}/io/file.h ${top_srcdir}/io/socket3$O ${HDIR}/http.h
+	${IDIR}/io/file.h ${top_builddir}/io/socket3$O ${HDIR}/http.h
 
 geturl$E : ${LIB} http.c
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}geturl$E http.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}geturl$E ${srcdir}/http.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
 
 netcontainsip$E : network$O
-	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}netcontainsip$E network.c $(LIBSNERT) ${LIBS}
+	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}netcontainsip$E ${srcdir}/network.c $(LIBSNERT) ${LIBS}

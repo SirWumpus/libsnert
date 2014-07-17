@@ -1606,36 +1606,14 @@ void
 printVersion(void)
 {
 	printf("%s, a LibSnert tool\n", _NAME);
-	printf(LIBSNERT_STRING " " LIBSNERT_COPYRIGHT "\n");
-#ifdef LIBSNERT_BUILT
-	printf("Built on " LIBSNERT_BUILT "\n");
-#endif
+	snertPrintVersion();
 }
-
-void printVar(int columns, const char *name, const char *value);
 
 void
 printInfo(void)
 {
 	printVar(0, "NAME", _NAME);
-#ifdef LIBSNERT_VERSION
-	printVar(0, "LIBSNERT_VERSION", LIBSNERT_VERSION);
-#endif
-#ifdef LIBSNERT_CONFIGURE
-	printVar(LINE_WRAP, "LIBSNERT_CONFIGURE", LIBSNERT_CONFIGURE);
-#endif
-#ifdef LIBSNERT_BUILT
-	printVar(LINE_WRAP, "LIBSNERT_BUILT", LIBSNERT_BUILT);
-#endif
-#ifdef LIBSNERT_CFLAGS
-	printVar(LINE_WRAP, "CFLAGS", CFLAGS_PTHREAD " " LIBSNERT_CFLAGS);
-#endif
-#ifdef LIBSNERT_LDFLAGS
-	printVar(LINE_WRAP, "LDFLAGS", LDFLAGS_PTHREAD " " LIBSNERT_LDFLAGS);
-#endif
-#ifdef LIBSNERT_LIBS
-	printVar(LINE_WRAP, "LIBS", LIBSNERT_LIBS " " HAVE_LIB_PTHREAD);
-#endif
+	snertPrintInfo();
 }
 
 void
@@ -2042,36 +2020,6 @@ enableDebug(void)
 	uriSetDebug(4);
 	pdqSetDebug(1);
 	debug++;
-}
-
-void
-printVar(int columns, const char *name, const char *value)
-{
-	int length;
-	Vector list;
-	const char **args;
-
-	if (columns <= 0)
-		printf("%s=\"%s\"\n",  name, value);
-	else if ((list = TextSplit(value, " \t", 0)) != NULL && 0 < VectorLength(list)) {
-		args = (const char **) VectorBase(list);
-
-		length = printf("%s=\"'%s'", name, *args);
-		for (args++; *args != NULL; args++) {
-			/* Line wrap. */
-			if (columns <= length + strlen(*args) + 4) {
-				(void) printf("\n\t");
-				length = 8;
-			}
-			length += printf(" '%s'", *args);
-		}
-		if (columns <= length + 1) {
-			(void) printf("\n");
-		}
-		(void) printf("\"\n");
-
-		VectorDestroy(list);
-	}
 }
 
 int
