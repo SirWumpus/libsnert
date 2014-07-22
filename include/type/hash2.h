@@ -69,7 +69,7 @@ extern Hash *hash_create(void);
  * @return
  *	A new Hash pointer; otherwise null on error.
  */
-extern Hash *hash_create_size(unsigned prime_size);
+extern Hash *hash_create_size(size_t prime_size);
 
 /**
  * @param self

@@ -13,6 +13,12 @@
 # include <com/snert/lib/util/DebugMalloc.h>
 #endif
 
+void
+alt_free(void *mem, unsigned flags)
+{
+	free(mem);
+}
+
 /**
  * Alternative malloc intended for debugging, in particular
  * with Valgrind, which reports certain classes of errors
@@ -56,4 +62,14 @@ alt_realloc(void *orig, size_t size, unsigned flags)
 	}
 
 	return mem;
+}
+
+#define is_power_two(x)		(((x) != 0) && !((x) & ((x) - 1)))
+
+void *
+alt_aligned_alloc(size_t alignment, size_t size, unsigned flags)
+{
+	if (is_power_two(alignment) && (size / alignment) * alignment == size)
+		return alt_malloc(size, flags);
+	return NULL;
 }

@@ -1001,10 +1001,16 @@ typedef void (*FreeFn)(void *);
 # define MEMSET(p, b, s)
 # define MALLOC(s)		malloc(s)
 # define CALLOC(n,s)		calloc((n),(s))
+# define REALLOC(p,s)		realloc((p),(s))
+# define ALIGNED_ALLOC(a,s)	aligned_alloc((a),(s))
+# define FREE(p)		free(p)
 #else
 # define MEMSET(p, b, s)	memset((p),(b),(s))
 # define MALLOC(s)		alt_malloc((s), ALT_MALLOC_BYTE(0))
 # define CALLOC(n,s)		alt_calloc((n),(s), ALT_MALLOC_BYTE(0))
+# define REALLOC(p,s)		alt_realloc((p),(s), ALT_MALLOC_BYTE(0))
+# define ALIGNED_ALLOC(a,s)	alt_aligned_alloc((a),(s), ALT_MALLOC_BYTE(0))
+# define FREE(p)		alt_free((p), 0)
 #endif
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SIZE_T)
@@ -1028,6 +1034,10 @@ extern void *alt_malloc(size_t size, unsigned flags);
 extern void *alt_realloc(void *ptr, size_t size, unsigned flags);
 
 extern void *alt_calloc(size_t num_elements, size_t element_size, unsigned flags);
+
+extern void *alt_aligned_alloc(size_t alignment, size_t size, unsigned flags);
+
+extern void alt_free(void *ptr, unsigned flags);
 
 #define ALT_MALLOC_FILL		0x0100
 #define ALT_MALLOC_ABORT	0x0200
