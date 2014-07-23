@@ -75,6 +75,7 @@ typedef struct mime_hooks {
 	MimeHook body_finish;			/* At end of MIME body, start of next MIME headers. */
 	MimeHook source_flush;			/* When source buffer is flushed. */
 	MimeHook decode_flush;			/* When decode buffer is flushed. */
+	MimeHookOctet source_octet;		/* Each source body octet. */
 	MimeHookOctet decoded_octet;		/* Each decoded body octet. */
 	struct mime_hooks *next;
 } MimeHooks;
@@ -109,7 +110,6 @@ struct mime {
 
 	MimeHooks *mime_hook;			/* Link list of Mime hooks. */
 };
-
 
 /**
  * @return

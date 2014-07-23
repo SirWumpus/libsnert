@@ -1266,6 +1266,7 @@ uri_mime_header(Mime *m, void *_data)
 		syslog(LOG_DEBUG, "header [%s]", m->source.buffer);
 
 	if (TextMatch((char *) m->source.buffer, "Content-Type:*text/*", m->source.length, 1)
+	||  TextMatch((char *) m->source.buffer, "Content-Type:*multipart/*", m->source.length, 1)
 	||  TextMatch((char *) m->source.buffer, "Content-Type:*application/*;*name=*.txt*", m->source.length, 1)
 	||  TextMatch((char *) m->source.buffer, "Content-Type:*application/*;*name=*.htm*", m->source.length, 1))
 		hold->is_text_part = 1;

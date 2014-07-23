@@ -249,23 +249,20 @@ predefines:
 ../tools/flip$E: ../tools/flip.c
 	cd ../tools; $(CC) $(CC_E)flip$E flip.c
 
-flipunix: ../tools/flip
-	-find ../.. -name "*.[ch]" -o -name "*.in" | $(XARGSI) -t ../tools/flip -u {}
+flipunix: ../tools/flip$E
+	-find ../.. -name "*.[ch]" -o -name "*.in" | $(XARGSI) -t ../tools/flip$E -u {}
 
 flipdos: ../tools/flip.exe
-	-find ../.. -name "*.[ch]" -o -name "*.in" | $(XARGSI) -t ../tools/flip -d {}
+	-find ../.. -name "*.[ch]" -o -name "*.in" | $(XARGSI) -t ../tools/flip$E -d {}
 
-configure: ${top_srcdir}/BUILD_ID.TXT aclocal.m4 configure.in
-	${AUTOCONF} -f
+${top_srcdir}/configure: ${top_srcdir}/BUILD_ID.TXT aclocal.m4 configure.in
+	cd ${top_srcdir}; ${AUTOCONF} -f
 
 config.status: configure
-	./configure
-
-#makefile: config.status makefile.in
-#	./config.status
+	${top_srcdir}/configure
 
 ../../include/com/snert/lib/version.h: config.status version.h.in.in
-	./config.status
+	${top_srcdir}/config.status
 
 list:
 	tar -tvzf $(TGZ)

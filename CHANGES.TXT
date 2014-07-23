@@ -57,6 +57,31 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.32--
+
+   +	MIME API hook source_octet, compliement to decoded_octet.
+
+   !	mime -j now dumps the source body by default; use -d option
+   	to dump the decoded body with -j.
+
+   !	Switch back to using the strict MIME boundary from RFC 2046
+   	section 5.1.1 from the relaxed version introduced in 1.75.19
+   	based on spam samples from AlexB.  The relaxed version
+   	mishandles too lines that are clearly not boundaries, such as:
+
+   	    -	HTML part with a end HTML comment "-->" string at the
+   	    	start of the line.
+
+   	    -	Text heading "------ original ------" or cut here lines
+   	    	like "---->8---->8----".
+
+  !	Fixed uri_mime_header() to also flag a multipart/* body before
+	any interior subpart for URI.  Spam sample had multipart/alternative
+	message with text, but no subparts.  Such malformed messages don't
+	display in Thunderbird, but still useful to catch.  Reported by
+	Alex Broens.
+	
+
 --1.75.31--
 
    *	Updated the TLD list.

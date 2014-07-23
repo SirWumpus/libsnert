@@ -17,6 +17,13 @@
 #define HEADERS_OBJECT		HDRS_OBJECT
 #endif
 
+#define MIME_STRICT_BOUNDARY	0
+#define MIME_WEAK_BOUNDARY	1
+
+#ifndef MIME_BOUNDARY
+#define MIME_BOUNDARY		MIME_STRICT_BOUNDARY
+#endif
+
 /***********************************************************************
  *** No configuration below this point.
  ***********************************************************************/
@@ -124,6 +131,30 @@ mimeDoHook(Mime *m, ptrdiff_t func_off)
 	}
 }
 
+static void
+mimeDoHookOctet(Mime *m, int ch, ptrdiff_t func_off)
+{
+	MimeHooks *hook;
+	MimeHookOctet func;
+
+	LOGIF("%s(0x%lX, %d, %ld)", __func__, (long)m, ch, (long)func_off);
+
+	if (ch == EOF)
+		return;
+	for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
+		func = *(MimeHookOctet *)((char *)hook + func_off);
+		if (func != NULL)
+			(*func)(m, ch, hook->data);
+	}
+}
+
+static int
+mimeDecodeState(Mime *m, int ch)
+{
+	mimeDoHookOctet(m, ch, offsetof(MimeHooks, source_octet));
+	return (*m->state.decode_state)(m, ch);
+}
+
 void
 mimeHdrStart(Mime *m)
 {
@@ -154,14 +185,9 @@ mimeDecodeFlush(Mime *m)
 static void
 mimeDecodeAppend(Mime *m, int ch)
 {
-	MimeHooks *hook;
-
 	LOGSTATE(m, ch);
 
-	for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
-		if (hook->decoded_octet != NULL)
-			(*hook->decoded_octet)(m, ch, hook->data);
-	}
+	mimeDoHookOctet(m, ch, offsetof(MimeHooks, decoded_octet));
 
 	if (ch != EOF) {
 		m->mime_body_decoded_length++;
@@ -332,7 +358,15 @@ mimeBodyFinish(Mime *m)
  *   value from the Content-Type header field, optional
  *   linear whitespace, and a terminating CRLF.
  *
+ *   The only mandatory global parameter for the "multipart"
+ *   media type is the boundary parameter, which consists of
+ *   1 to 70 characters from a set of characters known to be
+ *   very robust through mail gateways, and NOT ending with
+ *   white space.
+ *
  *   boundary := 0*69<bchars> bcharsnospace
+ *
+ *   bchars := bcharsnospace / " "
  *
  *   bcharsnospace := DIGIT / ALPHA / "'" / "(" / ")" /
  *		      "+" / "_" / "," / "-" / "." /
@@ -347,13 +381,26 @@ mimeBodyFinish(Mime *m)
 #define BCHARS_UNUSED		"!#$%&*;<>@[]^{|}~"
 #define BCHARS_QUOTE		"\""
 
-#ifdef MIME_STRICT_BOUNDARY
 static int
 mimeIsBoundaryChar(int ch)
 {
+#if MIME_BOUNDARY == MIME_WEAK_BOUNDARY
+/* 1.75.19
+ *
+ * Relaxed the handling of MIME boundaries to allow any printable
+ * ASCII character to be used following the initial "--". RFC 2046
+ * section 5.1.1 limits the set of boundary characters to those
+ * that are safe for mail gateways. However, Thunderbird MTA is
+ * permissive about boundary characters and possibly other	MUAs.
+ * So milter-link or smtpf failing to parse a message with unusual
+ * MIME boundaries could mean failing to detect spam messages that
+ * would go on to be displayed by an MUA. Reported by Alex Broens.
+ */
+ 	return isgraph(ch);
+#else
 	return isalnum(ch) || strchr(BCHARSNOSPACE, ch) != NULL;
-}
 #endif
+}
 
 static int
 mimeStateBoundary(Mime *m, int ch)
@@ -366,13 +413,6 @@ mimeStateBoundary(Mime *m, int ch)
 
 		/* RFC 2046 section 5.1.1
 		 *
-		 *   The boundary delimiter line is then defined as a line
-		 *   consisting entirely of two hyphen characters ("-",
-		 *   decimal value 45) followed by the boundary parameter
-		 *   value from the Content-Type header field, optional
-		 *   linear whitespace, and a terminating CRLF.
-		 *
-		 *
 		 *   boundary := 0*69<bchars> bcharsnospace
 		 *
 		 *   bchars := bcharsnospace / " "
@@ -382,13 +422,8 @@ mimeStateBoundary(Mime *m, int ch)
 		 *		      "/" / ":" / "=" / "?"
 		 */
 		for (i = 2; i < m->source.length; i++) {
-#ifdef MIME_STRICT_BOUNDARY
 			if (!mimeIsBoundaryChar(m->source.buffer[i]) && !isspace(m->source.buffer[i]))
 				break;
-#else
-			if (iscntrl(m->source.buffer[i]) && !isspace(m->source.buffer[i]))
-				break;
-#endif
 
 			/* Treat ----\r\n, ====\r\n, -=-=-=-\r\n, ----=\r\n
 			 * as a run. Assumes CRLF is at the end of the line.
@@ -439,7 +474,7 @@ mimeStateBoundary(Mime *m, int ch)
 			/* Terminate decoding for this body part */
 			m->state.decode_state_cr = 0;
 			m->state.decode_state = mimeDecodeAdd;
-			(void) (*m->state.decode_state)(m, EOF);
+			(void) mimeDecodeState(m, EOF);
 
 			/* Discard the boundary without flushing. */
 			m->mime_part_length -= m->source.length;
@@ -462,10 +497,10 @@ mimeStateBoundary(Mime *m, int ch)
 			m->state.decode_state_cr = 0;
 			m->state.source_state = mimeStateBdy;
 			for (i = 0; i < m->source.length; i++) {
-				(void) (*m->state.decode_state)(m, m->source.buffer[i]);
+				(void) mimeDecodeState(m, m->source.buffer[i]);
 			}
 			if (ch != ASCII_LF)
-				(void) (*m->state.decode_state)(m, ch);
+				(void) mimeDecodeState(m, ch);
 		}
 	}
 
@@ -490,12 +525,12 @@ mimeStateDash2(Mime *m, int ch)
 	 * signatures, often delimited by a simple "--CRLF" (see
 	 * Thunderbird MUA), remain part of the MIME part.
 	 */
-	if (isspace(ch)) {
+	if (isspace(ch) || strchr(BCHARS_UNUSED, ch) != NULL) {
 		/* Not a MIME boundary. */
-		(void) (*m->state.decode_state)(m, ASCII_LF);
-		(void) (*m->state.decode_state)(m, '-');
-		(void) (*m->state.decode_state)(m, '-');
-		(void) (*m->state.decode_state)(m, ch);
+		(void) mimeDecodeState(m, ASCII_LF);
+		(void) mimeDecodeState(m, '-');
+		(void) mimeDecodeState(m, '-');
+		(void) mimeDecodeState(m, ch);
 		m->state.source_state = mimeStateBdy;
 	} else {
 		m->state.source_state = mimeStateBoundary;
@@ -513,9 +548,9 @@ mimeStateDash1(Mime *m, int ch)
 		/* Second hyphen of boundary line? */
 		m->state.source_state = mimeStateDash2;
 	} else {
-		(void) (*m->state.decode_state)(m, ASCII_LF);
-		(void) (*m->state.decode_state)(m, '-');
-		(void) (*m->state.decode_state)(m, ch);
+		(void) mimeDecodeState(m, ASCII_LF);
+		(void) mimeDecodeState(m, '-');
+		(void) mimeDecodeState(m, ch);
 		m->state.source_state = mimeStateBdy;
 	}
 
@@ -534,7 +569,7 @@ mimeStateBdyLF(Mime *m, int ch)
 		/* We have a LF LF pair. MIME message with LF newlines?
 		 * Flush the first LF and keep the second LF.
 		 */
-		(void) (*m->state.decode_state)(m, ASCII_LF);
+		(void) mimeDecodeState(m, ASCII_LF);
 		(void) mimeStateBdy(m, ASCII_LF);
 	} else {
 		/* Flush upto, but excluding the trailing CR. */
@@ -550,8 +585,8 @@ mimeStateBdyLF(Mime *m, int ch)
 		if (ch == ASCII_CR)
 			m->source.buffer[m->source.length++] = ASCII_CR;
 
-		(void) (*m->state.decode_state)(m, ASCII_LF);
-		(void) (*m->state.decode_state)(m, ch);
+		(void) mimeDecodeState(m, ASCII_LF);
+		(void) mimeDecodeState(m, ch);
 		m->state.source_state = mimeStateBdy;
 	}
 
@@ -586,10 +621,10 @@ mimeStateBdy(Mime *m, int ch)
 			/* Look for MIME boundary line. */
 			m->state.source_state = mimeStateBdyLF;
 		} else {
-			(void) (*m->state.decode_state)(m, ASCII_LF);
+			(void) mimeDecodeState(m, ASCII_LF);
 		}
 	} else {
-		(void) (*m->state.decode_state)(m, ch);
+		(void) mimeDecodeState(m, ch);
 	}
 
 	return ch;
@@ -971,7 +1006,7 @@ mimeNextCh(Mime *m, int ch)
 	}
 
 	if (ch == EOF) {
-		(void) (*m->state.decode_state)(m, EOF);
+		(void) mimeDecodeState(m, EOF);
 		mimeDecodeFlush(m);
 	}
 
@@ -1242,7 +1277,7 @@ json_headers_start(Mime *m, void *data)
 	json_mime_state *j = data;
 
 	LOGCB(m, data);
-	printf("\t{\n\t\t\"headers\": %c\n", headers_open[j->hdrs_style]);
+	printf("\t{\n\t\t\"index\": %d,\n\t\t\"headers\": %c\n", m->mime_part_number, headers_open[j->hdrs_style]);
 }
 
 void
@@ -1341,7 +1376,7 @@ json_body_finish(Mime *m, void *data)
 }
 
 void
-json_decode_octet(Mime *m, int ch, void *data)
+json_octet(Mime *m, int ch, void *data)
 {
 	LOGCB(m, data);
 	if (0 <= ch)
@@ -1362,7 +1397,8 @@ MimeHooks json_hook = {
 	json_body_finish,
 	NULL,
 	NULL,
-	json_decode_octet,
+	json_octet,
+	NULL,
 	NULL
 };
 
@@ -1510,6 +1546,12 @@ main(int argc, char **argv)
 			fprintf(stderr, "%s", strerror(errno));
 			exit(EX_SOFTWARE);
 		}
+
+		if (enable_decode) {
+			json_hook.source_octet = NULL;
+			json_hook.decoded_octet = json_octet;
+		}
+
 		mimeHooksAdd(mime, &json_hook);
 	} else {
 		if (list_parts) {
