@@ -289,7 +289,7 @@ macro_filled:
 		if (0 < rhp)
 			value = (char *) right_hand_parts(value, delims, rhp);
 
-		TextTransliterate(value, delims, dots, -1);
+		TextTransliterate(value, delims, dots);
 
 		offset += TextCopy(buffer+offset, sizeof (buffer)-offset, value);
 	}

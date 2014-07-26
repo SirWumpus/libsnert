@@ -158,10 +158,17 @@ extern int TextBackslash(char);
  *	A printable C string pointer; NULL on EOF or octect out of range.
  *	Control characters and high octets converted to a escaped format.
  */
-extern const char *asEscape(int octet);
-extern const char *asJson(int octet);
-extern const char *asCarat(int octet);
-extern const char *asControl(int octet);
+extern const char *escapeC(int octet);
+extern const char *escapeJson(int octet);
+extern const char *escapeAscii(int octet);
+extern const char *escapeCarat(int octet);
+
+typedef struct {
+	int byte;
+	const char *escape;
+} EscapeMapping;
+
+extern const char *escapeMapping(int octet, EscapeMapping *map);
 
 /**
  * <p>
@@ -349,7 +356,28 @@ extern void TextInvert(char *str, long length);
 extern void TextLower(char *str, long length);
 extern void TextUpper(char *str, long length);
 extern void TextReverse(char *str, long length);
-extern void TextTransliterate(char *str, const char *from_set, const char *to_set, long length);
+
+/**
+ * Similar to tr(1).
+ *
+ * @param target
+ *	A pointer to a modifiable C string.
+ *
+ * @param from_set
+ *	A pointer to a C string containing a set of characters to replace.
+ *
+ * @param to_set
+ *	A pointer to a C string containing a set of replacement characters.
+ *	A character in position N of from_set is replaced by a character at
+ *	position N of to_set in the target string.  If to_set is shorter
+ *	than from_set, then the last character of to_set is used.  Can be
+ *	NULL or an empty string if characters in from_set should be deleted
+ *	from target string.
+ *
+ * @return
+ *	Length of target after transliteration.
+ */
+extern size_t TextTransliterate(char *target, const char *from_set, const char *to_set);
 
 #ifndef HAVE_GETLINE
 extern ssize_t getline(char **linep, size_t *np, FILE *fp);

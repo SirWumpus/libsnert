@@ -57,9 +57,27 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.33--
+
+   *	Upgraded SQLite to 3.8.5
+
+   +	Added to the mime tool -B option for testing boundary matching
+	heuristics.
+
+   +	Added -N option to the mime tool to strip newlines (whitespace)
+   	from JSON dumps of encoded Base64 parts.  Commissined by Vikas
+   	Singla.
+
+   !	Modified TextTransliterate() to behave more like tr(1), all
+	except for -s. Function signature changed.
+
+   !	Renamed (again) asEscape, asCarat, asControl, and asJson to
+   	escapeC, escapeCarat, escapeAscii, and escapeJson respectively.
+   	Also exposed escapeMapping() to allow for more variations.
+
 --1.75.32--
 
-   +	MIME API hook source_octet, compliement to decoded_octet.
+   +	MIME API hook source_octet, complement to decoded_octet.
 
    !	mime -j now dumps the source body by default; use -d option
    	to dump the decoded body with -j.
@@ -67,7 +85,8 @@ is no set schedule for releases.
    !	Switch back to using the strict MIME boundary from RFC 2046
    	section 5.1.1 from the relaxed version introduced in 1.75.19
    	based on spam samples from AlexB.  The relaxed version
-   	mishandles too lines that are clearly not boundaries, such as:
+   	mishandles too many lines that are clearly not boundaries,
+   	such as:
 
    	    -	HTML part with a end HTML comment "-->" string at the
    	    	start of the line.
@@ -80,7 +99,7 @@ is no set schedule for releases.
 	message with text, but no subparts.  Such malformed messages don't
 	display in Thunderbird, but still useful to catch.  Reported by
 	Alex Broens.
-	
+
 
 --1.75.31--
 
@@ -96,7 +115,7 @@ is no set schedule for releases.
    !	Complete replacement of cipher API based on previous IOCCC entry.
 
    !	Added extra hooks to MIME API. Added -j option to mime tool to
-	dump email message as JSON output. Commissined by Vika S.
+	dump email message as JSON output. Commissined by Vikas Singla.
 
    !	Revised behaviour of TOKEN_KEEP_BACKSLASH and TOKEN_KEEP_QOUTES
 	to be more clear and renamed the constants. Added

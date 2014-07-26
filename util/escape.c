@@ -13,10 +13,10 @@
 
 typedef struct {
 	int byte;
-	const char *mb;
-} mapping;
+	const char *escape;
+} EscapeMapping;
 
-static mapping map_carat[] = {
+static EscapeMapping map_carat[] = {
 	{ 0, 	"^@" },		{ 1, 	"^A" },		{ 2,  	"^B" },
 	{ 3, 	"^C" },		{ 4, 	"^D" },		{ 5,  	"^E" },
 	{ 6, 	"^F" },		{ 7, 	"^G" },		{ 8,  	"^H" },
@@ -31,7 +31,7 @@ static mapping map_carat[] = {
 	{ 0, (char *) 0 }
 };
 
-static mapping map_control[] = {
+static EscapeMapping map_ascii[] = {
 	{ 0, 	"<NUL>" },	{ 1, 	"<SOH>" },	{ 2,  	"<STX>" },
 	{ 3, 	"<ETX>" },	{ 4, 	"<EOT>" },	{ 5,  	"<ENQ>" },
 	{ 6, 	"<ACK>" },	{ 7, 	"<BEL>" },	{ 8,  	"<BS>" },
@@ -46,7 +46,7 @@ static mapping map_control[] = {
 	{ 0, (char *) 0 }
 };
 
-static mapping map_escape[] = {
+static EscapeMapping map_c[] = {
 	{ 7, 	"\\a" },
 	{ 8,  	"\\b" },
 	{ 9, 	"\\t" },
@@ -70,7 +70,7 @@ static mapping map_escape[] = {
  * should be. The ECMA grammar is a parsing grammar, not a generating
  * grammar.
  */
-static mapping map_json[] = {
+static EscapeMapping map_json[] = {
 	{ '"',	"\\\"" },
 	{ '\\', "\\\\" },
 #ifdef ESCAPE_SOLIDUS
@@ -89,10 +89,10 @@ static mapping map_json[] = {
  * to a static string.  Upto N calls can be safely made before
  * overwriting static buffer space.
  */
-static const char *
-convert(int byte, mapping *table)
+const char *
+escapeMapping(int byte, EscapeMapping *table)
 {
-	mapping *map;
+	EscapeMapping *map;
 	static int index = 0;
 	static char buf[N_CONVERT_BUFFERS][7];
 
@@ -100,9 +100,9 @@ convert(int byte, mapping *table)
 		return NULL;
 
 	/* Map byte to a printable representation. */
-	for (map = table; map->mb != (char *) 0; ++map)
+	for (map = table; map->escape != (char *) 0; ++map)
 		if (byte == map->byte)
-			return map->mb;
+			return map->escape;
 
 	if (N_CONVERT_BUFFERS <= index)
 		index = 0;
@@ -120,25 +120,25 @@ convert(int byte, mapping *table)
 }
 
 const char *
-asEscape(int byte)
+escapeC(int byte)
 {
-	return convert(byte, map_escape);
+	return escapeMapping(byte, map_c);
 }
 
 const char *
-asJson(int byte)
+escapeJson(int byte)
 {
-	return convert(byte, map_json);
+	return escapeMapping(byte, map_json);
 }
 
 const char *
-asCarat(int byte)
+escapeCarat(int byte)
 {
-	return convert(byte, map_carat);
+	return escapeMapping(byte, map_carat);
 }
 
 const char *
-asControl(int byte)
+escapeAscii(int byte)
 {
-	return convert(byte, map_control);
+	return escapeMapping(byte, map_ascii);
 }

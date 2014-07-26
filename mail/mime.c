@@ -17,11 +17,12 @@
 #define HEADERS_OBJECT		HDRS_OBJECT
 #endif
 
-#define MIME_STRICT_BOUNDARY	0
-#define MIME_WEAK_BOUNDARY	1
+#define MIME_STRICT_BOUNDARY	mimeStrictBoundary
+#define MIME_NOSPACE_BOUNDARY	mimeNoSpaceBoundary
+#define MIME_WEAK_BOUNDARY	mimeWeakBoundary
 
 #ifndef MIME_BOUNDARY
-#define MIME_BOUNDARY		MIME_STRICT_BOUNDARY
+#define MIME_BOUNDARY		MIME_NOSPACE_BOUNDARY
 #endif
 
 /***********************************************************************
@@ -381,10 +382,8 @@ mimeBodyFinish(Mime *m)
 #define BCHARS_UNUSED		"!#$%&*;<>@[]^{|}~"
 #define BCHARS_QUOTE		"\""
 
-static int
-mimeIsBoundaryChar(int ch)
-{
-#if MIME_BOUNDARY == MIME_WEAK_BOUNDARY
+typedef int (*MimeIsBoundaryChar)(int);
+
 /* 1.75.19
  *
  * Relaxed the handling of MIME boundaries to allow any printable
@@ -396,11 +395,31 @@ mimeIsBoundaryChar(int ch)
  * MIME boundaries could mean failing to detect spam messages that
  * would go on to be displayed by an MUA. Reported by Alex Broens.
  */
- 	return isgraph(ch);
-#else
-	return isalnum(ch) || strchr(BCHARSNOSPACE, ch) != NULL;
-#endif
+static int
+mimeWeakBoundary(int ch)
+{
+	/* Any glyph, execpt SGML/HTML/XML angle brackets. */
+ 	return isgraph(ch) && ch != '<' && ch != '>';
 }
+
+static int
+mimeNoSpaceBoundary(int ch)
+{
+	/* Almost strict, disallowing spaces permitted by the RFC.
+	 * The RFC allowing spaces in boundaries seems so wrong
+	 * and can't recall seeing them used in the wild in valid
+	 * boundaries.
+	 */
+	return isalnum(ch) || strchr(BCHARSNOSPACE, ch) != NULL;
+}
+
+static int
+mimeStrictBoundary(int ch)
+{
+	return isalnum(ch) || strchr(BCHARSNOSPACE " ", ch) != NULL;
+}
+
+static MimeIsBoundaryChar mimeIsBoundaryChar = MIME_BOUNDARY;
 
 static int
 mimeStateBoundary(Mime *m, int ch)
@@ -422,7 +441,8 @@ mimeStateBoundary(Mime *m, int ch)
 		 *		      "/" / ":" / "=" / "?"
 		 */
 		for (i = 2; i < m->source.length; i++) {
-			if (!mimeIsBoundaryChar(m->source.buffer[i]) && !isspace(m->source.buffer[i]))
+			if (!(*mimeIsBoundaryChar)(m->source.buffer[i])
+			&& strchr("\r\n", m->source.buffer[i]) == NULL)
 				break;
 
 			/* Treat ----\r\n, ====\r\n, -=-=-=-\r\n, ----=\r\n
@@ -467,6 +487,16 @@ mimeStateBoundary(Mime *m, int ch)
    		 * This solution is not ideal when the MIME part is quoted
    		 * printable and the boundary has the appearance of being
    		 * quoted printable.
+		 *
+		 * e) Take care with delimiter lines.
+		 *
+		 *	Reply text here.
+		 *
+		 *	---- Original Message ----
+		 *	Subject: Hello World!
+		 *
+		 * Some MUA embed the original message below the reply and
+		 * a delimiter line, instead of the traditional ">" indenting.
 		 */
 		if (!all_hyphen && (m->state.encoding != MIME_QUOTED_PRINTABLE || !has_qp) && i == m->source.length) {
 			LOGVOL(1, "boundary found");
@@ -1043,6 +1073,7 @@ int enable_decode;
 int enable_throw;
 int generate_md5;
 int json_dump;
+int hack_json_b64_strip_newline;
 
 Mime *mime;
 
@@ -1050,13 +1081,14 @@ Mime *mime;
 static char usage[] =
 "usage: mime [-v] -l < message\n"
 "       mime [-v] -p num [-dem] < message\n"
-"       mime [-v] -j [-e] < message\n"
+"       mime [-v] -j [-eN] < message\n"
 "\n"
 "-d\t\tdecode base64 or quoted-printable\n"
 "-e\t\treport parsing errors\n"
 "-j\t\tJSON dump\n"
 "-l\t\tlist MIME part headers\n"
 "-m\t\tgenerate MD5s for MIME part\n"
+"-N\t\tstrip whitespace from encoded Base64 parts\n"
 "-p num\t\textract MIME part\n"
 "-v\t\tverbose\n"
 "\n"
@@ -1247,7 +1279,7 @@ json_encode(const char *string, size_t length)
 	if ((encoded = malloc(length * 6 + 1)) != NULL) {
 		t = encoded;
 		for (s = string; *s != '\0'; s++) {
-			if ((j = asJson(*s)) == NULL)
+			if ((j = escapeJson(*s)) == NULL)
 				continue;
 			(void) strcpy(t, j);
 			t += strlen(j);
@@ -1379,8 +1411,13 @@ void
 json_octet(Mime *m, int ch, void *data)
 {
 	LOGCB(m, data);
-	if (0 <= ch)
-		(void) fputs(asJson(ch), stdout);
+	if (0 <= ch) {
+		if (hack_json_b64_strip_newline
+		&& m->state.encoding == MIME_BASE64
+		&& isspace(ch))
+			return;
+		(void) fputs(escapeJson(ch), stdout);
+	}
 }
 
 json_mime_state json_state = { HEADERS_OBJECT };
@@ -1481,13 +1518,26 @@ processFile(Mime *m, const char *filename)
 	}
 }
 
+typedef struct {
+	const char *name;
+	MimeIsBoundaryChar fn;
+} MimeBoundary;
+
+MimeBoundary boundary[] = {
+	{ "weak", mimeWeakBoundary },
+	{ "nospace", mimeNoSpaceBoundary },
+	{ "strict", mimeStrictBoundary },
+	{ "strict|nospace|weak", NULL }
+};
+
 int
 main(int argc, char **argv)
 {
 	int ch;
 	MimeHooks hook;
+	MimeBoundary *mb;
 
-	while ((ch = getopt(argc, argv, "dejJ:lmp:v")) != -1) {
+	while ((ch = getopt(argc, argv, "B:NdejJ:lmp:v")) != -1) {
 		switch (ch) {
 		case 'd':
 			enable_decode = 1;
@@ -1513,6 +1563,22 @@ main(int argc, char **argv)
 			break;
 		case 'v':
 			debug++;
+			break;
+		case 'N':
+			hack_json_b64_strip_newline = 1;
+			break;
+		case 'B':
+			/* Undocumented option for experimenting. */
+			for (mb = boundary; mb->fn != NULL; mb++) {
+				if (strcmp(optarg, mb->name) == 0) {
+					mimeIsBoundaryChar = mb->fn;
+					break;
+				}
+			}
+			if (mb->fn == NULL) {
+				(void) fprintf(stderr, "use -B %s\n", mb->name);
+				exit(EX_USAGE);
+			}
 			break;
 		default:
 			(void) fprintf(stderr, usage);
@@ -1550,6 +1616,8 @@ main(int argc, char **argv)
 		if (enable_decode) {
 			json_hook.source_octet = NULL;
 			json_hook.decoded_octet = json_octet;
+			/* Keep the newlines in decoded Base64 output. */
+			hack_json_b64_strip_newline = 0;
 		}
 
 		mimeHooksAdd(mime, &json_hook);

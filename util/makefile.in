@@ -103,7 +103,7 @@ OBJS = \
 
 TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E TextSplit$E \
        DebugMalloc$E ixhash$E md4$E md5$E htmlstrip$E TextCopy$E TextMatch$E \
-       TextTransliterate$E TextSensitiveEndsWith$E TextInsensitiveEndsWith$E \
+       translit$E TextSensitiveEndsWith$E TextInsensitiveEndsWith$E \
        ProcTitle$E timer$E dmalloct$E
 
 CLI = b64$E convertDate$E uri$E uriFormat$E urid$E playfair$E cipher$E TextFind$E
@@ -201,8 +201,8 @@ Base64$E: Base64.c
 b64$E: b64.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)b64$E ${srcdir}/b64.c $(LIBSNERT) ${LIBS}
 
-TextTransliterate$E: TextTransliterate.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextTransliterate$E ${srcdir}/TextTransliterate.c $(LIBSNERT) ${LIBS}
+translit$E: TextTransliterate.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)translit$E ${srcdir}/TextTransliterate.c $(LIBSNERT) ${LIBS}
 
 TextSensitiveEndsWith$E: TextSensitiveEndsWith.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)TextSensitiveEndsWith$E ${srcdir}/TextSensitiveEndsWith.c $(LIBSNERT) ${LIBS}
