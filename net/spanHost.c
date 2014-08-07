@@ -78,7 +78,7 @@ spanDomain(const unsigned char *domain, int minDots)
 			if (!isalnum(*domain))
 				goto stop;
 #else
-/*** Similar arguement to below; AlexB has supplied examples of
+/*** Similar argument to below; AlexB has supplied examples of
  *** URI with high-bit bytes in the host name. The issue here is
  *** by weakening some of the restrictions applied to names, then
  *** the boundaries between text and URI strings blur, making

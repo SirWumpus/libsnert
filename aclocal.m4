@@ -2039,6 +2039,7 @@ AC_DEFUN(SNERT_INIT,[
 
 	AC_SUBST(package_version, "${PACKAGE_VERSION}${package_build:+.}${package_build}")
 	AC_SUBST(package_string, "${PACKAGE_NAME} ${package_version}")
+	AC_SUBST(package_number, [[`printf "%d%03d%03d" $package_major $package_minor $package_build`]])
 
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_NAME, ["$PACKAGE_NAME"])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_MAJOR, $package_major)
@@ -2046,6 +2047,7 @@ AC_DEFUN(SNERT_INIT,[
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_BUILD, $package_build)
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_VERSION, ["$package_version"])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_STRING, ["$package_string"])
+	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_NUMBER, $package_number)
 
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_AUTHOR, ["$PACKAGE_BUGREPORT"])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_COPYRIGHT, ["$package_copyright"])

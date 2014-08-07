@@ -693,6 +693,9 @@ mimeStateEOH(Mime *m, int ch)
 	mimeHdrFinish(m);
 	mimeBodyStart(m);
 
+	/* Normal header to body transition. */
+	m->state.source_state = mimeStateHdrBdy;
+
 	/* HACK for uri.c:
 	 *
 	 * When crossing from MIME part headers to a body
@@ -705,12 +708,17 @@ mimeStateEOH(Mime *m, int ch)
 	 * say "no state change" or to change the state
 	 * since the state functions are private.
 	 */
-	if (m->state.is_message_rfc822)
-		/* Remain in the header parse state. */
+	if (m->state.is_message_rfc822) {
+		/* Behave as though there was an invisible MIME boundary. */
+		mimeBodyFinish(m);
+
+		m->mime_part_number++;
+		m->mime_part_length = 0;
+		m->state.has_content_type = 0;
 		m->state.is_message_rfc822 = 0;
-	else
-		/* Normal header to body transition. */
-		m->state.source_state = mimeStateHdrBdy;
+		m->state.encoding = MIME_NONE;
+		m->state.source_state = mimeStateHdrStart;
+	}
 
 	return ch;
 }

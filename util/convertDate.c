@@ -655,7 +655,6 @@ int
 convertISO8601(const char *s, long *year, long *month, long *day, long *hour, long *minute, long *second, const char **stop)
 {
 	const char *next;
-	unsigned long frac;
 
 	*year = strntoul(s, &next, 4);
 	if (next - s != 4)
@@ -697,7 +696,7 @@ convertISO8601(const char *s, long *year, long *month, long *day, long *hour, lo
 	/* Fractional seconds currently optional and ignored. */
 	s = next;
 	s += (*s == ',' || *s == '.');
-	frac = strtoul(s, (char **) &next, 10);
+	(void) strtoul(s, (char **) &next, 10);
 
 	if (stop != NULL)
 		*stop = next;
@@ -739,7 +738,7 @@ convertISO8601(const char *s, long *year, long *month, long *day, long *hour, lo
  *	time := HH [":"] MM [ [":"] SS [ ( "," | "." ) s* ] ] [tz]
  *
  *	tz   := "Z" | ( "+" | "-" ) HH [ [":"] MM ]
- * 
+ *
  * Fractional seconds are currently parsed, but ignored by this API.
  *
  * If the time zone is missing, then GMT (+0000) is assumed, which may

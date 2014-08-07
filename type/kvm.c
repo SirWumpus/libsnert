@@ -2024,7 +2024,7 @@ kvm_get_socket(struct kvm *self, kvm_data *key, kvm_data *value)
 	if (self == NULL || key == NULL)
 		goto error0;
 
-	MEMSET(&result, 0, sizeof (result)); 
+	MEMSET(&result, 0, sizeof (result));
 	PTHREAD_MUTEX_LOCK(&self->_mutex);
 	if (kvm_check_socket(self))
 		goto error1;
@@ -2122,7 +2122,7 @@ kvm_remove_socket(struct kvm *self, kvm_data *key)
 	if (self == NULL || key == NULL)
 		goto error0;
 
-	MEMSET(&result, 0, sizeof (result)); 
+	MEMSET(&result, 0, sizeof (result));
 	PTHREAD_MUTEX_LOCK(&self->_mutex);
 	if (kvm_check_socket(self))
 		goto error1;
@@ -3143,7 +3143,6 @@ kvm_open_sql(kvm *self, const char *location, int mode)
 		return KVM_ERROR;
 
 	self->_kvm = sql;
-	memset(sql, 0 , sizeof (sql));
 	sql->path = (char *) &sql[1];
 	(void) TextCopy(sql->path, length+1, location);
 

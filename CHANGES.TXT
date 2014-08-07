@@ -57,6 +57,14 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.34--
+
+   !	Fix several Cygwin gcc compiler warnings.
+
+   !	Add LIBSNERT_NUMBER numeric representation of the version.
+
+   !	Fix MIME API handling of message/rfc822. Reported by Vikas Singla.
+
 --1.75.33--
 
    *	Upgraded SQLite to 3.8.5
