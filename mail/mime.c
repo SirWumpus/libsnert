@@ -1323,29 +1323,29 @@ json_headers_start(Mime *m, void *data)
 void
 json_headers_finish(Mime *m, void *data)
 {
+	Buf join;
 	char **args;
 	json_mime_state *j = data;
 
 	LOGCB(m, data);
-	if (m->mime_part_number == 0) {
-		Buf join;
 
-		if (j->hdrs_style == HDRS_OBJECT && !BufInit(&join, 100)) {
-			if (0 < VectorLength(j->received)) {
-				for (args = (char **)VectorBase(j->received); *args != NULL; args++) {
-					json_join_quoted_item(&join, *args, "\t\t\t\t");
-				}
-				printf("\t\t\t\"received\": [\n%s\t\t\t],\n", BufBytes(&join));
+	if (j->hdrs_style == HDRS_OBJECT && !BufInit(&join, 100)) {
+		if (0 < VectorLength(j->received)) {
+			for (args = (char **)VectorBase(j->received); *args != NULL; args++) {
+				json_join_quoted_item(&join, *args, "\t\t\t\t");
 			}
-			BufSetLength(&join, 0);
-			if (0 < VectorLength(j->recipients)) {
-				for (args = (char **)VectorBase(j->recipients); *args != NULL; args++) {
-					json_join_quoted_item(&join, *args, "\t\t\t\t");
-				}
-				printf("\t\t\t\"to\": [\n%s\t\t\t],\n", BufBytes(&join));
-			}
-			BufFini(&join);
+			printf("\t\t\t\"received\": [\n%s\t\t\t],\n", BufBytes(&join));
 		}
+		VectorRemoveAll(j->received);
+		BufSetLength(&join, 0);
+		if (0 < VectorLength(j->recipients)) {
+			for (args = (char **)VectorBase(j->recipients); *args != NULL; args++) {
+				json_join_quoted_item(&join, *args, "\t\t\t\t");
+			}
+			printf("\t\t\t\"to\": [\n%s\t\t\t],\n", BufBytes(&join));
+		}
+		VectorRemoveAll(j->recipients);
+		BufFini(&join);
 	}
 
 	printf("\t\t%c,\n", headers_close[j->hdrs_style]);
