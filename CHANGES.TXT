@@ -57,6 +57,19 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.35--
+
+   *	Upgraded SQLite to 3.8.6
+
+   +	Added TOKEN_KEEP_QUOTES to TokenNext; slightly different from 
+	TOKEN_IGNORE_QUOTES.  Used by mime -j parsing of very long To:
+	headers and splitting an unfolded header of mail addresses.
+
+   !	Fixed mime -j handling of very long headers that span more than
+	one source buffer and fixed use of source_flash hook.  Reported
+	by Vikas Singla concerning problem with parsing very long To:
+	header.
+
 --1.75.34--
 
    !	Fix several Cygwin gcc compiler warnings.
@@ -64,6 +77,9 @@ is no set schedule for releases.
    !	Add LIBSNERT_NUMBER numeric representation of the version.
 
    !	Fix MIME API handling of message/rfc822. Reported by Vikas Singla.
+
+   !	Fix MIME API handling of To: and Received: headers within
+	message/rfc822 parts.  Reported by Vikas Singla.
 
 --1.75.33--
 

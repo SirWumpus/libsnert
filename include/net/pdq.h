@@ -23,7 +23,7 @@ extern "C" {
 
 #include <stdio.h>
 
-#if defined(__WIN32__) 
+#if defined(__WIN32__)
 # if defined(__VISUALC__)
 #  define _WINSOCK2API_
 # endif
@@ -290,7 +290,7 @@ typedef struct {
  *
  * With more than one server, the timeout each round is divided
  * by the number of servers available. So for example:
- *   
+ *
  *      1 server : 5+     10+    20+    40+      = 75 seconds
  *      2 servers: 5+5+   5+5+   10+10+ 20+20    = 80 seconds
  *      3 servers: 5+5+5+ 5+5+5+ 6+6+6+ 13+13+13 = 87 seconds

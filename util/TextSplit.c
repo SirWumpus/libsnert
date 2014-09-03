@@ -177,6 +177,9 @@ static test_case tests[] = {
 	/* Keep backslash escapes and ignore quotes. */
 	{ "/a'\\/b\\/'c/ tail",	"/ ", TOKEN_KEEP_ASIS, 2, { "a'\\/b\\/'c", "tail" } },
 
+	/* Keep quotes. */
+	{ "tab\\t,\"tab,\\t, quotes\",tab\\t", ",", TOKEN_KEEP_QUOTES, 3, { "tab\t", "\"tab,\t, quotes\"", "tab\t" } },
+
 	/* Open & close delimiters. */
 	{ "a{b}c", "{}", TOKEN_KEEP_EMPTY|TOKEN_KEEP_BRACKETS, 3, { "a", "{b}", "c" } },
 	{ "a{b}c", "{}", TOKEN_KEEP_BRACKETS, 3, { "a", "{b}", "c" } },

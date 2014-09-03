@@ -2464,6 +2464,7 @@ smfMainStart(smfInfo *smf)
 	/* Write version information to log. */
 	syslog(LOG_INFO, "%s/%d.%d.%d %s", smf->package, smf->major, smf->minor, smf->build, smf->copyright);
 	syslog(LOG_INFO, "%s/%d.%d.%d %s", LibSnert.package, LibSnert.major, LibSnert.minor, LibSnert.build, LibSnert.copyright);
+	syslog(LOG_INFO, "%s built %s", LibSnert.package, LibSnert.built);
 #ifdef HAVE_SMFI_VERSION
 {
 	unsigned major, minor, patch;

@@ -20,14 +20,12 @@
  ***********************************************************************/
 
 /**
- * <p>
  * Parse the string for the next token. A token consists of characters
  * not found in the set of delimiters. It may contain backslash-escape
  * sequences, which shall be converted into literals or special ASCII
  * characters. It may contain single or double quoted strings, in which
  * case the quotes shall be removed, though any backslash escape
  * sequences within the quotes are left as is.
- * </p>
  *
  * @param string
  *	A quoted string.
@@ -61,6 +59,11 @@
  *	part of the token, like a regex string /RE/ where you need to
  *	keep any "\/" between the open and closing slashes. We still
  *	need to recognise escapes and not convert them to a literal.
+ *
+ *	TOKEN_KEEP_QUOTES
+ *	
+ *	Similar to TOKEN_KEEP_BACKSLASH; need to recognise qoutes
+ *	and not remove them.
  *
  *	TOKEN_IGNORE_QUOTES
  *
@@ -162,6 +165,8 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 				quote = *s;
 			else if (*s == quote)
 				quote = 0;
+			if (flags & TOKEN_KEEP_QUOTES)
+				break;
 			continue;
 		case '\\':
 			escape = 1;
@@ -205,6 +210,8 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 				quote = 0;
 			else
 				/* The other quote within a quoted string. */
+				break;
+			if (flags & TOKEN_KEEP_QUOTES)
 				break;
 			continue;
 		case '\\':

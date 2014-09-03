@@ -17,6 +17,8 @@
 #define HEADERS_OBJECT		HDRS_OBJECT
 #endif
 
+#define BUF_INIT_SIZE	512
+
 #define MIME_STRICT_BOUNDARY	mimeStrictBoundary
 #define MIME_NOSPACE_BOUNDARY	mimeNoSpaceBoundary
 #define MIME_WEAK_BOUNDARY	mimeWeakBoundary
@@ -121,7 +123,7 @@ mimeDoHook(Mime *m, ptrdiff_t func_off)
 	ptrdiff_t free_off;
 	MimeHooks *hook, *next;
 
-	LOGIF("%s(0x%lX, %ld)", __func__, (long)m, (long)func_off);
+	LOGVOL(3, "%s(0x%lX, %ld)", __func__, (long)m, (long)func_off);
 
 	free_off = offsetof(MimeHooks, free_hook);
 	for (hook = m->mime_hook; hook != NULL; hook = next) {
@@ -138,7 +140,7 @@ mimeDoHookOctet(Mime *m, int ch, ptrdiff_t func_off)
 	MimeHooks *hook;
 	MimeHookOctet func;
 
-	LOGIF("%s(0x%lX, %d, %ld)", __func__, (long)m, ch, (long)func_off);
+	LOGVOL(3, "%s(0x%lX, %d, %ld)", __func__, (long)m, ch, (long)func_off);
 
 	if (ch == EOF)
 		return;
@@ -326,10 +328,10 @@ mimeSourceFlush(Mime *m)
 {
 	LOGHOOK(m);
 	if (0 < m->source.length) {
-		if (!mimeIsAnyHeader(m)) {
+//		if (!mimeIsAnyHeader(m)) {
 			m->source.buffer[m->source.length] = '\0';
 			mimeDoHook(m, offsetof(MimeHooks, source_flush));
-		}
+//		}
 		MEMSET(m->source.buffer, 0, m->source.length);
 		m->source.length = 0;
 	}
@@ -637,7 +639,6 @@ mimeStateBdy(Mime *m, int ch)
 			m->source.length--;
 			has_cr = 1;
 		}
-		m->source.buffer[m->source.length] = '\0';
 		mimeSourceFlush(m);
 
 		/* Restore the newline, in case the MIME boundary
@@ -684,11 +685,10 @@ mimeStateEOH(Mime *m, int ch)
 	LOGSTATE(m, ch);
 
 	/* End of headers. */
+	mimeSourceFlush(m);
 	mimeDecodeFlush(m);
 	m->mime_body_length = 0;
 	m->mime_body_decoded_length = 0;
-	m->source.buffer[0] = '\0';
-	m->source.length = 0;
 
 	mimeHdrFinish(m);
 	mimeBodyStart(m);
@@ -735,8 +735,7 @@ mimeStateHdrLF(Mime *m, int ch)
 		m->source.length--;
 	} else if (ch == ASCII_SPACE || ch == ASCII_TAB) {
 		/* Folded header, resume header gathering. */
-		if (ch == ASCII_TAB)
-			m->source.buffer[m->source.length-1] = ASCII_SPACE;
+		m->source.buffer[m->source.length-1] = ASCII_SPACE;
 		m->state.source_state = mimeStateHdrValue;
 	} else {
 		if (0 < m->source.length) {
@@ -779,6 +778,10 @@ mimeStateHdrLF(Mime *m, int ch)
 			}
 
 			LOGHOOK(m);
+			/* Process the header before the flush so
+			 * that application hooks have access to
+			 * the source buffer.
+			 */
 			mimeDoHook(m, offsetof(MimeHooks, header));
 			mimeSourceFlush(m);
 
@@ -1260,6 +1263,7 @@ char headers_close[] = "]]}]";
 
 typedef struct {
 	long hdrs_style;
+	Buf header;
 	Vector received;
 	Vector recipients;
 } json_mime_state;
@@ -1312,11 +1316,22 @@ json_join_quoted_item(Buf *buf, const char *str, const char *indent)
 }
 
 void
+json_source_flush(Mime *m, void *data)
+{
+	json_mime_state *j = data;
+
+	LOGCB(m, data);
+	if (mimeIsAnyHeader(m))
+		BufAddBytes(&j->header, m->source.buffer, m->source.length);
+}
+
+void
 json_headers_start(Mime *m, void *data)
 {
 	json_mime_state *j = data;
 
 	LOGCB(m, data);
+	BufInit(&j->header, BUF_INIT_SIZE);
 	printf("\t{\n\t\t\"index\": %d,\n\t\t\"headers\": %c\n", m->mime_part_number, headers_open[j->hdrs_style]);
 }
 
@@ -1329,7 +1344,7 @@ json_headers_finish(Mime *m, void *data)
 
 	LOGCB(m, data);
 
-	if (j->hdrs_style == HDRS_OBJECT && !BufInit(&join, 100)) {
+	if (j->hdrs_style == HDRS_OBJECT && !BufInit(&join, BUF_INIT_SIZE)) {
 		if (0 < VectorLength(j->received)) {
 			for (args = (char **)VectorBase(j->received); *args != NULL; args++) {
 				json_join_quoted_item(&join, *args, "\t\t\t\t");
@@ -1349,6 +1364,7 @@ json_headers_finish(Mime *m, void *data)
 	}
 
 	printf("\t\t%c,\n", headers_close[j->hdrs_style]);
+	BufFini(&j->header);
 }
 
 void
@@ -1359,16 +1375,16 @@ json_header(Mime *m, void *data)
 	json_mime_state *j = data;
 
 	LOGCB(m, data);
-	if ((js = json_encode((char *)m->source.buffer, m->source.length)) != NULL) {
+	mimeSourceFlush(m);
+	if ((js = json_encode((char *) BufBytes(&j->header), BufLength(&j->header))) != NULL) {
 		colon = strcspn(js, ":");
 		spaces = strspn(js+colon+1, " \t")+1;
 
 		if (0 < TextInsensitiveStartsWith(js, "Received:")) {
 			(void) VectorAdd(j->received, TextDup(js+colon+spaces));
-		}
-		if (0 < TextInsensitiveStartsWith(js, "To:")) {
+		} else if (0 < TextInsensitiveStartsWith(js, "To:")) {
 			char **items;
-			Vector list = TextSplit(js+colon+spaces, ",", 0);
+			Vector list = TextSplit((char *) BufBytes(&j->header)+colon+spaces, ",", TOKEN_KEEP_QUOTES);
 			for (items = (char **)VectorBase(list); *items != NULL; items++) {
 				if (!VectorAdd(j->recipients, *items))
 					*items = NULL;
@@ -1399,6 +1415,7 @@ json_header(Mime *m, void *data)
 		}
 		free(js);
 	}
+	BufSetLength(&j->header, 0);
 }
 
 void
@@ -1440,7 +1457,7 @@ MimeHooks json_hook = {
 	json_headers_finish,
 	json_body_start,
 	json_body_finish,
-	NULL,
+	json_source_flush,
 	NULL,
 	json_octet,
 	NULL,

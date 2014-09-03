@@ -1,7 +1,7 @@
 /*
  * Token.h
  *
- * Copyright 2001, 2006 by Anthony Howe.  All rights reserved.
+ * Copyright 2001, 2014 by Anthony Howe.  All rights reserved.
  */
 
 #ifndef __com_snert_lib_util_Token_h__
@@ -12,14 +12,12 @@ extern "C" {
 #endif
 
 /**
- * <p>
  * Parse the string for the next token. A token consists of characters
  * not found in the set of delimiters. It may contain backslash-escape
  * sequences, which shall be converted into literals or special ASCII
  * characters. It may contain single or double quoted strings, in which
  * case the quotes shall be removed, though any backslash escape
  * sequences within the quotes are left as is.
- * </p>
  *
  * @param string
  *	A quoted string.
@@ -47,12 +45,17 @@ extern "C" {
  *	[,,]		[] [] []	(null)
  *	[]		[]		(null)
  *
- *	TOKEN_KEEP_ESCAPES
+ *	TOKEN_KEEP_BACKSLASH
  *
  *	The token might have backslash escapes that are suppose to be
  *	part of the token, like a regex string /RE/ where you need to
  *	keep any "\/" between the open and closing slashes. We still
  *	need to recognise escapes and not convert them to a literal.
+ *
+ *	TOKEN_KEEP_QUOTES
+ *	
+ *	Similar to TOKEN_KEEP_BACKSLASH; need to recognise qoutes
+ *	and not remove them.
  *
  *	TOKEN_IGNORE_QUOTES
  *
@@ -88,13 +91,13 @@ extern "C" {
 extern char *TokenNext(const char *, const char **, const char *, int);
 
 #define TOKEN_KEEP_EMPTY	0x0001
-#define TOKEN_KEEP_BACKSLASH	0x0002
-#define TOKEN_IGNORE_QUOTES	0x0004
+#define TOKEN_KEEP_QUOTES	0x0002
+#define TOKEN_KEEP_BACKSLASH	0x0004
 #define TOKEN_KEEP_BRACKETS	0x0008
+#define TOKEN_IGNORE_QUOTES	0x0010
 #define TOKEN_KEEP_ASIS		(TOKEN_KEEP_BACKSLASH|TOKEN_IGNORE_QUOTES)
 
 /**
- * <p>
  * Parse the string of delimited tokens into an array of pointers to C
  * strings. A token consists of characters not found in the set of
  * delimiters. It may contain backslash-escape sequences, which shall be
@@ -102,7 +105,6 @@ extern char *TokenNext(const char *, const char **, const char *, int);
  * single or double quoted strings, in which case the quotes shall be
  * removed, though any backslash escape sequences within the quotes are
  * left as is.
- * </p>
  *
  * @param string
  *	A quoted string. A copy is made.
@@ -134,7 +136,6 @@ extern char *TokenNext(const char *, const char **, const char *, int);
 extern int TokenSplit(const char *, const char *, char ***, int *, int);
 
 /**
- * <p>
  * Parse the string of delimited tokens into an array of pointers to C
  * strings. A token consists of characters not found in the set of
  * delimiters. It may contain backslash-escape sequences, which shall be
@@ -142,7 +143,6 @@ extern int TokenSplit(const char *, const char *, char ***, int *, int);
  * single or double quoted strings, in which case the quotes shall be
  * removed, though any backslash escape sequences within the quotes are
  * left as is.
- * </p>
  *
  * @param string
  *	A quoted string. This string will be modified in place.
@@ -169,14 +169,12 @@ extern int TokenSplit(const char *, const char *, char ***, int *, int);
 extern int TokenSplitA(char *, const char *, char **, int);
 
 /**
- * <p>
  * Parse the string for the number of delimited tokens it contains. A
  * token consists of characters not found in the set of delimiters. It
  * may contain backslash-escape sequences, which shall be converted into
  * literals or special ASCII characters. It may contain single or double
  * quoted strings, in which case the quotes shall be removed, though any
  * backslash escape sequences within the quotes are left as is.
- * </p>
  *
  * @param string
  *	A quoted string.
