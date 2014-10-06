@@ -9,6 +9,10 @@
 #ifndef __com_snert_lib_io_URI_h__
 #define __com_snert_lib_io_URI_h__	1
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct uri {
 	/* Raw URI provided. */
 	char *uri;
@@ -39,10 +43,6 @@ typedef struct uri {
  * @see "RFC 2396"
  * @see java.net.URL
  */
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 extern URI uriCreate(const char *);
 extern void uriFree(URI);
 extern long uriHashCode(URI);

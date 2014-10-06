@@ -240,7 +240,6 @@ com/snert/src/lib/include/io/Error.h
 com/snert/src/lib/include/io/Log.h
 com/snert/src/lib/include/io/Pushback.h
 com/snert/src/lib/include/io/file.h
-com/snert/src/lib/include/io/posix.h
 com/snert/src/lib/include/io/socket2.h
 com/snert/src/lib/include/io/socket3.h
 com/snert/src/lib/include/io/events.h

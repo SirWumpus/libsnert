@@ -145,7 +145,7 @@ cipher_dump_grouped(FILE *fp, int width, const char *text, int skip_ws)
 {
 	int group, col;
 
-	for ( ; *text != '\0'; ) {
+	for (col = 0; *text != '\0'; ) {
 		group = 0;
 		for (col = 0; col < width && *text != '\0'; text++) {
 			if (!skip_ws || ' ' < *text) {
