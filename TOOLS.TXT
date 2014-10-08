@@ -65,10 +65,14 @@ mcc		Multicast/unicast cache server and control.
 
 mime		A MIME part extractor.
 
-mimepart	Predecessor to the mime tool above.
+mimepart	Predecessor to the mime tool above. Deprecated.
+
+natsort		Natural sort test tool sorts lines of text.
 
 netcontainsip	Simple tool to test if a given IPv4 or IPv6 address is
 		a member of the given IPv6 or IPv4 net/cidr.
+
+nctee		Interleave netcat client input with the server output.
 
 pad		Simple tool to pad leading and trailing padding with
 		byte and column width restrictions.

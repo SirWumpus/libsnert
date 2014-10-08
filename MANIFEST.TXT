@@ -351,6 +351,7 @@ com/snert/src/lib/tools/md5main.c
 com/snert/src/lib/tools/mimepart.c
 com/snert/src/lib/tools/myhostname.c
 com/snert/src/lib/tools/natsort.c
+com/snert/src/lib/tools/nctee.c
 com/snert/src/lib/tools/nothing.c
 com/snert/src/lib/tools/nph-download.c
 com/snert/src/lib/tools/pad.c
