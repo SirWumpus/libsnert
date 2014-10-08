@@ -76,6 +76,7 @@ tools/kat
 tools/mailgroup
 tools/mimepart
 tools/natsort
+tools/nctee
 tools/nph-download.cgi
 tools/pad
 tools/popin

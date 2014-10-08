@@ -3,20 +3,13 @@
  *
  * Copyright 2014 by Anthony Howe.  All rights reserved.
  *
- * usage: nctee [-a][-e delim][-i secs] file
+ * Interleave netcat client input with the returned server output.
+ * Feed input line by line to netcat, waiting for server replies
+ * between each line.
  *
- * 	Interleave netcat client input with the returned server output.
+ * Example usage:
  *
- * Examples:
- *
- * 1. Feed input line by line to netcat, waiting for server replies between each line.
- *
- *	$ printf "HELP\nEHLO mx.example.com\nQUIT\n" | nctee save | nc localhost 25 >>save
- *
- * 2. Use baskslash newline to continue the input unit:
- *
- *	$ printf 'HELP\nEHLO mx.example.com\\\nNOOP\\\nRSET\nQUIT\n' | nctee save | nc localhost 25 >>save
- *
+ * printf "HELP\nEHLO mx.example.com\nQUIT\n" | nctee -c save | nc localhost 25 >>save
  */
 
 #include <err.h>
@@ -26,31 +19,38 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-#define POLL_INTERVAL	2
+#define POLL_PERIOD	2
 
-static int escape_delim = '\\';
-static int poll_interval = POLL_INTERVAL;
+static int map_lf_crlf;
+static int poll_delay = POLL_PERIOD;
+static int poll_period = POLL_PERIOD;
 
 static int
 follow_stream(FILE *fp)
 {
 	struct stat sb;
-	size_t last_size = 0;
+	off_t last_size = 0;
 
-	do {
+	/* Pause _before_ fstat(); allows protocols with
+	 * connection greetings to be caught before the
+	 * first input line and slow replies.
+	 */
+	(void) sleep(poll_delay);
+
+	while (!ferror(fp)) {
 		clearerr(fp);
 
 		/* Check invalid file handle or truncation of file. */
 		if (fstat(fileno(fp), &sb) != 0 || sb.st_size < last_size)
 			return -1;
 
-		/* Capture file has remain constant between polls? */
+		/* Capture file remains constant between polls? */
 		if (sb.st_size == last_size)
 			break;
 
+		(void) sleep(poll_period);
 		last_size = sb.st_size;
-		sleep(poll_interval);
-	} while (!ferror(fp));
+	}
 
 	return 0;
 }
@@ -58,35 +58,16 @@ follow_stream(FILE *fp)
 int
 process(FILE *capture)
 {
-	int ch, nch, escape;
+	int ch, pch;
 
+	/* Wait on output from protocols that send greeting line. */
 	if (follow_stream(capture))
 		return -1;
 
-	for (escape = 0; (ch = fgetc(stdin)) != EOF; ) {
-		if (escape) {
-			(void) fputc(ch, capture);
-			(void) fputc(ch, stdout);
-			escape = 0;
-			continue;
-		}
-
-		if (ch == escape_delim) {
-			nch = fgetc(stdin);
-			(void) ungetc(nch, stdin);
-
-			/* Escaped newline does not end input unit. */
-			if (nch == '\n') {
-				escape = 1;
-				/* Discard the escape character. */
-				continue;
-			}
-
-			/* Escaped escape character? */
-			if (nch == escape_delim) {
-				escape = 1;
-				/* Escape character passed through. */
-			}
+	for (pch = EOF; (ch = fgetc(stdin)) != EOF; pch = ch) {
+		if (ch == '\n' && pch != '\r' && map_lf_crlf) {
+			(void) fputc('\r', capture);
+			(void) fputc('\r', stdout);
 		}
 
 		(void) fputc(ch, capture);
@@ -105,12 +86,15 @@ process(FILE *capture)
 }
 
 const char usage[] =
-"usage: nctee [-a][-e delim][-i sec] file\n"
+"usage: nctee [-ac][-d sec][-p sec] file\n"
 "\n"
 "-a\t\tappend to capture file\n"
-"-e delim\tescape character; default '\\'\n"
-"-i sec\t\tpoll interval in seconds; default 2\n"
+"-c\t\tmap bare LF to CRLF\n"
+"-d sec\t\tinitial capture delay in seconds; default 2\n"
+"-p sec\t\tcapture poll period in seconds; default 2\n"
 "file\t\tcapture file for both input and netcat output\n"
+"\n"
+"eg. printf \"HELP\\nNOOP\\nQUIT\\n\" | nctee -c save | nc localhost 25 >>save\n"
 ;
 
 int
@@ -121,22 +105,25 @@ main(int argc, char **argv)
 
 	append = 0;
 
-	while ((ch = getopt(argc, argv, "ae:i:")) != -1) {
+	while ((ch = getopt(argc, argv, "acd:p:")) != -1) {
 		switch (ch) {
 		case 'a':
 			append = 1;
 			break;
-		case 'e':
-			escape_delim = *optarg;
+		case 'c':
+			map_lf_crlf = 1;
 			break;
-		case 'i':
-			poll_interval = (int) strtol(optarg, NULL, 10);
+		case 'd':
+			poll_delay = (int) strtol(optarg, NULL, 10);
+			break;
+		case 'p':
+			poll_period = (int) strtol(optarg, NULL, 10);
 			break;
 		default:
 			optind = argc;
 		}
 	}
-	if (argc <= optind || poll_interval < 0)
+	if (argc <= optind || poll_delay < 0 || poll_period < 0)
 		errx(64, usage);
 
 	if ((capture = fopen(argv[optind], "ab")) == NULL)
