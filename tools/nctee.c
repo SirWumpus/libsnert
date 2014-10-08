@@ -3,7 +3,7 @@
  *
  * Copyright 2014 by Anthony Howe.  All rights reserved.
  *
- * usage: nctee [-a][-i secs] file
+ * usage: nctee [-a][-e delim][-i secs] file
  *
  * 	Interleave netcat client input with the returned server output.
  *
@@ -13,9 +13,9 @@
  *
  *	$ printf "HELP\nEHLO mx.example.com\nQUIT\n" | nctee save | nc localhost 25 >>save
  *
- * 2.  Use backquote to specify a block of lines to feed as one unit to netcat:
+ * 2. Use baskslash newline to continue the input unit:
  *
- *	$ printf 'HELP\n`EHLO mx.example.com\nNOOP\nRSET`\nQUIT\n' | nctee save | nc localhost 25 >>save
+ *	$ printf 'HELP\nEHLO mx.example.com\\\nNOOP\\\nRSET\nQUIT\n' | nctee save | nc localhost 25 >>save
  *
  */
 
@@ -26,12 +26,13 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-#define BLOCK_START	'`'
-#define BLOCK_END	'`'
 #define POLL_INTERVAL	2
 
+static int escape_delim = '\\';
+static int poll_interval = POLL_INTERVAL;
+
 static int
-follow_stream(FILE *fp, int poll_interval)
+follow_stream(FILE *fp)
 {
 	struct stat sb;
 	size_t last_size = 0;
@@ -55,41 +56,36 @@ follow_stream(FILE *fp, int poll_interval)
 }
 
 int
-process(FILE *capture, long interval)
+process(FILE *capture)
 {
-	int ch, block, escape;
+	int ch, nch, escape;
 
-	block = 0;
-	escape = 0;
-
-	if (follow_stream(capture, interval))
+	if (follow_stream(capture))
 		return -1;
 
-	while ((ch = fgetc(stdin)) != EOF) {
-		/* Within input block? */
-		if (block) {
-			/* Escape _this_ character. */
-			if (escape)
-				escape = 0;
-
-			/* Escape next character. */
-			else if (ch == '\\') {
-				escape = 1;
-				continue;
-			}
-
-			/* Close block? */
-			else if (ch == BLOCK_END) {
-				block = 0;
-				continue;
-			}
+	for (escape = 0; (ch = fgetc(stdin)) != EOF; ) {
+		if (escape) {
+			(void) fputc(ch, capture);
+			(void) fputc(ch, stdout);
+			escape = 0;
+			continue;
 		}
 
-		/* Not an input block. */
-		else {
-			if (ch == BLOCK_START) {
-				block = 1;
+		if (ch == escape_delim) {
+			nch = fgetc(stdin);
+			(void) ungetc(nch, stdin);
+
+			/* Escaped newline does not end input unit. */
+			if (nch == '\n') {
+				escape = 1;
+				/* Discard the escape character. */
 				continue;
+			}
+
+			/* Escaped escape character? */
+			if (nch == escape_delim) {
+				escape = 1;
+				/* Escape character passed through. */
 			}
 		}
 
@@ -97,10 +93,10 @@ process(FILE *capture, long interval)
 		(void) fputc(ch, stdout);
 
 		/* On newline, wait for capture file to stop growing. */
-		if (!block && ch == '\n') {
+		if (ch == '\n') {
 			(void) fflush(capture);
 			(void) fflush(stdout);
-		 	if (follow_stream(capture, interval)) 
+		 	if (follow_stream(capture))
 				return -1;
 		}
 	}
@@ -108,45 +104,46 @@ process(FILE *capture, long interval)
 	return 0;
 }
 
-const char usage[] = 
-"usage: nctee [-a][-i secs] file\n"
+const char usage[] =
+"usage: nctee [-a][-e delim][-i sec] file\n"
 "\n"
 "-a\t\tappend to capture file\n"
-"-i secs\t\tpoll interval in seconds; default 2\n"
+"-e delim\tescape character; default '\\'\n"
+"-i sec\t\tpoll interval in seconds; default 2\n"
 "file\t\tcapture file for both input and netcat output\n"
-"\n"
 ;
 
 int
 main(int argc, char **argv)
 {
 	FILE *capture;
-	long interval;
 	int ch, append;
 
 	append = 0;
-	interval = POLL_INTERVAL;
 
-	while ((ch = getopt(argc, argv, "ai:")) != -1) {
+	while ((ch = getopt(argc, argv, "ae:i:")) != -1) {
 		switch (ch) {
 		case 'a':
 			append = 1;
 			break;
+		case 'e':
+			escape_delim = *optarg;
+			break;
 		case 'i':
-			interval = strtol(optarg, NULL, 10);
+			poll_interval = (int) strtol(optarg, NULL, 10);
 			break;
 		default:
 			optind = argc;
 		}
 	}
-	if (argc <= optind || interval < 0) 
+	if (argc <= optind || poll_interval < 0)
 		errx(64, usage);
 
-	if ((capture = fopen(argv[optind], "ab")) == NULL) 
+	if ((capture = fopen(argv[optind], "ab")) == NULL)
 		err(EXIT_FAILURE, "%s", argv[optind]);
-	if (!append) 
+	if (!append)
 		(void) ftruncate(fileno(capture), 0);
-	if (process(capture, interval))
+	if (process(capture))
 		err(EXIT_FAILURE, "%s", argv[optind]);
 	(void) fclose(capture);
 
