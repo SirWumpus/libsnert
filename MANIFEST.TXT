@@ -108,6 +108,8 @@ com/snert/src/lib/net/spanHost.c
 com/snert/src/lib/net/spanLocalPart.c
 com/snert/src/lib/net/getRFC2821DateTime.c
 com/snert/src/lib/net/server.c
+com/snert/src/lib/scripts/log.sh
+com/snert/src/lib/scripts/grey-test.sh
 com/snert/src/lib/sys/Mutex.c
 com/snert/src/lib/sys/Shared.c
 com/snert/src/lib/sys/Thread.c
@@ -243,6 +245,7 @@ com/snert/src/lib/include/io/file.h
 com/snert/src/lib/include/io/socket2.h
 com/snert/src/lib/include/io/socket3.h
 com/snert/src/lib/include/io/events.h
+com/snert/src/lib/include/io/posix.h
 com/snert/src/lib/include/io/socketAddress.h
 com/snert/src/lib/include/mail/MailSpan.h
 com/snert/src/lib/include/mail/grey.h

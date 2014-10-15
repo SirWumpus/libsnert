@@ -57,11 +57,18 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.36--
+
+   !	Added grey-test.sh
+
+   !	Assert in mcc_listener_thread() that a received MCC packet sets
+   	the "created" field.
+
 --1.75.35--
 
    *	Upgraded SQLite to 3.8.6
 
-   +	Added TOKEN_KEEP_QUOTES to TokenNext; slightly different from 
+   +	Added TOKEN_KEEP_QUOTES to TokenNext; slightly different from
 	TOKEN_IGNORE_QUOTES.  Used by mime -j parsing of very long To:
 	headers and splitting an unfolded header of mail addresses.
 

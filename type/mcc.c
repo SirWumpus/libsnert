@@ -557,7 +557,7 @@ mccPutRowLocal(mcc_handle *mcc, mcc_row *row)
 
 	if (1 < debug)
 		syslog(
-			LOG_DEBUG, 
+			LOG_DEBUG,
 			"%s key=%d:" MCC_FMT_K " value=%d:" MCC_FMT_V " expires=" MCC_FMT_E " created=" MCC_FMT_C,
 			__FUNCTION__,
 			MCC_GET_K_SIZE(row), MCC_FMT_K_ARG(row),
@@ -702,6 +702,7 @@ mcc_listener_thread(void *data)
 
 		(void) time(&row.expires);
 		mccUpdateActive(ip, (uint32_t *)&row.expires);
+		row.created = row.expires;
 		row.expires += row.ttl;
 
 		if (1 < debug) {
@@ -1018,8 +1019,8 @@ mccGetKey(mcc_handle *mcc, const unsigned char *key, unsigned length, mcc_row *r
 
 		if (1 < debug) {
 			syslog(
-				LOG_DEBUG, 
-				"%s key=%d:" MCC_FMT_K " value=%d:" MCC_FMT_V 
+				LOG_DEBUG,
+				"%s key=%d:" MCC_FMT_K " value=%d:" MCC_FMT_V
 				" expires=" MCC_FMT_E " created=" MCC_FMT_C " ttl=" MCC_FMT_TTL,
 				__FUNCTION__,
 				MCC_GET_K_SIZE(row), MCC_FMT_K_ARG(row),

@@ -75,11 +75,11 @@ typedef enum {
  */
 typedef struct {
 	/* Packet data. */
-	uint8_t  digest[16];				/* +0  */
-	uint32_t ttl;					/* +16 time-to-live relative a host's system clock */
-	uint16_t k_size;				/* +20 command & key size: cccc ccc k kkkk kkkk */
-	uint16_t v_size;				/* +22 zero & value size : 0000 000 v vvvv vvvv */
-	uint8_t  data[MCC_DATA_SIZE];			/* +24 = MCC_HEAD_SIZE */
+	uint8_t  digest[16];			/* +0  */
+	uint32_t ttl;				/* +16 time-to-live relative a host's system clock */
+	uint16_t k_size;			/* +20 command & key size: cccc ccc k kkkk kkkk */
+	uint16_t v_size;			/* +22 zero & value size : 0000 000 v vvvv vvvv */
+	uint8_t  data[MCC_DATA_SIZE];		/* +24 = MCC_HEAD_SIZE */
 
 	/* Not part of the packet. */
 	time_t created;
@@ -261,7 +261,7 @@ extern int mccSetMulticastTTL(int ttl);
  * @param port
  *	The port to listen on for broadcasts.
  *
- * @return 
+ * @return
  *	MCC_OK or MCC_ERROR.
  */
 extern int mccStartListener(const char **ip_array, int port);
