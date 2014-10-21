@@ -57,6 +57,14 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.37--
+
+   !	Fix PTHEAD_FREE_PUSH and PTHEAD_FREE_POP macros to NULL the pointer
+   	variable when PTHEAD_FREE_POP(!0) is executed.
+
+   !	Fix mcc_listener_thread() to check for an existing key before
+   	a PUT in order to preserve the "created" field.
+
 --1.75.36--
 
    !	Added grey-test.sh

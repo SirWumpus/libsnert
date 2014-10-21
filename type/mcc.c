@@ -639,11 +639,11 @@ mcc_listener_thread(void *data)
 {
 	int cmd;
 	long nbytes;
-	mcc_row row;
 	md5_state_t md5;
 	mcc_handle *mcc;
 	int packet_length;
 	SocketAddress from;
+	mcc_row row, old_row;
 	mcc_key_hook **hooks, *hook;
 	unsigned char our_digest[16];
 	char ip[IPV6_STRING_SIZE], *listen_addr;
@@ -736,6 +736,14 @@ mcc_listener_thread(void *data)
 			break;
 
 		case MCC_CMD_PUT:
+			/* Preserve created timestamp for an existing
+			 * row (see smtpf grey-listing).  Ignore row
+			 * not found and error; use the created value
+			 * assigned above.
+			 */
+			if (mccGetKey(mcc, (const unsigned char *) MCC_PTR_K(&row), MCC_GET_K_SIZE(&row), &old_row) == MCC_OK) {
+				row.created = old_row.created;
+			}
 			if (cache.hook.remote_replace != NULL
 			&& (*cache.hook.remote_replace)(mcc, NULL, NULL, &row)) {
 				continue;
@@ -756,8 +764,6 @@ mcc_listener_thread(void *data)
 				continue;
 			}
 			break;
-
-
 
 		case MCC_CMD_OTHER:
 			/* Look for a matching prefix.
@@ -1705,13 +1711,15 @@ main(int argc, char **argv)
 		if (cmd == commands)
 			break;
 
+		/* get */
 		switch (mccGetKey(mcc, MCC_PTR_K(&new_row), MCC_GET_K_SIZE(&new_row), &old_row)) {
 		case MCC_OK:
 			printf(
-				"old key=%d:" MCC_FMT_K " value=%d:" MCC_FMT_V " ttl=%lu expires=%lu\n",
+				"old key=%d:" MCC_FMT_K " value=%d:" MCC_FMT_V " ttl=" MCC_FMT_TTL " expires=" MCC_FMT_E " created=" MCC_FMT_C "\n",
 				MCC_GET_K_SIZE(&old_row), MCC_FMT_K_ARG(&old_row),
 				MCC_GET_V_SIZE(&old_row), MCC_FMT_V_ARG(&old_row),
-				(unsigned long) old_row.ttl, (unsigned long) old_row.expires
+				MCC_FMT_TTL_ARG(&old_row),
+				MCC_FMT_E_ARG(&old_row), MCC_FMT_C_ARG(&old_row)
 			);
 			fflush(stdout);
 			break;
@@ -1726,14 +1734,15 @@ main(int argc, char **argv)
 				continue;
 			}
 			old_row.ttl = 0;
-			(void) time(&old_row.expires);
+			(void) time(&old_row.created);
+			old_row.expires = old_row.created;
 		}
 
 		switch (cmd - commands) {
-		case 1:
+		case 1: /* quit */
 			break;
 
-		case 4:
+		case 4: /* add */
 			mccSetExpires(&new_row, cache_ttl);
 			if (mccSend(mcc, &new_row, MCC_CMD_ADD) == MCC_ERROR) {
 				printf("error %s\n", buffer);
@@ -1741,27 +1750,25 @@ main(int argc, char **argv)
 			}
 			break;
 
-		case 5: case 6:
-			new_row.ttl = cache_ttl;
+		case 5: case 6: /* inc, dec */
 			MCC_SET_V_SIZE(&new_row, 0);
+			mccSetExpires(&new_row, cache_ttl);
 			if (mccSend(mcc, &new_row, tolower(*buffer)) == MCC_ERROR) {
 				printf("error %s\n", buffer);
 				fflush(stdout);
 			}
 			break;
 
-		case 2:
-			new_row.ttl = cache_ttl;
-			(void) time(&new_row.expires);
-			new_row.expires += new_row.ttl;
-
+		case 2: /* put */
+			mccSetExpires(&new_row, cache_ttl);
 			switch (mccPutRow(mcc, &new_row)) {
 			case MCC_OK:
 				printf(
-					"new key=%d:" MCC_FMT_K " value=%d:" MCC_FMT_V " ttl=%lu expires=%lu\n",
+					"new key=%d:" MCC_FMT_K " value=%d:" MCC_FMT_V " ttl=" MCC_FMT_TTL " expires=" MCC_FMT_E " created=" MCC_FMT_C "\n",
 					MCC_GET_K_SIZE(&new_row), MCC_FMT_K_ARG(&new_row),
 					MCC_GET_V_SIZE(&new_row), MCC_FMT_V_ARG(&new_row),
-					(unsigned long) new_row.ttl, (unsigned long) new_row.expires
+					MCC_FMT_TTL_ARG(&new_row),
+					MCC_FMT_E_ARG(&new_row), MCC_FMT_C_ARG(&new_row)
 				);
 				fflush(stdout);
 				break;
@@ -1772,7 +1779,7 @@ main(int argc, char **argv)
 			}
 			break;
 
-		case 3:
+		case 3: /* del */
 			switch (mccDeleteRow(mcc, &new_row)) {
 			case MCC_OK:
 				printf("deleted key=" MCC_FMT_K "\n", MCC_FMT_K_ARG(&new_row));

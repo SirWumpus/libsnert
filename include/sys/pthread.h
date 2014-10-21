@@ -211,7 +211,7 @@ extern int pthread_cond_destroy(pthread_cond_t *);
 
 #endif /* defined(HAVE_PTHREAD_CLEANUP_PUSH) */
 
-#define PTHREAD_FREE_PUSH(p)		pthread_cleanup_push(free, p)
+#define PTHREAD_FREE_PUSH(p)		pthread_cleanup_push(free_clear, &(p))
 #define PTHREAD_FREE_POP(x)		; pthread_cleanup_pop(x)
 
 #if defined(HAVE_PTHREAD_YIELD) && defined(__linux__)

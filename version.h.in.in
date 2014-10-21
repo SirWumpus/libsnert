@@ -1029,6 +1029,9 @@ typedef void (*FreeFn)(void *);
  *
  * @param flags
  *	A bit-wise OR of assort ALT_MALLOC_ flags.
+ *
+ * @return
+ *	Pointer to a continuous block of memory at least "size" bytes.
  */
 extern void *alt_malloc(size_t size, unsigned flags);
 
@@ -1038,7 +1041,33 @@ extern void *alt_calloc(size_t num_elements, size_t element_size, unsigned flags
 
 extern void *alt_aligned_alloc(size_t alignment, size_t size, unsigned flags);
 
+/*
+ * @param mem
+ *	Pointer to a block of memory previous returned by malloc,
+ *	calloc, or realloc.
+ *
+ * @param flags
+ *	A bit-wise OR of assort ALT_FREE_ flags.
+ */
 extern void alt_free(void *ptr, unsigned flags);
+
+/*
+ * @param mem
+ * 	Pointer to a pointer to void, which will be set to NULL once
+ *	the block of memory is freed.
+ *
+ * @param flags
+ *	A bit-wise OR of assort ALT_FREE_ flags.
+ */
+extern void alt_free_clear(void **ptr, unsigned flags);
+
+/*
+ * @param ptr
+ *	ptr is declared as a "void *" for compatibility with
+ *	pthread_cleanup_push(), but is treated as a "void **" so
+ *	that the pointer variable can be set to NULL once freed.
+ */
+extern void free_clear(void *ptr);
 
 #define ALT_MALLOC_FILL		0x0100
 #define ALT_MALLOC_ABORT	0x0200

@@ -13,10 +13,30 @@
 # include <com/snert/lib/util/DebugMalloc.h>
 #endif
 
+/*
+ * @param ptr
+ *	ptr is declared as a "void *" for compatibility with
+ *	pthread_cleanup_push(), but is treated as a "void **" so
+ *	that the pointer variable can be set to NULL once freed.
+ */
+void
+free_clear(void *mem)
+{
+	free(*(void **)mem);
+	*(void **)mem = NULL;
+}
+
 void
 alt_free(void *mem, unsigned flags)
 {
 	free(mem);
+}
+
+void
+alt_free_clear(void **mem, unsigned flags)
+{
+	alt_free(*mem, flags);
+	*mem = NULL;
 }
 
 /**
