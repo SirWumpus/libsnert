@@ -3,7 +3,7 @@
  *
  * Multicast / Unicast Cache
  *
- * Copyright 2006, 2013 by Anthony Howe. All rights reserved.
+ * Copyright 2006, 2014 by Anthony Howe. All rights reserved.
  */
 
 #ifndef MCC_LISTENER_TIMEOUT
@@ -12,6 +12,10 @@
 
 #ifndef MCC_PORT
 #define MCC_PORT		6920
+#endif
+
+#ifndef MCC_CACHE_TTL
+#define MCC_CACHE_TTL		90000
 #endif
 
 #ifndef MCC_SQLITE_BUSY_MS
@@ -1504,6 +1508,9 @@ error0:
 # include <com/snert/lib/util/Text.h>
 # include <com/snert/lib/util/getopt.h>
 
+#undef MCC_CACHE_TTL
+#define MCC_CACHE_TTL		300
+
 static const char usage_opt[] = "Lg:i:p:s:t:v";
 
 static char usage[] =
@@ -1512,15 +1519,16 @@ static char usage[] =
 "-g seconds\tGC thread interval\n"
 "-i list\t\tcomma separated list of multicast and/or unicast hosts\n"
 "-L\t\tallow multicast loopback\n"
-"-p port\t\tmcc  listener port (default 6921)\n"
+"-p port\t\tmcc listener port; default " QUOTE(MCC_PORT) "\n"
 "-s secret\tshared secret for packet validation\n"
-"-t seconds\tcache time-to-live in seconds for each record\n"
+"-t seconds\tcache time-to-live in seconds per record; default " QUOTE(MCC_CACHE_TTL) "\n"
 "-v\t\tverbose logging to the user log\n"
 "\n"
 "Standard input are commands of the form:\n"
 "\n"
 "GET key\n"
 "PUT key value\n"
+"RESET key value\n"
 "DEL key\n"
 "ADD key number\n"
 "DEC key\n"
@@ -1535,11 +1543,11 @@ LIBSNERT_COPYRIGHT "\n"
 /* 232.173.190.239 , FF02::DEAD:BEEF */
 
 static char *cache_secret;
-static unsigned cache_ttl;
 static unsigned gc_period;
 static int multicast_loopback;
 
 static Vector unicast_list = NULL;
+static unsigned cache_ttl = MCC_CACHE_TTL;
 static long unicast_listener_port = MCC_PORT;
 
 void
@@ -1649,24 +1657,33 @@ main(int argc, char **argv)
 	/* Prepare global data. */
 	if (mccInit(argv[optind], NULL) != 0)
 		exit(EX_OSERR);
+
+	/* Get a database handle.  If database doesn't exist it will
+	 * be created while we're still single threaded.  mccCreate is
+	 * also called by mcc_listener_thread to get a handle, however,
+	 * the database should already be created to avoid locking
+	 * conflict between threads.
+	 */
+	if ((mcc = mccCreate()) == NULL)
+		goto error0;
+
 	if (0 < gc_period)
 		mccStartGc(gc_period);
 	if (cache_secret != NULL)
 		mccSetSecret(cache_secret);
 	if (mccStartListener((const char **) VectorBase(unicast_list), unicast_listener_port) == MCC_ERROR)
-		goto error0;
+		goto error1;
 	if (multicast_loopback)
 		(void) socketMulticastLoopback(cache.server, 1);
-	/* Get a database handle. */
-	if ((mcc = mccCreate()) == NULL)
-		goto error1;
-
 	syslog(LOG_INFO, "mcc " LIBSNERT_COPYRIGHT);
 
 	rc = EXIT_SUCCESS;
 
 	for (lineno = 1; 0 <= (length = TextInputLine2(stdin, buffer, sizeof (buffer), 0)); lineno++) {
-		static char *commands[] = { "quit", "get", "put", "del", "add", "inc", "dec",  NULL };
+		enum { IDX_QUIT, IDX_GET, IDX_PUT, IDX_RESET, IDX_DEL, IDX_ADD, IDX_INC, IDX_DEC };
+		static char *commands[] = {
+			"quit", "get", "put", "reset", "del", "add", "inc", "dec",  NULL
+		};
 		char **cmd;
 
 		if (length == 0 || buffer[0] == '#')
@@ -1711,7 +1728,6 @@ main(int argc, char **argv)
 		if (cmd == commands)
 			break;
 
-		/* get */
 		switch (mccGetKey(mcc, MCC_PTR_K(&new_row), MCC_GET_K_SIZE(&new_row), &old_row)) {
 		case MCC_OK:
 			printf(
@@ -1733,16 +1749,16 @@ main(int argc, char **argv)
 				fflush(stdout);
 				continue;
 			}
-			old_row.ttl = 0;
-			(void) time(&old_row.created);
-			old_row.expires = old_row.created;
+			new_row.ttl = 0;
+			(void) time(&new_row.created);
+			new_row.expires = new_row.created;
 		}
 
 		switch (cmd - commands) {
-		case 1: /* quit */
+		default: /* quit, get */
 			break;
 
-		case 4: /* add */
+		case IDX_ADD: /* add */
 			mccSetExpires(&new_row, cache_ttl);
 			if (mccSend(mcc, &new_row, MCC_CMD_ADD) == MCC_ERROR) {
 				printf("error %s\n", buffer);
@@ -1750,7 +1766,7 @@ main(int argc, char **argv)
 			}
 			break;
 
-		case 5: case 6: /* inc, dec */
+		case IDX_INC: case IDX_DEC: /* inc, dec */
 			MCC_SET_V_SIZE(&new_row, 0);
 			mccSetExpires(&new_row, cache_ttl);
 			if (mccSend(mcc, &new_row, tolower(*buffer)) == MCC_ERROR) {
@@ -1759,8 +1775,12 @@ main(int argc, char **argv)
 			}
 			break;
 
-		case 2: /* put */
+		case IDX_RESET: /* reset */
 			mccSetExpires(&new_row, cache_ttl);
+			/*@fallthrough@*/
+
+		case IDX_PUT: /* put */
+			/* PUT preserves the ttl and expires fields.  RSET does not. */
 			switch (mccPutRow(mcc, &new_row)) {
 			case MCC_OK:
 				printf(
@@ -1779,7 +1799,7 @@ main(int argc, char **argv)
 			}
 			break;
 
-		case 3: /* del */
+		case IDX_DEL: /* del */
 			switch (mccDeleteRow(mcc, &new_row)) {
 			case MCC_OK:
 				printf("deleted key=" MCC_FMT_K "\n", MCC_FMT_K_ARG(&new_row));

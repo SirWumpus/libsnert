@@ -57,6 +57,20 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.38--
+
+   !	Minor changes to mcc test tool use named constants for command
+	indices.
+
+   !    Minor fix to test mcc tool: Get a database handle.  If database
+	doesn't exist it will be created while we're still single
+	threaded.  mccCreate is also called by mcc_listener_thread to
+	get a handle, however, the database should already be created
+	to avoid locking conflict between threads.
+
+   +	Add DKIM hash tool and related testing files. This is a state
+	machine handling the header/body relaxed/simple parsing rules.
+
 --1.75.37--
 
    !	Fix PTHEAD_FREE_PUSH and PTHEAD_FREE_POP macros to NULL the pointer

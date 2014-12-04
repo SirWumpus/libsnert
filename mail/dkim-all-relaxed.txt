@@ -1,0 +1,19 @@
+no trailing spaces
+trailing space space tab  	
+ 	 leading space-tab-space
+embedded 	 space-tab-space
+embedded CR <  > between 2 spaces
+embedded LF < 
+ > between 2 spaces
+3 empty lines between non-empty lines
+
+
+
+3 blank lines with white space
+	
+ 	
+  	
+last non-empty line followed by 3 empty lines
+
+
+

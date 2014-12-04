@@ -94,7 +94,7 @@ $O$E :
 OBJS := grey$O tlds$O MailSpan$O parsePath$O mime$O siq$O spf$O smdb$O \
 	smtp2$O mfReply$O smf$O
 
-CLI :=	mime$E parsePath$E siq$E smtp2$E spf$E tlds$E
+CLI :=	mime$E parsePath$E siq$E smtp2$E spf$E tlds$E dkim-hash$E
 
 .MAIN : build
 
@@ -130,7 +130,7 @@ add-lib:
 
 clean : title
 	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.stackdump core *.core core.* *.log
-	-rm -f parsePath$E smdb$E smtp$E smtp2$E spf$E siq$E tlds$E digestbl$E mime$E
+	-rm -f parsePath$E smdb$E smtp$E smtp2$E spf$E siq$E tlds$E digestbl$E mime$E dkim-hash$E
 	-rm -f tlds-alpha-by-domain.c two-level-tlds.c three-level-tlds.c
 
 distclean: clean
@@ -207,3 +207,6 @@ mfReply$O : mfReply.c
 
 smf$O : smf.c
 	${CC} ${CFLAGS_DB} ${CFLAGS_SQLITE3} ${CFLAGS_MILTER} ${CFLAGS} -c ${srcdir}/$*.c
+
+dkim-hash$E : dkim-hash.c
+	${CC} ${CFLAGS} ${LDFLAGS} ${CC_E}dkim-hash ${srcdir}/dkim-hash.c ${LIBSNERT}
