@@ -57,6 +57,10 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.39--
+
+   *	Upgraded SQLite to 3.8.7.4
+
 --1.75.38--
 
    !	Minor changes to mcc test tool use named constants for command
