@@ -314,7 +314,7 @@ extern size_t networkSetLong(unsigned char *p, unsigned long n);
  *	A buffer to save the parsed IP address in IPv6 network byte order.
  *
  * @return
- *	The length of the IP address string parsed.
+ *	The length of the IP address string parsed; zero if nothing parsed.
  */
 extern int parseIPv6(const char *ip, unsigned char ipv6[IPV6_BYTE_SIZE]);
 

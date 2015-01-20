@@ -128,6 +128,9 @@ uri		CLI version of milter-link. Can also be used as a CGI,
 
 urid		Dedicated HTTP / URI server; see uri-cgi.txt.
 
+uriFormat	CLI tool for RFC 6570 (level 3) URI template parsing
+		and expansion.
+
 cmp, cksum, comm, echo, kat, tee, strings
 		Unix tool clones intended for use with Windows CLI when
 		you don't have Cygwin or similar Unix tool set.

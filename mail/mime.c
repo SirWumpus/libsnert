@@ -142,8 +142,6 @@ mimeDoHookOctet(Mime *m, int ch, ptrdiff_t func_off)
 
 	LOGVOL(3, "%s(0x%lX, %d, %ld)", __func__, (long)m, ch, (long)func_off);
 
-	if (ch == EOF)
-		return;
 	for (hook = m->mime_hook; hook != NULL; hook = hook->next) {
 		func = *(MimeHookOctet *)((char *)hook + func_off);
 		if (func != NULL)
@@ -392,7 +390,7 @@ typedef int (*MimeIsBoundaryChar)(int);
  * ASCII character to be used following the initial "--". RFC 2046
  * section 5.1.1 limits the set of boundary characters to those
  * that are safe for mail gateways. However, Thunderbird MTA is
- * permissive about boundary characters and possibly other	MUAs.
+ * permissive about boundary characters and possibly other MUAs.
  * So milter-link or smtpf failing to parse a message with unusual
  * MIME boundaries could mean failing to detect spam messages that
  * would go on to be displayed by an MUA. Reported by Alex Broens.

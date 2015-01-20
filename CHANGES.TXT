@@ -61,6 +61,14 @@ is no set schedule for releases.
 
    *	Upgraded SQLite to 3.8.7.4
 
+   !	Fix handling of EOF in mimeDoHookOctet().  Found while testing
+	enhancements to dnsList API and uri(1) command line string
+	arguments.
+
+   +	Implement (finally) support for SpamHaus multi-home A records
+	used to indicate membership is different lists.  Requested by
+	Alex Broens.
+
 --1.75.38--
 
    !	Minor changes to mcc test tool use named constants for command

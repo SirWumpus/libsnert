@@ -27,6 +27,7 @@
 #include <com/snert/lib/util/md5.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/net/dnsList.h>
+#include <com/snert/lib/net/network.h>
 
 #ifdef DEBUG_MALLOC
 # include <com/snert/lib/util/DebugMalloc.h>
@@ -140,6 +141,13 @@ dnsListFree(void *_list)
 	DnsList *list = _list;
 
 	if (list != NULL) {
+		long i, j;
+
+		j = VectorLength(list->suffixes);
+		for (i = 0; i < j; i++)
+			free(list->ipcodes[i]);
+		free(list->ipcodes);
+
 		(void) pthread_mutex_destroy(&list->mutex);
 		VectorDestroy(list->suffixes);
 		free(list->masks);
@@ -156,8 +164,15 @@ dnsListFree(void *_list)
  * 	suffix/mask. Without a /mask, suffix is the same as
  *	suffix/0x00FFFFFE.
  *
- *	Aggregate lists that return a multi-home list of records are
- *	not yet supported, beyond simple membership.
+ *	$option="$dns_list1;$dns_list2;..."
+ *
+ *	$dns_list is one of:
+ *
+ *		$suffix			(SURBL, URIBL, DBL, ZEN)
+ *	or
+ *		$suffix/$mask		(SURBL, URIBL)
+ *	or
+ *		$suffix:$ip1,$ip2,...	(DBL, ZEN)
  *
  * @return
  *	A pointer to a DnsList.
@@ -165,10 +180,13 @@ dnsListFree(void *_list)
 DnsList *
 dnsListCreate(const char *string)
 {
-	long i;
+	int span;
+	long i, j;
 	size_t length;
 	DnsList *list;
-	char *slash, *suffix, *rooted;
+	Vector ipcodes;
+	char *suffix, *rooted, **ips;
+	unsigned char (*ip)[IPV6_BYTE_SIZE];
 
 	if (string == NULL || *string == '\0')
 		goto error0;
@@ -176,87 +194,22 @@ dnsListCreate(const char *string)
 	if ((list = malloc(sizeof (*list))) == NULL)
 		goto error0;
 
-#ifdef STRUCTURED_FIELDS
-/*
-$option="$dns_list1;$dns_list2;..."
-
-$dns_list is either
-
-	$suffix/$mask    (currently available)
-
-or
-	$suffix:$code1/$action,$code2/$action,...
-
-	/$action is optional and assumes /REJECT is default
-
-
-eg1
-
-uri-bl="multi.surbl.org:127.0.0.2/REJECT,127.0.0.4/CONTENT; black.uribl.com"
-
-
-eg2
-
-uri-bl="multi.surbl.org:127.0.0.2/REJECT,127.0.0.4/CONTENT;
-black.uribl.com/0xffff08"
-*/
-{
-	int span;
-	DnsListCode *code;
-	DnsListSuffix *suffix;
-	char **array, *suffix_end, *slash;
-
-
-	if ((array = TextSplit(string, ";", 0)) == NULL)
-		goto error1;
-
-	for (array = (char **) VectorBase(array); *array != NULL; array++) {
-		if ((suffix = calloc(1, sizeof (*suffix))) == NULL)
-			goto error1;
-
-		span = strcspn(*array, ":/");
-
-		if ((*array)[span] == '\0') {
-			suffix->mask = (unsigned long) ~0L;
-		} else if ((*array)[span] == ':') {
-			(*array)[span++] = '\0';
-			suffix->mask = (unsigned long) strtol(*array + span, NULL, 0);
-			if ((suffix->suffix = strdup(*array)) == NULL)
-				goto error1;
-		} else {
-			(*array)[span++] = '\0';
-			if ((suffix->codes = TextSplit(*array + span, ",", 0)) == NULL)
-				goto error1;
-
-			for (codes = suffix->codes; *codes != NULL; codes++) {
-				if ((code = malloc(sizeof (*code))) == NULL)
-					goto error1;
-				if ((slash = strchr(*codes, '/')) == NULL)
-					goto error1;
-				*slash++ = '\0';
-				if (parseIPv6(*codes, code->code) == 0)
-					goto error1;
-				if ((code->action = strdup(slash)) == NULL)
-					goto error1;
-				if (VectorReplace(suffix->codes, suffix))
-					goto error1;
-			}
-		}
-	}
-}
-#else
+	list->ipcodes = NULL;
 	(void) pthread_mutex_init(&list->mutex, NULL);
 
-	if ((list->suffixes = TextSplit(string, " ,;", 0)) == NULL)
-		goto error1;
-
-	if ((list->masks = calloc(sizeof (*list->masks), VectorLength(list->suffixes))) == NULL)
+	if ((list->suffixes = TextSplit(string, ";", 0)) == NULL)
 		goto error1;
 
 	if ((list->hits = calloc(sizeof (*list->hits), VectorLength(list->suffixes))) == NULL)
 		goto error1;
 
-	for (i = 0; i < VectorLength(list->suffixes); i++) {
+	if ((list->masks = calloc(sizeof (*list->masks), VectorLength(list->suffixes))) == NULL)
+		goto error1;
+
+	if ((list->ipcodes = calloc(sizeof (void *), VectorLength(list->suffixes))) == NULL)
+		goto error1;
+
+	for (i = 0, j = VectorLength(list->suffixes); i < j; i++) {
 		if ((suffix = VectorGet(list->suffixes, i)) == NULL)
 			continue;
 
@@ -277,15 +230,40 @@ black.uribl.com/0xffff08"
 			VectorSet(list->suffixes, i, suffix);
 		}
 
-		if ((slash = strchr(suffix, '/')) == NULL) {
+		span = strcspn(suffix, "/:");
+		if (suffix[span] == '/') {
+			/* suffix/mask */
+			list->masks[i] = (unsigned long) strtol(suffix+span+1, NULL, 0);
+			suffix[span] = '\0';
+		} else if (suffix[span] == ':') {
+			/* suffix:ip1,ip2,... */
+
+			/*** Zero mask denotes IP return codes (SpamHaus) ***/
+			list->masks[i] = 0;
+
+			if ((ipcodes = TextSplit(suffix+span+1, ",", 0)) == NULL)
+				goto error1;
+			suffix[span] = '\0';
+
+			/* Allocate array for binary IP addresses plus NULL terminator. */
+			if ((ip = calloc(**ip, VectorLength(ipcodes)+1)) == NULL)
+				goto error2;
+
+			list->ipcodes[i] = ip;
+			for (ips = (char **)VectorBase(ipcodes); *ips != NULL; ips++, ip++) {
+				if (parseIPv6(*ips, *ip) == 0)
+					goto error2;
+			}
+			free(ipcodes);
+		} else if (suffix[span] == '\0') {
+			/* suffix */
 			list->masks[i] = (unsigned long) ~0L;
-		} else {
-			list->masks[i] = (unsigned long) strtol(slash+1, NULL, 0);
-			*slash = '\0';
 		}
 	}
-#endif
+
 	return list;
+error2:
+	free(ipcodes);
 error1:
 	dnsListFree(list);
 error0:
@@ -316,7 +294,7 @@ dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 		   rr->rr.section != PDQ_SECTION_ANSWER
 		/* The DNS BL return one or more numeric results as A records.
 		 * There may be informational TXT records present, but are
-		 * ignored here.
+		 * ignored here. No AAAA records used yet.
 		 */
 		|| rr->rr.type != PDQ_TYPE_A)
 			continue;
@@ -330,33 +308,53 @@ dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 
 			bits = NET_GET_LONG(rr->address.ip.value + rr->address.ip.offset);
 
-			if ((bits & dns_list->masks[i]) != 0
+			/*** HACK for dbl.spamhaus.org which ignores
+			 *** and returns a false positive code for IP
+			 *** address lookups.
+			 ***
+			 *** http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
+			 ***
+			 *** Ignore 127.0.1.255 responses.
+			 ***/
+			if (bits == 0x7F0001FF)
+				break;
+
+			if (dns_list->masks[i] != 0
+			&& (bits & dns_list->masks[i]) != 0
 			&& isReservedIPv4(rr->address.ip.value + rr->address.ip.offset, IS_IP_LOCAL|IS_IP_THIS_NET)) {
-				/*** HACK for dbl.spamhaus.org which ignores
-				 *** and returns a false positive code for IP
-				 *** address lookups.
-				 ***
-				 *** http://www.spamhaus.org/faq/answers.lasso?section=Spamhaus%20DBL#279
-				 ***
-				 *** Ignore 127.0.1.255 responses.
-				 ***/
-				if (bits == 0x7F0001FF)
-					break;
+				/* suffix/mask */
+				goto found;
+			} else {
+				/* suffix:ip1,ip2,...
+				 *
+				 * Currently we only care about the IPv4
+				 * portion of the IPv6 addresses; treat
+				 * IPv6 as array of 4 x 32bit numbers for
+				 * easier comparison.
+				 */
+				uint32_t (*ip)[4];
 
-				if (0 < debug)
-					syslog(LOG_DEBUG, "found %s %s", rr->rr.name.string.value, rr->address.string.value);
-
-				/* Simple statistic counter, can roll-over. */
-				PTHREAD_MUTEX_LOCK(&dns_list->mutex);
-				dns_list->hits[i]++;
-				PTHREAD_MUTEX_UNLOCK(&dns_list->mutex);
-
-				return suffixes[i];
+				bits = htonl(bits);
+				for (ip = (uint32_t (*)[4]) dns_list->ipcodes[i]; (*ip)[3] != 0; ip++) {
+					if (bits == (*ip)[3]) {
+						goto found;
+					}
+				}
 			}
 		}
 	}
 
 	return NULL;
+found:
+	if (0 < debug)
+		syslog(LOG_DEBUG, "found %s %s", rr->rr.name.string.value, rr->address.string.value);
+
+	/* Simple statistic counter, can roll-over. */
+	PTHREAD_MUTEX_LOCK(&dns_list->mutex);
+	dns_list->hits[i]++;
+	PTHREAD_MUTEX_UNLOCK(&dns_list->mutex);
+
+	return suffixes[i];
 }
 
 /**

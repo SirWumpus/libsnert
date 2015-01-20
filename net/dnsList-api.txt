@@ -6,7 +6,7 @@ dnsList API Function Relationship
 			^
 			|
 
-			dnsLisQueryString
+			dnsListQueryString
 			  check/maintain names_seen
 			  do single name lookup
 			  process result

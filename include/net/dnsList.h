@@ -20,7 +20,7 @@ extern "C" {
  * 			^
  * 			|
  *
- * 			dnsLisQueryString
+ * 			dnsListQueryString
  * 			  check/maintain names_seen
  * 			  do single name lookup
  * 			  process result
@@ -58,27 +58,13 @@ extern "C" {
 #include <com/snert/lib/sys/pthread.h>
 #include <com/snert/lib/type/Vector.h>
 
-#ifdef STRUCTURED_FIELDS
-typedef struct dns_list_code {
-	struct dns_list_code *next;
-	unsigned char code[IPV6_BYTE_LENGTH];
-	char *action;
-} DnsListCode;
-
-typedef struct dns_list_suffix {
-	char *suffix;
-	Vector codes;
-	unsigned long mask;
-	unsigned long hit;
-} DnsListSuffix;
-#endif
-
 typedef struct {
 	Vector suffixes;
+	pthread_mutex_t mutex;
+	const char *query_server;
 	unsigned long *hits;
 	unsigned long *masks;
-	const char *query_server;
-	pthread_mutex_t mutex;
+	unsigned char (**ipcodes)[IPV6_BYTE_SIZE];
 } DnsList;
 
 typedef enum {
@@ -122,12 +108,17 @@ extern void dnsListFree(void *_dns_list);
  *
  * 	Aggregate lists that return bit-vector are supported using
  * 	suffix/mask. Without a /mask, suffix is the same as
- *	suffix/0x00FFFFFE. surbl.org and uribl.com use bit-vector
- *	A record.
+ *	suffix/0x00FFFFFE.
  *
- *	Aggregate lists that return a multi-home list of records are
- *	not yet supported, beyond simple membership. spamhaus.org uses
- *	multi-homed A records.
+ *	$option="$dns_list1;$dns_list2;..."
+ *
+ *	$dns_list is one of:
+ *
+ *		$suffix			(SURBL, URIBL, DBL, ZEN)
+ *	or
+ *		$suffix/$mask		(SURBL, URIBL)
+ *	or
+ *		$suffix:$ip1,$ip2,...	(DBL, ZEN)
  *
  * @return
  *	A pointer to a DnsList.

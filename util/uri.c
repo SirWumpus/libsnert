@@ -1970,7 +1970,6 @@ static char usage[] =
 "-a\t\tcheck headers and body\n"
 "-b\t\tcheck body only (default)\n"
 "-A delim\tan alternative delimiter to replace the at-sign (@)\n"
-"-b\t\tassume text body, otherwise mail message headers & body\n"
 "-d dbl,...\tcomma separate list of domain black lists\n"
 "-i ip-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
