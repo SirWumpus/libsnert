@@ -246,7 +246,7 @@ dnsListCreate(const char *string)
 			suffix[span] = '\0';
 
 			/* Allocate array for binary IP addresses plus NULL terminator. */
-			if ((ip = calloc(**ip, VectorLength(ipcodes)+1)) == NULL)
+			if ((ip = calloc(sizeof (*ip), VectorLength(ipcodes)+1)) == NULL)
 				goto error2;
 
 			list->ipcodes[i] = ip;
