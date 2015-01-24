@@ -28,11 +28,19 @@ extern cipher_ct cipher_ct106;
 
 extern void cipher_set_debug(int level);
 
-extern void cipher_dump_grouped(FILE *fp, int width, const char *text, int skip_ws);
+typedef struct {
+	FILE *fp;			/* Output stream. */
+	int skip_ws;			/* */
+	size_t width;			/* Output width, should be multiple of grouping. */
+	size_t grouping;		/* Output grouping. */
+	size_t column;			/* Current output column, saved across fucntion calls. */
+} cipher_dump;
+
+extern void cipher_dump_grouped(cipher_dump *dump, const char *text);
 
 /**
- * @param fp
- *      An output FILE pointer.
+ * @param dump
+ *      Pointer to cipher_dump information controlling output.
  *
  * @param key
  *      A numeric C string representing the transposition key.
@@ -40,7 +48,7 @@ extern void cipher_dump_grouped(FILE *fp, int width, const char *text, int skip_
  * @param text
  *      A numeric C string representing the transposition table.
  */
-extern void cipher_dump_transposition(FILE *fp, const char *key, const char *text);
+extern void cipher_dump_transposition(cipher_dump *dump, const char *key, const char *text);
 
 /**
  * @param seed_number

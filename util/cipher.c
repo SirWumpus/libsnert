@@ -1,16 +1,17 @@
 /*
  * cipher.c
  *
- * Copyright 2014 by Anthony Howe. All rights released.
+ * Copyright 2014, 2015 by Anthony Howe. All rights released.
  */
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
 
-#define GROUPING		5
+#define GROUPING		5		/* Historical for numeric output. */
 #define WRAP_WIDTH		((GROUPING+1)*10)
 #define BUFFER_SIZE		(GROUPING*100)
 #define MAX_BUFFER_SIZE		10000		/* Include space for terminating NUL byte. */
@@ -140,35 +141,53 @@ cipher_set_debug(int level)
 	debug = level;
 }
 
+typedef struct {
+	FILE *fp;			/* Output stream. */
+	int skip_ws;			/* */
+	size_t width;			/* Output width, should be multiple of grouping. */
+	size_t grouping;		/* Output grouping. */
+	size_t column;			/* Current output column, saved across fucntion calls. */
+} cipher_dump;
+
+static cipher_dump dump_out = {
+	stdout, 1, GROUPING, WRAP_WIDTH
+};
+
+static cipher_dump dump_err = {
+	stderr, 1, GROUPING, WRAP_WIDTH
+};
+
 void
-cipher_dump_grouped(FILE *fp, int width, const char *text, int skip_ws)
+cipher_dump_grouped(cipher_dump *dump, const char *text)
 {
-	int group, col;
+	int group;
 
-	for (col = 0; *text != '\0'; ) {
+	for ( ; *text != '\0'; ) {
 		group = 0;
-		for (col = 0; col < width && *text != '\0'; text++) {
-			if (!skip_ws || ' ' < *text) {
-				fputc(*text, fp);
-				col++;
+		for ( ; dump->column < dump->width && *text != '\0'; text++) {
+			if (!dump->skip_ws || ' ' < *text) {
+				fputc(*text, dump->fp);
+				dump->column++;
 
-				if ((++group % GROUPING) == 0) {
-					fputc(' ', fp);
+				if ((++group % dump->grouping) == 0) {
+					fputc(' ', dump->fp);
+					dump->column++;
 					group = 0;
-					col++;
 				}
 			}
 		}
-		if (width <= col)
-			fputc('\n', fp);
+		if (dump->width <= dump->column) {
+			fputc('\n', dump->fp);
+			dump->column = 0;
+		}
 	}
-	if (debug && col < width)
-		fputc('\n', fp);
+	if (debug && dump->column < dump->width)
+		fputc('\n', dump->fp);
 }
 
 /**
- * @param fp
- *      An output FILE pointer.
+ * @param dump
+ *      Pointer to cipher_dump information controlling output.
  *
  * @param key
  *      A numeric C string representing the transposition key.
@@ -177,25 +196,30 @@ cipher_dump_grouped(FILE *fp, int width, const char *text, int skip_ws)
  *      A numeric C string representing the transposition table.
  */
 void
-cipher_dump_transposition(FILE *fp, const char *key, const char *text)
+cipher_dump_transposition(cipher_dump *dump, const char *key, const char *text)
 {
-	size_t key_len;
+	cipher_dump dump2;
 
 	if (*key == '\0')
 		key = "A";
-	key_len = strlen(key);
-	key_len += key_len / GROUPING;
-	cipher_dump_grouped(fp, key_len, key, 0);
+	dump2 = *dump;
+	dump2.column = 0;
+	dump2.skip_ws = 0;
+	dump2.width = strlen(key);
+	dump2.width += dump2.width / dump2.grouping + 1;
+	cipher_dump_grouped(&dump2, key);
+	dump2.width--;
 #ifndef NDEBUG
 {
 	int col;
-	for (col = 0; col < key_len; col++)
-		fputc('=', fp);
-	fputc('\n', fp);
+	for (col = 0; col < dump2.width; col++)
+		fputc('=', dump2.fp);
+	fputc('\n', dump2.fp);
 }
 #endif /* NDEBUG */
-	cipher_dump_grouped(fp, key_len, text, 0);
-	fputc('\n', fp);
+	dump2.column = 0;
+	cipher_dump_grouped(&dump2, text);
+	fputc('\n', dump2.fp);
 }
 
 /**
@@ -246,7 +270,7 @@ cipher_chain_add(const char *seed_number, char *buffer, size_t size)
 	*ep = '\0';
 
 	if (debug)
-		cipher_dump_grouped(stderr, WRAP_WIDTH, buffer, 1);
+		cipher_dump_grouped(&dump_err, buffer);
 
 	return 0;
 }
@@ -334,10 +358,10 @@ cipher_columnar_transposition(const char *key, const char *in, char *out, size_t
 	int i, j, x, indices[256];
 
 	if (debug) {
-		cipher_dump_grouped(stderr, WRAP_WIDTH, in, 1);
+		cipher_dump_grouped(&dump_err, in);
 		fputc('\n', stderr);
 		if (seq_fn == cipher_seq_write)
-			cipher_dump_transposition(stderr, key, in);
+			cipher_dump_transposition(&dump_err, key, in);
 	}
 
 	cipher_index_order(key, indices);
@@ -351,7 +375,7 @@ cipher_columnar_transposition(const char *key, const char *in, char *out, size_t
 	out[x] = '\0';
 
 	if (debug && seq_fn == cipher_seq_read)
-		cipher_dump_transposition(stderr, key, out);
+		cipher_dump_transposition(&dump_err, key, out);
 }
 
 void
@@ -362,7 +386,7 @@ cipher_disrupted_transposition(const char *key, const char *in, char *out, size_
 
 	if (debug) {
 		MEMSET(out, '_', out_len);
-		cipher_dump_grouped(stderr, WRAP_WIDTH, in, 1);
+		cipher_dump_grouped(&dump_err, in);
 	}
 
 	cipher_index_order(key, indices);
@@ -386,7 +410,7 @@ cipher_disrupted_transposition(const char *key, const char *in, char *out, size_
 
 	/* Show intermediate table. */
 	if (debug)
-		cipher_dump_transposition(stderr, key, seq_fn == cipher_seq_read ? out : in);
+		cipher_dump_transposition(&dump_err, key, seq_fn == cipher_seq_read ? out : in);
 
 	/* Fill in empty triangle space. */
 	r = 0;
@@ -442,28 +466,26 @@ cipher_ct_encode(cipher_ct *ct, FILE *fp, char *out, size_t length)
 void
 cipher_ct_decode(cipher_ct *ct, FILE *fp, char *in)
 {
-	int x;
+	ptrdiff_t x;
+
+	/* CT 0, no conversion, simply passthrough. */
+	if (ct->length <= 0) {
+		(void) fputs(in, fp);
+		return;
+	}
 
 	for ( ; *in != '\0'; ) {
-		if (0 < ct->length) {
-			if (0 <= (x = strchr(ct->code[0], *in++) - ct->code[0])) {
-				if (ct->code[1][x] != ' ') {
-					/* Find next valid hex character. */
-					for ( ; !isxdigit(*in) || islower(*in); in++)
-						;
-					/* Reached NUL byte with an incomplete
-					 * encoding at the end of a block?
-					 */
-					if (*in == '\0')
-						break;
-					x = strchr(ct->code[1] + x, *in++) - ct->code[1];
-				}
-				if (x < ct->length)
-					(void) fputc(ct->set[x], fp);
+		if (0 <= (x = strchr(ct->code[0], *in++) - ct->code[0])) {
+			if (ct->code[1][x] != ' ') {
+				/* Reached NUL byte with an incomplete
+				 * encoding at the end of a block?
+				 */
+				if (*in == '\0')
+					break;
+				x = strchr(&ct->code[1][x], *in++) - ct->code[1];
 			}
-		} else {
-			/* CT 0, no conversion, simply passthrough. */
-			(void) fputc(*in++, fp);
+			if (0 <= x && x < ct->length)
+				(void) fputc(ct->set[x], fp);
 		}
 	}
 }
@@ -474,7 +496,7 @@ static unsigned bsize = BUFFER_SIZE;
 static char buffer1[MAX_BUFFER_SIZE], buffer2[MAX_BUFFER_SIZE];
 
 typedef size_t (*read_fn)(FILE *fp, char *out, size_t length);
-typedef void (*write_fn)(FILE *fp, int width, const char *text, int skip_ws);
+typedef void (*write_fn)(cipher_dump *, const char *text);
 
 static size_t
 read_all(FILE *fp, char *out, size_t length)
@@ -504,9 +526,9 @@ read_digits(FILE *fp, char *out, size_t length)
 }
 
 static void
-dump_asis(FILE *fp, int width, const char *text, int skip_ws)
+dump_asis(cipher_dump *dump, const char *text)
 {
-	(void) fputs(text, fp);
+	(void) fputs(text, dump->fp);
 }
 
 static const char usage[] =
@@ -563,7 +585,19 @@ main(int argc, char **argv)
 			optind = argc;
 		}
 	}
-	if (argc <= optind || bsize < GROUPING || sizeof buffer1 <= bsize) {
+
+	if ((*ct)->length == 106) {
+		/* CT 106 is hexadecimal based, therefore the
+		 * more natural grouping is 4 digits, as if it
+		 * were a hex dump.
+		 */
+		dump_out.grouping = 4;
+		dump_out.width = (dump_out.grouping+1)*10;
+		dump_err.grouping = dump_out.grouping;
+		dump_err.width = dump_out.width;
+	}
+
+	if (argc <= optind || bsize < dump_out.grouping || sizeof buffer1 <= bsize) {
 		puts(usage);
 		return 1;
 	}
@@ -584,7 +618,7 @@ main(int argc, char **argv)
 				cipher_disrupted_transposition(argv[argc-1], buffer2, buffer1, i, cipher_seq_read);
 			}
 			cipher_columnar_transposition(argv[argc-1], buffer1, buffer2, i, cipher_seq_write);
-			cipher_dump_grouped(stdout, WRAP_WIDTH, buffer2, 1);
+			cipher_dump_grouped(&dump_out, buffer2);
 		}
 		if (i < bsize)
 			fputc('\n', stdout);
