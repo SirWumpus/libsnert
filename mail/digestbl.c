@@ -108,7 +108,7 @@ dnsListCreate(const char *string)
 	if ((list->suffixes = TextSplit(string, " ,;", 0)) == NULL)
 		goto error1;
 
-	if ((list->masks = calloc(sizeof (*list->masks), VectorLength(list->suffixes))) == NULL)
+	if ((list->masks = calloc(VectorLength(list->suffixes), sizeof (*list->masks))) == NULL)
 		goto error1;
 
 	for (i = 0; i < VectorLength(list->suffixes); i++) {

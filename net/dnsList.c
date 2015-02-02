@@ -1,7 +1,7 @@
 /**
  * dnsList.c
  *
- * Copyright 2008, 2013 by Anthony Howe. All rights reserved.
+ * Copyright 2008, 2015 by Anthony Howe. All rights reserved.
  */
 
 #define NS_VERSION3
@@ -200,18 +200,48 @@ dnsListCreate(const char *string)
 	if ((list->suffixes = TextSplit(string, ";", 0)) == NULL)
 		goto error1;
 
-	if ((list->hits = calloc(sizeof (*list->hits), VectorLength(list->suffixes))) == NULL)
+	if ((list->hits = calloc(VectorLength(list->suffixes), sizeof (*list->hits))) == NULL)
 		goto error1;
 
-	if ((list->masks = calloc(sizeof (*list->masks), VectorLength(list->suffixes))) == NULL)
+	if ((list->masks = calloc(VectorLength(list->suffixes), sizeof (*list->masks))) == NULL)
 		goto error1;
 
-	if ((list->ipcodes = calloc(sizeof (void *), VectorLength(list->suffixes))) == NULL)
+	if ((list->ipcodes = calloc(VectorLength(list->suffixes), sizeof (void *))) == NULL)
 		goto error1;
 
 	for (i = 0, j = VectorLength(list->suffixes); i < j; i++) {
 		if ((suffix = VectorGet(list->suffixes, i)) == NULL)
 			continue;
+
+		span = strcspn(suffix, "/:");
+		if (suffix[span] == '/') {
+			/* suffix/mask */
+			list->masks[i] = (unsigned long) strtol(suffix+span+1, NULL, 0);
+			suffix[span] = '\0';
+		} else if (suffix[span] == ':') {
+			/* suffix:ip1,ip2,... */
+
+			/*** Zero mask denotes IP return codes (SpamHaus) ***/
+			list->masks[i] = 0;
+
+			if ((ipcodes = TextSplit(suffix+span+1, ",", 0)) == NULL)
+				goto error1;
+			suffix[span] = '\0';
+
+			/* Allocate array for binary IP addresses plus a NULL address. */
+			if ((ip = calloc(VectorLength(ipcodes)+1, sizeof (*ip))) == NULL)
+				goto error2;
+
+			list->ipcodes[i] = ip;
+			for (ips = (char **)VectorBase(ipcodes); *ips != NULL; ips++, ip++) {
+				if (parseIPv6(*ips, *ip) == 0)
+					goto error2;
+			}
+			VectorDestroy(ipcodes);
+		} else if (suffix[span] == '\0') {
+			/* suffix */
+			list->masks[i] = (unsigned long) ~0L;
+		}
 
 		/* Assert that the DNS list suffixes are rooted, ie.
 		 * terminated by a dot. This will prevent wildcard
@@ -229,41 +259,11 @@ dnsListCreate(const char *string)
 			suffix[length+1] = '\0';
 			VectorSet(list->suffixes, i, suffix);
 		}
-
-		span = strcspn(suffix, "/:");
-		if (suffix[span] == '/') {
-			/* suffix/mask */
-			list->masks[i] = (unsigned long) strtol(suffix+span+1, NULL, 0);
-			suffix[span] = '\0';
-		} else if (suffix[span] == ':') {
-			/* suffix:ip1,ip2,... */
-
-			/*** Zero mask denotes IP return codes (SpamHaus) ***/
-			list->masks[i] = 0;
-
-			if ((ipcodes = TextSplit(suffix+span+1, ",", 0)) == NULL)
-				goto error1;
-			suffix[span] = '\0';
-
-			/* Allocate array for binary IP addresses plus NULL terminator. */
-			if ((ip = calloc(sizeof (*ip), VectorLength(ipcodes)+1)) == NULL)
-				goto error2;
-
-			list->ipcodes[i] = ip;
-			for (ips = (char **)VectorBase(ipcodes); *ips != NULL; ips++, ip++) {
-				if (parseIPv6(*ips, *ip) == 0)
-					goto error2;
-			}
-			free(ipcodes);
-		} else if (suffix[span] == '\0') {
-			/* suffix */
-			list->masks[i] = (unsigned long) ~0L;
-		}
 	}
 
 	return list;
 error2:
-	free(ipcodes);
+	VectorDestroy(ipcodes);
 error1:
 	dnsListFree(list);
 error0:

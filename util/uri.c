@@ -46,10 +46,7 @@
 #include <com/snert/lib/util/uri.h>
 #include <com/snert/lib/util/html.h>
 #include <com/snert/lib/util/Text.h>
-
-#ifdef DEBUG_MALLOC
-# include <com/snert/lib/util/DebugMalloc.h>
-#endif
+#include <com/snert/lib/util/DebugMalloc.h>
 
 /***********************************************************************
  ***
@@ -2028,6 +2025,7 @@ main(int argc, char **argv)
 	int i, ch;
 	UriWorker uw;
 
+	DebugMallocStart();
 	(void) memset(&uw, 0, sizeof (uw));
 
 	if (atexit(at_exit_cleanup)) {

@@ -1,0 +1,22 @@
+Subject: Hello World
+From: <fred@example.com>
+To: <achowe@netmail.com>
+Message-Id: <1@pintree.example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="=_foo_"
+
+This is a multipart message prologue. No GUI MTU displays.
+
+--=_foo_
+Content-Type: text/plain
+
+Hello World!
+
+--=_foo_
+Content-Type: text/html
+
+<p>Hello World! Woot!</p>
+
+--=_foo_--
+
+Epilogue text could be here; no GUI MTU displays.

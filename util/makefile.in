@@ -161,14 +161,26 @@ BigInt$E : $(LIB) BigInt$O
 Memory$E: Memory.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Memory$E Memory.c
 
+${top_builddir}/net/dnsList$O : ${top_srcdir}/include/net/dnsList.h ${top_srcdir}/net/dnsList.c
+	cd ${top_srcdir}/net ; make dnsList$O
+
 uri$E : ${top_srcdir}/include/mail/mime.h ${top_builddir}/mail/mime$O \
 	${top_srcdir}/include/net/dnsList.h ${top_builddir}/net/dnsList$O \
-	${top_srcdir}/include/net/pdq.h ${top_builddir}/net/pdq$O htmlEntity$O cgi$O uri.c
+	${top_srcdir}/include/net/pdq.h ${top_builddir}/net/pdq$O \
+	${top_builddir}/util/htmlEntity$O ${top_builddir}/util/cgi$O uri.c
 	$(CC) -DTEST ${CFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)uri$E ${srcdir}/uri.c ${top_builddir}/mail/mime$O ${top_builddir}/net/dnsList$O ${top_builddir}/net/pdq$O $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
+
+duri$E : ${top_srcdir}/include/mail/mime.h ${top_builddir}/mail/mime$O \
+	${top_srcdir}/include/net/dnsList.h ${top_builddir}/net/dnsList$O \
+	${top_srcdir}/include/net/pdq.h ${top_builddir}/net/pdq$O \
+	${top_builddir}/util/htmlEntity$O ${top_builddir}/util/cgi$O \
+	${top_builddir}/util/DebugMalloc$O uri.c
+	$(CC) -DTEST -DDEBUG_MALLOC ${CFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)duri$E ${srcdir}/uri.c ${top_builddir}/util/DebugMalloc$O ${top_builddir}/mail/mime$O ${top_builddir}/net/dnsList$O ${top_builddir}/net/pdq$O $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
 
 urid$E : ${top_srcdir}/include/mail/mime.h ${top_builddir}/mail/mime$O \
 	${top_srcdir}/include/net/dnsList.h ${top_builddir}/net/dnsList$O \
-	${top_srcdir}/include/net/pdq.h ${top_builddir}/net/pdq$O htmlEntity$O cgi$O uri.c
+	${top_srcdir}/include/net/pdq.h ${top_builddir}/net/pdq$O \
+	${top_builddir}/util/htmlEntity$O ${top_builddir}/util/cgi$O uri.c
 	$(CC) -DDAEMON ${CFLAGS_PTHREAD} $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)urid$E ${srcdir}/uri.c ${top_builddir}/mail/mime$O ${top_builddir}/net/dnsList$O ${top_builddir}/net/pdq$O $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
 
 uriFormat$E: uriFormat.c
@@ -225,16 +237,16 @@ TextFind$E: TextFind.c
 text_find$E: text_find.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)text_find$E ${srcdir}/text_find.c $(LIBSNERT) ${LIBS}
 
-option$E: option.c
+option$E: ${top_srcdir}/include/util/option.h option.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)option$E ${srcdir}/option.c $(LIBSNERT) ${LIBS}
 
-DebugMalloc$O: DebugMalloc.c
+DebugMalloc$O: ${top_srcdir}/include/util/DebugMalloc.h DebugMalloc.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -c DebugMalloc.c
 
 DebugMalloc$E: DebugMalloc$O DebugMallocTest.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)DebugMalloc$E DebugMallocTest.c DebugMalloc$O $(LIBSNERT) ${LIBS}
 
-dmalloct$O: DebugMalloc.c
+dmalloct$O: ${top_srcdir}/include/util/DebugMalloc.h DebugMalloc.c
 	$(CC) $(CFLAGS) ${CFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)dmalloct$O -c ${srcdir}/DebugMalloc.c
 
 dmalloct$E: dmalloct$O DebugMallocTest.c

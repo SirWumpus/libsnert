@@ -1,7 +1,7 @@
 /*
  * DebugMalloc.c
  *
- * Copyright 2003, 2013 by Anthony Howe.  All rights reserved.
+ * Copyright 2003, 2015 by Anthony Howe.  All rights reserved.
  *
  * Inspired by Armin Biere's ccmalloc. This version is far less
  * complex and only detects five types of memory errors:
@@ -84,7 +84,17 @@
 # include <unistd.h>
 #endif
 
+#if HAVE_INTTYPES_H
+# include <inttypes.h>
+#else
+# if HAVE_STDINT_H
+# include <stdint.h>
+# endif
+#endif
+
 #include <com/snert/lib/sys/sysexits.h>
+
+#define DEBUG_MALLOC
 #include <com/snert/lib/util/DebugMalloc.h>
 
 extern ssize_t write(int, const void *, size_t);
@@ -168,7 +178,7 @@ typedef struct block_data {
 #define ALIGN_SIZE(sz, pow2)	((((sz)-1) & ~(pow2-1)) + pow2)
 #define ALIGN_PAD(sz, pow2)	(ALIGN_SIZE(sz, pow2) - sz)
 
-static const char *unknown = "(unknown)";
+static const char unknown[] = "(unknown)";
 static void signal_error(char *fmt, ...);
 
 static void (*libc__exit)(int);
@@ -263,7 +273,7 @@ thread_exit_report(void *data)
 }
 
 void
-DebugMallocReport(void)
+(DebugMallocReport)(void)
 {
 	thread_exit_report(pthread_getspecific(thread_key));
 }
@@ -290,7 +300,7 @@ signal_error(char *fmt, ...)
 }
 
 void
-DebugMallocSummary(void)
+(DebugMallocSummary)(void)
 {
 	if (main_thread == 0 || main_thread == pthread_self())
 		(void) fprintf(stderr, "main_thread:\r\n");
@@ -312,7 +322,7 @@ DebugMallocSummary(void)
 }
 
 void
-DebugMallocDump(void *chunk, size_t length)
+(DebugMallocDump)(void *chunk, size_t length)
 {
 	if (memory_init_state == MEMORY_INITIALISED) {
 		BlockData *block = &((BlockData *) chunk)[-1];
@@ -342,7 +352,7 @@ DebugMallocHere0(void *chunk, const char *here, unsigned line, const char *tag)
 }
 
 void
-DebugMallocHere(void *chunk, const char *here, unsigned line)
+(DebugMallocHere)(void *chunk, const char *here, unsigned line)
 {
 	DebugMallocHere0(chunk, here, line, "info");
 }
@@ -567,6 +577,7 @@ __dead void
 		init();
 
 #ifdef HAVE_SYS_RESOURCE_H
+# define _STANDALONE
 # include <sys/resource.h>
 {
 	struct rusage rusage;
@@ -584,29 +595,43 @@ __dead void
 void
 (free)(void *chunk)
 {
-	DebugFree(chunk, unknown, 0);
+	(DebugFree)(chunk, unknown, 0);
 }
 
 void *
 (malloc)(size_t size)
 {
-	return DebugMalloc(size, unknown, 0);
+	return (DebugMalloc)(size, unknown, 0);
 }
 
 void *
-(calloc)(size_t m, size_t n)
+(calloc)(size_t elements, size_t size)
 {
-	return DebugCalloc(m, n, unknown, 0);
+	return (DebugCalloc)(elements, size, unknown, 0);
 }
 
 void *
 (realloc)(void *chunk, size_t size)
 {
-	return DebugRealloc(chunk, size, unknown, 0);
+	return (DebugRealloc)(chunk, size, unknown, 0);
+}
+
+/**
+ * Force the transition from MEMORY_INITIALISING to MEMORY_INITIALISED
+ * in case not all object files were built using DebugMalloc.h and
+ * DEBUG_MALLOC macro.  Place at top of main().
+ */
+void
+(DebugMallocStart)(void)
+{
+	void *chunk;
+
+	chunk = (DebugMalloc)(1, __func__, __LINE__);
+	(DebugFree)(chunk, __func__, __LINE__);
 }
 
 void
-DebugMallocAssert(void *chunk, const char *here, unsigned line)
+(DebugMallocAssert)(void *chunk, const char *here, unsigned line)
 {
 	BlockData *block;
 	unsigned char *p, *q;
@@ -794,8 +819,8 @@ void *
 			return _malloc(size);
 
 		/* OpenBSD allocates more memory when some pthread functions
-		 * are first used. Force it here so as to allocate it from
-		 * _malloc(). We can't do this in init(), since the first call
+		 * are first used.  Force it here so as to allocate it from
+		 * _malloc().  We can't do this in init(), since the first call
 		 * happens during thread initilisation and would cause a loop.
 		 */
 		(void) LOCK_INIT(&lock);
@@ -884,7 +909,7 @@ void *
 	void *replacement;
 	BlockData *block;
 
-	if ((replacement = DebugMalloc(size, HERE_ARG)) == NULL)
+	if ((replacement = (DebugMalloc)(size, HERE_ARG)) == NULL)
 		return NULL;
 
 	if (chunk != NULL) {
@@ -897,12 +922,12 @@ void *
 }
 
 void *
-(DebugCalloc)(size_t m, size_t n, const char *here, unsigned line)
+(DebugCalloc)(size_t elements, size_t size, const char *here, unsigned line)
 {
 	void *chunk;
 
-	if ((chunk = DebugMalloc(m * n, HERE_ARG)) != NULL)
-		(void) memset(chunk, 0, m * n);
+	if ((chunk = (DebugMalloc)(elements * size, HERE_ARG)) != NULL)
+		(void) memset(chunk, 0, elements * size);
 
 	return chunk;
 }

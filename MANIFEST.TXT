@@ -1,4 +1,4 @@
-org/sqlite/sqlite-autoconf-3080800.tar.gz
+org/sqlite/sqlite-autoconf-3080802.tar.gz
 com/snert/lib
 com/snert/include/com/snert/lib
 com/snert/include/org/valgrind
@@ -75,6 +75,7 @@ com/snert/src/lib/mail/smdb.c
 com/snert/src/lib/mail/smdb-old.c
 com/snert/src/lib/mail/mime.c
 com/snert/src/lib/mail/mime-test.sh
+com/snert/src/lib/mail/mime-hello.eml
 com/snert/src/lib/mail/mime-7bit-crlf.eml
 com/snert/src/lib/mail/mime-qp-crlf.eml
 com/snert/src/lib/mail/mime-b64-crlf.eml
