@@ -470,6 +470,15 @@ dnsListCheckIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name,
 		|| (rr->type != PDQ_TYPE_A && rr->type != PDQ_TYPE_AAAA))
 			continue;
 
+#ifdef IGNORE_LOOPBACK
+/* In smtpf or milter-link use access entries like:
+ *
+ *	body:127		OK
+ *	milter-link-body:127	OK
+ *
+ * to ignore loopback addresses that trigger IP BL test records.
+ * Disabling this check allows uri CLI to be used for manual tests.
+ */
 		/* Some domains specify a 127.0.0.0/8 address for
 		 * an A recorded, like "anything.so". The whole
 		 * TLD .so for Somalia, is a wild card record that
@@ -478,7 +487,7 @@ dnsListCheckIP(DnsList *dns_list, PDQ *pdq, Vector names_seen, const char *name,
 		 */
 		if (isReservedIPv6(((PDQ_AAAA *) rr)->address.ip.value, IS_IP_LOOPBACK|IS_IP_LOCALHOST))
 			continue;
-
+#endif
 		if (0 < debug)
 			syslog(LOG_DEBUG, "dnsListCheckIP name=\"%s\" ip=\"%s\"", rr->name.string.value, ((PDQ_AAAA *) rr)->address.string.value);
 
