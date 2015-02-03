@@ -29,9 +29,13 @@ m4_define([SNERT_GCC_SETTINGS],[
 	AS_IF([test $GCC = 'yes'],[
 		GCC_MAJOR=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC__ \(.*\)/\1/p'`
 		GCC_MINOR=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC_MINOR__ \(.*\)/\1/p'`
-dnl		AS_IF([test $GCC_MAJOR -ge 4],[CFLAGS="-Wno-pointer-sign $CFLAGS"])
+		GCC_PATCH=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC_PATCHLEVEL__ \(.*\)/\1/p'`
+		dnl Nothing wrong using a char for a subscript.
 		AS_IF([test $GCC_MAJOR -ge 3],[CFLAGS="-Wno-char-subscripts $CFLAGS"])
-		AS_IF([test $GCC_MAJOR -ge 4 -a ${platform:-UNKNOWN} = 'CYGWIN'],[CFLAGS="-Wunused-but-set-variable $CFLAGS"])
+		dnl Option to ignore extra support functions.
+		AS_IF([test $GCC_MAJOR -ge 4 -a $GCC_MINOR -ge 3 ],[CFLAGS="-Wno-unused-function $CFLAGS"])
+		dnl Option to silience Valgrind and ProtoThread macro warnings.
+		AS_IF([test $GCC_MAJOR -ge 4 -a $GCC_MINOR -ge 6 ],[CFLAGS="-Wno-unused-but-set-variable $CFLAGS"])
 		CFLAGS="-Wall $CFLAGS"
 	])
 	AS_IF([test ${enable_debug:-no} = 'no'],[
@@ -2101,7 +2105,7 @@ AC_DEFUN(SNERT_SUMMARY,[
 	echo $PACKAGE_NAME/$package_major.$package_minor.$package_build
 	echo $package_copyright
 	echo
-	AC_MSG_RESULT([  Platform.......: $platform $CC])
+	AC_MSG_RESULT([  Platform.......: $platform $CC ${GCC_MAJOR} ${GCC_MINOR} ${GCC_PATCH}])
 	AC_MSG_RESULT([  CFLAGS.........: $CFLAGS])
 	AC_MSG_RESULT([  LDFLAGS........: $LDFLAGS])
 	AC_MSG_RESULT([  LIBS...........: $LIBS])
