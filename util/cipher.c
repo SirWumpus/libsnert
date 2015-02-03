@@ -149,12 +149,8 @@ typedef struct {
 	size_t column;			/* Current output column, saved across fucntion calls. */
 } cipher_dump;
 
-static cipher_dump dump_out = {
-	stdout, 1, GROUPING, WRAP_WIDTH
-};
-
 static cipher_dump dump_err = {
-	stderr, 1, GROUPING, WRAP_WIDTH
+	NULL, 1, WRAP_WIDTH, GROUPING, 0
 };
 
 void
@@ -498,6 +494,10 @@ static char buffer1[MAX_BUFFER_SIZE], buffer2[MAX_BUFFER_SIZE];
 typedef size_t (*read_fn)(FILE *fp, char *out, size_t length);
 typedef void (*write_fn)(cipher_dump *, const char *text);
 
+static cipher_dump dump_out = {
+	NULL, 1, WRAP_WIDTH, GROUPING, 0
+};
+
 static size_t
 read_all(FILE *fp, char *out, size_t length)
 {
@@ -585,6 +585,9 @@ main(int argc, char **argv)
 			optind = argc;
 		}
 	}
+
+	dump_out.fp = stdout;
+	dump_err.fp = stderr;
 
 	if ((*ct)->length == 106) {
 		/* CT 106 is hexadecimal based, therefore the
