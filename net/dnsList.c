@@ -221,7 +221,7 @@ dnsListCreate(const char *string)
 		} else if (suffix[span] == ':') {
 			/* suffix:ip1,ip2,... */
 
-			/*** Zero mask denotes IP return codes (SpamHaus) ***/
+			/* Zero mask denotes IP return codes (SpamHaus) */
 			list->masks[i] = 0;
 
 			if ((ipcodes = TextSplit(suffix+span+1, ",", 0)) == NULL)
@@ -319,12 +319,7 @@ dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 			if (bits == 0x7F0001FF)
 				break;
 
-			if (dns_list->masks[i] != 0
-			&& (bits & dns_list->masks[i]) != 0
-			&& isReservedIPv4(rr->address.ip.value + rr->address.ip.offset, IS_IP_LOCAL|IS_IP_THIS_NET)) {
-				/* suffix/mask */
-				goto found;
-			} else {
+			if (dns_list->ipcodes[i] != NULL) {
 				/* suffix:ip1,ip2,...
 				 *
 				 * Currently we only care about the IPv4
@@ -340,6 +335,10 @@ dnsListIsNameListed(DnsList *dns_list, const char *name, PDQ_rr *list)
 						goto found;
 					}
 				}
+			} else if ((bits & dns_list->masks[i]) != 0
+			&& isReservedIPv4(rr->address.ip.value + rr->address.ip.offset, IS_IP_LOCAL|IS_IP_THIS_NET)) {
+				/* suffix/mask */
+				goto found;
 			}
 		}
 	}
