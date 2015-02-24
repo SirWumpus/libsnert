@@ -57,7 +57,7 @@
  ***********************************************************************/
 
 #define LOGVOL(volume, ...) \
-	if (volume < debug) syslog(LOG_DEBUG, __VA_ARGS__)
+	do { if (volume < debug) syslog(LOG_DEBUG, __VA_ARGS__); } while (0)
 
 #define LOGIF(...) \
 	LOGVOL(0, __VA_ARGS__)

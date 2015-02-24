@@ -1,6 +1,7 @@
 Subject: Hello World
-From: <fred@example.com>
-To: <achowe@netmail.com>
+From: <wumpus@example.com>
+To: <achowe@snert.com>
+Date: Sun, 8 Feb 2015 10:45:37 -0500
 Message-Id: <1@pintree.example.com>
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="=_foo_"
