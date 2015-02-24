@@ -47,7 +47,10 @@
 #  define KERN_COREDUMP_SET	"kern.coredump.setid.dump"
 #  define PROC_CORENAME		"proc.curproc.corename"
 #  define PROC_CORENAME_FMT	"%n.%p.core"
+#   ifdef OFF
+/* We use setrlimit() already. */
 #  define PROC_CORELIMIT	"proc.curproc.rlimit.coredumpsize.soft"
+#   endif
 # endif
 # if defined(__FreeBSD__)
 #  include <sys/types.h>
@@ -317,9 +320,7 @@ processDumpCore(int flag)
 		new_size = 0;
 	}
 
-	if (sysctlbyname(PROC_CORELIMIT, &old_limit, &old_size, new_ptr, new_size) == 0)
-		syslog(LOG_DEBUG, PROC_CORELIMIT " was %llu", old_limit);
-	else
+	if (sysctlbyname(PROC_CORELIMIT, &old_limit, &old_size, new_ptr, new_size) != 0)
 		syslog(LOG_ERR, PROC_CORELIMIT " error: %s (%d)", strerror(errno), errno);
 }
 # endif /* PROC_CORELIMIT */
