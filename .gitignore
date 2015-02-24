@@ -43,6 +43,7 @@ crc/crctable
 io/Dns
 io/smtpe
 mail/digestbl
+mail/dkim-hash
 mail/mime
 mail/parsePath
 mail/siq

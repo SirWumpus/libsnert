@@ -5,11 +5,12 @@
 AC_INIT(LibSnert, 1.75, [Anthony Howe <achowe@snert.com>])
 
 dnl The autoconf version I learned to deal with.
-AC_PREREQ(2.59)
+AC_PREREQ(2.69)
 
 SNERT_INIT(LIBSNERT, [Copyright 1996, 2015 by Anthony Howe. All rights reserved.])
 
 AC_DEFINE_UNQUOTED(LIBSNERT_UNAME, [["${platform}"]])
+AH_TEMPLATE(LIBSNERT_UNAME)
 
 #######################################################################
 #	Setup paths
@@ -34,7 +35,7 @@ LDFLAGS="-L$snert_libdir $LDFLAGS"
 #	Auxliary files to be modified later
 #######################################################################
 
-AC_CONFIG_HEADERS([include/version.h:version.h.in])
+AC_CONFIG_HEADERS([config.h include/version.h:version.h.in])
 
 AC_CONFIG_FILES(version.h.in)
 AC_CONFIG_FILES(version.sh)
@@ -58,7 +59,7 @@ SNERT_OPTION_ENABLE_64BIT
 AC_ARG_ENABLE(access-tagless,
 	[AC_HELP_STRING([--enable-access-tagless],[support for tagless access records (Sendmail, Postfix)])],
 	[
-		AC_DEFINE_UNQUOTED(ENABLE_ACCESS_TAGLESS)
+		AC_DEFINE(ENABLE_ACCESS_TAGLESS,[],[Support for tagless access records (Sendmail, Postfix)])
 		AC_SUBST(enable_access_tagless)
 	]
 )
@@ -89,6 +90,8 @@ SNERT_OPTION_WITH_LIBEV
 SNERT_OPTION_WITH_LUA
 SNERT_OPTION_WITH_MILTER
 SNERT_OPTION_WITH_OPENSSL
+dnl Not used yet.
+dnl SNERT_OPTION_WITH_SASL2
 SNERT_OPTION_WITH_PTHREAD
 SNERT_OPTION_WITH_SQLITE3
 SNERT_BUILD_THREADED_SQLITE3
@@ -149,6 +152,7 @@ SNERT_TAR_SETTINGS
 
 AC_PROG_MAKE_SET
 
+AC_HEADER_ASSERT
 AC_C_CONST
 AC_CHECK_TYPES([mode_t, off_t, pid_t, uid_t, gid_t, size_t, ssize_t, time_t, intptr_t, uintptr_t])
 
@@ -171,6 +175,7 @@ SNERT_OPENSSL
 SNERT_SQLITE3
 SNERT_LIBEV
 SNERT_LUA
+SNERT_SASL2
 SNERT_BERKELEY_DB
 SNERT_SYSTEMV_SEMAPHORES
 SNERT_NETWORK
@@ -251,7 +256,7 @@ if test "$with_mutex" = 'UNKNOWN_API'; then
 	fi
 fi
 
-AC_DEFINE_UNQUOTED(SERIALIZATION_API, $with_mutex)
+AC_DEFINE_UNQUOTED(SERIALIZATION_API, $with_mutex, [(deprecated)])
 AC_SUBST(SERIALIZATION_API, "$with_mutex")
 AC_MSG_RESULT($with_mutex)
 
@@ -326,13 +331,242 @@ if test "$with_shar_mem" = 'UNKNOWN_API'; then
 	fi
 fi
 
-AC_DEFINE_UNQUOTED(SHARED_MEMORY_API, $with_shar_mem)
+AC_DEFINE_UNQUOTED(SHARED_MEMORY_API, $with_shar_mem, [(deprecated)])
 AC_SUBST(SHARED_MEMORY_API, "$with_shar_mem")
 AC_MSG_RESULT($with_shar_mem)
 
 #######################################################################
 #	Generate output.
 #######################################################################
+
+AH_TOP([
+/*
+ * config.h
+ *
+ * Copyright 2002, 2015 by Anthony Howe. All rights reserved.
+ */
+
+#ifndef __com_snert_lib_config_h__
+#define __com_snert_lib_config_h__	1
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/***********************************************************************
+ ***
+ ***********************************************************************/
+
+#define __LIBSNERT__		1
+
+#undef LIBSNERT_MAJOR
+#undef LIBSNERT_MINOR
+#undef LIBSNERT_BUILD
+#undef LIBSNERT_NUMBER
+#undef LIBSNERT_NAME
+#undef LIBSNERT_VERSION
+#undef LIBSNERT_STRING
+#undef LIBSNERT_AUTHOR
+#undef LIBSNERT_COPYRIGHT
+#undef LIBSNERT_DEBUG
+#undef LIBSNERT_UNAME
+
+#undef LIBSNERT_CFLAGS
+#undef LIBSNERT_LDFLAGS
+#undef LIBSNERT_LIBS
+#undef LIBSNERT_CONFIGURE
+#undef LIBSNERT_BUILT
+#undef LIBSNERT_BUILD_HOST
+#undef LIBSNERT_PLATFORM
+
+#undef LIBSNERT_SHARE
+
+#ifndef __@platform@__
+#define __@platform@__		1
+#endif
+
+#undef LIBC_PATH
+#undef LIBPTHREAD_PATH
+
+/* Sun defines __unix, but not __unix__ */
+#if defined(__unix) && !defined(__unix__)
+#define __unix__		1
+#endif
+
+#if defined(__APPLE__) && defined(__Darwin__)
+#define __unix__		1
+#endif
+
+#if defined(_AIX) && !defined(__unix__)
+#define __unix__		1
+#endif
+])
+
+AH_BOTTOM([
+/*
+ * Define the flock() constants separately, since some systems
+ * have flock(), but fail to define the constants in a header.
+ * These values were taken from FreeBSD.
+ */
+#undef HAVE_LOCK_SH
+
+#undef HAVE_FCNTL
+#undef HAVE_FLOCK
+#undef HAVE_LOCKF
+#undef HAVE_LOCKING
+#undef ENABLE_ALT_FLOCK
+
+#ifndef EXIT_SUCCESS
+# define EXIT_SUCCESS	0	/* TRUE or normal exit - ANSI C */
+#endif
+#ifndef EXIT_FAILURE
+# define EXIT_FAILURE	1	/* FALSE or unspecified error - ANSI C */
+#endif
+
+/* This has been used fairly consistently in Snert code since 1990. */
+#define EXIT_USAGE	2	/* Invalid or missing command-line option. */
+
+#define QUOTE(x)	QUOTE_THIS(x)
+#define QUOTE_THIS(x)	#x
+
+/**
+ * @param a
+ *	A pointer to object A.
+ *
+ * @param b
+ *	A pointer to object B.
+ *
+ * @return
+ *	Zero if A == B, negative if A < B, or positive if A > B.
+ */
+#define HAVE_CMPFN_T
+typedef int (*CmpFn)(void *a, void *b);
+
+/***********************************************************************
+ *** LibSnert Configure And Compile Time Information
+ ***********************************************************************/
+
+#ifndef LINE_WRAP
+#define LINE_WRAP			72
+#endif
+
+extern void printVar(int columns, const char *name, const char *value);
+extern void snertPrintVersion(void);
+extern void snertPrintInfo(void);
+
+/***********************************************************************
+ *** Alternate Memory Allocator
+ ***********************************************************************/
+
+/**
+ * @param ptr
+ *	A pointer to an object to be freed.
+ */
+#define HAVE_FREEFN_T
+typedef void (*FreeFn)(void *);
+
+/*
+ * Intended for debugging in combination with valgrind, which often
+ * reports "...points to uninitialised byte(s)" when part of a buffer
+ * remains unused. Should only be disabled once you are sure that what
+ * valgrind is reporting can be safely ignored.
+ */
+#ifdef NDEBUG
+# define MEMSET(p, b, s)
+# define MALLOC(s)		malloc(s)
+# define CALLOC(n,s)		calloc((n),(s))
+# define REALLOC(p,s)		realloc((p),(s))
+# define ALIGNED_ALLOC(a,s)	aligned_alloc((a),(s))
+# define FREE(p)		free(p)
+#else
+# define MEMSET(p, b, s)	memset((p),(b),(s))
+# define MALLOC(s)		alt_malloc((s), ALT_MALLOC_BYTE(0))
+# define CALLOC(n,s)		alt_calloc((n),(s), ALT_MALLOC_BYTE(0))
+# define REALLOC(p,s)		alt_realloc((p),(s), ALT_MALLOC_BYTE(0))
+# define ALIGNED_ALLOC(a,s)	alt_aligned_alloc((a),(s), ALT_MALLOC_BYTE(0))
+# define FREE(p)		alt_free((p), 0)
+#endif
+
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SIZE_T)
+# include <sys/types.h>
+#endif
+
+/**
+ * Alternative malloc intended for debugging, in particular
+ * with Valgrind, which reports certain classes of errors
+ * about uninitialised data. Sometimes production code calls
+ * for malloc() while debug code wants calloc() like behaviour.
+ *
+ * @param size
+ *	The size in bytes of the area to allocate.
+ *
+ * @param flags
+ *	A bit-wise OR of assort ALT_MALLOC_ flags.
+ *
+ * @return
+ *	Pointer to a continuous block of memory at least "size" bytes.
+ */
+extern void *alt_malloc(size_t size, unsigned flags);
+
+extern void *alt_realloc(void *ptr, size_t size, unsigned flags);
+
+extern void *alt_calloc(size_t num_elements, size_t element_size, unsigned flags);
+
+extern void *alt_aligned_alloc(size_t alignment, size_t size, unsigned flags);
+
+/*
+ * @param mem
+ *	Pointer to a block of memory previous returned by malloc,
+ *	calloc, or realloc.
+ *
+ * @param flags
+ *	A bit-wise OR of assort ALT_FREE_ flags.
+ */
+extern void alt_free(void *ptr, unsigned flags);
+
+/*
+ * @param mem
+ * 	Pointer to a pointer to void, which will be set to NULL once
+ *	the block of memory is freed.
+ *
+ * @param flags
+ *	A bit-wise OR of assort ALT_FREE_ flags.
+ */
+extern void alt_free_clear(void **ptr, unsigned flags);
+
+/*
+ * @param ptr
+ *	ptr is declared as a "void *" for compatibility with
+ *	pthread_cleanup_push(), but is treated as a "void **" so
+ *	that the pointer variable can be set to NULL once freed.
+ */
+extern void free_clear(void *ptr);
+
+#define ALT_MALLOC_FILL		0x0100
+#define ALT_MALLOC_ABORT	0x0200
+#define ALT_MALLOC_BYTE_MASK	0x00FF
+#define ALT_MALLOC_BYTE(x)	(ALT_MALLOC_FILL|(unsigned char)(x))
+
+/***********************************************************************
+ *** GNU Backtrace
+ ***********************************************************************/
+
+#ifdef HAVE_BACKTRACE
+extern int backtrace(void **buffer, int size);
+extern char **backtrace_symbols(void **buffer, int length);
+extern void backtrace_symbols_fd(void **buffer, int length, int fd);
+#endif
+
+/***********************************************************************
+ ***
+ ***********************************************************************/
+
+#ifdef  __cplusplus
+}
+#endif
+
+#endif /* __com_snert_lib_version_h__ */
+])
 
 SNERT_FINI
 

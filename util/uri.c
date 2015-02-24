@@ -16,8 +16,6 @@
  *** No configuration below this point.
  ***********************************************************************/
 
-#define _REENTRANT	1
-
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>

@@ -63,9 +63,6 @@ extern "C" {
 
 #undef NDEBUG
 
-#define _REENTRANT	1
-#define _THERAD_SAFE	1
-
 /*
  * Macro to test if we're using a GNU C compiler of a specific vintage
  * or later, for e.g. features that appeared in a particular version
@@ -758,6 +755,8 @@ typedef int socklen_t;
 #undef HAVE_SYS_SYSINFO_H
 #undef HAVE_GET_NPROCS
 #undef HAVE_GET_NPROCS_CONF
+#undef HAVE_FPATHCONF
+#undef HAVE_PATHCONF
 #undef HAVE_SYSCONF
 #undef HAVE_GETLOADAVG
 
@@ -879,7 +878,7 @@ typedef int socklen_t;
  * Lua
  */
 #undef HAVE_LUA_H
-#undef HAVE_LIBLUA
+#undef HAVE_LIB_LUA
 #undef CFLAGS_LUA
 #undef LDFLAGS_LUA
 
@@ -908,6 +907,19 @@ typedef int socklen_t;
 #undef LDFLAGS_SSL
 
 /*
+ * SASL2
+ *
+ * This is not used yet, but here to test configure detection code.
+ */
+#undef HAVE_SASL_SASL_H
+#undef HAVE_SASL_SASLUTIL_H
+#undef HAVE_SASL_CHECKAPOP
+#undef HAVE_PROP_GET
+#undef CFLAGS_SASL2
+#undef LDFLAGS_SASL2
+#undef HAVE_LIB_SASL2
+
+/*
  * Common Hashes
  */
 #undef HAVE_MD4_H
@@ -923,6 +935,8 @@ typedef int socklen_t;
  * Berkeley DB
  */
 #undef IGNORE_CORRUPT_CACHE_ISSUE_WITH_DB_185
+#undef HAVE_DB_MAJOR
+#undef HAVE_DB_MINOR
 #undef HAVE_DB_CREATE
 #undef HAVE_DBOPEN
 #undef HAVE_DB_H
