@@ -1,7 +1,7 @@
 /*
  * process.c
  *
- * Copyright 2004, 2013 by Anthony Howe. All rights reserved.
+ * Copyright 2004, 2015 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -36,13 +36,24 @@
 #if defined(__linux__) && defined(HAVE_SYS_PRCTL_H)
 # include <sys/prctl.h>
 #endif
-#if defined(__OpenBSD__) && defined(HAVE_SYS_SYSCTL_H)
-# include <sys/param.h>
-# include <sys/sysctl.h>
-#endif
-#if defined(__FreeBSD__) && defined(HAVE_SYS_SYSCTL_H)
-# include <sys/types.h>
-# include <sys/sysctl.h>
+#if defined(HAVE_SYS_SYSCTL_H)
+# if defined(__OpenBSD__)
+#  include <sys/param.h>
+#  include <sys/sysctl.h>
+# endif
+# if defined(__NetBSD__)
+#  include <sys/types.h>
+#  include <sys/sysctl.h>
+#  define KERN_COREDUMP_SET	"kern.coredump.setid.dump"
+#  define PROC_CORENAME		"proc.curproc.corename"
+#  define PROC_CORENAME_FMT	"%n.%p.core"
+#  define PROC_CORELIMIT	"proc.curproc.rlimit.coredumpsize.soft"
+# endif
+# if defined(__FreeBSD__)
+#  include <sys/types.h>
+#  include <sys/sysctl.h>
+#  define KERN_COREDUMP_SET	"kern.sugid_coredump"
+# endif
 #endif
 
 #include <com/snert/lib/sys/process.h>
@@ -195,9 +206,14 @@ processDumpCore(int flag)
 		(void) prctl(PR_SET_DUMPABLE, flag, 0,0,0);
 #endif
 
-#ifdef CHANGE_KERNEL_SETTINGS
-/* We shouldn't do this on a per process baises. */
-# if defined(__OpenBSD__) && defined(HAVE_SYS_SYSCTL_H) && defined(KERN_NOSUIDCOREDUMP)
+
+#ifdef HAVE_SYS_SYSCTL_H
+# ifdef CHANGE_KERNEL_SETTINGS
+/* We should not change kernel values on a per process baises;
+ * they are not inherited.  See sysctl's per-process proc.* settings.
+ * This code retained more for information and example.
+ */
+#  if defined(__OpenBSD__) && defined(KERN_NOSUIDCOREDUMP)
 /***
  *** On 23/02/2010 18:28, Theo de Raadt whispered from the shadows...:
  *** > 3. The program does not use file system setuid bits, BUT does use the
@@ -232,8 +248,8 @@ processDumpCore(int flag)
 
 	(void) sysctl(mib, 2, &old_flag, &old_size, new_flag, new_size);
 }
-# endif
-# if defined(__FreeBSD__) && defined(HAVE_SYS_SYSCTL_H)
+#  endif
+#  if defined(KERN_COREDUMP_SET)
 {
 	int *new_flag = NULL;
 	size_t old_size, new_size = 0;
@@ -248,10 +264,66 @@ processDumpCore(int flag)
 	}
 
 	errno = 0;
-	(void) sysctlbyname("kern.sugid_coredump", &old_flag, &old_size, new_flag, new_size);
+	(void) sysctlbyname(KERN_COREDUMP_SET, &old_flag, &old_size, new_flag, new_size);
 }
-# endif
-#endif /* CHANGE_KERNEL_SETTINGS */
+#  endif
+# endif /* CHANGE_KERNEL_SETTINGS */
+
+# if defined(PROC_CORENAME)
+{
+	char *new_str;
+	size_t old_size = 0, new_size;
+
+	switch (flag) {
+	case 0:
+		new_str = "";
+		new_size = 0;
+		break;
+	case 1:
+		new_str = PROC_CORENAME_FMT;
+		new_size = sizeof (PROC_CORENAME_FMT)-1;
+		break;
+	default:
+		new_str = NULL;
+		new_size = 0;
+	}
+
+	(void) sysctlbyname(PROC_CORENAME, NULL, &old_size, new_str, new_size);
+	old_flag = 0 < old_size ? 1 : 0;
+}
+# endif /* PROC_CORENAME */
+# if defined(PROC_CORELIMIT) && defined(HAVE_SYS_RESOURCE_H)
+{
+	size_t old_size, new_size;
+	rlim_t old_limit, new_limit, *new_ptr;
+
+	old_limit = 0;
+	old_size = sizeof (old_limit);
+
+	switch (flag) {
+	case 0:
+		new_limit = 0;
+		new_ptr = &new_limit;
+		new_size = sizeof (new_limit);
+		break;
+	case 1:
+		/* Can be LLONG_MAX. */
+		new_limit = ULONG_MAX;
+		new_ptr = &new_limit;
+		new_size = sizeof (new_limit);
+		break;
+	default:
+		new_ptr = NULL;
+		new_size = 0;
+	}
+
+	if (sysctlbyname(PROC_CORELIMIT, &old_limit, &old_size, new_ptr, new_size) == 0)
+		syslog(LOG_DEBUG, PROC_CORELIMIT " was %llu", old_limit);
+	else
+		syslog(LOG_ERR, PROC_CORELIMIT " error: %s (%d)", strerror(errno), errno);
+}
+# endif /* PROC_CORELIMIT */
+#endif /* HAVE_SYS_SYSCTL_H */
 	return old_flag;
 }
 
