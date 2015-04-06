@@ -843,7 +843,6 @@ typedef int socklen_t;
 /*
  * Sendmail libmilter
  */
-#undef HAVE_LIBMILTER
 #undef HAVE_LIBMILTER_MFAPI_H
 #undef HAVE_SMFI_ADDHEADER
 #undef HAVE_SMFI_ADDRCPT
@@ -871,31 +870,30 @@ typedef int socklen_t;
 #undef HAVE_SMFI_SETTIMEOUT
 #undef HAVE_SMFI_STOP
 #undef HAVE_SMFI_VERSION
-#undef CFLAGS_MILTER
+#undef CPPFLAGS_MILTER
 #undef LDFLAGS_MILTER
+#undef LIBS_MILTER
 
 /*
  * Lua
  */
 #undef HAVE_LUA_H
-#undef HAVE_LIB_LUA
-#undef CFLAGS_LUA
+#undef CPPFLAGS_LUA
 #undef LDFLAGS_LUA
+#undef LIBS_LUA
 
 /*
  * libev 4
  */
 #undef USE_LIBEV
 #undef HAVE_EV_H
-#undef HAVE_LIB_LIBEV
-#undef CFLAGS_LIBEV
+#undef CPPFLAGS_LIBEV
 #undef LDFLAGS_LIBEV
+#undef LIBS_LIBEV
 
 /*
  * OpenSSL
  */
-#undef HAVE_LIBSSL
-#undef HAVE_LIBCRYPTO
 #undef HAVE_OPENSSL_SSL_H
 #undef HAVE_OPENSSL_BIO_H
 #undef HAVE_OPENSSL_ERR_H
@@ -903,8 +901,9 @@ typedef int socklen_t;
 #undef HAVE_EVP_CLEANUP
 #undef HAVE_SSL_LIBRARY_INIT
 #undef HAVE_MACRO_OPENSSL_ADD_ALL_ALGORITHMS
-#undef CFLAGS_SSL
+#undef CPPFLAGS_SSL
 #undef LDFLAGS_SSL
+#undef LIBS_SSL
 
 /*
  * SASL2
@@ -915,9 +914,9 @@ typedef int socklen_t;
 #undef HAVE_SASL_SASLUTIL_H
 #undef HAVE_SASL_CHECKAPOP
 #undef HAVE_PROP_GET
-#undef CFLAGS_SASL2
+#undef CPPFLAGS_SASL2
 #undef LDFLAGS_SASL2
-#undef HAVE_LIB_SASL2
+#undef LIBS_SASL2
 
 /*
  * Common Hashes

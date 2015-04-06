@@ -1,126 +1,281 @@
 dnl
-dnl aclocal.m4
+dnl acsite.m4
 dnl
-dnl Copyright 2002, 2011 by Anthony Howe.  All rights reserved.
+dnl Copyright 2002, 2015 by Anthony Howe.  All rights reserved.
 dnl
 
-dnl AC_LANG(C)
-dnl ----------
-dnl CFLAGS is not in ac_cpp because -g, -O, etc. are not valid cpp options.
 dnl
-dnl Handle Borland C++ 5.5 where it has none standard output flags that
-dnl require the filename argument be abutted to the option letter.
+dnl SNERT_JOIN_UNIQ(var, word_list,[head|tail])
 dnl
-m4_define([AC_LANG(C)],
-[ac_ext=c
-dnl Mac OS X gcc 3.x wants to option and argument to be separated.
-dnl Don't people read standards like POSIX and SUS?
-CC_E='-o '
-ac_cpp='$CPP $CPPFLAGS'
-ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&AS_MESSAGE_LOG_FD'
-ac_link='$CC ${CC_E}conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&AS_MESSAGE_LOG_FD'
-ac_compiler_gnu=$ac_cv_c_compiler_gnu
+AC_DEFUN([SNERT_JOIN_UNIQ],[
+	list=`eval echo \$$1`
+	for w in $2; do
+		AS_IF([expr "$list" : ".*$w" >/dev/null],[
+		],[
+			AS_IF([test "$3" = 'head'],[
+				list="$w${list:+ $list}"
+			],[
+				list="${list:+$list }$w"
+			])
+		])
+	done
+	eval $1="\"$list\""
 ])
 
 dnl
-dnl SNERT_GCC_SETTINGS
+dnl SNERT_CHECK_DEFINE(symbol[, header_file])
 dnl
-m4_define([SNERT_GCC_SETTINGS],[
-	AS_IF([test $GCC = 'yes'],[
-		GCC_MAJOR=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC__ \(.*\)/\1/p'`
-		GCC_MINOR=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC_MINOR__ \(.*\)/\1/p'`
-		GCC_PATCH=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC_PATCHLEVEL__ \(.*\)/\1/p'`
-		dnl Nothing wrong using a char for a subscript.
-		AS_IF([test $GCC_MAJOR -ge 3],[CFLAGS="-Wno-char-subscripts $CFLAGS"])
-		dnl Option to ignore extra support functions.
-		AS_IF([test $GCC_MAJOR -ge 4 -a $GCC_MINOR -ge 3 ],[CFLAGS="-Wno-unused-function $CFLAGS"])
-		dnl Option to silience Valgrind and ProtoThread macro warnings.
-		AS_IF([test $GCC_MAJOR -ge 4 -a $GCC_MINOR -ge 6 ],[CFLAGS="-Wno-unused-but-set-variable $CFLAGS"])
-		CFLAGS="-Wall $CFLAGS"
+dnl Without a header_file, check for a predefined macro.
+dnl
+AC_DEFUN([SNERT_CHECK_DEFINE],[
+	AC_LANG_PUSH([C])
+	AC_CACHE_CHECK([for $1],ac_cv_define_$1,[
+		AS_IF([test -z "$2"],[
+			AC_RUN_IFELSE([
+				AC_LANG_SOURCE([[
+int main()
+{
+#ifdef $1
+	return 0;
+#else
+	return 1;
+#endif
+}
+				]])
+			],[
+				ac_cv_define_$1=yes
+			],[
+				ac_cv_define_$1=no
+			])
+		],[
+			AC_RUN_IFELSE([
+				AC_LANG_SOURCE([[
+#include <$2>
+int main()
+{
+#ifdef $1
+	return 0;
+#else
+	return 1;
+#endif
+}
+				]])
+			],[
+				ac_cv_define_$1=yes
+			],[
+				ac_cv_define_$1=no
+			])
+		])
 	])
-	AS_IF([test ${enable_debug:-no} = 'no'],[
-		CFLAGS="-O2 ${CFLAGS}"
-		LDFLAGS="${LDFLAGS}"
+	AC_LANG_POP([C])
+	AS_IF([test $ac_cv_define_$1 = 'yes'],[
+		AC_DEFINE_UNQUOTED([HAVE_MACRO_]translit($1, [a-z], [A-Z]))
+		AH_TEMPLATE([HAVE_MACRO_]translit($1, [a-z], [A-Z]))
+	])
+])
+
+dnl
+dnl SNERT_CHECK_PREDEFINE(symbol)
+dnl
+AC_DEFUN(SNERT_CHECK_PREDEFINE,[
+	SNERT_CHECK_DEFINE($1)
+])
+
+dnl
+dnl SNERT_DEFINE(name[, value])
+dnl
+AC_DEFUN([SNERT_DEFINE],[
+	name=AS_TR_CPP($1)
+	AS_IF([test -n "$2"],[value="$2"],[eval value="\$$name"])
+	AC_DEFINE_UNQUOTED($name,["$value"])
+])
+
+dnl
+dnl SNERT_IF_SYSTEM_DIR(word, if-system, not-system)
+dnl
+m4_define([SNERT_IF_SYSTEM_DIR],[
+	AS_CASE([$1],[/usr/include|/usr/lib64|/usr/lib],[$2],[$3])
+])
+
+dnl
+dnl SNERT_FIND_FILE(wild_file, directories, if-found, not-found)
+dnl if-found can reference the found $dir_val
+dnl
+AC_DEFUN([SNERT_FIND_FILE],[
+	AS_VAR_PUSHDEF([snert_dir], [snert_find_file_$1])
+	AS_VAR_SET([snert_dir],'no')
+	AC_MSG_CHECKING([for location of $1])
+
+	dnl File to find specifies an extension?
+	AS_IF([expr "$1" : '.*\.[[0-9a-zA-Z]]' >/dev/null],[
+		dnl Has an extension.
+		pattern="$1"
 	],[
-		CFLAGS="-O0 -g ${CFLAGS}"
+		dnl No extension, so look for any extension (.a and .so variants).
+		dnl Without the dot (.) to mark the end of the name prefix
+		dnl we can inadvertantly match libraries with similar prefixes,
+		dnl ie. libz and libzephyr
+		pattern="$1.*"
+	])
+	for d in $2; do
+		AS_IF([ls -1 $d/$pattern >/dev/null 2>&1],[
+			AS_VAR_SET([snert_dir],[$d])
+			break
+		])
+	done
+
+	AS_VAR_COPY([dir_val],[snert_dir])
+dnl	AS_IF([test "$dir_val" = 'no'],AC_MSG_RESULT(no),AC_MSG_RESULT(yes))
+	AC_MSG_RESULT($dir_val)
+	AS_VAR_IF([snert_dir],[no],[$4],[$3])
+	AS_VAR_POPDEF([snert_dir])
+])
+
+dnl
+dnl SNERT_CHECK_PACKAGE_HEADER(header, if-found, not-found[, extra_dirs])
+dnl
+AC_DEFUN([SNERT_CHECK_PACKAGE_HEADER],[
+	SNERT_FIND_FILE([$1],[$4 /usr/pkg/include /usr/local/include /usr/include],[$2],[$3])
+])
+
+dnl
+dnl SNERT_CHECK_PACKAGE_LIB(library, if-found, not-found[, extra_dirs])
+dnl
+AC_DEFUN([SNERT_CHECK_PACKAGE_LIB],[
+	SNERT_FIND_FILE([$1],[$4 /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib],[$2],[$3])
+])
+
+dnl
+dnl SNERT_CHECK_PACKAGE(
+dnl	name, headers, libs, [funcs],
+dnl	with_base, with_inc, with_lib,
+dnl	[extra_includes], [define_and_subst=true]
+dnl )
+dnl
+AC_DEFUN([SNERT_CHECK_PACKAGE],[
+	AS_ECHO()
+	AS_ECHO("Checking for $1 package...")
+	AS_ECHO()
+
+dnl	with_name=`AS_ECHO([$1]) | tr '[[a-z -]]' '[[A-Z_]]'`
+
+	dnl Watch out for leading and trailing whitespace with m4 macros;
+	dnl everything delimited by open/close paren and/or commas is
+	dnl part of the argument, so pretty formatting for readability
+	dnl can screw with string compares.  Use echo to trim whitespace.
+	with_base=`AS_ECHO([$5])`
+
+AS_IF([test "$with_base" != 'no'],[
+	dnl Careful with --with options as they can be specified,
+	dnl without a base directory path, in which case ignore it.
+	AS_IF([test "$with_base" = 'yes'],[
+		with_base=''
 	])
 
-	if test ${platform:-UNKNOWN} = 'CYGWIN'; then
-		AS_IF([test ${enable_debug:-no} = 'no'],[CFLAGS="-s ${CFLAGS}"])
-		CFLAGS="-I/usr/include/w32api ${CFLAGS}"
-		LDFLAGS="-L/usr/lib/w32api ${LDFLAGS}"
+dnl	dnl Save any preset flags.
+dnl	eval extra_LIBS="\${LIBS_$1}"
+dnl	eval extra_LDFLAGS="\${LDFLAGS_$1}"
+dnl	eval extra_CPPFLAGS="\${CPPFLAGS_$1}"
 
-dnl 		if test ${enable_win32:-no} = 'yes'; then
-dnl 			dnl -s		strip, no symbols
-dnl 			dnl -mno-cygwin	native windows console app
-dnl 			dnl -mwindows	native windows gui app
-dnl 			dnl -lws2_32	WinSock2 library
-dnl 			CFLAGS="-mno-cygwin ${CFLAGS}"
-dnl 			LIBS="-lws2_32 ${LIBS}"
-dnl 		fi
-	fi
+	for f in $2; do
+		SNERT_CHECK_PACKAGE_HEADER([$f],[
+			have=AS_TR_CPP(HAVE_$f)
+			AC_DEFINE_UNQUOTED($have,[1])
+			cache_id=AS_TR_SH(ac_cv_header_$f)
+			AC_CACHE_VAL($cache_id, eval $cache_id='yes')
+			SNERT_IF_SYSTEM_DIR([$dir_val],[
+				dnl Ignore system directories.
+			],[
+				SNERT_JOIN_UNIQ([CPPFLAGS_$1],["-I$dir_val"])
+			])
+		],[],[${with_base:+$with_base/include} $6])
+	done
+
+	for f in $3; do
+		SNERT_CHECK_PACKAGE_LIB([$f],[
+			have=AS_TR_CPP(HAVE_$f)
+			AC_DEFINE_UNQUOTED($have,[1])
+			SNERT_IF_SYSTEM_DIR([$dir_val],[
+				lib=`basename -- $f | sed -e's/^lib//'`
+				SNERT_JOIN_UNIQ([LIBS_$1],["-l$lib"],[head])
+			],[
+				SNERT_JOIN_UNIQ([LDFLAGS_$1],["-L$dir_val"])
+				AS_IF([expr "$f" : '.*\.a$' >/dev/null],[
+					dnl Explicit static library.
+					SNERT_JOIN_UNIQ([LIBS_$1],["$dir_val/$f"],[head])
+				],[
+					lib=`basename -- $f | sed -e's/^lib//'`
+					SNERT_JOIN_UNIQ([LIBS_$1],["-l$lib"],[head])
+				])
+			])
+		],[],[${with_base:+$with_base/lib} $7])
+	done
+
+	define_and_subst=`AS_ECHO([$9])`
+	AS_CASE([$define_and_subst],
+	[false|no|0],[
+		dnl Caller wants to take care of this, possibly
+		dnl to append extra flags before committing the
+		dnl defines and substutions.
+		:
+	],[
+		dnl Default.
+		SNERT_DEFINE(CPPFLAGS_[$1])
+		SNERT_DEFINE(LDFLAGS_[$1])
+		SNERT_DEFINE(LIBS_[$1])
+		AC_SUBST(CPPFLAGS_[$1])
+		AC_SUBST(LDFLAGS_[$1])
+		AC_SUBST(LIBS_[$1])
+
+		dnl Deprecated versions to phase out.
+		SNERT_DEFINE(CFLAGS_[$1],`eval echo \$CPPFLAGS_[$1]`)
+		SNERT_DEFINE(HAVE_LIB_[$1],`eval echo \$LIBS_[$1]`)
+		AC_SUBST(CFLAGS_[$1],`eval echo \$CPPFLAGS_[$1]`)
+		AC_SUBST(HAVE_LIB_[$1],`eval echo \$LIBS_[$1]`)
+	])
+
+	AS_IF([test -n "$4"],[
+		save_LIBS="$LIBS"
+		save_LDFLAGS="$LDFLAGS"
+		save_CPPFLAGS="$CPPFLAGS"
+
+		eval LIBS=\"\$LIBS_$1 $LIBS\"
+		eval LDFLAGS=\"\$LDFLAGS_$1 $LDFLAGS\"
+		eval CPPFLAGS=\"\$CPPFLAGS_$1 $CPPFLAGS\"
+
+		AC_CHECK_FUNCS([$4],[],[],[$8])
+
+		CPPFLAGS="$save_CPPFLAGS"
+		LDFLAGS="$save_LDFLAGS"
+		LIBS="$save_LIBS"
+	])
+],[
+	AC_MSG_NOTICE([Package $1 has been explicitly disabled.])
+])
 ])
 
 dnl
-dnl SNERT_BCC_SETTINGS
+dnl SNERT_OPTION_ENABLE_DEBUG
 dnl
-m4_define([SNERT_BCC_SETTINGS],[
-	# This assumes a Cygwin environment with Boland C++ 5.5 CLI.
-	#
-	# Borland C++ 5.5 CLI tools don't have all the standard options
-	# and require that arguments be abutted with the option letter.
+AC_DEFUN(SNERT_OPTION_ENABLE_DEBUG,[
+	dnl Assert that CFLAGS is defined. When AC_PROC_CC is called to
+	dnl check the compiler and CC == gcc is found and CFLAGS is
+	dnl undefined, then it gets assigned "-g -O2", which is just
+	dnl annoying when you want the default to no debugging.
+	CPPFLAGS="${CPPFLAGS}"
+	CFLAGS="${CFLAGS}"
 
-	platform='BorlandC'
-
-	ac_libext='lib'
-	ac_objext='obj'
-	ac_exeext='.exe'
-	LIBEXT=$ac_libext
-	OBJEXT=$ac_objext
-	EXEEXT=$ac_exeext
-
-	CPP='cpp32'
-	CPPFLAGS=
-
-	CFLAGS="-d -w-8064 ${CFLAGS}"
-	if test ${enable_debug:-no} = 'no'; then
-		CFLAGS="-O1 -v- ${CFLAGS}"
-	else
-		CFLAGS="-v ${CFLAGS}"
-	fi
-
-	CC_E='-e'
-	CC_E_NAME='-e$''*$E'
-	CC_O='-o'
-	CC_O_NAME='-o$''*$O'
-	COMPILE='${CC} ${CFLAGS} ${CC_O}$''*$O -c $<'
-
-	LD='bcc32'
-	LDFLAGS='-q -lc -L"c:/Borland/Bcc55/lib" -L"c:/Borland/Bcc55/lib/PSDK"'
-	LIBSNERT=`echo "$abs_tardir/com/snert/lib/libsnert.$LIBEXT" | sed -e 's,/,\\\\\\\\,g'`
-
-	ARCHIVE='tlib /C /a ${LIBSNERT} $$obj'
-	RANLIB='true'
-
-	XARGSI='xargs -i{}'
-	AC_SUBST(FAMILY, [WIN])
+	AC_ARG_ENABLE(debug,[AC_HELP_STRING([--enable-debug],[enable compiler debug option])],[
+		:
+	],[
+		AC_DEFINE(NDEBUG,[1],[Disable debug code])
+	])
 ])
 
 dnl
-dnl SNERT_DEFAULT_CC_SETTINGS
+dnl SNERT_SNERT
 dnl
-m4_define([SNERT_DEFAULT_CC_SETTINGS],[
-	dnl Tradional cc options.
-	dnl NOTE SunOS as(1) _wants_ a space between -o and its argument.
-	CC_E='-o'
-	CC_E_NAME='-o $@'
-	CC_O='-o'
-	CC_O_NAME='-o $''*$O'
-	LD=$CC
-
-	# Where to find libsnert includes and library.
-dnl	CFLAGS='-I${SNERT_INCDIR} '"${CFLAGS}"
-dnl	LDFLAGS='-L${SNERT_LIBDIR} '"${LDFLAGS}"
+AC_DEFUN([SNERT_SNERT],[
 	LIBSNERT='-lsnert'
 
 	# Makefile macro to compile C into an object file.
@@ -134,48 +289,87 @@ dnl	COMPILE='${CC} ${CFLAGS} -c $<'
 	ac_libext='a'
 	LIBEXT=$ac_libext
 
-	case "$CC" in
-	gcc)
-		SNERT_GCC_SETTINGS
-		;;
-	bcc32)
-		SNERT_BCC_SETTINGS
-		;;
-	esac
-
-	AC_PROG_CC
-
-	case "$CC" in
-	gcc)
-		SNERT_GCC_SETTINGS
-		;;
-	esac
-
-	AC_AIX
-
-	AC_SUBST(CC_E)
-	AC_SUBST(CC_E_NAME)
-	AC_SUBST(CC_O)
-	AC_SUBST(CC_O_NAME)
 	AC_SUBST(COMPILE)
 	AC_SUBST(ARCHIVE)
 	AC_SUBST(LIBEXT)
 	AC_SUBST(LIBSNERT)
 
 	AC_CHECK_TOOL(RANLIB, ranlib, true)
+])
+
+AC_DEFUN([SNERT_CC_INFO],[
+	AC_REQUIRE([SNERT_OPTION_ENABLE_DEBUG])
+	AC_REQUIRE([AC_PROG_CC])
+	AC_USE_SYSTEM_EXTENSIONS
+	AC_LANG([C])
+
+	AS_IF([test "$GCC" = 'yes'],[
+		GCC_MAJOR=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC__ \(.*\)/\1/p'`
+		GCC_MINOR=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC_MINOR__ \(.*\)/\1/p'`
+		GCC_PATCH=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC_PATCHLEVEL__ \(.*\)/\1/p'`
+		dnl Nothing wrong using a char for a subscript.
+		AS_IF([test $GCC_MAJOR -ge 3],[CFLAGS="-Wno-char-subscripts $CFLAGS"])
+		dnl Option to ignore extra support functions.
+		AS_IF([test $GCC_MAJOR -ge 4 -a $GCC_MINOR -ge 3 ],[CFLAGS="-Wno-unused-function${CFLAGS:+ $CFLAGS}"])
+		dnl Option to silience Valgrind and ProtoThread macro warnings.
+		AS_IF([test $GCC_MAJOR -ge 4 -a $GCC_MINOR -ge 6 ],[CFLAGS="-Wno-unused-but-set-variable${CFLAGS:+ $CFLAGS}"])
+		CFLAGS="-Wall $CFLAGS"
+	])
+	AS_IF([test ${platform:-UNKNOWN} = 'CYGWIN'],[
+		AS_IF([test ${enable_debug:-no} = 'no'],[CFLAGS="-s${CFLAGS:+ $CFLAGS}"])
+		CFLAGS="-I/usr/include/w32api${CFLAGS:+ $CFLAGS}"
+		LDFLAGS="-L/usr/lib/w32api${LDFLAGS:+ $LDFLAGS}"
+
+dnl 		AS_IF([test ${enable_win32:-no} = 'yes'],[
+dnl 			dnl -s		strip, no symbols
+dnl 			dnl -mno-cygwin	native windows console app
+dnl 			dnl -mwindows	native windows gui app
+dnl 			dnl -lws2_32	WinSock2 library
+dnl 			CFLAGS="-mno-cygwin ${CFLAGS}"
+dnl 			LIBS="-lws2_32 ${LIBS}"
+dnl 		])
+	])
+	AS_IF([test ${enable_debug:-no} = 'no'],[
+		CFLAGS="-O2${CFLAGS:+ $CFLAGS}"
+	],[
+		CFLAGS="-O0 -g${CFLAGS:+ $CFLAGS}"
+	])
+
+	dnl Tradional cc options.
+	dnl NOTE SunOS as(1) _wants_ a space between -o and its argument.
+	CC_E='-o'
+	CC_E_NAME='-o $@'
+	CC_O='-o'
+	CC_O_NAME='-o $''*$O'
+	LD=$CC
+
+	AC_SUBST(CC_E)
+	AC_SUBST(CC_E_NAME)
+	AC_SUBST(CC_O)
+	AC_SUBST(CC_O_NAME)
 
 	dnl Check for recent ANSI C additions that HAVE_HEADER_STDC check
 	dnl doesn't distinguish between C89 and C99.
+	AC_CHECK_HEADERS([stdarg.h])
 	SNERT_CHECK_DEFINE([va_copy], [stdarg.h])
+
+	AC_CHECK_SIZEOF(short)
+	AC_CHECK_SIZEOF(int)
+	AC_CHECK_SIZEOF(long)
+	AC_CHECK_SIZEOF(size_t)
+	AC_CHECK_SIZEOF(off_t)
+	AC_CHECK_SIZEOF(long long int)
+
+	SNERT_SNERT
 ])
 
 AC_DEFUN([SNERT_TAR_SETTINGS],[
 	AC_MSG_CHECKING(for tar file list option to use)
-	if tar --version 2>&1 | grep '(GNU tar)' >/dev/null ; then
+	AS_IF([tar --version 2>&1 | grep '(GNU tar)' >/dev/null],[
 		TAR_I='-T'
-	else
+	],[
 		TAR_I='-I'
-	fi
+	])
 	AC_SUBST(TAR_I)
 	AC_MSG_RESULT($TAR_I)
 ])
@@ -186,67 +380,12 @@ dnl
 dnl Only check AC_CHECK_LIB if $lib not already in $LIBS
 dnl
 AC_DEFUN(SNERT_CHECK_LIB,[
-	if echo "$LIBS" | grep -- "-l$1" >/dev/null ; then
+	AS_IF([echo "$LIBS" | grep -- "-l$1" >/dev/null],[
 		echo "checking for $2 in $1... (cached) yes"
-	else
+	],[
 		AC_CHECK_LIB([$1], [$2])
-	fi
-])
-
-dnl
-dnl SNERT_CHECK_DEFINE(symbol, header_file)
-dnl
-AC_DEFUN(SNERT_CHECK_DEFINE,[
-	AC_LANG_PUSH(C)
-	AC_CACHE_CHECK([for $1],ac_cv_define_$1,[
-		AC_RUN_IFELSE([
-			AC_LANG_SOURCE([[
-#include <$2>
-int main()
-{
-#ifdef $1
-	return 0;
-#else
-	return 1;
-#endif
-}
-			]])
-		],ac_cv_define_$1=yes, ac_cv_define_$1=no)
-	])
-	AC_LANG_POP(C)
-	AS_IF([test $ac_cv_define_$1 = 'yes'],[
-		AC_DEFINE_UNQUOTED([HAVE_MACRO_]translit($1, [a-z], [A-Z]))
-		AH_TEMPLATE([HAVE_MACRO_]translit($1, [a-z], [A-Z]))
 	])
 ])
-
-
-dnl
-dnl SNERT_CHECK_PREDEFINE(symbol)
-dnl
-AC_DEFUN(SNERT_CHECK_PREDEFINE,[
-	AC_LANG_PUSH(C)
-	AC_CACHE_CHECK([for $1],ac_cv_define_$1,[
-		AC_RUN_IFELSE([
-			AC_LANG_SOURCE([[
-int main()
-{
-#ifdef $1
-	return 0;
-#else
-	return 1;
-#endif
-}
-			]])
-		],ac_cv_define_$1=yes, ac_cv_define_$1=no)
-	])
-	AC_LANG_POP(C)
-	AS_IF([test $ac_cv_define_$1 = 'yes'],[
-		AC_DEFINE_UNQUOTED([HAVE_MACRO_]translit($1, [a-z], [A-Z]))
-		AH_TEMPLATE([HAVE_MACRO_]translit($1, [a-z], [A-Z]))
-	])
-])
-
 
 dnl
 dnl SNERT_GET_NUMERIC_DEFINE(header_file, symbol)
@@ -476,7 +615,7 @@ m4_define([SNERT_FIND_LIB],[
 	AC_CHECK_HEADER([dlfcn.h], [
 		AC_DEFINE(HAVE_DLFCN_H,[],[dynamic library support])
 		AC_CHECK_TOOL(ldd_tool, ldd)
-		if test ${ldd_tool:-no} != 'no'	; then
+		AS_IF([test ${ldd_tool:-no} != 'no'],[
 			AC_CHECK_LIB([dl],[dlopen])
 			AC_MSG_CHECKING([for $1])
 			AC_RUN_IFELSE([
@@ -497,14 +636,14 @@ main(int argc, char **argv)
 				]])
 			],[
 				libpath=[`$ldd_tool ./conftest$ac_exeext | sed -n -e "/lib$1/s/.* \([^ ]*lib$1[^ ]*\).*/\1/p"`]
-				if ./conftest$ac_exeext ${libpath:-unknown} ; then
+				AS_IF([./conftest$ac_exeext ${libpath:-unknown}],[
 					AS_VAR_SET([snert_lib], [${libpath}])
-				else
+				],[
 					AS_VAR_SET([snert_lib], 'no')
-				fi
+				])
 			])
 			AC_MSG_RESULT(AS_VAR_GET([snert_lib]))
-		fi
+		])
 	])
 	AS_IF([test AS_VAR_GET([snert_lib]) != 'no'], [$2], [$3])[]
 	AS_VAR_POPDEF([snert_lib])
@@ -527,20 +666,20 @@ AC_DEFUN(SNERT_PLATFORM,[
 
 	platform=`uname -s|sed -e 's/^\([[a-zA-Z0-9]]*\)[[^a-zA-Z0-9]].*/\1/'`
 	AC_SUBST(platform, $platform)
-	echo "platform is... $platform"
-	if test -e /etc/debian_version ; then
+	AS_ECHO("platform is... $platform")
+	AS_IF([test -e /etc/debian_version],[
 		echo "this Linux is a Debian" `cat /etc/debian_version`
 		apt-get install -y gcc libc6-dev
 		isDebian='yes'
-	fi
+	])
 
 	AC_PATH_PROGS([MD5SUM],[md5sum md5])
 
-	case "$platform" in
-	NetBSD)
+	AS_CASE([$platform],
+	[NetBSD],[
 dnl		LDFLAGS="-Wl,-R/usr/pkg/lib $LDFLAGS"
-		;;
-	esac
+		:
+	])
 
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_PLATFORM, [["${platform}"]])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_BUILD_HOST, [["`hostname`"]])
@@ -553,86 +692,16 @@ AC_DEFUN(SNERT_CHECK_CONFIGURE,[
 	# When we have no makefile, do it ourselves...
 dnl	snert_configure_command="$[]0 $[]@"
 
-	AC_PATH_PROGS([AUTOCONF],[autoconf-2.69 autoconf-2.59 autoconf],[no],[/usr/pkg/bin /usr/local/bin /usr/bin])
+	AC_PATH_PROGS([AUTOCONF],[autoconf-2.69 autoconf],[no])
 
-	if test ${AUTOCONF:-no} != 'no' -a \( aclocal.m4 -nt configure -o configure.in -nt configure -o configure.ac -nt configure \); then
-		echo 'Rebuilding the configure script first...'
+	AS_IF([test ${AUTOCONF:-no} != 'no' -a \( acsite.m4 -nt configure -o configure.ac -nt configure \)],[
+		AS_ECHO('Rebuilding the configure script first...')
 		${AUTOCONF} -f
-		echo 'Restarting configure script...'
-		echo
-		echo $snert_configure_command
+		AS_ECHO('Restarting configure script...')
+		AS_ECHO
+		AS_ECHO("$snert_configure_command")
  		exec $snert_configure_command
-	fi
-])
-
-dnl
-dnl SNERT_LIBMILTER
-dnl
-dnl Depends on SNERT_PTHREAD
-dnl
-AC_DEFUN(SNERT_OPTION_WITH_MILTER,[
-	AC_ARG_WITH(milter, [[  --with-milter[=DIR]     Milter package, optional base directory]])
-	AC_ARG_WITH(milter-inc, [[  --with-milter-inc=DIR     specific Milter include directory]])
-	AC_ARG_WITH(milter-lib, [[  --with-milter-lib=DIR     specific Milter library directory]])
-])
-AC_DEFUN(SNERT_LIBMILTER,[
-	echo
-	echo "Check for sendmail's libmilter library & header support..."
-	echo
-
-	saved_libs="$LIBS"
-	saved_cflags="$CFLAGS"
-	saved_ldflags="$LDFLAGS"
-
-if test ${with_milter:-default} != 'no' ; then
-	for d in "$with_milter" /usr /usr/local /usr/pkg ; do
-		unset ac_cv_search_smfi_main
-		unset ac_cv_header_libmilter_mfapi_h
-
-		if test X$d != X ; then
-			CFLAGS_MILTER="-I$d/include"
-			if test -d $d/lib/libmilter ; then
-				LDFLAGS_MILTER="-L$d/lib/libmilter"
-			else
-				LDFLAGS_MILTER="-L$d/lib"
-			fi
-		fi
-		echo "trying with $LDFLAGS_MILTER ..."
-
-		CFLAGS="$CFLAGS_MILTER $saved_cflags"
-		LDFLAGS="$LDFLAGS_MILTER $saved_ldflags"
-
-		AC_SEARCH_LIBS([smfi_main], [milter], [
-			AC_DEFINE_UNQUOTED(HAVE_LIBMILTER, "-lmilter -lpthread")
-			AH_TEMPLATE(HAVE_LIBMILTER, [/* Sendmail's libmilter */])
-		], [], [-lpthread])
-		AC_CHECK_HEADERS([libmilter/mfapi.h],[],[],[/* */])
-
-		if test "$ac_cv_search_smfi_main" != 'no' -a "$ac_cv_header_libmilter_mfapi_h" != 'no' ; then
-			LIBS="-lmilter -lpthread $saved_libs"
-			AC_CHECK_FUNCS([smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval smfi_insheader smfi_main smfi_opensocket smfi_progress smfi_quarantine smfi_register smfi_replacebody smfi_setbacklog smfi_setconn smfi_setdbg smfi_setmaxdatasize smfi_setmlreply smfi_setpriv smfi_setreply smfi_setsymlist smfi_settimeout smfi_stop smfi_version])
-
-			AC_SUBST(HAVE_LIB_MILTER, "-lmilter")
-			AC_SUBST(LDFLAGS_MILTER)
-			AC_SUBST(CFLAGS_MILTER)
-
-			AC_DEFINE_UNQUOTED(LDFLAGS_MILTER, "${LDFLAGS_MILTER}")
-			AC_DEFINE_UNQUOTED(CFLAGS_MILTER, "${CFLAGS_MILTER}")
-
-			AH_VERBATIM([HAVE_LIB_MILTER],[
-#undef HAVE_LIB_MILTER
-#undef CFLAGS_MILTER
-#undef LDFLAGS_MILTER
-			])
-			with_milter="$d"
-			break
-		fi
-	done
-
-	LIBS="$saved_libs"
-	CFLAGS="$saved_cflags"
-	LDFLAGS="$saved_ldflags"
-fi
+	])
 ])
 
 dnl
@@ -656,47 +725,24 @@ AC_DEFUN(SNERT_LIBSNERT,[
 	fi
 	snert_libsnert=$ac_cv_lib_snert_parsePath
 
-])
-
-dnl
-dnl SNERT_OPTION_ENABLE_DEBUG
-dnl
-AC_DEFUN(SNERT_OPTION_ENABLE_DEBUG,[
-	dnl Assert that CFLAGS is defined. When AC_PROC_CC is called to
-	dnl check the compiler and CC == gcc is found and CFLAGS is
-	dnl undefined, then it gets assigned "-g -O2", which is just
-	dnl annoying when you want the default to no debugging.
-	CFLAGS="${CFLAGS}"
-
-	AC_ARG_ENABLE(debug,
-		[AC_HELP_STRING([--enable-debug ],[enable compiler debug option])],
-		[
-			if test ${enable_debug:-no} = 'yes' ; then
-				enable_debug='yes'
-			fi
-		],[
-			AC_DEFINE(NDEBUG,[],[Disable debug code])
-			enable_debug='no'
-		]
-	)
-])
+	])
 
 AC_DEFUN(SNERT_OPTION_ENABLE_64BIT,[
 	AC_ARG_ENABLE(64bit,
 		[AC_HELP_STRING([--enable-64bit ],[enable compile & link options for 64-bit])],
 		[
-			CFLAGS="-m64 ${CFLAGS}"
-			LDFLAGS="-m64 ${LDFLAGS}"
+			CFLAGS="-m64${CFLAGS:+ $CFLAGS}"
+			LDFLAGS="-m64${LDFLAGS:+ $LDFLAGS}"
 		],[
 			dnl Option not specified, then choose based on CPU.
 			case `uname -m` in
 			x86_64|amd64)
-				CFLAGS="-m64 ${CFLAGS}"
-				LDFLAGS="-m64 ${LDFLAGS}"
+				CFLAGS="-m64${CFLAGS:+ $CFLAGS}"
+				LDFLAGS="-m64${LDFLAGS:+ $LDFLAGS}"
 				;;
 			i386)
-				CFLAGS="-m32 ${CFLAGS}"
-				LDFLAGS="-m32 ${LDFLAGS}"
+				CFLAGS="-m32${CFLAGS:+ $CFLAGS}"
+				LDFLAGS="-m32${LDFLAGS:+ $LDFLAGS}"
 				;;
 			esac
 		]
@@ -935,45 +981,51 @@ AC_DEFUN(SNERT_OPTION_ENABLE_FORK,[
 	AC_SUBST(enable_fork)
 ])
 
-dnl
-dnl SNERT_FUNC_FLOCK
-dnl
-AC_DEFUN(SNERT_FUNC_FLOCK,[
-	echo
-	echo "Check for flock() support..."
-	echo
-	AC_CHECK_HEADERS([sys/file.h], [
-		AC_CHECK_FUNCS(flock)
+AC_DEFUN(SNERT_OPTION_ENABLE_FCNTL_LOCKS,[
+	AC_ARG_ENABLE(fcntl-locks,[
+		AC_HELP_STRING([--enable-fcntl-locks],[use fcntl() file locking instead of flock()])
+	],[
+		AC_DEFINE(ENABLE_ALT_FLOCK,[1],[Enable alternative flock using fcntl.])
+	],[
+		dnl Option not specified, choose default based on OS.
+		AS_CASE([$platform],
+		[Linux],[
+			enable_fcntl_locks='yes'
+		])
 	])
+	AC_SUBST(enable_alt_flock)
 ])
 
-dnl
-dnl SNERT_OPTION_ENABLE_FCNTL_LOCKS
-dnl
-AC_DEFUN(SNERT_OPTION_ENABLE_FCNTL_LOCKS,[
-	AC_ARG_ENABLE(fcntl-locks,
-		[AC_HELP_STRING([--enable-fcntl-locks],[use fcntl() file locking instead of flock()])],
-		[
-		],[
-			dnl Option not specified, choose based on OS.
-			case "$platform" in
-			Linux)
-				enable_fcntl_locks='yes'
-				;;
-			esac
-		]
-	)
-	AS_IF([test ${enable_fcntl_locks:-'no'} = 'yes'],[AC_DEFINE_UNQUOTED(ENABLE_ALT_FLOCK)])
-	AC_SUBST(enable_alt_flock)
+AC_DEFUN(SNERT_FILE_LOCKS,[
+	AS_ECHO()
+	AS_ECHO("Check for file locking...")
+	AS_ECHO()
+	AC_CHECK_HEADERS([fcntl.h sys/file.h])
+	AC_CHECK_FUNCS(flock fcntl lockf locking)
+	SNERT_CHECK_DEFINE(O_BINARY, fcntl.h)
+	SNERT_CHECK_DEFINE(LOCK_SH, fcntl.h)
+	AH_VERBATIM(HAVE_LOCK_SH,[
+/*
+ * Define the flock() constants separately, since some systems
+ * have flock(), but fail to define the constants in a header.
+ * These values were taken from FreeBSD.
+ */
+#ifndef HAVE_MACRO_LOCK_SH
+# define LOCK_SH	0x01		/* shared file lock */
+# define LOCK_EX	0x02		/* exclusive file lock */
+# define LOCK_NB	0x04		/* don't block when locking */
+# define LOCK_UN	0x08		/* unlock file */
+#endif
+	])
 ])
 
 dnl
 dnl SNERT_POSIX_IO
 dnl
 AC_DEFUN(SNERT_POSIX_IO,[
-	echo
-	echo "Check for POSIX File & Directory I/O support..."
-	echo
+	AS_ECHO()
+	AS_ECHO("Check for POSIX File & Directory I/O support...")
+	AS_ECHO()
 	AC_HEADER_DIRENT
 dnl autoconf says the following should be included:
 dnl
@@ -995,10 +1047,12 @@ dnl # endif
 dnl #endif
 
 	AC_CHECK_HEADERS([unistd.h fcntl.h sys/stat.h utime.h])
-	AC_CHECK_FUNCS([chdir getcwd mkdir rmdir closedir opendir readdir])
-	AC_CHECK_FUNCS([chmod chown chroot fchmod stat fstat link rename symlink unlink umask utime])
-	AC_CHECK_FUNCS([close creat dup dup2 ftruncate chsize truncate lseek open pipe read write])
-	AC_CHECK_FUNCS([isatty getdtablesize])
+	AC_CHECK_FUNCS([ dnl
+		chdir getcwd mkdir rmdir closedir opendir readdir dnl
+		chmod chown chroot fchmod stat fstat link rename symlink unlink umask utime dnl
+		close creat dup dup2 ftruncate chsize truncate lseek open pipe read write dnl
+		isatty getdtablesize dnl
+	])
 	AC_FUNC_CHOWN
 ])
 
@@ -1369,7 +1423,7 @@ AC_DEFUN(SNERT_PAM,[
 
 	if test ${isDebian:-no} = 'yes' -a "$ac_cv_header_security_pam_appl_h" = 'no'; then
 		apt-get install -y libpam0g-dev
-		unset ac_cv_header_security_pam_appl_h
+		AS_UNSET(ac_cv_header_security_pam_appl_h)
 		echo 'retrying after development package update...'
 		AC_CHECK_HEADERS(security/pam_appl.h)
 	fi
@@ -1388,8 +1442,6 @@ AC_DEFUN(SNERT_ANSI_STRING,[
 	echo "Check for ANSI string functions..."
 	echo
 	AC_CHECK_FUNCS(memchr memcmp memcpy memmove memset)
-	AC_FUNC_MEMCMP
-	AC_LIBOBJ(memcmp)
 	AC_CHECK_FUNCS(strcat strncat strcpy strncpy strcmp strncmp strxfrm)
 	AC_CHECK_FUNCS(strchr strcspn strerror strlen strpbrk strrchr strspn strstr strtok)
 	AC_FUNC_STRCOLL
@@ -1400,20 +1452,11 @@ dnl
 dnl SNERT_ANSI_TIME
 dnl
 AC_DEFUN(SNERT_ANSI_TIME,[
-	echo
-	echo "Check for ANSI & supplemental time support..."
-	echo
+	AS_ECHO()
+	AS_ECHO("Check for ANSI & supplemental time support...")
+	AS_ECHO()
 
 dnl	saved_libs=$LIBS
-
-	case "${platform}" in
-	Linux|SunOS|Solaris)
-		SNERT_CHECK_LIB(rt, clock_gettime)
-		if test "$ac_cv_lib_rt_clock_gettime" != 'no'; then
-			AC_SUBST(HAVE_LIB_RT, '-lrt')
-		fi
-		;;
-	esac
 
 	AC_CHECK_HEADERS(time.h sys/time.h)
 	AC_HEADER_TIME
@@ -1429,12 +1472,18 @@ dnl # else
 dnl #  include <time.h>
 dnl # endif
 dnl #endif
-	AC_CHECK_FUNCS(clock difftime mktime time asctime ctime gmtime localtime tzset sleep usleep nanosleep)
-	AC_CHECK_FUNCS(asctime_r ctime_r gmtime_r localtime_r clock_gettime gettimeofday)
-	AC_CHECK_FUNCS(alarm getitimer setitimer)
+	AC_SEARCH_LIBS([clock_gettime],[rt])
+	AS_IF([expr "$ac_cv_search_clock_gettime" : '-l' >/dev/null],[
+		LIBS_RT="$ac_cv_search_clock_gettime"
+		AC_DEFINE_UNQUOTED(LIBS_RT,"$LIBS_RT",[Realtime library])
+		AC_SUBST(LIBS_RT)
+	])
+	AC_CHECK_FUNCS([ dnl
+		clock difftime mktime time asctime ctime gmtime localtime tzset sleep usleep nanosleep dnl
+		asctime_r ctime_r gmtime_r localtime_r clock_gettime gettimeofday dnl
+		alarm getitimer setitimer dnl
+	])
 	dnl These are typically macros:  timerclear timerisset timercmp timersub timeradd
-	AC_FUNC_MKTIME
-	AC_LIBOBJ(mktime)
 	AC_FUNC_STRFTIME
 	AC_CHECK_TYPES([struct timespec, struct timeval],[],[],[
 #ifdef HAVE_SYS_TYPES_H
@@ -1453,7 +1502,20 @@ dnl #endif
 	])
 
 	AC_STRUCT_TM
+	AC_CHECK_MEMBERS([struct tm.tm_gmtoff],[],[],[
+#ifdef TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# ifdef HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+	])
 	AC_STRUCT_TIMEZONE
+	AC_CHECK_FUNCS(timegm)
 
 dnl	LIBS=$saved_libs
 ])
@@ -1482,16 +1544,50 @@ AC_DEFUN(SNERT_EXTRA_STRING,[
 	AC_FUNC_VPRINTF
 ])
 
-dnl
-dnl SNERT_REGEX
-dnl
-AC_DEFUN(SNERT_REGEX,[
-	echo
-	echo "Check for regex..."
-	echo
+AC_DEFUN([SNERT_REGEX],[
+	AS_ECHO()
+	AS_ECHO("Check for regex...")
+	AS_ECHO()
 	AC_CHECK_HEADERS([regex.h],[
 		AC_SEARCH_LIBS([regcomp], [regex])
+		dnl Redo function tests; see SNERT_PCRE.
+		AS_UNSET(ac_cv_func_regcomp)
+		AS_UNSET(ac_cv_func_regexec)
+		AS_UNSET(ac_cv_func_regerror)
+		AS_UNSET(ac_cv_func_regfree)
 		AC_CHECK_FUNCS(regcomp regexec regerror regfree)
+	])
+])
+
+AC_DEFUN(SNERT_PCRE,[
+	dnl Redo function tests; see SNERT_REGEX.
+	AS_UNSET(ac_cv_func_regcomp)
+	AS_UNSET(ac_cv_func_regexec)
+	AS_UNSET(ac_cv_func_regerror)
+	AS_UNSET(ac_cv_func_regfree)
+	SNERT_CHECK_PACKAGE([PCRE], dnl
+		[pcre.h pcreposix.h],[libpcre libpcreposix], dnl
+		[pcre_compile pcre_exec pcre_free regcomp regexec regerror regfree] dnl
+		[$with_pcre],[$with_pcre_inc],[$with_pcre_lib] dnl
+	)
+dnl 	AC_SUBST(LIBS_PCRE)
+dnl 	AC_SUBST(CPPFLAGS_PCRE)
+dnl 	AC_SUBST(LDFLAGS_PCRE)
+	AH_VERBATIM(LIBS_PCRE,[
+#undef HAVE_PCRE_H
+#undef HAVE_PCREPOSIX_H
+#undef HAVE_LIBPCRE
+#undef HAVE_LIBPCREPOSIX
+#undef HAVE_PCRE_COMPILE
+#undef HAVE_PCRE_EXEC
+#undef HAVE_PCRE_FREE
+#undef HAVE_REGCOMP
+#undef HAVE_REGEXEC
+#undef HAVE_REGERROR
+#undef HAVE_REGFREE
+#undef CPPFLAGS_PCRE
+#undef LDFLAGS_PCRE
+#undef LIBS_PCRE
 	])
 ])
 
@@ -1518,133 +1614,105 @@ AC_DEFUN(SNERT_TERMIOS,[
 ])
 
 AC_DEFUN(SNERT_OPTION_WITH_LIBEV,[
-	AC_ARG_WITH(libev, [[  --with-libev[=DIR]      use libev in place of Snert Events API]])
+	AC_ARG_WITH(libev,[AC_HELP_STRING([--with-libev],[use libev in place of Snert Event API, optional base directory])])
+dnl	AC_ARG_WITH(libev-inc,[AC_HELP_STRING([--with-libev-inc],[specific libev include directory])])
+dnl	AC_ARG_WITH(libev-lib,[AC_HELP_STRING([--with-libev-lib],[specific libev library directory])])
 ])
 AC_DEFUN(SNERT_LIBEV,[
-AS_IF([test ${with_libev:-default} != 'no' -a ${with_libev:-default} != 'default'],[
-	echo
-	echo "Check for libev..."
-	echo
-
-	saved_libs="$LIBS"
-	saved_cflags="$CFLAGS"
-	saved_ldflags="$LDFLAGS"
-
-	for d in "$with_libev" /usr/local /usr/pkg ; do
-		unset ac_cv_search_ev_run
-		unset ac_cv_header_ev_h
-
-		if test X$d != X ; then
-			CFLAGS_LIBEV="-I$d/include"
-			LDFLAGS_LIBEV="-L$d/lib -Wl,-E"
-		fi
-		echo "trying with $LDFLAGS_LIBEV ..."
-
-		CFLAGS="$CFLAGS_LIBEV $saved_cflags"
-		LDFLAGS="$LDFLAGS_LIBEV $saved_ldflags"
-
-		AC_SEARCH_LIBS([ev_run], [ev], [LIBS="-lev $LIBS"], [], [])
-		AC_CHECK_HEADERS([ev.h],[],[],[/* */])
-
-		AS_IF([test "$ac_cv_search_ev_run" != 'no' -a "$ac_cv_header_ev_h" != 'no'],[
-			AS_IF([test ${with_libev:-default} != 'default'],[AC_DEFINE_UNQUOTED(USE_LIBEV)])
-			AC_SUBST(HAVE_LIB_LIBEV, "-lev")
-			AC_SUBST(LDFLAGS_LIBEV)
-			AC_SUBST(CFLAGS_LIBEV)
-
-			AC_DEFINE_UNQUOTED(HAVE_LIB_LIBEV, "${HAVE_LIB_LIBEV}")
-			AC_DEFINE_UNQUOTED(LDFLAGS_LIBEV, "${LDFLAGS_LIBEV}")
-			AC_DEFINE_UNQUOTED(CFLAGS_LIBEV, "${CFLAGS_LIBEV}")
-
-			AH_VERBATIM([HAVE_LIB_LIBEV],[
-/*
- * libev 4
- */
+	AS_CASE([$platform],
+	[NetBSD],[
+		with_libev_inc='/usr/pkg/include/ev'
+		with_libev_lib='/usr/pkg/lib/ev'
+	])
+	SNERT_CHECK_PACKAGE([LIBEV], dnl
+		[ev.h ev/ev.h],[libev],[ev_run], dnl
+		[$with_libev],[$with_libev_inc],[$with_libev_lib] dnl
+	)
+	dnl Not default and not explicitly disabled, ie. explicitly set.
+	AS_IF([test X"$with_libev" != X -a "$with_libev" != 'no'],[
+		AC_DEFINE_UNQUOTED(USE_LIBEV)
+	])
+	AH_VERBATIM(LIBS_LIBEV,[
 #undef USE_LIBEV
 #undef HAVE_EV_H
-#undef HAVE_LIB_LIBEV
-#undef CFLAGS_LIBEV
+#undef HAVE_EV_RUN
+#undef CPPFLAGS_LIBEV
 #undef LDFLAGS_LIBEV
-			])
-			with_libev="$d"
-			break
-		])
-	done
-
-	LIBS="$saved_libs"
-	CFLAGS="$saved_cflags"
-	LDFLAGS="$saved_ldflags"
-])
-])
-
-
-AC_DEFUN(SNERT_OPTION_WITH_LUA,[
-	AC_ARG_WITH(lua, [[  --with-lua[=DIR]     Lua package, optional base directory]])
-	AC_ARG_WITH(lua-inc, [[  --with-lua-inc=DIR     specific Lua include directory]])
-	AC_ARG_WITH(lua-lib, [[  --with-lua-lib=DIR     specific Lua library directory]])
-])
-AC_DEFUN(SNERT_LUA,[
-	SNERT_FIRST_PACKAGE([Lua],[lua.h],[luaL_newstate],[],[-lm])
-	AC_SUBST(CFLAGS_LUA)
-	AC_SUBST(LDFLAGS_LUA)
-	AC_SUBST(HAVE_LIBLUA)
-	AH_VERBATIM(HAVE_LIB_LUA,[
-#undef HAVE_LUA_H
-#undef CFLAGS_LUA
-#undef LDFLAGS_LUA
-#undef HAVE_LIB_LUA
+#undef LIBS_LIBEV
 	])
 ])
 
-AC_DEFUN(SNERT_OPTION_WITH_OPENSSL,[
-	AC_ARG_WITH(openssl, [[  --with-openssl[=DIR]    include OpenSSL support]])
+AC_DEFUN(SNERT_OPTION_WITH_LUA,[
+	AC_ARG_WITH(lua, [[  --with-lua[=DIR]     Lua package, optional base directory]])
+dnl	AC_ARG_WITH(lua-inc, [[  --with-lua-inc=DIR     specific Lua include directory]])
+dnl	AC_ARG_WITH(lua-lib, [[  --with-lua-lib=DIR     specific Lua library directory]])
 ])
-AC_DEFUN(SNERT_OPENSSL,[
-AS_IF([test ${with_openssl:-default} != 'no'],[
-	echo
-	echo "Check for OpenSSL..."
-	echo
+AC_DEFUN(SNERT_LUA,[
+	LIBS_LUA="-lm"
+	SNERT_CHECK_PACKAGE([LUA], dnl
+		[lua.h],[liblua],[luaL_newstate], dnl
+		[$with_lua],[$with_lua_inc],[$with_lua_lib] dnl
+	)
+	AH_VERBATIM(LIBS_LUA,[
+#undef HAVE_LUA_H
+#undef HAVE_LUAL_NEWSTATE
+#undef CPPFLAGS_LUA
+#undef LDFLAGS_LUA
+#undef LIBS_LUA
+	])
+])
 
-	saved_libs="$LIBS"
-	saved_cflags="$CFLAGS"
-	saved_ldflags="$LDFLAGS"
+AC_DEFUN(SNERT_OPTION_WITH_MILTER,[
+	AC_ARG_WITH(milter, [[  --with-milter[=DIR]     Milter package, optional base directory]])
+dnl	AC_ARG_WITH(milter-inc, [[  --with-milter-inc=DIR     specific Milter include directory]])
+dnl	AC_ARG_WITH(milter-lib, [[  --with-milter-lib=DIR     specific Milter library directory]])
+])
+AC_DEFUN(SNERT_LIBMILTER,[
+	AC_REQUIRE([SNERT_PTHREAD])
+	CFLAGS_MILTER="$CFLAGS_PTHREAD"
+	CPPFLAGS_MILTER="$CPPFLAGS_PTHREAD"
+	LDFLAGS_MILTER="$LDFLAGS_PTHREAD"
+	LIBS_MILTER="$HAVE_LIB_PTHREAD"
 
-	for d in "$with_openssl" /usr/local /usr/pkg; do
-		unset ac_cv_search_SSL_library_init
-		unset ac_cv_search_EVP_cleanup
-		unset ac_cv_header_openssl_ssl_h
-		unset ac_cv_header_openssl_bio_h
-		unset ac_cv_header_openssl_err_h
-		unset ac_cv_header_openssl_crypto_h
+	SNERT_CHECK_PACKAGE([MILTER], dnl
+		[libmilter/mfapi.h],[libmilter],[ dnl
+		smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom dnl
+		smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval dnl
+		smfi_insheader smfi_main smfi_opensocket smfi_progress dnl
+		smfi_quarantine smfi_register smfi_replacebody smfi_setbacklog dnl
+		smfi_setconn smfi_setdbg smfi_setmaxdatasize smfi_setmlreply dnl
+		smfi_setpriv smfi_setreply smfi_setsymlist smfi_settimeout dnl
+		smfi_stop smfi_version dnl
+		], dnl
+		[$with_milter],[$with_milter_inc],[$with_milter_lib] dnl
+	)
 
-		if test X$d != X ; then
-			CFLAGS_SSL="-I$d/include"
-			LDFLAGS_SSL="-L$d/lib -Wl,-E"
-		fi
-		echo "trying with $LDFLAGS_SSL ..."
+	AH_VERBATIM(LIBS_MILTER,[
+#undef HAVE_LIBMILTER_MFAPI_H
+#undef CPPFLAGS_MILTER
+#undef LDFLAGS_MILTER
+#undef HAVE_LIBMILTER
+#undef LIBS_MILTER
+	])
+])
 
-		CFLAGS="$CFLAGS_SSL $saved_cflags"
-		LDFLAGS="$LDFLAGS_SSL $saved_ldflags"
-
-		AC_SEARCH_LIBS([EVP_cleanup], [crypto], [AC_DEFINE_UNQUOTED(HAVE_LIBCRYPTO, "-lcrypto")])
-		AC_SEARCH_LIBS([SSL_library_init], [ssl], [AC_DEFINE_UNQUOTED(HAVE_LIBSSL, "-lssl")])
-		AC_CHECK_HEADERS([openssl/ssl.h openssl/bio.h openssl/err.h openssl/crypto.h],[],[],[/* */])
-		SNERT_CHECK_DEFINE(OpenSSL_add_all_algorithms, openssl/evp.h)
-		AC_CHECK_FUNCS([SSL_library_init EVP_cleanup])
-
-		if test "$ac_cv_search_SSL_library_init" != 'no' -a "$ac_cv_header_openssl_ssl_h" != 'no' ; then
-			AC_SUBST(HAVE_LIBCRYPTO, '-lcrypto')
-			AC_SUBST(HAVE_LIBSSL, '-lssl')
-			AC_SUBST(LDFLAGS_SSL)
-			AC_SUBST(CFLAGS_SSL)
-
-			AC_DEFINE_UNQUOTED(LDFLAGS_SSL, "${LDFLAGS_SSL}")
-			AC_DEFINE_UNQUOTED(CFLAGS_SSL, "${CFLAGS_SSL}")
-
-			AH_VERBATIM([HAVE_LIBSSL],[
-/*
- * OpenSSL
- */
+AC_DEFUN([SNERT_OPTION_WITH_OPENSSL],[
+	AC_ARG_WITH([openssl],[AS_HELP_STRING([--with-openssl=DIR],[OpenSSL package, optional base directory])])
+dnl	AC_ARG_WITH([openssl-inc],[AS_HELP_STRING([--with-openssl-inc=DIR],[specific OpenSSL include directory])])
+dnl	AC_ARG_WITH([openssl-lib],[AS_HELP_STRING([--with-openssl-lib=DIR],[specific OpenSSL library directory])])
+])
+AC_DEFUN([SNERT_OPENSSL],[
+	AC_REQUIRE([SNERT_NETWORK])
+	SNERT_CHECK_PACKAGE([SSL], dnl
+		[openssl/ssl.h openssl/bio.h openssl/err.h openssl/crypto.h], dnl
+		[libcrypto libssl],[SSL_library_init EVP_cleanup] dnl
+		[$with_openssl],[$with_openssl_inc],[$with_openssl_lib] dnl
+	)
+	SNERT_CHECK_DEFINE(OpenSSL_add_all_algorithms, openssl/evp.h)
+dnl 	AC_SUBST(LIBS_SSL)
+dnl 	AC_SUBST(CPPFLAGS_SSL)
+dnl 	AC_SUBST(LDFLAGS_SSL)
+	AH_VERBATIM(LIBS_SSL,[
 #undef HAVE_LIBSSL
 #undef HAVE_LIBCRYPTO
 #undef HAVE_OPENSSL_SSL_H
@@ -1654,199 +1722,130 @@ AS_IF([test ${with_openssl:-default} != 'no'],[
 #undef HAVE_EVP_CLEANUP
 #undef HAVE_SSL_LIBRARY_INIT
 #undef HAVE_MACRO_OPENSSL_ADD_ALL_ALGORITHMS
-#undef CFLAGS_SSL
+#undef CPPFLAGS_SSL
 #undef LDFLAGS_SSL
-			])
-			with_openssl="$d"
-			break
-		fi
-	done
-
-	LIBS="$saved_libs"
-	CFLAGS="$saved_cflags"
-	LDFLAGS="$saved_ldflags"
-])
-])
-
-dnl
-dnl SNERT_FIRST_PACKAGE(name, headers, functions, [extra_ldflags[, extra_libs[, static]]])
-dnl
-AC_DEFUN([SNERT_FIRST_PACKAGE],[
-	pkg_name="$1"
-	pkg_headers="$2"
-	pkg_functions="$3"
-	pkg_extra_ldflags="$4"
-	pkg_extra_libs="$5"
-	pkg_use_static_lib="$6"
-
-	dnl Assumes common naming convention with_NAME, libNAME.*, and NAME.h
-	pkg_lib=`echo $pkg_name | tr [A-Z], [a-z]`
-
-	dnl Fetch values of with_* options.
-	eval pkg_with=\$with_${pkg_lib}
-	eval pkg_with_inc=\$with_${pkg_lib}_inc
-	eval pkg_with_lib=\$with_${pkg_lib}_lib
-
-	dnl Strip mysterious outer single quotes.
-	eval pkg_with=`echo $pkg_with`
-	eval pkg_with_inc=`echo $pkg_with_inc`
-	eval pkg_with_lib=`echo $pkg_with_lib`
-
-dnl Include package by default.
-AS_IF([test ${pkg_with:-yes} != 'no'],[
-	echo
-	echo "Check for $pkg_name..."
-	echo
-
-	saved_libs=$LIBS
-	saved_cflags=$CFLAGS
-	saved_ldflags=$LDFLAGS
-
-	AS_IF([ test -d "$pkg_with_inc" ],[
-		pkg_dirs="$pkg_with_inc"
-	],[ test -d "$pkg_with/include" ],[
-		pkg_dirs="$pkg_with/include"
-	],[
-		dnl Search order significant.
-		pkg_dirs="/usr/pkg/include /usr/local/include /usr/include"
-	])
-
-	dnl Find all instances of pkg_header.
-	found='no'
-	for h in $pkg_headers; do
-		for I_dir in $pkg_dirs; do
-			AS_IF([ test ! -f "$I_dir/$h" ],[
-				continue
-			])
-			AS_IF([ test "$I_dir" != '/usr/include' ],[
-				CFLAGS="-I$I_dir $saved_CFLAGS"
-			],[
-				CFLAGS="$saved_CFLAGS"
-			])
-
-			dnl Remove any previous cached result.
-			eval unset AS_TR_SH(ac_cv_header_$h)
-			AC_CHECK_HEADER([$h],[
-				AC_DEFINE_UNQUOTED(AS_TR_CPP(HAVE_$h),[1],[ ])
-dnl				AH_TEMPLATE([HAVE_]translit($h, [a-z./], [A-Z__]))
-			],[
-			],[
-/* No extra includes. */
-			])
-
-			dnl No need to repeat the library check once found.
-			test "$found" = 'yes' && break
-
-			dnl Find matching library.
-			pkg_dir=`dirname $I_dir`
-			for L_dir in $pkg_with_lib "$pkg_dir/lib64" "$pkg_dir/lib"; do
-				AS_IF([ test ! -d $L_dir ],[
-					continue
-				])
-				AS_IF([ test "$L_dir" != '/usr/lib64' -a "$L_dir" != '/usr/lib' ],[
-					LDFLAGS="-L$L_dir $pkg_extra_ldflags $saved_LDFLAGS"
-				],[
-					LDFLAGS="$pkg_extra_ldflags $saved_LDFLAGS"
-				])
-
-				AS_IF([ test "$pkg_use_static_lib" = 'static' ],[
-					LDFLAGS="$pkg_extra_ldflags $saved_LDFLAGS"
-					lib="$L_dir/lib$pkg_lib.a"
-				],[
-					dnl Don't care if static or dynamic.
-					lib="-l$pkg_lib"
-				])
-				LIBS="$saved_LIBS $lib $pkg_extra_libs"
-
-				dnl Remove any cached result.
-				for f in $pkg_functions ; do
-					eval unset ac_cv_func_$f
-				done
-
-				AC_MSG_RESULT([looking for -l$pkg_lib with -L$L_dir ...])
-				AC_CHECK_FUNCS([$pkg_functions],[
-					found=yes
-				],[
-					:
-				],[
-					$pkg_extra_libs
-				])
-				test "$found" = 'yes' && break
-			done
-			test "$found" = 'yes' && break
-		done
-	done
-
-	AS_IF([ test "$found" = 'yes' ],[
-		dnl Declare shell variables for AC_SUBST().
-		eval AS_TR_CPP(CFLAGS_$pkg_lib)="-I$I_dir"
-		eval AS_TR_CPP(LDFLAGS_$pkg_lib)="-L$L_dir"
-		eval AS_TR_CPP(HAVE_LIB_$pkg_lib)="$lib"
-
-		dnl Declar #define macros.
-		AC_DEFINE_UNQUOTED(AS_TR_CPP(CFLAGS_$pkg_lib),"-I$I_dir",[$pkg_name], [ ])
-		AC_DEFINE_UNQUOTED(AS_TR_CPP(LDFLAGS_$pkg_lib), "-L$L_dir", [$pkg_name], [ ])
-		AC_DEFINE_UNQUOTED(AS_TR_CPP(HAVE_LIB_$pkg_lib), "$lib", [$pkg_name], [ ])
-
-dnl		AH_TEMPLATE([CFLAGS_]translit($pkg_lib, [a-z./], [A-Z__]))
-dnl		AH_TEMPLATE([LDFLAGS_]translit($pkg_lib, [a-z./], [A-Z__]))
-dnl		AH_TEMPLATE([HAVE_LIB_]translit($pkg_lib, [a-z./], [A-Z__]))
-	])
-
-	LIBS="$saved_libs"
-	CFLAGS="$saved_cflags"
-	LDFLAGS="$saved_ldflags"
-])
-])
-
-dnl
-dnl SNERT_SQLITE3
-dnl
-dnl Depends on SNERT_PTHREAD
-dnl
-AC_DEFUN(SNERT_OPTION_WITH_SQLITE3,[
-	AC_ARG_WITH([sqlite3], [[  --with-sqlite3[=DIR]    SQLite3 package, optional base directory]])
-	AC_ARG_WITH([sqlite3-inc], [[  --with-sqlite3-inc=DIR  specific SQLite3 include directory]])
-	AC_ARG_WITH([sqlite3-lib], [[  --with-sqlite3-lib=DIR  specific SQLite3 library directory]])
-])
-AC_DEFUN(SNERT_SQLITE3,[
-	SNERT_FIRST_PACKAGE([SQLite3],[sqlite3.h],[sqlite3_open],[$LDFLAGS_PTHREAD],[$HAVE_LIB_PTHREAD],[static])
-	AC_SUBST(CFLAGS_SQLITE3)
-	AC_SUBST(LDFLAGS_SQLITE3)
-	AC_SUBST(HAVE_LIB_SQLITE3)
-
-	dnl Using AH_TEMPLATE in SNERT_FIRST_PACKAGE does not appear
-	dnl to work, so declare them here
-	AH_VERBATIM(HAVE_LIB_SQLITE3,[
-#undef HAVE_SQLITE3_H
-#undef HAVE_SQLITE3_OPEN
-#undef CFLAGS_SQLITE3
-#undef LDFLAGS_SQLITE3
-#undef HAVE_LIB_SQLITE3
+#undef LIBS_SSL
 	])
 ])
 
-AC_DEFUN(SNERT_OPTION_WITH_SASL2,[
-	AC_ARG_WITH([sasl2], [[  --with-sasl2[=DIR]    SASL2 package, optional base directory]])
-	AC_ARG_WITH([sasl2-inc], [[  --with-sasl2-inc=DIR  specific SASL2 include directory]])
-	AC_ARG_WITH([sasl2-lib], [[  --with-sasl2-lib=DIR  specific SASL2 library directory]])
+AC_DEFUN([SNERT_OPTION_WITH_SASL2],[
+	AC_ARG_WITH([sasl2],[AS_HELP_STRING([--with-sasl2=DIR],[SASL2 package, optional base directory])])
+dnl	AC_ARG_WITH([sasl2-inc],[AS_HELP_STRING([--with-sasl2-inc=DIR],[specific SASL2 include directory])])
+dnl	AC_ARG_WITH([sasl2-lib],[AS_HELP_STRING([--with-sasl2-lib=DIR],[specific SASL2 library directory])])
 ])
-AC_DEFUN(SNERT_SASL2,[
-	SNERT_FIRST_PACKAGE([SASL2],[sasl/sasl.h sasl/saslutil.h],[prop_get sasl_checkapop],[],[],[static])
-	AC_SUBST(CFLAGS_SASL2)
-	AC_SUBST(LDFLAGS_SASL2)
-	AC_SUBST(HAVE_LIB_SASL2)
-	AH_VERBATIM(HAVE_LIB_SASL2,[
+AC_DEFUN([SNERT_SASL2],[
+	AC_REQUIRE([SNERT_NETWORK])
+	SNERT_CHECK_PACKAGE([SASL2], dnl
+		[sasl/sasl.h sasl/saslutil.h],[libsasl2],[prop_get sasl_checkapop], dnl
+		[$with_sasl2],[$with_sasl2_inc],[$with_sasl2_lib] dnl
+	)
+dnl 	AC_SUBST(LIBS_SASL2)
+dnl 	AC_SUBST(CPPFLAGS_SASL2)
+dnl 	AC_SUBST(LDFLAGS_SASL2)
+	AH_VERBATIM(LIBS_SASL2,[
+#undef HAVE_LIBSASL2
 #undef HAVE_SASL_SASL_H
 #undef HAVE_SASL_SASLUTIL_H
 #undef HAVE_SASL_CHECKAPOP
 #undef HAVE_PROP_GET
-#undef CFLAGS_SASL2
+#undef CPPFLAGS_SASL2
 #undef LDFLAGS_SASL2
-#undef HAVE_LIB_SASL2
+#undef LIBS_SASL2
 	])
 ])
 
+AC_DEFUN(SNERT_OPTION_WITH_SQLITE3,[
+	AC_ARG_WITH([sqlite3],[AS_HELP_STRING([--with-sqlite3=DIR],[SQLite3 package, optional base directory])])
+dnl	AC_ARG_WITH([sqlite3-inc],[AS_HELP_STRING([--with-sqlite3-inc=DIR],[specific SQLite3 include directory])])
+dnl	AC_ARG_WITH([sqlite3-lib],[AS_HELP_STRING([--with-sqlite3-lib=DIR],[specific SQLite3 library directory])])
+])
+AC_DEFUN(SNERT_SQLITE3,[
+	AC_REQUIRE([SNERT_PTHREAD])
+	CFLAGS_SQLITE3="$CFLAGS_PTHREAD"
+	CPPFLAGS_SQLITE3="$CPPFLAGS_PTHREAD"
+	LDFLAGS_SQLITE3="$LDFLAGS_PTHREAD"
+	LIBS_SQLITE3="$HAVE_LIB_PTHREAD"
+
+	SNERT_CHECK_PACKAGE([SQLITE3],[sqlite3.h],[libsqlite3],[sqlite3_open], dnl
+		[$with_sqlite3],[$with_sqlite3_inc],[$with_sqlite3_lib] dnl
+	)
+dnl 	AC_SUBST(LIBS_SQLITE3)
+dnl 	AC_SUBST(CPPFLAGS_SQLITE3)
+dnl 	AC_SUBST(LDFLAGS_SQLITE3)
+	AH_VERBATIM(LIBS_SQLITE3,[
+#undef HAVE_LIBSQLITE3
+#undef HAVE_SQLITE3_H
+#undef HAVE_SQLITE3_OPEN
+#undef CPPFLAGS_SQLITE3
+#undef LDFLAGS_SQLITE3
+#undef LIBS_SQLITE3
+	])
+])
+
+AC_DEFUN(SNERT_OPTION_WITH_MYSQL,[
+	AC_ARG_WITH([mysql],[AS_HELP_STRING([--with-mysql=DIR],[MySQL package, optional base directory])])
+dnl	AC_ARG_WITH([mysql-inc],[AS_HELP_STRING([--with-mysql-inc=DIR],[specific MySQL include directory])])
+dnl	AC_ARG_WITH([mysql-lib],[AS_HELP_STRING([--with-mysql-lib=DIR],[specific MySQL library directory])])
+])
+AC_DEFUN(SNERT_MYSQL,[
+	SNERT_CHECK_PACKAGE([MYSQL],[mysql.h mysql/mysql.h],[libmysqlclient mysql/libmysqlclient ],[mysql_select_db], dnl
+		[$with_mysql],[$with_mysql_inc],[$with_mysql_lib],[],[no]dnl
+	)
+
+	AC_PATH_PROG([MYSQL_CONFIG],[mysql_config],[false])
+	AS_IF([test "$MYSQL_CONFIG" = 'false'],[
+		with_mysql='no'
+		AS_UNSET([LIBS_MYSQL])
+		AS_UNSET([LDFLAGS_MYSQL])
+		AS_UNSET([CPPFLAGS_MYSQL])
+		AC_MSG_WARN([mysql_config not found, disabling MySQL support.])
+	],[
+		dnl Override found flags with those supplied by tool.
+		CPPFLAGS_MYSQL=`$MYSQL_CONFIG --include`
+		LIBS_MYSQL=`$MYSQL_CONFIG --libs`
+	])
+
+	SNERT_DEFINE([LIBS_MYSQL])
+	SNERT_DEFINE([LDFLAGS_MYSQL])
+	SNERT_DEFINE([CPPFLAGS_MYSQL])
+
+ 	AC_SUBST(LIBS_MYSQL)
+ 	AC_SUBST(LDFLAGS_MYSQL)
+ 	AC_SUBST(CPPFLAGS_MYSQL)
+
+	AH_VERBATIM(LIBS_MYSQL,[
+#undef HAVE_MYSQL_LIBMYSQLCLIENT
+#undef HAVE_LIBMYSQLCLIENT
+#undef HAVE_MYSQL_MYSQL_H
+#undef HAVE_MYSQL_H
+#undef HAVE_MYSQL_SELECT_DB
+#undef CPPFLAGS_MYSQL
+#undef LDFLAGS_MYSQL
+#undef LIBS_MYSQL
+	])
+])
+
+AC_DEFUN(SNERT_OPTION_WITH_PGSQL,[
+	AC_ARG_WITH([pgsql],[AS_HELP_STRING([--with-pgsql=DIR],[PostgreSQL package, optional base directory])])
+dnl	AC_ARG_WITH([pgsql-inc],[AS_HELP_STRING([--with-pgsql-inc=DIR],[specific PostgreSQL include directory])])
+dnl	AC_ARG_WITH([pgsql-lib],[AS_HELP_STRING([--with-pgsql-lib=DIR],[specific PostgreSQL library directory])])
+])
+AC_DEFUN(SNERT_PGSQL,[
+	SNERT_CHECK_PACKAGE([PGSQL],[libpq-fe.h],[libpq],[PQconnectdb],dnl
+		[$with_pgsql],[$with_pgsql_inc],[$with_pgsql_lib]dnl
+	)
+dnl 	AC_SUBST(LIBS_PGSQL)
+dnl 	AC_SUBST(CPPFLAGS_PGSQL)
+dnl 	AC_SUBST(LDFLAGS_PGSQL)
+	AH_VERBATIM(LIBS_PGSQL,[
+#undef HAVE_LIBPQ
+#undef HAVE_LIBPQ_FE_H
+#undef HAVE_PQCONNECTDB
+#undef CPPFLAGS_PGSQL
+#undef LDFLAGS_PGSQL
+#undef LIBS_PGSQL
+	])
+])
 
 dnl
 dnl SNERT_BUILD_THREADED_SQLITE3
@@ -1943,7 +1942,7 @@ AC_DEFUN(SNERT_NETWORK,[
 	SNERT_CHECK_PREDEFINE(__WIN32__)
 	SNERT_CHECK_PREDEFINE(__CYGWIN__)
 
-	if test "$ac_cv_define___WIN32__" = 'no' ; then
+	AS_IF([test "$ac_cv_define___WIN32__" = 'no'],[
 		AC_SEARCH_LIBS([socket], [socket nsl])
 		AC_SEARCH_LIBS([inet_aton], [socket nsl resolv])
 
@@ -2005,7 +2004,7 @@ dnl #endif
 				if_nameindex if_freenameindex if_nametoindex if_indextoname
 			])
 		])
-	else
+	],[
 		AC_CHECK_HEADERS(windows.h)
 		AC_CHECK_HEADER(winsock2.h,[
 			AC_DEFINE_UNQUOTED(AS_TR_CPP([HAVE_]winsock2.h),[],[Windows BSD Socket API])
@@ -2077,14 +2076,14 @@ dnl #endif
 			AC_DEFINE(AS_TR_CPP([HAVE_]$i),[],[function $1])
 			AC_MSG_RESULT([assumed in winsock2.h & ws2tcpip.h])
 		done
-	fi
+	])
 
-	if test ${ac_cv_define___CYGWIN__:-no} != 'no' -o ${ac_cv_define___WIN32__:-no} != 'no'; then
+	AS_IF([test ${ac_cv_define___CYGWIN__:-no} != 'no' -o ${ac_cv_define___WIN32__:-no} != 'no'],[
 		NETWORK_LIBS="-lws2_32 -lIphlpapi $NETWORK_LIBS"
 		AC_SUBST(NETWORK_LIBS, ${NETWORK_LIBS})
-	fi
+	])
 
-		AC_CHECK_TYPES([struct sockaddr_in6, struct in6_addr, struct sockaddr_un, socklen_t],[],[],[
+	AC_CHECK_TYPES([struct sockaddr_in6, struct in6_addr, struct sockaddr_un, socklen_t, sockaddr_storage],[],[],[
 #if defined(__WIN32__)
 # define WINVER	0x0501
 # if defined(HAVE_WINDOWS_H)
@@ -2116,8 +2115,8 @@ dnl #endif
 #  include <netinet6/in6.h>
 # endif
 #endif
-		])
-		AC_CHECK_MEMBERS([struct sockaddr.sa_len, struct sockaddr_in.sin_len, struct sockaddr_in6.sin6_len, struct sockaddr_un.sun_len],[],[],[
+	])
+	AC_CHECK_MEMBERS([struct sockaddr.sa_len, struct sockaddr_in.sin_len, struct sockaddr_in6.sin6_len, struct sockaddr_un.sun_len],[],[],[
 #if defined(__WIN32__)
 # define WINVER	0x0501
 # if defined(HAVE_WINDOWS_H)
@@ -2149,7 +2148,7 @@ dnl #endif
 #  include <netinet6/in6.h>
 # endif
 #endif
-		])
+	])
 
 ])
 
@@ -2157,9 +2156,9 @@ dnl
 dnl SNERT_SYS
 dnl
 AC_DEFUN([SNERT_SYS],[
-	echo
-	echo "Check for system kernel support..."
-	echo
+	AS_ECHO()
+	AS_ECHO("Check for system kernel support...")
+	AS_ECHO()
 	dnl Linux
 	AC_CHECK_HEADERS([sys/prctl.h],[
 		AC_CHECK_FUNCS(prctl)
@@ -2214,11 +2213,11 @@ AC_DEFUN(SNERT_INIT,[
 	AC_SUBST(package_major, [[`echo $PACKAGE_VERSION | sed -e 's/^\([0-9]*\)\.\([0-9]*\)/\1/'`]])
 	AC_SUBST(package_minor, [[`echo $PACKAGE_VERSION | sed -e 's/^\([0-9]*\)\.\([0-9]*\)/\2/'`]])
 
-	if test -f "$3" ; then
-		AC_SUBST(package_build, "`cat $3`")
-	elif test -f $srcdir/BUILD_ID.TXT ; then
-		AC_SUBST(package_build, "`cat $srcdir/BUILD_ID.TXT | tr -d '[\r\n]'`")
-	fi
+	AS_IF([test -f "$3"],[
+		AC_SUBST(package_build, [[`cat $3`]])
+	],[test -f $srcdir/BUILD_ID.TXT],[
+		AC_SUBST(package_build, [[`cat $srcdir/BUILD_ID.TXT | tr -d '[\r\n]'`]])
+	])
 
 	AC_SUBST(package_version, "${PACKAGE_VERSION}${package_build:+.}${package_build}")
 	AC_SUBST(package_string, "${PACKAGE_NAME} ${package_version}")
@@ -2238,11 +2237,10 @@ AC_DEFUN(SNERT_INIT,[
 	snert_configure_command="$[]0"
 	for arg in $ac_configure_args; do
 		dnl skip environment variables that should appear BEFORE configure
-		case $arg in
-		CFLAGS=*|LDFLAGS=*)
+		AS_CASE([$arg],
+		[CFLAGS=*|LDFLAGS=*],[
 			continue
-			;;
-		esac
+		])
 		dnl Remove previous quoting of single quote, place single quotes around option value
 		arg=`echo "$arg" | sed -e "s/'\\\\\\\\'//g" -e "s/^'\(.*\)'$/\1/" -e "s/\([[^=]]*=\)\([[^']].*[[^']]\)/\1'\2'/"`
 		snert_configure_command="${snert_configure_command} [$]arg"
@@ -2256,51 +2254,41 @@ AC_DEFUN(SNERT_INIT,[
 	SNERT_CHECK_CONFIGURE
 
 	dnl Define some default vaules for milters subsitutions.
-	if test X"$1" = X'MILTER' ; then
+	AS_IF([test X"$1" = X'MILTER'],[
 		test "$prefix" = NONE -a "$localstatedir" = '${prefix}/var' && localstatedir='/var'
 		AC_DEFINE_UNQUOTED(snert_milter_t_equate, [C:5m;S=10s;R=10s;E:5m])
 		AH_TEMPLATE(snert_milter_t_equate,[Milter t= settings])
-	fi
+	])
 
-	echo
-	echo $PACKAGE_NAME/$package_major.$package_minor${package_build:+.}${package_build}
-	echo $package_copyright
-	echo
+	AS_ECHO
+	AS_ECHO("$PACKAGE_NAME/$package_major.$package_minor${package_build:+.}${package_build}")
+	AS_ECHO("$package_copyright")
+	AS_ECHO
 ])
 
 AC_DEFUN(SNERT_FINI,[
+	dnl Append CPPFLAGS to CFLAGS until we convert to use automake.
+	CFLAGS="$CFLAGS $CPPFLAGS"
+
 	dnl Escape double-quotes in CFLAGS for -DMACRO='"string"' case.
 	quote_cflags=$(echo $CFLAGS | sed -e's/"/\\&/g')
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_CFLAGS, ["$quote_cflags"])
+	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_CPPFLAGS, ["$CPPFLAGS"])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_LDFLAGS, ["$LDFLAGS"])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_LIBS, ["$LIBS"])
 	AC_DEFINE_UNQUOTED(${snert_macro_prefix}_SHARE, ["$datarootdir/share"])
 ])
 
-dnl
-dnl SNERT_SUMMARY
-dnl
 AC_DEFUN(SNERT_SUMMARY,[
-	echo
-	echo $PACKAGE_NAME/$package_major.$package_minor.$package_build
-	echo $package_copyright
-	echo
+	AS_ECHO
+	AS_ECHO("$PACKAGE_NAME/$package_major.$package_minor.$package_build")
+	AS_ECHO("$package_copyright")
+	AS_ECHO
 	AC_MSG_RESULT([  Platform.......: $platform $CC ${GCC_MAJOR} ${GCC_MINOR} ${GCC_PATCH}])
 	AC_MSG_RESULT([  CFLAGS.........: $CFLAGS])
+	AC_MSG_RESULT([  CPPFLAGS.......: $CPPFLAGS])
 	AC_MSG_RESULT([  LDFLAGS........: $LDFLAGS])
 	AC_MSG_RESULT([  LIBS...........: $LIBS])
 	AC_MSG_RESULT([  prefix.........: $prefix])
 	AC_MSG_RESULT([  datarootdir....: $datarootdir])
 ])
-
-dnl if ! grep -q "^milter:" /etc/group; then
-dnl 	groupadd milter
-dnl fi
-dnl
-dnl if ! grep -q "^milter:" /etc/passwd; then
-dnl 	useradd -c 'milter processes' -g milter milter
-dnl fi
-dnl
-dnl if grep -q "^smmsp:" /etc/group; then
-dnl 	usermod -G smmsp milter
-dnl fi

@@ -1,11 +1,22 @@
 #######################################################################
-#	Thus it begins...
+# And so it begins...
 #######################################################################
 
 AC_INIT(LibSnert, 1.75, [Anthony Howe <achowe@snert.com>])
-
-dnl The autoconf version I learned to deal with.
 AC_PREREQ(2.69)
+
+dnl
+dnl AC_INIT sets ac_default_prefix=value and prefix=NONE. --prefix will
+dnl set prefix, but the default is not applied until AC_OUTPUT.  So we
+dnl need a working copy for AC_DEFINE and any other uses between here
+dnl and AC_OUTPUT
+dnl
+AS_IF([test "$prefix" = 'NONE'],[
+	prefix_copy="$ac_default_prefix"
+],[
+	prefix_copy="$prefix"
+])
+AC_SUBST(prefix_copy)
 
 SNERT_INIT(LIBSNERT, [Copyright 1996, 2015 by Anthony Howe. All rights reserved.])
 
@@ -13,7 +24,34 @@ AC_DEFINE_UNQUOTED(LIBSNERT_UNAME, [["${platform}"]])
 AH_TEMPLATE(LIBSNERT_UNAME)
 
 #######################################################################
-#	Setup paths
+# Auxliary files to be modified later
+#######################################################################
+
+AC_CONFIG_HEADERS([
+	config.h
+	include/version.h:version.h.in
+])
+AC_CONFIG_FILES([
+	version.h.in
+	version.sh
+	libsnert.pc
+	makefile
+	crc/makefile
+	type/makefile
+	util/makefile
+	mail/makefile
+	net/makefile
+	sys/makefile
+	io/makefile
+	tools/makefile
+])
+dnl AC_CANONICAL_TARGET
+
+dnl Not yet supported.
+dnl AM_INIT_AUTOMAKE([-Wall -Werror -Wno-portability foreign dist-bzip2 no-define no-installinfo subdir-objects])
+
+#######################################################################
+# Setup paths
 #######################################################################
 
 # The total perspective vortex "You are here..."
@@ -24,31 +62,17 @@ AC_SUBST(abs_incdir, $abs_tardir/com/snert/include)
 AC_SUBST(abs_libdir, $abs_tardir/com/snert/lib)
 AC_SUBST(abs_tardir, $abs_tardir)
 
-AC_SUBST(snert_tardir, '${top_srcdir}/../../../..')
-AC_SUBST(snert_incdir, '${top_srcdir}/../../include')
-AC_SUBST(snert_libdir, '${top_srcdir}/../../lib')
+dnl Substitions for make.
+AC_SUBST(snert_tardir,'${top_srcdir}/../../../..')
+AC_SUBST(snert_incdir,'${top_srcdir}/../../include')
+AC_SUBST(snert_libdir,'${top_srcdir}/../../lib')
 
-CFLAGS="-I$snert_incdir $CFLAGS"
-LDFLAGS="-L$snert_libdir $LDFLAGS"
+CPPFLAGS="-I$snert_incdir${CPPFLAGS:+ $CPPFLAGS}"
+LDFLAGS="-L$snert_libdir${LDFLAGS:+ $LDFLAGS}"
 
-#######################################################################
-#	Auxliary files to be modified later
-#######################################################################
-
-AC_CONFIG_HEADERS([config.h include/version.h:version.h.in])
-
-AC_CONFIG_FILES(version.h.in)
-AC_CONFIG_FILES(version.sh)
-AC_CONFIG_FILES(libsnert.pc)
-AC_CONFIG_FILES(makefile)
-AC_CONFIG_FILES(crc/makefile)
-AC_CONFIG_FILES(type/makefile)
-AC_CONFIG_FILES(util/makefile)
-AC_CONFIG_FILES(mail/makefile)
-AC_CONFIG_FILES(net/makefile)
-AC_CONFIG_FILES(sys/makefile)
-AC_CONFIG_FILES(io/makefile)
-AC_CONFIG_FILES(tools/makefile)
+dnl Make sure we can find our includes during configure.
+dnl SNERT_JOIN_UNIQ([CPPFLAGS],[-I$srcdir/../../include],[head])
+dnl SNERT_JOIN_UNIQ([LDFLAGS],[-L$srcdir/../../lib],[head])
 
 #######################################################################
 #	Configuration options: settings
@@ -147,20 +171,42 @@ AC_ARG_WITH(shar-mem,
 #	AC_PROG_CC won't detect otherwise.
 #######################################################################
 
-SNERT_DEFAULT_CC_SETTINGS
-SNERT_TAR_SETTINGS
-
-AC_PROG_MAKE_SET
+AS_ECHO()
+AS_ECHO("Checking C compiler and common headers...")
+AS_ECHO()
+SNERT_CC_INFO
 
 AC_HEADER_ASSERT
 AC_C_CONST
+AC_SYS_LONG_FILE_NAMES
+
 AC_CHECK_TYPES([mode_t, off_t, pid_t, uid_t, gid_t, size_t, ssize_t, time_t, intptr_t, uintptr_t])
+
+SNERT_CHECK_PREDEFINE([__WIN32__])
+
+#######################################################################
+# Check for programs.
+#######################################################################
+
+AS_ECHO()
+AS_ECHO("Checking for assorted tools...")
+AS_ECHO()
+
+AC_PROG_LN_S
+AC_PROG_MAKE_SET
+dnl AC_PROG_INSTALL
+AC_PATH_PROGS([MD5SUM],[md5sum md5])
+SNERT_TAR_SETTINGS
+
+dnl Not yet.
+dnl LT_PREREQ([2.2.6])
+dnl LT_INIT([disable-fast-install])
+dnl AC_SUBST([LIBTOOL_DEPS])
 
 #######################################################################
 #	Check for library, header, and function families.
 #######################################################################
 
-SNERT_CHECK_PREDEFINE([__WIN32__])
 SNERT_FIND_LIBC
 SNERT_BACKTRACE
 SNERT_ANSI_TIME
@@ -168,6 +214,7 @@ SNERT_PROCESS
 SNERT_POSIX_IO
 SNERT_POSIX_SIGNALS
 SNERT_POSIX_SEMAPHORES
+SNERT_FILE_LOCKS
 SNERT_TERMIOS
 SNERT_PTHREAD
 SNERT_HASHES
@@ -583,16 +630,17 @@ AC_MSG_RESULT([  Platform............: $platform $CC ${GCC_MAJOR} ${GCC_MINOR} $
 AC_MSG_RESULT([  prefix..............: $prefix])
 AC_MSG_RESULT([  datarootdir.........: $datarootdir])
 AC_MSG_RESULT([  Berkeley DB.........: $bdb_version "$CFLAGS_DB" "$LDFLAGS_DB" "${HAVE_LIB_DB}"])
-AC_MSG_RESULT([  Lua.................: "$CFLAGS_LUA" "$LDFLAGS_LUA" "$HAVE_LIB_LUA"])
-AC_MSG_RESULT([  libev...............: "$CFLAGS_LIBEV" "$LDFLAGS_LIBEV" "$HAVE_LIB_LIBEV"])
-AC_MSG_RESULT([  OpenSSL.............: "$CFLAGS_SSL" "$LDFLAGS_SSL" "$HAVE_LIBSSL $HAVE_LIBCRYPTO"])
+AC_MSG_RESULT([  Lua.................: "$CPPFLAGS_LUA" "$LDFLAGS_LUA" "$LIBS_LUA"])
+AC_MSG_RESULT([  libev...............: "$CPPFLAGS_LIBEV" "$LDFLAGS_LIBEV" "$LIBS_LIBEV"])
+AC_MSG_RESULT([  OpenSSL.............: "$CPPFLAGS_SSL" "$LDFLAGS_SSL" "$LIBS_SSL"])
 AC_MSG_RESULT([  POSIX Semaphores....: "" "" "$HAVE_LIB_SEM"])
 AC_MSG_RESULT([  POSIX Threads.......: "$CFLAGS_PTHREAD" "$LDFLAGS_PTHREAD" "$HAVE_LIB_PTHREAD"])
-AC_MSG_RESULT([  Sendmail libmilter..: "$CFLAGS_MILTER" "$LDFLAGS_MILTER" "$HAVE_LIB_MILTER"])
-AC_MSG_RESULT([  SQLite3.............: "$CFLAGS_SQLITE3" "$LDFLAGS_SQLITE3" "$HAVE_LIB_SQLITE3"])
+AC_MSG_RESULT([  Sendmail libmilter..: "$CPPFLAGS_MILTER" "$LDFLAGS_MILTER" "$LIBS_MILTER"])
+AC_MSG_RESULT([  SQLite3.............: "$CPPFLAGS_SQLITE3" "$LDFLAGS_SQLITE3" "$LIBS_SQLITE3"])
 AC_MSG_RESULT([  Semaphore API.......: $with_mutex])
 AC_MSG_RESULT([  Shared Memory API...: $with_shar_mem])
 AC_MSG_RESULT([  CFLAGS..............: $CFLAGS])
+AC_MSG_RESULT([  CPPFLAGS............: $CPPFLAGS])
 AC_MSG_RESULT([  LDFLAGS.............: $LDFLAGS])
 AC_MSG_RESULT([  LIBS................: $LIBS])
 AC_MSG_RESULT([  Network LIBS........: $NETWORK_LIBS])
