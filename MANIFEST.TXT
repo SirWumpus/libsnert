@@ -12,9 +12,9 @@ com/snert/src/lib/MANIFEST.TXT
 com/snert/src/lib/README.TXT
 com/snert/src/lib/TOOLS.TXT
 com/snert/src/lib/VERSION.TXT
-com/snert/src/lib/aclocal.m4
+com/snert/src/lib/acsite.m4
 com/snert/src/lib/configure
-com/snert/src/lib/configure.in
+com/snert/src/lib/configure.ac
 com/snert/src/lib/makefile.in
 com/snert/src/lib/mklinks.sh
 com/snert/src/lib/libsnert.pc.in
