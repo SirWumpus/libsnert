@@ -233,6 +233,7 @@ extern int isReservedTLD(const char *path, unsigned long flags);
 #define IS_TLD_LOCAL			0x00000020
 #define IS_TLD_LAN			0x00000040
 #define IS_TLD_HOME			0x00000080
+#define IS_TLD_ARPA			0x00000100
 #define IS_TLD_ANY_LOCAL		(IS_TLD_LOCALHOST|IS_TLD_LOCALDOMAIN|IS_TLD_LOCAL|IS_TLD_LAN|IS_TLD_HOME)
 #define IS_TLD_ANY_RESERVED		(~0)
 
