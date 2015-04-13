@@ -10,7 +10,7 @@ dnl
 AC_DEFUN([SNERT_JOIN_UNIQ],[
 	list=`eval echo \$$1`
 	for w in $2; do
-		AS_IF([expr "$list" : ".*$w" >/dev/null],[
+		AS_IF([expr " $list " : ".* $w " >/dev/null],[
 		],[
 			AS_IF([test "$3" = 'head'],[
 				list="$w${list:+ $list}"
@@ -91,13 +91,6 @@ AC_DEFUN([SNERT_DEFINE],[
 ])
 
 dnl
-dnl SNERT_IF_SYSTEM_DIR(word, if-system, not-system)
-dnl
-m4_define([SNERT_IF_SYSTEM_DIR],[
-	AS_CASE([$1],[/usr/include|/usr/lib64|/usr/lib],[$2],[$3])
-])
-
-dnl
 dnl SNERT_FIND_FILE(wild_file, directories, if-found, not-found)
 dnl if-found can reference the found $dir_val
 dnl
@@ -142,7 +135,14 @@ dnl
 dnl SNERT_CHECK_PACKAGE_LIB(library, if-found, not-found[, extra_dirs])
 dnl
 AC_DEFUN([SNERT_CHECK_PACKAGE_LIB],[
-	SNERT_FIND_FILE([$1],[$4 /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib],[$2],[$3])
+	SNERT_FIND_FILE([$1],[$4 /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib],[$2],[$3])
+])
+
+dnl
+dnl SNERT_IF_SYSTEM_DIR(word, if-system, not-system)
+dnl
+m4_define([SNERT_IF_SYSTEM_DIR],[
+	AS_CASE([$1],[/usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib],[$2],[$3])
 ])
 
 dnl
@@ -178,34 +178,47 @@ dnl	eval extra_LDFLAGS="\${LDFLAGS_$1}"
 dnl	eval extra_CPPFLAGS="\${CPPFLAGS_$1}"
 
 	for f in $2; do
+		cache_id=AS_TR_SH(ac_cv_header_$f)
 		SNERT_CHECK_PACKAGE_HEADER([$f],[
+			dnl Remember the location we found the header
+			dnl even if its a system directory.
 			have=AS_TR_CPP(HAVE_$f)
+			dnl Wanted to have the filepath saved in the
+			dnl macro, but for backwards compatibility with
+			dnl HAVE_header_h defines set by other tests best
+			dnl keep it the same value to avoid warnings (or
+			dnl error with -Werror).
 			AC_DEFINE_UNQUOTED($have,[1])
-			cache_id=AS_TR_SH(ac_cv_header_$f)
-			AC_CACHE_VAL($cache_id, eval $cache_id='yes')
+			dnl Here we REALLY need the filepath for other
+			dnl potential configure tests.
+			AC_CACHE_VAL($cache_id,[eval $cache_id="\"$dir_val/$f\""])
+
 			SNERT_IF_SYSTEM_DIR([$dir_val],[
 				dnl Ignore system directories.
+				SNERT_JOIN_UNIQ([CPPFLAGS_$1])
 			],[
-				SNERT_JOIN_UNIQ([CPPFLAGS_$1],["-I$dir_val"])
+				SNERT_JOIN_UNIQ([CPPFLAGS_$1],["-I$dir_val"],[head])
 			])
-		],[],[${with_base:+$with_base/include} $6])
+		],[
+			AC_CACHE_VAL($cache_id,[eval $cache_id='no'])
+		],[${with_base:+$with_base/include} $6])
 	done
 
 	for f in $3; do
 		SNERT_CHECK_PACKAGE_LIB([$f],[
 			have=AS_TR_CPP(HAVE_$f)
-			AC_DEFINE_UNQUOTED($have,[1])
+			AC_DEFINE_UNQUOTED($have,["$dir_val"])
 			SNERT_IF_SYSTEM_DIR([$dir_val],[
 				lib=`basename -- $f | sed -e's/^lib//'`
-				SNERT_JOIN_UNIQ([LIBS_$1],["-l$lib"],[head])
+				SNERT_JOIN_UNIQ([LIBS_$1],["-l$lib"],[tail])
 			],[
 				SNERT_JOIN_UNIQ([LDFLAGS_$1],["-L$dir_val"])
 				AS_IF([expr "$f" : '.*\.a$' >/dev/null],[
 					dnl Explicit static library.
-					SNERT_JOIN_UNIQ([LIBS_$1],["$dir_val/$f"],[head])
+					SNERT_JOIN_UNIQ([LIBS_$1],["$dir_val/$f"],[tail])
 				],[
 					lib=`basename -- $f | sed -e's/^lib//'`
-					SNERT_JOIN_UNIQ([LIBS_$1],["-l$lib"],[head])
+					SNERT_JOIN_UNIQ([LIBS_$1],["-l$lib"],[tail])
 				])
 			])
 		],[],[${with_base:+$with_base/lib} $7])
