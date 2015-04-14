@@ -59,14 +59,16 @@ extern "C" {
 
 /* DEPRICATED; use smfOpt* */
 #define SMF_FLAG_ALL			(~0)
-#define SMF_FLAG_STRICT_SYNTAX		0x00000001	/* see parsePath.h */
-#define SMF_FLAG_STRICT_LOCAL_LENGTH	0x00000002	/* see parsePath.h */
-#define SMF_FLAG_STRICT_DOMAIN_LENGTH	0x00000004	/* see parsePath.h */
-#define SMF_FLAG_STRICT_LITERAL_PLUS	0x00000008	/* see parsePath.h */
-#define SMF_FLAG_REJECT_PERCENT_RELAY	0x00000010	/* see smfAccessRcpt() */
-#define SMF_FLAG_REJECT_RFC2606		0x00000020	/* see smf.c */
-#define SMF_FLAG_REJECT_UNKNOWN_TLD	0x00000040	/* see smf.c */
-#define SMF_FLAG_SMTP_AUTH_OK		0x00000080	/* see smf.c */
+#define SMF_FLAG_STRICT_SYNTAX		STRICT_ANGLE_BRACKETS	/* see parsePath.h */
+#define SMF_FLAG_STRICT_LOCAL_LENGTH	STRICT_LOCAL_LENGTH	/* see parsePath.h */
+#define SMF_FLAG_STRICT_DOMAIN_LENGTH	STRICT_DOMAIN_LENGTH	/* see parsePath.h */
+#define SMF_FLAG_STRICT_LITERAL_PLUS	STRICT_LITERAL_PLUS	/* see parsePath.h */
+#define SMF_FLAG_STRICT_ADDR_SPEC	STRICT_ADDR_SPEC	/* see parsePath.h */
+#define SMF_FLAG_STRICT_MIN_DOTS	STRICT_MIN_DOTS		/* see parsePath.h */
+#define SMF_FLAG_REJECT_PERCENT_RELAY	0x00010000		/* see smfAccessRcpt() */
+#define SMF_FLAG_REJECT_RFC2606		0x00020000		/* see smf.c */
+#define SMF_FLAG_REJECT_UNKNOWN_TLD	0x00040000		/* see smf.c */
+#define SMF_FLAG_SMTP_AUTH_OK		0x00080000		/* see smf.c */
 
 #ifndef SMF_SOCKET_TIMEOUT
 #define SMF_SOCKET_TIMEOUT		1800
@@ -569,6 +571,9 @@ extern int smfAccessEmail(smfWork *work, const char *tag, const char *mail, char
  * @param mail
  *	A C string for the SMTP MAIL FROM: address.
  *
+ * @param parseFlags
+ *	Flags passed to parsePath().
+ *
  * @param dsnDefault
  *	A SMDB_ACCESS_* value to be return for the DSN (null sender).
  *
@@ -577,6 +582,7 @@ extern int smfAccessEmail(smfWork *work, const char *tag, const char *mail, char
  *	SMDB_ACCESS_NOT_FOUND, or SMDB_ACCESS_ERROR for a parse error in
  *	which case the SMTP reponse will also have been set.
  */
+extern int smfAccessMail2(smfWork *work, const char *tag, const char *mail, long parseFlags, int dsnDefault);
 extern int smfAccessMail(smfWork *work, const char *tag, const char *mail, int dsnDefault);
 
 /**
@@ -626,11 +632,15 @@ extern int smfAccessMail(smfWork *work, const char *tag, const char *mail, int d
  * @param rcpt
  *	A C string for the SMTP RCPT TO: address.
  *
+ * @param parseFlags
+ *	Flags passed to parsePath().
+ *
  * @return
  *	One of SMDB_ACCESS_OK, SMDB_ACCESS_REJECT, SMDB_ACCESS_UNKNOWN,
  *	SMDB_ACCESS_NOT_FOUND, or SMDB_ACCESS_ERROR for a parse error in
  *	which case the SMTP reponse will also have been set.
  */
+extern int smfAccessRcpt2(smfWork *work, const char *tag, const char *rcpt, long parseFlags);
 extern int smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt);
 
 extern int smfHeaderSet(SMFICTX *ctx, char *field, char *value, int index, int present);

@@ -195,7 +195,7 @@ extern /*@null@*/ char *allocatePath(const char *fmt, ParsePath *p);
  * @param flags
  *	A bit mask of flags used to enable/disable specific tests. Supported
  *	flags are STRICT_ANGLE_BRACKETS, STRICT_LOCAL_LENGTH, STRICT_DOMAIN_LENGTH,
- *	STRICT_LITERAL_PLUS, STRICT_SOURCE_ROUTE, STRICT_ADDR_SPEC, STRICT_MIN_DOTS.
+ *	STRICT_LITERAL_PLUS, STRICT_ADDR_SPEC, STRICT_MIN_DOTS.
  *
  * @param dots
  *	The minimum number of dots expected in the domain portion of the

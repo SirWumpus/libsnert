@@ -1441,6 +1441,9 @@ smfAccessEmail(smfWork *work, const char *tag, const char *mail, char **lhs, cha
  * @param mail
  *	A C string for the SMTP MAIL FROM: address.
  *
+ * @param parseFlags
+ *	Flags for parsePath().
+ *
  * @param dsnDefault
  *	A SMDB_ACCESS_* value to be return for the DSN (null sender).
  *
@@ -1450,7 +1453,7 @@ smfAccessEmail(smfWork *work, const char *tag, const char *mail, char **lhs, cha
  *	which case the SMTP reponse will also have been set.
  */
 int
-smfAccessMail(smfWork *work, const char *tag, const char *mail, int dsnDefault)
+smfAccessMail2(smfWork *work, const char *tag, const char *mail, long parseFlags, int dsnDefault)
 {
 	int access;
 	ParsePath *path;
@@ -1463,7 +1466,7 @@ smfAccessMail(smfWork *work, const char *tag, const char *mail, int dsnDefault)
 	free(work->mail);
 	work->mail = NULL;
 
-	if ((error = parsePath(mail, smfFlags, 1, &path)) != NULL) {
+	if ((error = parsePath(mail, parseFlags, 1, &path)) != NULL) {
 		smfLog(SMF_LOG_ERROR, "sender %s parse error: %s", mail, error);
 		(void) smfReply(work, SMTP_ISS_TEMP(error) ? 451 : 553, NULL, error);
 		return SMTP_ISS_TEMP(error) ? SMDB_ACCESS_TEMPFAIL : SMDB_ACCESS_ERROR;
@@ -1607,6 +1610,12 @@ smfAccessMail(smfWork *work, const char *tag, const char *mail, int dsnDefault)
 	return access;
 }
 
+int
+smfAccessMail(smfWork *work, const char *tag, const char *mail, int dsnDefault)
+{
+	return smfAccessMail2(work, tag, mail, smfFlags, dsnDefault);
+}
+
 /**
  * Perform the following access.db lookups for mail address, stopping on
  * the first entry found:
@@ -1654,13 +1663,16 @@ smfAccessMail(smfWork *work, const char *tag, const char *mail, int dsnDefault)
  * @param rcpt
  *	A C string for the SMTP RCPT TO: address.
  *
+ * @param parseFlags
+ *	Flags for parsePath().
+ *
  * @return
  *	One of SMDB_ACCESS_OK, SMDB_ACCESS_REJECT, SMDB_ACCESS_UNKNOWN,
  *	SMDB_ACCESS_NOT_FOUND, or SMDB_ACCESS_ERROR for a parse error in
  *	which case the SMTP reponse will also have been set.
  */
 int
-smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
+smfAccessRcpt2(smfWork *work, const char *tag, const char *rcpt, long parseFlags)
 {
 	int access;
 	ParsePath *path;
@@ -1680,7 +1692,7 @@ smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
 	work->rcpt = NULL;
 	work->skipRecipient = 0;
 
-	if ((error = parsePath(rcpt, smfFlags, 0, &path)) != NULL) {
+	if ((error = parsePath(rcpt, parseFlags, 0, &path)) != NULL) {
 		smfLog(SMF_LOG_ERROR, "recipient %s parse error: %s", rcpt, error);
 		(void) smfReply(work, SMTP_ISS_TEMP(error) ? 451 : 553, NULL, error);
 		return SMTP_ISS_TEMP(error) ? SMDB_ACCESS_TEMPFAIL : SMDB_ACCESS_ERROR;
@@ -1871,6 +1883,12 @@ smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
 	);
 
 	return access;
+}
+
+int
+smfAccessRcpt(smfWork *work, const char *tag, const char *rcpt)
+{
+	return smfAccessRcpt2(work, tag, rcpt, smfFlags);
 }
 
 /***********************************************************************
