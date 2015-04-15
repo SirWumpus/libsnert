@@ -67,12 +67,15 @@ AC_SUBST(snert_tardir,'${top_srcdir}/../../../..')
 AC_SUBST(snert_incdir,'${top_srcdir}/../../include')
 AC_SUBST(snert_libdir,'${top_srcdir}/../../lib')
 
-CPPFLAGS="-I$snert_incdir${CPPFLAGS:+ $CPPFLAGS}"
-LDFLAGS="-L$snert_libdir${LDFLAGS:+ $LDFLAGS}"
+dnl Remember the command line settings.
+start_CPPFLAGS="$CPPFLAGS"
+start_LDFLAGS="$LDFLAGS"
+start_CFLAGS="$CFLAGS"
+start_LIBS="$LIBS"
 
 dnl Make sure we can find our includes during configure.
-dnl SNERT_JOIN_UNIQ([CPPFLAGS],[-I$srcdir/../../include],[head])
-dnl SNERT_JOIN_UNIQ([LDFLAGS],[-L$srcdir/../../lib],[head])
+SNERT_JOIN_UNIQ([CPPFLAGS],[-I$srcdir/../../include],[head])
+SNERT_JOIN_UNIQ([LDFLAGS],[-L$srcdir/../../lib],[head])
 
 #######################################################################
 #	Configuration options: settings
@@ -614,6 +617,12 @@ extern void backtrace_symbols_fd(void **buffer, int length, int fd);
 
 #endif /* __com_snert_lib_version_h__ */
 ])
+
+dnl Make sure we can find our includes relative top_srcdir in makefiles.
+CPPFLAGS="-I$snert_incdir${start_CPPFLAGS:+ $start_CPPFLAGS}"
+LDFLAGS="-L$snert_libdir${start_LDFLAGS:+ $start_LDFLAGS}"
+CFLAGS="$start_$CFLAGS"
+LIBS="$start_LIBS"
 
 SNERT_FINI
 

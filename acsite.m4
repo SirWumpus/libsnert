@@ -9,16 +9,18 @@ dnl SNERT_JOIN_UNIQ(var, word_list,[head|tail])
 dnl
 AC_DEFUN([SNERT_JOIN_UNIQ],[
 	list=`eval echo \$$1`
-	for w in $2; do
-		AS_IF([expr " $list " : ".* $w " >/dev/null],[
-		],[
-			AS_IF([test "$3" = 'head'],[
-				list="$w${list:+ $list}"
+	AS_IF([test -n "$2"],[
+		for item in $2; do
+			AS_IF([expr " $list " : ".* $item " >/dev/null],[
 			],[
-				list="${list:+$list }$w"
+				AS_IF([test "$3" = 'head'],[
+					list="$item${list:+ $list}"
+				],[
+					list="${list:+$list }$item"
+				])
 			])
-		])
-	done
+		done
+	])
 	eval $1="\"$list\""
 ])
 
@@ -621,9 +623,9 @@ dnl SNERT_FIND_LIB([name],[found],[notfound])
 dnl
 m4_define([SNERT_FIND_LIB],[
 	AS_VAR_PUSHDEF([snert_lib], [snert_find_lib_$1])dnl
-	echo
-	echo "Finding dynamic library $1 ..."
-	echo
+	AS_ECHO
+	AS_ECHO("Finding dynamic library $1 ...")
+	AS_ECHO
 	AS_VAR_SET([snert_lib], 'no')
 	AC_CHECK_HEADER([dlfcn.h], [
 		AC_DEFINE(HAVE_DLFCN_H,[],[dynamic library support])
@@ -729,9 +731,9 @@ AC_DEFUN(SNERT_LIBSNERT,[
 
 	AC_CHECK_LIB(snert, parsePath)
 	if test "$ac_cv_lib_snert_parsePath" = 'no'; then
-		echo
+		AS_ECHO
 		AC_MSG_WARN([The companion library, LibSnert, is required.])
-		echo
+		AS_ECHO
 		ac_cv_lib_snert_parsePath='required'
 		CFLAGS=$saved_cflags
 		LDFLAGS=$saved_ldflags
@@ -1235,8 +1237,9 @@ dnl		CFLAGS_PTHREAD="-D_REENTRANT"
 
 		case "$platform" in
 		FreeBSD|OpenBSD|NetBSD)
-			AC_DEFINE(_THREAD_SAFE,[],[thread safe variants])
-			CFLAGS_PTHREAD="-D_THREAD_SAFE ${CFLAGS_PTHREAD} -pthread"
+dnl			AC_DEFINE(_THREAD_SAFE,[],[thread safe variants])
+dnl			CFLAGS_PTHREAD="-D_THREAD_SAFE ${CFLAGS_PTHREAD} -pthread"
+			CFLAGS_PTHREAD="${CFLAGS_PTHREAD} -pthread"
 			LDFLAGS_PTHREAD="-pthread"
 			;;
 		*)
