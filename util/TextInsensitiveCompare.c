@@ -13,7 +13,7 @@
 
 #ifndef HAVE_STRNCASECMP
 int
-TextInsensitiveCompareN(const void *xp, void const *yp, long len)
+TextInsensitiveCompareN(const void *xp, const void *yp, long len)
 {
 	int diff;
 	char *x = (char *) xp;
@@ -46,7 +46,7 @@ TextInsensitiveCompareN(const void *xp, void const *yp, long len)
 
 #ifndef HAVE_STRCASECMP
 int
-TextInsensitiveCompare(const void *xp, void const *yp)
+TextInsensitiveCompare(const void *xp, const void *yp)
 {
 	return TextInsensitiveCompareN(xp, yp, -1);
 }

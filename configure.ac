@@ -479,6 +479,8 @@ AH_BOTTOM([
 #define QUOTE(x)	QUOTE_THIS(x)
 #define QUOTE_THIS(x)	#x
 
+#ifndef HAVE_CMPFN_T
+#define HAVE_CMPFN_T
 /**
  * @param a
  *	A pointer to object A.
@@ -489,8 +491,8 @@ AH_BOTTOM([
  * @return
  *	Zero if A == B, negative if A < B, or positive if A > B.
  */
-#define HAVE_CMPFN_T
-typedef int (*CmpFn)(void *a, void *b);
+typedef int (*CmpFn)(const void *a, const void *b);
+#endif
 
 /***********************************************************************
  *** LibSnert Configure And Compile Time Information

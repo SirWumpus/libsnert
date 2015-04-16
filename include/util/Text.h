@@ -45,29 +45,32 @@ extern /*@only@*/ char *TextDup(const char *);
 
 /*
  * Comparision functions; return -ve, 0, +ve for <, ==, >.
+ *
+ * Note that const void * was used instead of const char * to
+ * avoid compiler warnings about signed vs unsigned char types.
  */
 #ifdef HAVE_STRCMP
 # define TextSensitiveCompare		strcmp
 #else
-extern int TextSensitiveCompare(const void *xp, void const *yp);
+extern int TextSensitiveCompare(const void *xp, const void *yp);
 #endif
 
 #ifdef HAVE_STRNCMP
 # define TextSensitiveCompareN		strncmp
 #else
-extern int TextSensitiveCompareN(const void *xp, void const *yp, long len);
+extern int TextSensitiveCompareN(const void *xp, const void *yp, long len);
 #endif
 
 #ifdef HAVE_STRCASECMP
 # define TextInsensitiveCompare		strcasecmp
 #else
-extern int TextInsensitiveCompare(const void *xp, void const *yp);
+extern int TextInsensitiveCompare(const void *xp, const void *yp);
 #endif
 
 #ifdef HAVE_STRNCASECMP
 # define TextInsensitiveCompareN	strncasecmp
 #else
-extern int TextInsensitiveCompareN(const void *xp, void const *yp, long len);
+extern int TextInsensitiveCompareN(const void *xp, const void *yp, long len);
 #endif
 
 extern /*@only@*/ char *TextSubstring(const char *, long offset, long length);

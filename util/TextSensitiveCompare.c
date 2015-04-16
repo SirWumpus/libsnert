@@ -13,7 +13,7 @@
 
 #ifndef HAVE_STRNCMP
 int
-TextSensitiveCompareN(const void *xp, void const *yp, long len)
+TextSensitiveCompareN(const void *xp, const void *yp, long len)
 {
 	char *x = (char *) xp;
 	char *y = (char *) yp;
@@ -34,7 +34,7 @@ TextSensitiveCompareN(const void *xp, void const *yp, long len)
 
 #ifndef HAVE_STRCMP
 int
-TextSensitiveCompare(const void *xp, void const *yp)
+TextSensitiveCompare(const void *xp, const void *yp)
 {
 	return TextSensitiveCompareN(xp, yp, -1);
 }

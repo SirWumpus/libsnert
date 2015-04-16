@@ -25,6 +25,7 @@ struct tree {
 };
 
 #ifndef HAVE_CMPFN_T
+#define HAVE_CMPFN_T
 /**
  * @param a
  *	A pointer to object A.
@@ -35,7 +36,7 @@ struct tree {
  * @return
  *	Zero if A == B, negative if A < B, or positive if A > B.
  */
-typedef int (*CmpFn)(void *a, void *b);
+typedef int (*CmpFn)(const void *a, const void *b);
 #endif
 
 typedef void (*TreeWalkFn)(Tree *node, void *data);
