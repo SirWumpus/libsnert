@@ -31,7 +31,7 @@ dnl Without a header_file, check for a predefined macro.
 dnl
 AC_DEFUN([SNERT_CHECK_DEFINE],[
 	AC_LANG_PUSH([C])
-	AC_CACHE_CHECK([for $1],ac_cv_define_$1,[
+	AC_CACHE_CHECK([for $1 macro],ac_cv_define_$1,[
 		AS_IF([test -z "$2"],[
 			AC_RUN_IFELSE([
 				AC_LANG_SOURCE([[
@@ -398,6 +398,9 @@ AC_DEFUN(SNERT_CHECK_LIB,[
 	AS_IF([echo "$LIBS" | grep -- "-l$1" >/dev/null],[
 		echo "checking for $2 in $1... (cached) yes"
 	],[
+		dnl For SunOS. Beware of using AC_SEARCH_LIBS() on SunOS
+		dnl platforms, because some functions appear as stubs in
+		dnl other libraries.
 		AC_CHECK_LIB([$1], [$2])
 	])
 ])
@@ -1210,127 +1213,6 @@ AC_DEFUN(SNERT_RANDOM,[
 ])
 
 dnl
-dnl SNERT_PTHREAD
-dnl
-AC_DEFUN(SNERT_OPTION_WITH_PTHREAD,[
-	AC_ARG_WITH(pthread, [[  --with-pthread          include POSIX threads support]])
-])
-AC_DEFUN(SNERT_PTHREAD,[
-AS_IF([test ${with_pthread:-default} != 'no'],[
-	echo
-	echo "Check for POSIX thread & mutex support..."
-	echo
-
-if test ${enable_win32:-no} = 'yes' ; then
-	ac_cv_func_pthread_create='limited'
-	echo "POSIX thread support... limited Windows native"
-else
-	AC_CHECK_HEADER([pthread.h],[
-		AC_DEFINE(HAVE_PTHREAD_H,[],[POSIX Threads])
-
-		saved_libs="$LIBS"
-		saved_cflags="$CFLAGS"
-		saved_ldflags="$LDFLAGS"
-
-dnl		AC_DEFINE(_REENTRANT,[],[thread safe variants])
-dnl		CFLAGS_PTHREAD="-D_REENTRANT"
-
-		case "$platform" in
-		FreeBSD|OpenBSD|NetBSD)
-dnl			AC_DEFINE(_THREAD_SAFE,[],[thread safe variants])
-dnl			CFLAGS_PTHREAD="-D_THREAD_SAFE ${CFLAGS_PTHREAD} -pthread"
-			CFLAGS_PTHREAD="${CFLAGS_PTHREAD} -pthread"
-			LDFLAGS_PTHREAD="-pthread"
-			;;
-		*)
-			dnl For SunOS. Beware of using AC_SEARCH_LIBS() on SunOS
-			dnl platforms, because some functions appear as stubs in
-			dnl other libraries.
-			SNERT_CHECK_LIB(pthread, pthread_create)
-			if test "$ac_cv_lib_pthread_pthread_create" != 'no'; then
-				AC_SUBST(HAVE_LIB_PTHREAD, '-lpthread')
-			fi
-			;;
-		esac
-
-		AC_SUBST(CFLAGS_PTHREAD)
-		AC_SUBST(LDFLAGS_PTHREAD)
-
-		AC_DEFINE_UNQUOTED(HAVE_LIB_PTHREAD, "${HAVE_LIB_PTHREAD}")
-		AC_DEFINE_UNQUOTED(LDFLAGS_PTHREAD, "${LDFLAGS_PTHREAD}")
-		AC_DEFINE_UNQUOTED(CFLAGS_PTHREAD, "${CFLAGS_PTHREAD}")
-
-		AH_VERBATIM([HAVE_LIB_PTHREAD],[
-/*
- * Posix Threads
- */
-#undef HAVE_LIB_PTHREAD
-#undef CFLAGS_PTHREAD
-#undef LDFLAGS_PTHREAD
-		])
-
-		LIBS="$HAVE_LIB_PTHREAD $saved_libs"
-		CFLAGS="$CFLAGS_PTHREAD $saved_cflags"
-		LDFLAGS="$LDFLAGS_PTHREAD $saved_ldflags"
-
-		AC_CHECK_TYPES([pthread_t, pthread_attr_t, pthread_mutex_t, pthread_mutexattr_t, pthread_once_t sigset_t],[],[],[
-#ifdef HAVE_SYS_TYPES_H
-# include <sys/types.h>
-#endif
-#ifdef HAVE_SIGNAL_H
-# include <signal.h>
-#endif
-#ifdef HAVE_PTHREAD_H
-# include <pthread.h>
-#endif
-		])
-
-		AC_CHECK_FUNCS([pthread_create pthread_cancel pthread_equal pthread_exit pthread_join pthread_kill pthread_self])
-		dnl OpenBSD requires -pthread in order to link sigwait.
-		AC_CHECK_FUNCS([pthread_detach pthread_yield pthread_sigmask sigwait])
-		AC_CHECK_FUNCS([pthread_attr_init pthread_attr_destroy pthread_attr_getdetachstate pthread_attr_setdetachstate pthread_attr_getstackaddr pthread_attr_setstackaddr pthread_attr_getstacksize pthread_attr_setstacksize pthread_attr_getscope pthread_attr_setscope])
-		AC_CHECK_FUNCS([pthread_mutex_init pthread_mutex_destroy pthread_mutex_lock pthread_mutex_trylock pthread_mutex_unlock])
-		AC_CHECK_FUNCS([pthread_mutexattr_init pthread_mutexattr_destroy pthread_mutexattr_setprioceiling pthread_mutexattr_getprioceiling pthread_mutexattr_setprotocol pthread_mutexattr_getprotocol pthread_mutexattr_settype pthread_mutexattr_gettype])
-		AC_CHECK_FUNCS([pthread_cond_broadcast pthread_cond_destroy pthread_cond_init pthread_cond_signal pthread_cond_timedwait pthread_cond_wait])
-		AC_CHECK_FUNCS([pthread_spin_init pthread_spin_destroy pthread_spin_lock pthread_spin_trylock pthread_spin_unlock])
-		AC_CHECK_FUNCS([pthread_rwlock_init pthread_rwlock_destroy pthread_rwlock_unlock pthread_rwlock_rdlock pthread_rwlock_wrlock pthread_rwlock_tryrdlock pthread_rwlock_trywrlock])
-		AC_CHECK_FUNCS([pthread_lock_global_np pthread_unlock_global_np])
-		AC_CHECK_FUNCS([pthread_key_create pthread_key_delete pthread_getspecific pthread_setspecific])
-		AC_CHECK_FUNCS([pthread_once pthread_atfork])
-
-		AH_TEMPLATE(HAVE_PTHREAD_CLEANUP_PUSH)
-		AC_CHECK_FUNC([pthread_cleanup_push],[
-			AC_DEFINE_UNQUOTED(HAVE_PTHREAD_CLEANUP_PUSH)
-		],[
-			SNERT_CHECK_DEFINE(pthread_cleanup_push, pthread.h)
-			if test $ac_cv_define_pthread_cleanup_push = 'yes'; then
-				AC_DEFINE_UNQUOTED(HAVE_PTHREAD_CLEANUP_PUSH)
-			fi
-		])
-		AH_TEMPLATE(HAVE_PTHREAD_CLEANUP_POP)
-		AC_CHECK_FUNC([pthread_cleanup_pop],[
-			AC_DEFINE_UNQUOTED(HAVE_PTHREAD_CLEANUP_POP)
-		],[
-			SNERT_CHECK_DEFINE(pthread_cleanup_pop, pthread.h)
-			if test $ac_cv_define_pthread_cleanup_pop = 'yes'; then
-				AC_DEFINE_UNQUOTED(HAVE_PTHREAD_CLEANUP_POP)
-			fi
-		])
-
-		SNERT_FIND_LIB([pthread],[
-			AC_DEFINE_UNQUOTED(LIBPTHREAD_PATH, ["$snert_find_lib_pthread"])
-			AH_TEMPLATE(LIBPTHREAD_PATH)
-		],[])
-
-		LIBS="$saved_libs"
-		CFLAGS="$saved_cflags"
-		LDFLAGS="$saved_ldflags"
-	])
-fi
-])
-])
-
-dnl
 dnl SNERT_POSIX_SEMAPHORES
 dnl
 AC_DEFUN(SNERT_POSIX_SEMAPHORES,[
@@ -1629,6 +1511,221 @@ AC_DEFUN(SNERT_TERMIOS,[
 	])
 ])
 
+AC_DEFUN(SNERT_OPTION_WITH_PTHREAD,[
+	AC_ARG_WITH(pthread,[AC_HELP_STRING([--with-pthread],[POSIX threads optional base directory])])
+])
+AC_DEFUN(SNERT_PTHREAD,[
+AS_IF([test "$enable_win32" = 'yes'],[
+	AS_ECHO
+	AS_ECHO("Checking for PTHERAD...")
+	AS_ECHO
+	AS_ECHO("POSIX thread support... limited Windows native")	
+	AC_CACHE_VAL(ac_cv_func_pthread_create,[ac_cv_func_pthread_create='limited'])	
+],[
+	AS_CASE([$platform],
+	[FreeBSD|OpenBSD|NetBSD],[
+		dnl OpenBSD requires -pthread in order to link sigwait.
+		SNERT_JOIN_UNIQ([CFLAGS_PTHREAD],[-pthread])
+		SNERT_JOIN_UNIQ([CPPFLAGS_PTHREAD],[-pthread])
+		SNERT_JOIN_UNIQ([LDFLAGS_PTHREAD],[-pthread])
+	])
+	
+	SNERT_CHECK_PACKAGE([PTHREAD], dnl
+		[pthread.h],[libpthread],[dnl
+		pthread_create pthread_cancel pthread_equal pthread_exit pthread_join dnl
+		pthread_kill pthread_self pthread_detach pthread_yield pthread_sigmask sigwait dnl
+		pthread_attr_init pthread_attr_destroy pthread_attr_getdetachstate dnl
+		pthread_attr_setdetachstate pthread_attr_getstackaddr pthread_attr_setstackaddr dnl
+		pthread_attr_getstacksize pthread_attr_setstacksize pthread_attr_getscope dnl
+		pthread_attr_setscope pthread_mutex_init pthread_mutex_destroy pthread_mutex_lock dnl
+		pthread_mutex_trylock pthread_mutex_unlock pthread_mutexattr_init dnl
+		pthread_mutexattr_destroy pthread_mutexattr_setprioceiling dnl
+		pthread_mutexattr_getprioceiling pthread_mutexattr_setprotocol dnl
+		pthread_mutexattr_getprotocol pthread_mutexattr_settype pthread_mutexattr_gettype dnl
+		pthread_cond_broadcast pthread_cond_destroy pthread_cond_init pthread_cond_signal dnl
+		pthread_cond_timedwait pthread_cond_wait pthread_spin_init pthread_spin_destroy dnl
+		pthread_spin_lock pthread_spin_trylock pthread_spin_unlock pthread_rwlock_init dnl
+		pthread_rwlock_destroy pthread_rwlock_unlock pthread_rwlock_rdlock dnl
+		pthread_rwlock_wrlock pthread_rwlock_tryrdlock pthread_rwlock_trywrlock dnl
+		pthread_lock_global_np pthread_unlock_global_np pthread_key_create dnl
+		pthread_key_delete pthread_getspecific pthread_setspecific pthread_once dnl
+		pthread_atfork dnl
+		],dnl
+		[$with_pthread],[$with_pthread_inc],[$with_pthread_lib],[],[no] dnl
+	)
+
+	saved_LIBS="$LIBS"
+	saved_LDFLAGS="$LDFLAGS"
+	saved_CPPFLAGS="$CPPFLAGS"
+	saved_CFLAGS="$CFLAGS"
+
+	LIBS="$LIBS_PTHREAD $saved_LIBS"
+	LDFLAGS="$LDFLAGS_PTHREAD $saved_LDFLAGS"
+	CPPFLAGS="$CPPFLAGS_PTHREAD $saved_CPPFLAGS"
+	CFLAGS="$CFLAGS_PTHREAD $saved_CFLAGS"
+
+	AC_CHECK_TYPES([pthread_t, pthread_attr_t, pthread_mutex_t, pthread_mutexattr_t, pthread_once_t sigset_t],[],[],[
+#ifdef HAVE_SYS_TYPES_H
+# include <sys/types.h>
+#endif
+#ifdef HAVE_SIGNAL_H
+# include <signal.h>
+#endif
+#ifdef HAVE_PTHREAD_H
+# include <pthread.h>
+#endif
+	])
+
+	AH_TEMPLATE(HAVE_PTHREAD_CLEANUP_PUSH)
+	AC_CHECK_FUNC([pthread_cleanup_push],[
+		AC_DEFINE_UNQUOTED(HAVE_PTHREAD_CLEANUP_PUSH)
+	],[
+		SNERT_CHECK_DEFINE(pthread_cleanup_push, pthread.h)
+		AS_IF([test $ac_cv_define_pthread_cleanup_push = 'yes'],[
+			AC_DEFINE_UNQUOTED(HAVE_PTHREAD_CLEANUP_PUSH)
+		])
+	])
+	AH_TEMPLATE(HAVE_PTHREAD_CLEANUP_POP)
+	AC_CHECK_FUNC([pthread_cleanup_pop],[
+		AC_DEFINE_UNQUOTED(HAVE_PTHREAD_CLEANUP_POP)
+	],[
+		SNERT_CHECK_DEFINE(pthread_cleanup_pop, pthread.h)
+		AS_IF([test $ac_cv_define_pthread_cleanup_pop = 'yes'],[
+			AC_DEFINE_UNQUOTED(HAVE_PTHREAD_CLEANUP_POP)
+		])
+	])
+
+	SNERT_FIND_LIB([pthread],[
+		AC_DEFINE_UNQUOTED(LIBPTHREAD_PATH, ["$snert_find_lib_pthread"])
+		AH_TEMPLATE(LIBPTHREAD_PATH)
+	])
+
+	LIBS="$saved_LIBS"
+	LDFLAGS="$saved_LDFLAGS"
+	CPPFLAGS="$saved_CPPFLAGS"	
+	CFLAGS="$saved_CFLAGS"	
+
+	dnl The BSDs use -pthread instead of -lpthread.
+	AS_CASE([$platform],
+	[FreeBSD|OpenBSD|NetBSD],[
+		AS_UNSET([LIBS_PTHREAD])
+	])
+	
+	SNERT_DEFINE([LIBS_PTHREAD])
+	SNERT_DEFINE([LDFLAGS_PTHREAD])
+	SNERT_DEFINE([CPPFLAGS_PTHREAD])
+	SNERT_DEFINE([CFLAGS_PTHREAD])
+
+ 	AC_SUBST(LIBS_PTHREAD)
+ 	AC_SUBST(LDFLAGS_PTHREAD)
+ 	AC_SUBST(CPPFLAGS_PTHREAD)
+ 	AC_SUBST(CFLAGS_PTHREAD)
+
+	AH_VERBATIM(LIBS_PTHREAD,[
+/*
+ * POSIX Thread & Mutex Functions
+ */
+#undef HAVE_PTHREAD_H
+#undef HAVE_PTHREAD_T
+#undef HAVE_PTHREAD_ATTR_T
+#undef HAVE_PTHREAD_MUTEX_T
+#undef HAVE_PTHREAD_MUTEXATTR_T
+#undef HAVE_PTHREAD_ONCE_T
+#undef HAVE_PTHREAD_CANCEL
+#undef HAVE_PTHREAD_CREATE
+#undef HAVE_PTHREAD_DETACH
+#undef HAVE_PTHREAD_EQUAL
+#undef HAVE_PTHREAD_EXIT
+#undef HAVE_PTHREAD_JOIN
+#undef HAVE_PTHREAD_KILL
+#undef HAVE_PTHREAD_SELF
+#undef HAVE_PTHREAD_YIELD
+#undef HAVE_PTHREAD_SIGMASK
+#undef HAVE_SIGWAIT
+#undef HAVE_PTHREAD_ATFORK
+#undef HAVE_PTHREAD_ATTR_INIT
+#undef HAVE_PTHREAD_ATTR_DESTROY
+#undef HAVE_PTHREAD_ATTR_GETDETACHSTATE
+#undef HAVE_PTHREAD_ATTR_SETDETACHSTATE
+#undef HAVE_PTHREAD_ATTR_GETSTACKADDR
+#undef HAVE_PTHREAD_ATTR_SETSTACKADDR
+#undef HAVE_PTHREAD_ATTR_GETSTACKSIZE
+#undef HAVE_PTHREAD_ATTR_SETSTACKSIZE
+#undef HAVE_PTHREAD_ATTR_GETSCOPE
+#undef HAVE_PTHREAD_ATTR_SETSCOPE
+#undef HAVE_PTHREAD_MUTEX_INIT
+#undef HAVE_PTHREAD_MUTEX_DESTROY
+#undef HAVE_PTHREAD_MUTEX_LOCK
+#undef HAVE_PTHREAD_MUTEX_TRYLOCK
+#undef HAVE_PTHREAD_MUTEX_UNLOCK
+#undef HAVE_PTHREAD_MUTEXATTR_INIT
+#undef HAVE_PTHREAD_MUTEXATTR_DESTROY
+#undef HAVE_PTHREAD_MUTEXATTR_SETPRIOCEILING
+#undef HAVE_PTHREAD_MUTEXATTR_GETPRIOCEILING
+#undef HAVE_PTHREAD_MUTEXATTR_SETPROTOCOL
+#undef HAVE_PTHREAD_MUTEXATTR_GETPROTOCOL
+#undef HAVE_PTHREAD_MUTEXATTR_SETTYPE
+#undef HAVE_PTHREAD_MUTEXATTR_GETTYPE
+#undef HAVE_PTHREAD_RWLOCK_INIT
+#undef HAVE_PTHREAD_RWLOCK_DESTROY
+#undef HAVE_PTHREAD_RWLOCK_UNLOCK
+#undef HAVE_PTHREAD_RWLOCK_RDLOCK
+#undef HAVE_PTHREAD_RWLOCK_WRLOCK
+#undef HAVE_PTHREAD_RWLOCK_TRYRDLOCK
+#undef HAVE_PTHREAD_RWLOCK_TRYWRLOCK
+#undef HAVE_PTHREAD_SPIN_INIT
+#undef HAVE_PTHREAD_SPIN_DESTROY
+#undef HAVE_PTHREAD_SPIN_LOCK
+#undef HAVE_PTHREAD_SPIN_TRYLOCK
+#undef HAVE_PTHREAD_SPIN_UNLOCK
+#undef HAVE_PTHREAD_LOCK_GLOBAL_NP
+#undef HAVE_PTHREAD_UNLOCK_GLOBAL_NP
+#undef HAVE_PTHREAD_COND_BROADCAST
+#undef HAVE_PTHREAD_COND_DESTROY
+#undef HAVE_PTHREAD_COND_INIT
+#undef HAVE_PTHREAD_COND_SIGNAL
+#undef HAVE_PTHREAD_COND_TIMEDWAIT
+#undef HAVE_PTHREAD_COND_WAIT
+#undef HAVE_PTHREAD_KEY_CREATE
+#undef HAVE_PTHREAD_KEY_DELETE
+#undef HAVE_PTHREAD_GETSPECIFIC
+#undef HAVE_PTHREAD_SETSPECIFIC
+#undef HAVE_PTHREAD_CLEANUP_PUSH
+#undef HAVE_PTHREAD_CLEANUP_POP
+#undef HAVE_PTHREAD_ONCE
+#undef LIBS_PTHREAD
+#undef LDFLAGS_PTHREAD
+#undef CPPFLAGS_PTHREAD
+#undef CFLAGS_PTHREAD
+#undef LIBPTHREAD_PATH
+	])
+])
+])
+
+AC_DEFUN(SNERT_SCHED,[
+	SNERT_CHECK_PACKAGE([SCHED], dnl
+		[sched.h],[librt],dnl
+		[sched_getparam sched_get_priority_max sched_get_priority_min dnl
+		sched_rr_get_interval sched_getscheduler sched_setparam dnl
+		sched_setscheduler sched_yield], dnl
+		[$with_sched],[$with_sched_inc],[$with_sched_lib] dnl
+	)
+	AH_VERBATIM(LIBS_LUA,[
+#undef HAVE_SCHED_H
+#undef HAVE_SCHED_GETPARAM
+#undef HAVE_SCHED_GET_PRIORITY_MAX
+#undef HAVE_SCHED_GET_PRIORITY_MIN
+#undef HAVE_SCHED_RR_GET_INTERVAL
+#undef HAVE_SCHED_GETSCHEDULER
+#undef HAVE_SCHED_SETPARAM
+#undef HAVE_SCHED_SETSCHEDULER
+#undef HAVE_SCHED_YIELD
+#undef CPPFLAGS_SCHED
+#undef LDFLAGS_SCHED
+#undef LIBS_SCHED
+	])
+])
+
 AC_DEFUN(SNERT_OPTION_WITH_LIBEV,[
 	AC_ARG_WITH(libev,[AC_HELP_STRING([--with-libev],[use libev in place of Snert Event API, optional base directory])])
 dnl	AC_ARG_WITH(libev-inc,[AC_HELP_STRING([--with-libev-inc],[specific libev include directory])])
@@ -1685,11 +1782,12 @@ dnl	AC_ARG_WITH(milter-lib, [[  --with-milter-lib=DIR     specific Milter librar
 ])
 AC_DEFUN(SNERT_LIBMILTER,[
 	AC_REQUIRE([SNERT_PTHREAD])
-	CFLAGS_MILTER="$CFLAGS_PTHREAD"
-	CPPFLAGS_MILTER="$CPPFLAGS_PTHREAD"
-	LDFLAGS_MILTER="$LDFLAGS_PTHREAD"
-	LIBS_MILTER="$HAVE_LIB_PTHREAD"
-
+	AS_IF([test "$with_milter" != 'no'],[
+		SNERT_JOIN_UNIQ([LIBS_MILTER],[$LIBS_PTHREAD])
+		SNERT_JOIN_UNIQ([LDFLAGS_MILTER],[$LDFLAGS_PTHREAD])
+		SNERT_JOIN_UNIQ([CPPFLAGS_MILTER],[$CPPFLAGS_PTHREAD])
+		SNERT_JOIN_UNIQ([CFLAGS_MILTER],[$CFLAGS_PTHREAD])
+	])
 	SNERT_CHECK_PACKAGE([MILTER], dnl
 		[libmilter/mfapi.h],[libmilter],[ dnl
 		smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom dnl
@@ -1721,7 +1819,7 @@ AC_DEFUN([SNERT_OPENSSL],[
 	AC_REQUIRE([SNERT_NETWORK])
 	SNERT_CHECK_PACKAGE([SSL], dnl
 		[openssl/ssl.h openssl/bio.h openssl/err.h openssl/crypto.h], dnl
-		[libcrypto libssl],[SSL_library_init EVP_cleanup] dnl
+		[libssl libcrypto],[SSL_library_init EVP_cleanup] dnl
 		[$with_openssl],[$with_openssl_inc],[$with_openssl_lib] dnl
 	)
 	SNERT_CHECK_DEFINE(OpenSSL_add_all_algorithms, openssl/evp.h)
@@ -1777,11 +1875,12 @@ dnl	AC_ARG_WITH([sqlite3-lib],[AS_HELP_STRING([--with-sqlite3-lib=DIR],[specific
 ])
 AC_DEFUN(SNERT_SQLITE3,[
 	AC_REQUIRE([SNERT_PTHREAD])
-	CFLAGS_SQLITE3="$CFLAGS_PTHREAD"
-	CPPFLAGS_SQLITE3="$CPPFLAGS_PTHREAD"
-	LDFLAGS_SQLITE3="$LDFLAGS_PTHREAD"
-	LIBS_SQLITE3="$HAVE_LIB_PTHREAD"
-
+	AS_IF([test "$with_sqlite3" != 'no'],[
+		SNERT_JOIN_UNIQ([LIBS_SQLITE3],[$LIBS_PTHREAD])
+		SNERT_JOIN_UNIQ([LDFLAGS_SQLITE3],[$LDFLAGS_PTHREAD])
+		SNERT_JOIN_UNIQ([CPPFLAGS_SQLITE3],[$CPPFLAGS_PTHREAD])
+		SNERT_JOIN_UNIQ([CFLAGS_SQLITE3],[$CFLAGS_PTHREAD])
+	])
 	SNERT_CHECK_PACKAGE([SQLITE3],[sqlite3.h],[libsqlite3],[sqlite3_open], dnl
 		[$with_sqlite3],[$with_sqlite3_inc],[$with_sqlite3_lib] dnl
 	)

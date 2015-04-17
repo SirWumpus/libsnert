@@ -379,9 +379,26 @@ typedef unsigned long time_t;
 #undef HAVE_PTHREAD_CLEANUP_PUSH
 #undef HAVE_PTHREAD_CLEANUP_POP
 #undef HAVE_PTHREAD_ONCE
-#undef HAVE_LIB_PTHREAD
-#undef CFLAGS_PTHREAD
+#undef LIBS_PTHREAD
 #undef LDFLAGS_PTHREAD
+#undef CPPFLAGS_PTHREAD
+#undef CFLAGS_PTHREAD
+
+/*
+ * Scheduling
+ */
+#undef HAVE_SCHED_H
+#undef HAVE_SCHED_GETPARAM
+#undef HAVE_SCHED_GET_PRIORITY_MAX
+#undef HAVE_SCHED_GET_PRIORITY_MIN
+#undef HAVE_SCHED_RR_GET_INTERVAL
+#undef HAVE_SCHED_GETSCHEDULER
+#undef HAVE_SCHED_SETPARAM
+#undef HAVE_SCHED_SETSCHEDULER
+#undef HAVE_SCHED_YIELD
+#undef CPPFLAGS_SCHED
+#undef LDFLAGS_SCHED
+#undef LIBS_SCHED
 
 /*
  * Define to enable application level mutex debugging.
