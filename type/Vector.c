@@ -335,14 +335,15 @@ void
 VectorUniq(Vector self, int (*compare)(const void *a, const void *b))
 {
 	long i;
-	void *curr = NULL;
+	void *prev;
 
 	if (self != NULL) {
-		for (i = 0; i < self->_length; i++) {
-			if ((*compare)(&curr, &self->_base[i]) == 0)
+		prev = self->_base[0];
+		for (i = 1; i < self->_length; i++) {
+			if ((*compare)(&prev, &self->_base[i]) == 0)
 				VectorRemove(self, i--);
 			else
-				curr = self->_base[i];
+				prev = self->_base[i];
 		}
 	}
 }
