@@ -144,7 +144,6 @@ typedef struct {
 	const char *qid;			/* per message, $i macro */
 	ParsePath *mail;			/* per message, must free */
 	ParsePath *rcpt;			/* per recipient, must free */
-	char replyLine[SMTP_REPLY_LINE_LENGTH+1];	/* smfReply(), smfReplyV() */
 	char client_name[SMTP_DOMAIN_LENGTH+1];	/* per connection */
 	char client_addr[IPV6_TAG_LENGTH+IPV6_STRING_SIZE];	/* per connection */
 } smfWork;

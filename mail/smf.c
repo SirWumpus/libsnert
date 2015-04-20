@@ -347,10 +347,10 @@ smfReplyV(smfWork *work, int code, const char *ecode, const char *fmt, va_list a
 	int length;
 	char *reply;
 	sfsistat rc;
-	char rcode[4], xcode[10];
 	unsigned class, subject, detail;
+	char rcode[4], xcode[10], line[SMTP_REPLY_LINE_LENGTH];
 
-	work->replyLine[0] = '\0';
+	line[0] = '\0';
 
 	if (SMTP_IS_PERM(code))
 		rc = SMFIS_REJECT;
@@ -381,18 +381,18 @@ smfReplyV(smfWork *work, int code, const char *ecode, const char *fmt, va_list a
 	}
 
 	/* Build reply message. */
-	(void) vsnprintf(work->replyLine, sizeof (work->replyLine), fmt, args);
+	(void) vsnprintf(line, sizeof (line), fmt, args);
 
 	/* Remove non-printable characters like CR, which smfi_setreply() fails on. */
-	for (reply = work->replyLine; *reply != '\0'; reply++) {
+	for (reply = line; *reply != '\0'; reply++) {
 		if (isspace(*reply))
 			*reply = ' ';
 	}
 
-	smfLog(SMF_LOG_TRACE, TAG_FORMAT "reply %s %s %s", TAG_ARGS, rcode, ecode, work->replyLine);
+	smfLog(SMF_LOG_TRACE, TAG_FORMAT "reply %s %s %s", TAG_ARGS, rcode, ecode, line);
 
 	/* Tell sendmail what error to report to the sender. */
-	if (smfi_setreply(work->ctx, rcode, (char *) ecode, work->replyLine) == MI_FAILURE)
+	if (smfi_setreply(work->ctx, rcode, (char *) ecode, line) == MI_FAILURE)
 		syslog(LOG_ERR, TAG_FORMAT "smfReplyV(): smfi_setreply() failed: %s (%d)", TAG_ARGS, strerror(errno), errno);
 
 	return rc;
@@ -1222,9 +1222,9 @@ smfAccessAuth(smfWork *work, const char *tag, const char *auth, const char *mail
 	}
 
 	if (buflen <= snprintf(buf, buflen, "%s%s", tag, auth)) {
-		(void) smfReply(work, 553, "5.1.0", "internal error, buffer overflow");
+		(void) smfReply(work, 453, "4.1.0", "internal error, buffer overflow");
 		free(buf);
-		return SMDB_ACCESS_ERROR;
+		return SMDB_ACCESS_TEMPFAIL;
 	}
 
 	value = smdbGetValue(smdbAccess, buf);
@@ -1494,8 +1494,8 @@ smfAccessMail2(smfWork *work, const char *tag, const char *mail, long parseFlags
 	}
 
 	if (sizeof (connect) <= snprintf(connect, sizeof (connect), "%s%sconnect:", name, delim)) {
-		(void) smfReply(work, 553, "5.1.0", "internal error, buffer overflow");
-		return SMDB_ACCESS_ERROR;
+		(void) smfReply(work, 453, "4.1.0", "internal error, buffer overflow");
+		return SMDB_ACCESS_TEMPFAIL;
 	}
 #endif
 	/* The default is to white list authenticated users. */
@@ -1714,12 +1714,12 @@ smfAccessRcpt2(smfWork *work, const char *tag, const char *rcpt, long parseFlags
 	}
 
 	if (sizeof (from) <= snprintf(from, sizeof (from), "%s%sfrom:", name, delim)) {
-		(void) smfReply(work, 553, "5.1.0", "internal error, buffer overflow");
-		return SMDB_ACCESS_ERROR;
+		(void) smfReply(work, 453, "4.1.0", "internal error, buffer overflow");
+		return SMDB_ACCESS_TEMPFAIL;
 	}
 	if (sizeof (connect) <= snprintf(connect, sizeof (connect), "%s%sconnect:", name, delim)) {
-		(void) smfReply(work, 553, "5.1.0", "internal error, buffer overflow");
-		return SMDB_ACCESS_ERROR;
+		(void) smfReply(work, 453, "4.1.0", "internal error, buffer overflow");
+		return SMDB_ACCESS_TEMPFAIL;
 	}
 #endif
 #ifdef HAVE_POP_BEFORE_SMTP
@@ -1738,7 +1738,7 @@ smfAccessRcpt2(smfWork *work, const char *tag, const char *rcpt, long parseFlags
 	 * test catches these slips.
 	 */
 	if (smfOptRejectPercentRelay.value && strchr(path->address.string, '%') != NULL) {
-		smfReply(work, 550, NULL, "routed address relaying denied");
+		(void)  smfReply(work, 550, NULL, "routed address relaying denied");
 		access = SMDB_ACCESS_REJECT;
 	}
 #ifdef ENABLE_COMBO_TAGS
