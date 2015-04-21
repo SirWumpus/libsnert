@@ -57,6 +57,16 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.42--
+
+   !	Refactored SNERT_PTHREAD to use SNERT_CHECK_PACKAGE.  Added
+	SNERT_SCHED.
+
+   !	Fix VectorUniq() to compare against previous array value.
+
+   !	Removed replyLine from smfWork object and modified smfReplyV()
+	to use a stack based buffer instead.
+
 --1.75.41--
 
    !	Updated TLD list.

@@ -25,6 +25,7 @@ FILE.TXT
 VERSION.TXT
 *makefile
 *Makefile
+config.h*
 config.log
 config.status
 install.sh
@@ -46,6 +47,7 @@ mail/digestbl
 mail/dkim-hash
 mail/mime
 mail/parsePath
+mail/mime-samples/*
 mail/siq
 mail/smtp2
 mail/spf
