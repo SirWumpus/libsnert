@@ -715,6 +715,8 @@ allocatePath(const char *fmt, ParsePath *p)
 
 #ifdef TEST
 #include <stdio.h>
+#include <com/snert/lib/util/getopt.h>
+#include <com/snert/lib/util/setBitWord.h>
 
 #if ! defined(__MINGW32__)
 #undef syslog
@@ -810,6 +812,29 @@ static char *regression[] = {
 	"<Vanessa-kauskas:@SELSOL.COM>",
 };
 
+struct bitword strict_flags[] = {
+	{ STRICT_ANGLE_BRACKETS,	"STRICT_ANGLE_BRACKETS" },
+	{ STRICT_LOCAL_LENGTH,		"STRICT_LOCAL_LENGTH" },
+	{ STRICT_DOMAIN_LENGTH,		"STRICT_DOMAIN_LENGTH" },
+	{ STRICT_LITERAL_PLUS,		"STRICT_LITERAL_PLUS" },
+	{ STRICT_ADDR_SPEC,		"STRICT_ADDR_SPEC" },
+	{ STRICT_MIN_DOTS,		"STRICT_MIN_DOTS" },
+	{ 0, 				NULL }
+};
+
+void
+flags_to_name(struct bitword *map, unsigned long flags)
+{
+	for ( ; map->name != NULL; map++) {
+		if (map->bit & flags) {
+			(void) printf("%s", map->name);
+			flags &= ~map->bit;
+			if (flags)
+				fputc(',', stdout);
+		}
+	}
+}
+
 int
 testFormat(const char *fmt, ParsePath *p)
 {
@@ -857,7 +882,9 @@ test(unsigned long flags, int argc, char **argv)
 			continue;
 		}
 
-		printf("'%s' flags=0x%lX\n", argv[i], flags);
+		(void) printf("'%s' flags=0x%lX ", argv[i], flags);
+		flags_to_name(strict_flags, flags);
+		(void) fputc('\n', stdout);
 
 		printf(
 			"\taddress='%s' sourceroute='%s' localleft='%s' localright='%s' domain='%s'\n",
@@ -1016,7 +1043,7 @@ int
 main(int argc, char **argv)
 {
 	long flags;
-	int regressTest, vflag, argi;
+	int regressTest, vflag, ch;
 
 	if (argc <= 1) {
 		printf("usage: parsePath [-t][-v ...][-f flags] [email-path ...]\n");
@@ -1027,13 +1054,10 @@ main(int argc, char **argv)
 	regressTest = 0;
 	flags = STRICT_LENGTH;
 
-	for (argi = 1; argi < argc; argi++) {
-		if (argv[argi][0] != '-' || (argv[argi][1] == '-' && argv[argi][2] == '\0'))
-			break;
-
-		switch (argv[argi][1]) {
+	while ((ch = getopt(argc, argv, "f:tv")) != -1) {
+		switch (ch) {
 		case 'f':
-			flags = strtol(argv[argi][2] == '\0' ? argv[++argi] : &argv[argi][2], NULL, 0);
+			flags = setBitWord(strict_flags, optarg);
 			break;
 
 		case 't':
@@ -1070,7 +1094,7 @@ main(int argc, char **argv)
 			return 1;
 	}
 
-	if (test(flags, argc - argi + 1, argv + argi - 1))
+	if (test(flags, argc - optind + 1, argv + optind - 1))
 		return 1;
 
 	return 0;

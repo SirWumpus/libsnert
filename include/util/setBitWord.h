@@ -12,8 +12,8 @@ extern "C" {
 #endif
 
 struct bitword {
-	long bit;
-	char *name;
+	unsigned long bit;
+	const char *name;
 };
 
 /**
