@@ -49,15 +49,15 @@ extern "C" {
  * CPU types if the pointer is cast to a particular type.
  */
 #define NET_GET_SHORT(p)	(unsigned short) (                 \
-				    ((unsigned char *) p)[0] << 8  \
-				  | ((unsigned char *) p)[1]       \
+				    (unsigned short)((unsigned char *) p)[0] << 8  \
+				  | (unsigned short)((unsigned char *) p)[1]       \
 				)
 
 #define NET_GET_LONG(p)		(unsigned long) (                  \
-				    ((unsigned char *) p)[0] << 24 \
-				  | ((unsigned char *) p)[1] << 16 \
-				  | ((unsigned char *) p)[2] << 8  \
-				  | ((unsigned char *) p)[3]       \
+				    (unsigned long)((unsigned char *) p)[0] << 24 \
+				  | (unsigned long)((unsigned char *) p)[1] << 16 \
+				  | (unsigned long)((unsigned char *) p)[2] << 8  \
+				  | (unsigned long)((unsigned char *) p)[3]       \
 				)
 
 #define NET_SET_SHORT(p, n)	(						 \
