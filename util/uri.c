@@ -589,6 +589,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	}
 
 	else if ((uri->scheme == NULL || uriGetSchemePort(uri) == 25) && (uri->host = strchr(value, '@')) != NULL && value < uri->host) {
+		char *local_part;
 		*uri->host++ = '\0';
 
 		for (uri->userInfo = value; *uri->userInfo != '\0' && spanLocalPart((unsigned char *)uri->userInfo) <= 0; uri->userInfo++)
@@ -600,7 +601,17 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		uri->host[span] = '\0';
 		uri->scheme = "mailto";
 		uri->schemeInfo = uri->uriDecoded;
-		snprintf(uri->uriDecoded, length+1, "%s%c%s", uri->userInfo, at_sign_delim, uri->host);
+		
+		/* Any spaces in userInfo were URI decoded plus-signs.
+		 * However plus-signs in the local-part of an address
+		 * are permitted.
+		 */
+		for (local_part = uri->userInfo; *local_part != '\0'; local_part++) {
+			if (*local_part == ' ')
+				*local_part = '+';
+		}
+		 
+		(void) snprintf(uri->uriDecoded, length+1, "%s%c%s", uri->userInfo, at_sign_delim, uri->host);
 	}
 
 	/* This used to be spanDomain, but it is useful to also
