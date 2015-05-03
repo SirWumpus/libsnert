@@ -130,6 +130,7 @@ com/snert/src/lib/sys/Shared.c
 com/snert/src/lib/sys/Thread.c
 com/snert/src/lib/sys/Time.c
 com/snert/src/lib/sys/TimeStamp.c
+com/snert/src/lib/sys/free_clear.c
 com/snert/src/lib/sys/gmtime_r.c
 com/snert/src/lib/sys/makefile.in
 com/snert/src/lib/sys/malloc.c

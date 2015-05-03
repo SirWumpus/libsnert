@@ -70,7 +70,7 @@ $O$E :
 
 #######################################################################
 
-OBJS =	Mutex$O Shared$O Thread$O gmtime_r$O Time$O TimeStamp$O \
+OBJS =	Mutex$O Shared$O Thread$O free_clear$O gmtime_r$O Time$O TimeStamp$O \
 	kill$O sleep$O pid$O rlimits$O process$O lockpick$O pthread$O \
 	pthreadSleep$O sys$O winService$O daemon$O nap$O
 
