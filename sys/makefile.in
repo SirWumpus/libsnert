@@ -72,7 +72,7 @@ $O$E :
 
 OBJS =	Mutex$O Shared$O Thread$O gmtime_r$O Time$O TimeStamp$O \
 	kill$O sleep$O pid$O rlimits$O process$O lockpick$O pthread$O \
-	pthreadSleep$O sys$O winService$O malloc$O daemon$O nap$O
+	pthreadSleep$O sys$O winService$O daemon$O nap$O
 
 .MAIN : build
 
@@ -113,4 +113,10 @@ lint: title
 
 sys$E: sys.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}sys$E ${srcdir}/sys.c  $(LIBSNERT) ${LIBS}
+
+malloc$O: ${srcdir}/malloc.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -c malloc.c
+
+malloc$E: ${srcdir}/malloc.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DTEST ${CC_E}malloc$E ${srcdir}/malloc.c
 
