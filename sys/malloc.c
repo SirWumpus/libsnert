@@ -119,7 +119,7 @@ stub_fatal(const char *fmt, ...)
 	/* Do nothing. */
 }
 
-const char *_malloc_options = MALLOC_OPTIONS_DEFAULT;
+const char *_alt_malloc_options = MALLOC_OPTIONS_DEFAULT;
 
 static int opt_leaks;
 static int opt_zero_size;	
@@ -134,14 +134,14 @@ init_common(void)
 {
 	char *var;
 	
-	if ((var = getenv("MALLOC_OPTIONS")) != NULL)
-		_malloc_options = var;
+	if ((var = getenv("ALT_MALLOC_OPTIONS")) != NULL)
+		_alt_malloc_options = var;
 	
-	/* Based on *BSD jemalloc debug options.  L are mine. */
-	opt_abort = (strchr(_malloc_options, 'A') != NULL) ? fatal : stub_fatal;
-	opt_xalloc = (strchr(_malloc_options, 'X') != NULL) ? fatal : stub_fatal;
-	opt_zero_size = (strchr(_malloc_options, 'V') != NULL);
-	opt_leaks = (strchr(_malloc_options, 'L') != NULL);
+	/* Based on *BSD jemalloc debug options. */
+	opt_abort = (strchr(_alt_malloc_options, 'A') != NULL) ? fatal : stub_fatal;
+	opt_xalloc = (strchr(_alt_malloc_options, 'X') != NULL) ? fatal : stub_fatal;
+	opt_zero_size = (strchr(_alt_malloc_options, 'V') != NULL);
+	opt_leaks = (strchr(_alt_malloc_options, 'L') != NULL);
 	
 	(void) memset(&lo_guard, LO_BYTE, sizeof (lo_guard));
 	(void) memset(&freed, J_FREED_BYTE, sizeof (freed));
@@ -450,7 +450,7 @@ void *
 	size_t size;
 	
 	size = n_objects * object_size;
-	if ((chunk = malloc(size)) != NULL) {
+	if ((chunk = (malloc)(size)) != NULL) {
 		(void) memset(chunk, 0, size);
 	}		
 		
@@ -463,10 +463,10 @@ void *
 	void *chunk;
 	size_t osize = 0;
 	
-	if ((chunk = malloc(size)) != NULL) {
+	if ((chunk = (malloc)(size)) != NULL && orig != NULL) {
 		osize = ((size_t *)orig)[-1];
 		(void) memcpy(chunk, orig, osize < size ? osize : size);
-		free(orig);
+		(free)(orig);
 	}
 		
 	return chunk;
@@ -478,7 +478,7 @@ void *
 (aligned_alloc)(size_t alignment, size_t size)
 {
 	if (is_power_two(alignment) && sizeof (void *) <= alignment && (size / alignment) * alignment == size)
-		return malloc(size);
+		return (malloc)(size);
 	return NULL;
 }
 
