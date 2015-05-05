@@ -183,7 +183,7 @@ extern int pthread_cond_destroy(pthread_cond_t *);
 # define pthread_testcancel()
 #endif
 #if !defined(HAVE_PTHREAD_YIELD)
-# define pthread_yield()
+# define pthread_yield()		(0)
 #endif
 
 #if defined(HAVE_PTHREAD_SETCANCELSTATE)

@@ -45,8 +45,17 @@ RANLIB		:= @RANLIB@
 ARCHIVE		:= @ARCHIVE@
 COMPILE		:= @COMPILE@
 
-LIBSNERT = @LIBSNERT@
-LIB_PTHREAD = @HAVE_LIB_PTHREAD@
+LIBSNERT 	= @LIBSNERT@
+LIB_RT 		= @HAVE_LIB_RT@
+
+LIB_SEM		= @HAVE_LIB_SEM@
+LIB_WS2_32	= @HAVE_LIB_WS2_32@
+LIB_IPHLPAPI	= @HAVE_LIB_IPHLPAPI@
+NETWORK_LIBS	= @NETWORK_LIBS@
+
+LIB_PTHREAD	= @HAVE_LIB_PTHREAD@
+CFLAGS_PTHREAD	= @CFLAGS_PTHREAD@
+LDFLAGS_PTHREAD	= @LDFLAGS_PTHREAD@
 
 #######################################################################
 
@@ -70,9 +79,13 @@ $O$E :
 
 #######################################################################
 
+EARLY =	track$O
+
 OBJS =	Mutex$O Shared$O Thread$O free_clear$O gmtime_r$O Time$O TimeStamp$O \
 	kill$O sleep$O pid$O rlimits$O process$O lockpick$O pthread$O \
-	pthreadSleep$O sys$O winService$O daemon$O nap$O
+	pthreadSleep$O sys$O winService$O daemon$O nap$O track$O
+
+DBG =	malloc$O
 
 .MAIN : build
 
@@ -87,8 +100,11 @@ title :
 	@echo '***************************************************************'
 	@echo
 
-
 build : title $(LIB) add-lib sys$E
+
+early : ${EARLY}
+	ar rc ${LIB} ${EARLY}
+	$(RANLIB) $(LIB)
 
 $(LIB):	$(OBJS)
 
@@ -114,9 +130,14 @@ lint: title
 sys$E: sys.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}sys$E ${srcdir}/sys.c  $(LIBSNERT) ${LIBS}
 
-malloc$O: ${srcdir}/malloc.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -c malloc.c
-
 malloc$E: ${srcdir}/malloc.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DTEST ${CC_E}malloc$E ${srcdir}/malloc.c
 
+track$E: ${srcdir}/track.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DTEST ${CC_E}track$E ${srcdir}/track.c
+
+ptrack$O: ${srcdir}/track.c
+	$(CC) $(CFLAGS) ${CFLAGS_PTHREAD} ${CC_O}ptrack$O -c ${srcdir}/track.c
+
+ptrack$E: ${srcdir}/track.c
+	$(CC) $(CFLAGS) ${CFLAGS_PTHREAD} $(LDFLAGS) -DTEST ${CC_E}ptrack$E ${srcdir}/track.c ${LIBS_PTHREAD}

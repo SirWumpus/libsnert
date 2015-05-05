@@ -134,6 +134,7 @@ com/snert/src/lib/sys/free_clear.c
 com/snert/src/lib/sys/gmtime_r.c
 com/snert/src/lib/sys/makefile.in
 com/snert/src/lib/sys/malloc.c
+com/snert/src/lib/sys/track.c
 com/snert/src/lib/sys/lockpick.c
 com/snert/src/lib/sys/daemon.c
 com/snert/src/lib/sys/nap.c
@@ -285,6 +286,7 @@ com/snert/src/lib/include/sys/Mutex.h
 com/snert/src/lib/include/sys/Shared.h
 com/snert/src/lib/include/sys/Thread.h
 com/snert/src/lib/include/sys/Time.h
+com/snert/src/lib/include/sys/track.h
 com/snert/src/lib/include/sys/lockpick.h
 com/snert/src/lib/include/sys/pid.h
 com/snert/src/lib/include/sys/process.h
