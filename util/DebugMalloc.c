@@ -111,7 +111,7 @@ extern ssize_t write(int, const void *, size_t);
  *** Constants & Globals
  ***********************************************************************/
 
-#ifdef _THREAD_SAFE
+#if defined(_THREAD_SAFE) && ! defined(__WIN32__)
 # include <com/snert/lib/sys/pthread.h>
 
 # define LOCK_T				pthread_mutex_t
@@ -229,7 +229,7 @@ void *memory_malloc_chunk = NULL;
  ***
  ***********************************************************************/
 
-#ifdef _THREAD_SAFE
+#if defined(_THREAD_SAFE) && ! defined(__WIN32__)
 static LOCK_T lock;
 static pthread_key_t thread_key;
 #else
@@ -302,7 +302,7 @@ signal_error(char *fmt, ...)
 void
 (DebugMallocSummary)(void)
 {
-	if (main_thread == 0 || main_thread == pthread_self())
+	if (main_thread == pthread_self())
 		(void) fprintf(stderr, "main_thread:\r\n");
 	else
 		(void) fprintf(stderr, "thread #%lx:\r\n", (unsigned long) pthread_self());
@@ -396,6 +396,7 @@ init_common(void)
 		exit(EX_OSERR);
 	}
 #endif
+	memory_init_state = MEMORY_INITIALISED;
 }
 
 #if defined(__WIN32__)
@@ -571,10 +572,6 @@ __dead void
 
 	/* Use a temporary "static" output buffer. */
 	(void) setvbuf(stderr, buffer, _IOLBF, sizeof (buffer));
-
-	/* Have to initialise libc__exit before we can call it. */
-	if (memory_init_state == MEMORY_INITIALISE)
-		init();
 
 #ifdef HAVE_SYS_RESOURCE_H
 # define _STANDALONE
@@ -804,6 +801,7 @@ void *
 	void *chunk;
 	size_t block_size;
 	BlockData *block, *head;
+	static int init_second_stage = -1;
 
 	/* malloc() before main() can happen with OpenBSD. */
 	switch (memory_init_state) {
@@ -815,14 +813,17 @@ void *
 		/*@fallthrough@*/
 
 	case MEMORY_INITIALISING:
-		if (line == 0)
-			return _malloc(size);
+		return _malloc(size);
+	}
 
+	if (init_second_stage) { 
 		/* OpenBSD allocates more memory when some pthread functions
 		 * are first used.  Force it here so as to allocate it from
 		 * _malloc().  We can't do this in init(), since the first call
 		 * happens during thread initilisation and would cause a loop.
 		 */
+		memory_init_state = MEMORY_INITIALISING;
+		 
 		(void) LOCK_INIT(&lock);
 		(void) LOCK_LOCK(&lock);
 		(void) LOCK_UNLOCK(&lock);
@@ -831,6 +832,7 @@ void *
 
 		memory_init_state = MEMORY_INITIALISED;
 		main_thread = pthread_self();
+		init_second_stage = 0;
 	}
 
 	/* Allocate enough space to include some boundary markers.
