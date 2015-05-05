@@ -107,6 +107,7 @@ SNERT_OPTION_ENABLE_FORK
 SNERT_OPTION_ENABLE_FCNTL_LOCKS
 SNERT_OPTION_ENABLE_MINGW
 SNERT_OPTION_ENABLE_POPAUTH
+SNERT_OPTION_ENABLE_TRACK
 
 #######################################################################
 #	Configuration options: packages

@@ -42,6 +42,23 @@ extern void *track_aligned_alloc(size_t alignment, size_t size, const char *here
 # define aligned_alloc(n,s)	track_aligned_alloc(n, s, __func__, __LINE__)
 #endif
 
+/* The C Standard, 7.1.4, paragraph 1, states [ISO/IEC 9899:2011]
+ *
+ * "Any macro definition of a function can be suppressed locally by
+ *  enclosing the name of the function in parentheses, because the
+ *  name is then not followed by the left parenthesis that indicates
+ *  expansion of a macro function name."
+ *
+ * NetBSD 6.1.5 stdlib.h fails to define these in a macro safe manner
+ * so that an application can provide macro equivalents.  This may be
+ * true of other OSes.
+ */
+extern void  (free)(void *);
+extern void *(malloc)(size_t);
+extern void *(calloc)(size_t, size_t);
+extern void *(realloc)(void *, size_t);
+extern void *(aligned_alloc)(size_t, size_t);
+
 #ifdef  __cplusplus
 }
 #endif

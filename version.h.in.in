@@ -1017,7 +1017,22 @@ extern void snertPrintInfo(void);
  *** Alternate Memory Allocator
  ***********************************************************************/
 
-#include <com/snert/lib/sys/track.h>
+#ifndef HAVE_FREEFN_T
+#define HAVE_FREEFN_T
+typedef void (*FreeFn)(void *);
+#endif
+
+/*
+ * Intended for debugging in combination with valgrind, which often
+ * reports "...points to uninitialised byte(s)" when part of a buffer
+ * remains unused. Should only be disabled once you are sure that what
+ * valgrind is reporting can be safely ignored.
+ */
+#ifdef NDEBUG
+# define MEMSET(p, b, s)
+#else
+# define MEMSET(p, b, s)       memset((p),(b),(s))
+#endif
 
 /*
  * @param ptr
@@ -1026,6 +1041,8 @@ extern void snertPrintInfo(void);
  *	that the pointer variable can be set to NULL once freed.
  */
 extern void free_clear(void *ptr);
+
+#include <com/snert/lib/sys/track.h>
 
 /***********************************************************************
  *** GNU Backtrace

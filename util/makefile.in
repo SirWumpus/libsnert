@@ -37,6 +37,7 @@ CC		:= @CC@
 CC_E		:= @CC_E@
 CC_O		:= @CC_O@
 CFLAGS		 = ${CFLAGS_PREFIX} @CFLAGS@
+CPPFLAGS	 = ${CPPFLAGS_PREFIX} @CPPFLAGS@
 LDFLAGS		 = ${LDFLAGS_PREFIX} @LDFLAGS@
 LIBS		 = ${LIBS_PREFIX} @LIBS@
 
@@ -69,23 +70,25 @@ LDFLAGS_SQLITE3	= @LDFLAGS_SQLITE3@
 
 #%$O : %.c
 .c$O :
-	${CC} ${CFLAGS} -c $<
+	${CC} ${CFLAGS} ${CPPFLAGS} -c $<
 
 #(%) : %
 #	$(ARCHIVE)$*
 
 #%$E : %.c
 .c$E :
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)$*$E $< $(LIBSNERT) $(LIBS)
+	$(CC) $(CFLAGS) ${CPPFLAGS} $(LDFLAGS) $(CC_E)$*$E $< $(LIBSNERT) $(LIBS)
 
 #%$E : %$O
 $O$E :
 	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
 
 .c.i:
-	${CC} -E ${CFLAGS} $*.c >$*.i
+	${CC} -E ${CPPFLAGS} $*.c >$*.i
 
 #######################################################################
+
+EARLY =	getopt$O
 
 OBJS = \
 	ixhash$O md4$O md5$O b64$O cgi$O cipher$O playfair$O convertDate$O escape$O\
@@ -126,6 +129,10 @@ build-cli: title ${CLI}
 build-debug : title DebugMalloc$O $(LIB) add-lib
 
 build-tests: build-cli ${TEST}
+
+early : ${EARLY}
+	ar rc ${LIB} ${EARLY}
+	$(RANLIB) $(LIB)
 
 $(LIB):	$(OBJS)
 

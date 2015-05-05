@@ -14,8 +14,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <com/snert/lib/sys/track.h>
-
 #define HERE_FMT			"%s:%ld "
 #define HERE_ARG			here, (long)lineno
 

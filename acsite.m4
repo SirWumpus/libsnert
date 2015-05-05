@@ -288,6 +288,16 @@ AC_DEFUN(SNERT_OPTION_ENABLE_DEBUG,[
 ])
 
 dnl
+dnl SNERT_OPTION_ENABLE_TRACK
+dnl
+AC_DEFUN(SNERT_OPTION_ENABLE_TRACK,[
+	AC_ARG_ENABLE(track,[AC_HELP_STRING([--enable-track],[enable memory leak tracking])],[
+		dnl We define this through -D instead of config.h.
+		CFLAGS="-DTRACK${CFLAGS:+ $CFLAGS}"
+	])
+])
+
+dnl
 dnl SNERT_SNERT
 dnl
 AC_DEFUN([SNERT_SNERT],[
@@ -1000,9 +1010,7 @@ AC_DEFUN(SNERT_OPTION_ENABLE_FORK,[
 ])
 
 AC_DEFUN(SNERT_OPTION_ENABLE_FCNTL_LOCKS,[
-	AC_ARG_ENABLE(fcntl-locks,[
-		AC_HELP_STRING([--enable-fcntl-locks],[use fcntl() file locking instead of flock()])
-	],[
+	AC_ARG_ENABLE(fcntl-locks,[AC_HELP_STRING([--enable-fcntl-locks],[use fcntl() file locking instead of flock()])],[
 		AC_DEFINE(ENABLE_ALT_FLOCK,[1],[Enable alternative flock using fcntl.])
 	],[
 		dnl Option not specified, choose default based on OS.

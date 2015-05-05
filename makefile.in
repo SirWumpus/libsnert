@@ -114,6 +114,7 @@ $O$E :
 
 OBJS 	= LibSnert$O
 
+EARLY	= util sys
 SUBDIRS = crc type util io net mail sys tools
 
 .MAIN : all
@@ -128,6 +129,7 @@ title :
 	@echo
 
 build: title add-lib
+	@for i in $(EARLY); do cd $$i && ${MAKE} ${MAKEFLAGS} early && cd .. ; done
 	@for i in $(SUBDIRS); do cd $$i && ${MAKE} ${MAKEFLAGS} build && cd .. ; done
 	@echo
 	@echo '***************************************************************'

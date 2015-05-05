@@ -37,6 +37,7 @@ CC		:= @CC@
 CC_E		:= @CC_E@
 CC_O		:= @CC_O@
 CFLAGS		 = ${CFLAGS_PREFIX} @CFLAGS@
+CPPFLAGS	 = ${CPPFLAGS_PREFIX} @CPPFLAGS@
 LDFLAGS		 = ${LDFLAGS_PREFIX} @LDFLAGS@
 LIBS		 = ${LIBS_PREFIX} @LIBS@
 
@@ -75,7 +76,7 @@ $O$E :
 	$(LD) $(LDFLAGS) $(CC_E)$*$E $*$O $(LIBSNERT) $(LIBS)
 
 .c.i:
-	${CC} -E ${CFLAGS} $*.c >$*.i
+	${CC} -E ${CPPFLAGS} $*.c >$*.i
 
 #######################################################################
 
