@@ -104,6 +104,7 @@ TextSplit(const char *string, const char *delims, int flags)
 #ifdef TEST
 #include <stdio.h>
 #include <com/snert/lib/type/Vector.h>
+#include <com/snert/lib/util/getopt.h>
 
 typedef struct {
 	const char *string;
@@ -233,7 +234,7 @@ test_text_split(test_case *test)
 }
 
 int
-main(int argc, char **argv)
+test_suite(void)
 {
 	int ex;
 	test_case *test;
@@ -243,7 +244,61 @@ main(int argc, char **argv)
 		if (test_text_split(test))
 			ex = EXIT_FAILURE;
 	}
-
+	
 	return ex;
+}
+
+static const char usage[] =
+"usage: TextSplit [-t][-d delims][-f flags] string ...\n"
+;
+
+int
+main(int argc, char **argv)
+{
+	Vector v;
+	char *delims;
+	int i, ch, argi, flags;
+
+	flags = 0;
+	delims = NULL;
+	
+	while ((ch = getopt(argc, argv, "d:f:t")) != -1) {
+		switch (ch) {
+		case 'd':
+			delims = optarg;
+			break;
+			
+		case 'f':
+			flags = (int) strtol(optarg, NULL, 0);
+			break;
+			
+		case 't':
+			return test_suite();
+		
+		default:
+			optind = argc;
+		}
+	}
+	
+	if (argc <= optind) {
+		(void) fputs(usage, stderr);
+		return EXIT_FAILURE;
+	}
+	
+	for (argi = optind; argi < argc; argi++) {		
+		(void) printf("\"%s\"\n", argv[argi]);
+
+		if ((v = TextSplit(argv[argi], delims, flags)) == NULL) {
+			(void) fprintf(stderr, "out of memory\n");
+			return EXIT_FAILURE;
+		}
+		
+		for (i = 0; i < VectorLength(v); i++)
+			(void) printf("\t%d:%s\n", i, (char *)VectorGet(v, i));			
+
+		VectorDestroy(v);
+	}
+
+	return EXIT_SUCCESS;
 }
 #endif
