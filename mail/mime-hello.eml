@@ -1,7 +1,9 @@
 Subject: Hello World
 From: <wumpus@snert.xyz>
-To: <achowe@snert.com>, <achowe@snert.org>
-Date: Sun, 8 Feb 2015 10:45:37 -0500
+To: <achowe@snert.com>,
+    <achowe@snert.org>
+Date: Sun, 8 Feb 2015
+ 10:45:37 -0500
 Message-Id: <1@pintree.example.com>
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="=_foo_"

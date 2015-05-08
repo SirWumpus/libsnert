@@ -1486,7 +1486,7 @@ printSource(Mime *m, void *_data)
 {
 	LOGCB(m, _data);
 
-	if (m->mime_part_number == extract_part)
+	if (m->mime_part_number == extract_part && !mimeIsAnyHeader(m))
 		fwrite(m->source.buffer, 1, m->source.length, stdout);
 }
 
@@ -1495,7 +1495,7 @@ printDecode(Mime *m, void *_data)
 {
 	LOGCB(m, _data);
 
-	if (m->mime_part_number == extract_part)
+	if (m->mime_part_number == extract_part && !mimeIsAnyHeader(m))
 		fwrite(m->decode.buffer, 1, m->decode.length, stdout);
 }
 
