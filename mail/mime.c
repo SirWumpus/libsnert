@@ -552,10 +552,10 @@ mimeStateDash2(Mime *m, int ch)
 	 *	Content-Type: multipart/mixed; boundary=" foo bar"
 	 *
 	 * Ignoring zero length boundary markers ensures that email
-	 * signatures, often delimited by a simple "--CRLF" (see
+	 * signatures, often delimited by a simple "-- CRLF" (see
 	 * Thunderbird MUA), remain part of the MIME part.
 	 */
-	if (isspace(ch) || strchr(BCHARS_UNUSED, ch) != NULL) {
+	if (isspace(ch) || !(*mimeIsBoundaryChar)(ch)) {
 		/* Not a MIME boundary. */
 		(void) mimeDecodeState(m, ASCII_LF);
 		(void) mimeDecodeState(m, '-');
@@ -1088,10 +1088,11 @@ Mime *mime;
 
 
 static char usage[] =
-"usage: mime [-v] -l < message\n"
-"       mime [-v] -p num [-dem] < message\n"
-"       mime [-v] -j [-eN] < message\n"
+"usage: mime [-v][-B func] -l < message\n"
+"       mime [-v][-B func] -p num [-dem] < message\n"
+"       mime [-v][-B func] -j [-eN] < message\n"
 "\n"
+"-B func\t\tboundary function rule: nospace, strict, weak\n"
 "-d\t\tdecode base64 or quoted-printable\n"
 "-e\t\treport parsing errors\n"
 "-j\t\tJSON dump\n"
@@ -1591,7 +1592,6 @@ main(int argc, char **argv)
 			hack_json_b64_strip_newline = 1;
 			break;
 		case 'B':
-			/* Undocumented option for experimenting. */
 			for (mb = boundary; mb->fn != NULL; mb++) {
 				if (strcmp(optarg, mb->name) == 0) {
 					mimeIsBoundaryChar = mb->fn;
