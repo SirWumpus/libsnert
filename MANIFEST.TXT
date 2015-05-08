@@ -171,8 +171,6 @@ com/snert/src/lib/util/BigInt.c
 com/snert/src/lib/util/Buf.c
 com/snert/src/lib/util/Cache.c
 com/snert/src/lib/util/cgi.c
-com/snert/src/lib/util/DebugMalloc.c
-com/snert/src/lib/util/DebugMallocTest.c
 com/snert/src/lib/util/JavaTime.c
 com/snert/src/lib/util/Memory.c
 com/snert/src/lib/util/ProcTitle.c
@@ -312,7 +310,6 @@ com/snert/src/lib/include/util/BigInt.h
 com/snert/src/lib/include/util/Buf.h
 com/snert/src/lib/include/util/Cache.h
 com/snert/src/lib/include/util/cgi.h
-com/snert/src/lib/include/util/DebugMalloc.h
 com/snert/src/lib/include/util/HashTable.h
 com/snert/src/lib/include/util/JavaTime.h
 com/snert/src/lib/include/util/Memory.h

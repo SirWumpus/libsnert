@@ -27,12 +27,18 @@ typedef void (*FreeFn)(void *);
  * Thread safe memory leak detection.  Leak reports dumped to stderr
  * on thread and program exit.
  */
-extern void  track_init(void);
+extern void  (*track_hook__exit)(int);
+// Not used yet.
+//extern void  (*track_hook_free)(void *);
+//extern void *(*track_hook_malloc)(size_t);
+
+extern void  track_report(void *track);
 extern void  track_free(void *chunk, const char *here, long lineno);
 extern void *track_malloc(size_t size, const char *here, long lineno);
 extern void *track_calloc(size_t n, size_t size, const char *here, long lineno);
 extern void *track_realloc(void *chunk, size_t size, const char *here, long lineno);
 extern void *track_aligned_alloc(size_t alignment, size_t size, const char *here, long lineno);
+extern char *track_strdup(const char *orig, const char *here, long lineno);
 
 #ifdef TRACK
 # define free(p)		track_free(p, __func__, __LINE__)
@@ -40,6 +46,7 @@ extern void *track_aligned_alloc(size_t alignment, size_t size, const char *here
 # define calloc(n,s)		track_calloc(n, s, __func__, __LINE__)
 # define realloc(p,s)		track_realloc(p, s, __func__, __LINE__)
 # define aligned_alloc(n,s)	track_aligned_alloc(n, s, __func__, __LINE__)
+# define strdup(s)		track_strdup(s, __func__, __LINE__)
 #endif
 
 /* The C Standard, 7.1.4, paragraph 1, states [ISO/IEC 9899:2011]

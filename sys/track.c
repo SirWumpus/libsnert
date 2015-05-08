@@ -4,15 +4,26 @@
  * Copyright 2015 by Anthony Howe.  All rights reserved.
  */
 
+#ifndef DUMP_SIZE
+#define DUMP_SIZE			32
+#endif
+
+/***********************************************************************
+ *** No configuration below this point.
+ ***********************************************************************/
+
 #ifndef TRACK
 #define TRACK
 #endif
 
 #include <com/snert/lib/version.h>
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <com/snert/lib/sys/sysexits.h>
 
 #define HERE_FMT			"%s:%ld "
 #define HERE_ARG			here, (long)lineno
@@ -84,18 +95,22 @@
 # define T(name)			track_ ## name
 #endif
 
+typedef void *Marker;
+
 typedef struct track_data {
+	Marker lo_guard;	
 	struct track_data *prev;
 	struct track_data *next;
-	size_t size;
 	pthread_t thread;
+	size_t size;
 	const char *here;
 	long lineno;
 	long crc;
 } track_data;
 
-#define TRACK_CRC(p)	((long)( \
-	(long)(p) ^ (long)(p)->thread ^ (long)(p)->here ^ (p)->lineno ^ (p)->size))
+#define TRACK_FMT		"chunk=%p size=%zu " HERE_FMT
+#define TRACK_ARG(p)		&(p)[1], (p)->size, (p)->here, (p)->lineno
+#define TRACK_CRC(p)		((long)((long)(p) ^ (p)->size ^ (p)->lineno ^ (long)(p)->here))
 
 #ifdef TRACK_STATS
 static LOCK_T lock;
@@ -103,15 +118,41 @@ static unsigned long free_count;
 static unsigned long malloc_count;
 #endif
 
-static int initialised;
+void  (*track_hook__exit)(int);
+void  (*track_hook_free)(void *);
+void *(*track_hook_malloc)(size_t);
+
+static Marker lo_guard;
 static pthread_t main_thread;
 static pthread_key_t thread_key;
+
+void
+T(dump)(void *chunk, size_t length)
+{
+	size_t i;
+	track_data *track;
+	
+	track = &((track_data *) chunk)[-1];
+	if (track->size < length)
+		length = track->size;
+
+	(void) fprintf(stderr, "\t" TRACK_FMT " dump=%zu:\r\n\t", TRACK_ARG(track), length);
+
+	for (i = 0; i < length; i++, chunk++) {
+		if (isprint(*(char *)chunk))
+			(void) fprintf(stderr, "%c", *(char *)chunk);
+		else
+			(void) fprintf(stderr, "\\x%02X", *(char *)chunk);
+	}
+
+	(void) fprintf(stderr, "\r\n");
+}
 
 /*
  * Dump the list of leaked memory at thread exit.
  */
-static void
-track_report(void *data)
+void
+T(report)(void *data)
 {
 	size_t size;
 	unsigned count;
@@ -136,10 +177,7 @@ track_report(void *data)
 		 * the thread releases its pthread_t data, which
 		 * can result in a spurious leak being reported.
 		 */
-		(void) fprintf(
-			stderr, "\tlost " HERE_FMT "size=%zu\r\n", 
-			track->here, track->lineno, track->size
-		);
+		T(dump)(track+1, DUMP_SIZE);
 		size += track->size;
 	}
 
@@ -152,30 +190,95 @@ track_report(void *data)
 }
 
 static void
-track_cleanup(void)
+track_init_common(void)
 {
-	LOGTRACE();
-	track_report(pthread_getspecific(thread_key));
-	(void) pthread_key_delete(thread_key);
-#ifdef TRACK_STATS
-	LOCK_FREE(&lock);
-#endif
-}
-
-void
-T(init)(void)
-{
-	LOGTRACE();
 #ifdef TRACK_STATS
 	(void) LOCK_INIT(&lock);
 	(void) LOCK_LOCK(&lock);
 	(void) LOCK_UNLOCK(&lock);
 #endif
-	(void) pthread_key_create(&thread_key, track_report);
+	(void) pthread_key_create(&thread_key, T(report));
 	(void) pthread_setspecific(thread_key, NULL);
 	main_thread = pthread_self();
-	atexit(track_cleanup);
-	initialised = 1;
+
+	(void) memset(&lo_guard, '[', sizeof (lo_guard));
+}
+
+#if defined(__WIN32__)
+# error "Windows support not implemented."
+
+#elif defined(HAVE_DLFCN_H) && defined(LIBC_PATH)
+# include <dlfcn.h>
+
+static void
+track_init(void)
+{
+	void *libc;
+	const char *err;
+	void (*libc__exit)(int);
+	void (*libc_free)(void *);
+	void *(*libc_malloc)(size_t);
+
+	LOGTRACE();
+
+	libc = dlopen(LIBC_PATH, RTLD_NOW);
+	if ((err = dlerror()) != NULL) {
+		(void) fprintf(stderr, "libc.so load error: %s\r\n", err);
+		exit(EX_OSERR);
+	}
+
+  	libc_malloc = (void *(*)(size_t)) dlsym(libc, "malloc");
+	if ((err = dlerror()) != NULL) {
+		(void) fprintf(stderr, "libc malloc() not found: %s\r\n", err);
+		exit(EX_OSERR);
+	}
+
+  	libc_free = (void (*)(void *)) dlsym(libc, "free");
+	if ((err = dlerror()) != NULL) {
+		(void) fprintf(stderr, "libc free() not found: %s\r\n", err);
+		exit(EX_OSERR);
+	}
+
+  	libc__exit = dlsym(libc, "_exit");
+	if ((err = dlerror()) != NULL) {
+		(void) fprintf(stderr, "libc _exit() not found: %s\r\n", err);
+		exit(EX_OSERR);
+	}
+
+	(void) dlclose(libc);
+	track_init_common();
+	
+	/* We've completed initialisation. */
+	track_hook__exit = libc__exit;
+	track_hook_malloc = libc_malloc;
+	track_hook_free = libc_free;
+}
+#endif
+
+void
+(_exit)(int ex_code)
+{
+	LOGTRACE();
+	
+	if (track_hook__exit == NULL)
+		track_init();
+	
+	/* We need to hook _exit() so that we can report leaks after
+	 * all the atexit() functions, which might release dynamic 
+	 * memory.  We cannot simply use atexit() for reporting since
+	 * there is no way to garantee we are executed last.
+	 *
+	 * NOTE sys/track.c and sys/malloc.c both hook _exit(), so
+	 * cannot be used together (yet).
+	 */
+	T(report)(pthread_getspecific(thread_key));
+	(void) pthread_key_delete(thread_key);
+#ifdef TRACK_STATS
+//	(void) LOCK_TRYLOCK(&lock);
+//	(void) LOCK_UNLOCK(&lock);	
+	(void) LOCK_FREE(&lock);
+#endif
+	(*track_hook__exit)(ex_code);
 }
 
 void
@@ -188,9 +291,20 @@ T(free)(void *chunk, const char *here, long lineno)
 		return;
 
 	track = &((track_data *) chunk)[-1];
-	
+
+	/* Check the pointer and core data are valid. */	
 	if (track->crc != TRACK_CRC(track)) {
+		/* The rest of the data is suspect. */
 		(void) fprintf(stderr, HERE_FMT "buffer under run or bad pointer!\n", HERE_ARG);
+		abort();
+	}
+
+	/* Did something run into us from below? */
+	if (track->lo_guard != lo_guard) {
+		(void) fprintf(
+			stderr, HERE_FMT "buffer guard corrupted! size=%zu %s:%ld\n", HERE_ARG,
+			track->size, track->here, track->lineno
+		);
 		abort();
 	}
 	
@@ -221,10 +335,10 @@ T(malloc)(size_t size, const char *here, long lineno)
 {
 	track_data *track, *head;
 	
-	if (!initialised)
-		T(init)();
+	if (track_hook__exit == NULL)
+		track_init();
 	
-	if ((track = (malloc)(sizeof (*track) + size)) == NULL) {
+	if ((track = (malloc)(sizeof (*track) + size + (size == 0))) == NULL) {
 		LOGMALLOC(NULL, size, here, lineno);
 		return NULL;
 	}
@@ -239,6 +353,7 @@ T(malloc)(size_t size, const char *here, long lineno)
 	track->lineno = lineno;
 	track->thread = pthread_self();
 	track->crc = TRACK_CRC(track);
+	track->lo_guard = lo_guard;
 
 	/* Maintain list of allocated memory per thread, including main() */
 	head = pthread_getspecific(thread_key);
@@ -291,6 +406,30 @@ T(aligned_alloc)(size_t alignment, size_t size, const char *here, long lineno)
 	return NULL;
 }
 
+char *
+T(strdup)(const char *orig, const char *here, long lineno)
+{
+	char *copy;
+	size_t size;
+
+	size = strlen(orig) + 1;
+	if ((copy = T(malloc)(size, here, lineno)) != NULL)
+		(void) memcpy(copy, orig, size);
+
+	return copy;
+}
+
+/*
+ * Use our version of strdup() so we ensure that we use matching
+ * malloc/free family of functions.  Otherwise you get can get
+ * false positives about buffer under runs.
+ */
+char *
+(strdup)(const char *orig)
+{
+	return T(strdup)(orig, __func__, __LINE__);
+}
+
 /***********************************************************************
  *** Test Suite
  ***********************************************************************/
@@ -341,19 +480,6 @@ test_thread(void *data)
 	(void) malloc(102);
 	
 	return NULL;
-}
-
-char *
-strdup(const char *orig)
-{
-	char *copy;
-	size_t size;
-
-	size = strlen(orig) + 1;
-	if ((copy = malloc(size)) != NULL)
-		(void) memcpy(copy, orig, size);
-
-	return copy;
 }
 
 int

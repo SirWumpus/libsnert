@@ -22,6 +22,12 @@
 #define VECTOR_GROWTH		1000
 #endif
 
+#ifdef TRACK
+# define FREE_ME		FreeWrap
+#else
+# define FREE_ME		free
+#endif
+
 /***********************************************************************
  *** Instance methods
  ***********************************************************************/
@@ -78,13 +84,27 @@ FreeStub(void *entry)
 	/* Do nothing */
 }
 
+#ifdef TRACK
+void
+FreeWrap(void *entry)
+{
+	/* Wrap potential macro for free().  See track.c */
+	free(entry);
+}
+#endif
+
 void
 VectorSetDestroyEntry(Vector self, void (*fn)(void *))
 {
-	if (self == NULL)
+	if (self == NULL) {
 		errno = EFAULT;
-	else
+#ifdef TRACK
+	} else if (fn == (free)) {	
+		self->_free_entry = FreeWrap;
+#endif
+	} else {
 		self->_free_entry = fn;
+	}
 }
 
 /*
@@ -172,7 +192,7 @@ VectorRemoveSome(Vector self, long index, long length)
 
 	for (i = index, j = index + length; i < j; i++) {
 		if ((obj = self->_base[i]) != NULL) {
-			/* Are we destroying objects or unknow types? */
+			/* Are we destroying objects or unknown types? */
 			if (self->_free_entry == NULL)
 				obj->destroy(obj);
 			else
@@ -484,7 +504,8 @@ VectorCreate(long capacity)
 		return NULL;
 	}
 
-	self->_free_entry = FreeStub;
+	/* Assume vector items are malloc'd objects. */
+	self->_free_entry = FREE_ME;
 	self->_size = capacity;
 	self->_length = 0;
 
