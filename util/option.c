@@ -1,7 +1,7 @@
 /*
  * option.c
  *
- * Copyright 2006, 2013 by Anthony Howe.  All rights reserved.
+ * Copyright 2006, 2015 by Anthony Howe.  All rights reserved.
  */
 
 #include <ctype.h>
@@ -15,10 +15,6 @@
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/Token.h>
 #include <com/snert/lib/util/option.h>
-
-#ifdef DEBUG_MALLOC
-# include <com/snert/lib/util/DebugMalloc.h>
-#endif
 
 /**
  * @param option
@@ -758,11 +754,18 @@ static Option *table1[] = {
 	NULL
 };
 
+void
+atexitCleanUp(void)
+{
+	optionFreeL(table0, table1, NULL);
+}
+
 int
 main(int argc, char **argv)
 {
 	int argi;
 
+	(void) atexit(atexitCleanUp);
 	optionInit(table0, table1, NULL);
 	argi = optionArrayL(argc, argv, table0, table1, NULL);
 

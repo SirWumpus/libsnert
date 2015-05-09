@@ -2044,6 +2044,7 @@ smfAtExitCleanUp(void)
 				syslog(LOG_ERR, "unlink(%s): %s (%d)", smfOptPidFile.string, strerror(errno), errno);
 		}
 	}
+	optionFreeL(smfOptTable, NULL);
 }
 
 void
