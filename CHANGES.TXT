@@ -57,6 +57,62 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.43--
+
+   !	Fixed NET_GET_LONG() macro sign-extension bug when an unsigned
+	long is 64 bits.
+
+   !	Fixed parsepath -t regression test to include the STRICT_ flags
+	by name.
+
+   !	Fix uriParse2() handling of mail address containing plus-signs.
+	Plus-signs are permitted in the local-part of a mail address and
+	should not be URI decoded.  Reported by Alex Broens.
+
+   !	Replaced the alt_malloc stuff, which was ill-conceived anyway,
+	with newer debugging malloc replacement code to replace the
+	older DebugMalloc.
+
+   +	Add simplified memory leak tracking to replace DebugMalloc.
+
+   -	Drop DebugMalloc from LibSnert.
+
+   !	Moved free_clear() into a separate file separating it from
+	sys/malloc.c so that the pthread_cleanup_push/pop macros
+	continue to work.
+
+   +	Added --enable-track and fixed the build so that early
+	dependencies, such as getopt$O and track$O, are built in advance
+	of tools that rely on them, eg. Luhn.
+
+   !	Modified TextSplit CLI test to take command line arguments for
+	individual tests separated from the old test suite (-t).
+
+   !	Fixed mime CLI -p option part extraction should not include
+	headers.
+
+   !	Exposed the mime CLI -B test option and mime-test.sh review.
+
+   !	Vector element cleanup now defaults to free() instead of
+	FreeStub, since its the most common and avoids potential leaks.
+	Fixed Vector to work with -DTRACK so that when free() is
+	replaced by a macro, element cleanup still works through the
+	debug memory tracking.
+
+   !	Fix smfAtExitCleanUp() to insure it cleans up smfOptTable on
+	exit. Also fixed option CLI test to clean up table0 and table1
+	on exit.
+
+   !	Fix a very tiny leak in smf.c getMyDetails() related to option
+	handling.
+
+   !	Replaced smfStartBackgroundProcess() by a macro using daemon()
+	instead and remove the SMF_STDIO_ disposition code, since daemon
+	handles standard I/O.
+
+   -	Removed smfOptions() since it has been replaced for a long time
+	by smfOptTable and options API.
+
 --1.75.42--
 
    !	Refactored SNERT_PTHREAD to use SNERT_CHECK_PACKAGE.  Added
