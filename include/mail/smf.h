@@ -13,6 +13,7 @@ extern "C" {
 
 #if defined(HAVE_LIBMILTER_MFAPI_H) && defined(HAVE_PTHREAD_CREATE)
 
+#include <stdlib.h>
 #include <stdarg.h>
 #include <sys/types.h>
 
@@ -124,6 +125,7 @@ typedef struct {
 	char *package;				/* name used for file names */
 	char *author;
 	char *copyright;
+/*** vvvv NOT USED, see smfOpt* options */	
 	char *user;				/* set process owner */
 	char *group;				/* set process group */
 	char *cf;				/* /etc/mail/program.cf */
@@ -131,6 +133,7 @@ typedef struct {
 	char *socket;				/* /var/run/program.socket */
 	char *workdir;				/* /var/tmp */
 	int standardIO;				/* SMF_STDIO_ constant */
+/*** ^^^^ NOT USED. */
 	struct smfiDesc handlers;		/* libmilter description */
 } smfInfo;
 
@@ -647,12 +650,12 @@ extern int smfHeaderRemove(SMFICTX *ctx, char *field);
 
 extern void smfAtExitCleanUp(void);
 extern void smfSignalExit(int signum);
-extern void smfOptions(smfInfo *smf, int argc, char **argv, void (*options)(int, char **));
 extern int smfKillProcess(smfInfo *smf, int signal);
 extern int smfMainStart(smfInfo *smf);
 extern int smfSetFileOwner(smfInfo *smf, const char *file);
 extern int smfSetProcessOwner(smfInfo *smf);
-extern int smfStartBackgroundProcess(void);
+
+#define smfStartBackgroundProcess()	daemon(1,0)
 
 /*@=exportlocal@*/
 

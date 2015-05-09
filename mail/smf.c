@@ -2147,71 +2147,6 @@ smfKillProcess(smfInfo *smf, int signal)
 	return pidKill(smfOptPidFile.string, signal);
 }
 
-/*
- *
- */
-int
-smfStartBackgroundProcess(void)
-{
-	pid_t pid;
-
-	/* Start the milter as a background process. */
-	if ((pid = fork()) < 0) {
-		syslog(LOG_ERR, "failed to fork: %s (%d)", strerror(errno), errno);
-		exit(1);
-	}
-
-	if (pid != 0)
-		exit(0);
-
-	if (setsid() == -1) {
-		syslog(LOG_ERR, "failed to become a background process: %s (%d)", strerror(errno), errno);
-		return -1;
-	}
-
-	return 0;
-}
-
-void
-smfOptions(smfInfo *smf, int argc, char **argv, void (*options)(int, char **))
-{
-	int ac;
-	FILE *fp;
-	char **av, *buf;
-
-	/* Load and parse the options file, if present. */
-	if ((fp = fopen(smf->cf, "r")) != NULL) {
-		if ((buf = malloc(BUFSIZ)) == NULL) {
-			syslog(LOG_ERR, "out of memory");
-			exit(1);
-		}
-
-		if (0 < (ac = fread(buf, 1, BUFSIZ-1, fp))) {
-			buf[ac] = '\0';
-
-			/* The av array and copy of buffer are NOT
-			 * freed until the program exits.
-			 */
-			if (!TokenSplit(buf, NULL, &av, &ac, 1))
-				(*options)(ac, av);
-		}
-
-		fclose(fp);
-		free(buf);
-	}
-
-	(*options)(argc, argv);
-
-	/*** Transition from old to new option handling. ***/
-	smfOptFile.initial = smf->cf;
-	smfOptPidFile.initial = smf->pid;
-	smfOptRunUser.initial = smf->user;
-	smfOptRunGroup.initial = smf->group;
-	smfOptWorkDir.initial = smf->workdir;
-	smfOptMilterSocket.initial = smf->socket;
-	optionInit(smfOptTable, NULL);
-}
-
 /* Most common system directories. */
 static const char *system_directories[] = {
 	"/",
@@ -2268,18 +2203,16 @@ static int
 getMyDetails(void)
 {
 	if (*smfOptInterfaceName.string == '\0') {
+		optionResetOption(&smfOptInterfaceName);
 		if ((smfOptInterfaceName.string = malloc(DOMAIN_SIZE)) == NULL)
 			return -1;
 		networkGetMyName(smfOptInterfaceName.string);
 	}
 
 	if (*smfOptInterfaceIp.string == '\0' || isReservedIP(smfOptInterfaceIp.string, IS_IP_THIS_HOST|IS_IP_LOCALHOST)) {
-		if (smfOptInterfaceIp.initial != smfOptInterfaceIp.string)
-			free(smfOptInterfaceIp.string);
-
+		optionResetOption(&smfOptInterfaceIp);
 		if ((smfOptInterfaceIp.string = malloc(IPV6_STRING_SIZE)) == NULL)
 			return -1;
-
 		networkGetHostIp(smfOptInterfaceName.string, smfOptInterfaceIp.string);
 	}
 
@@ -2446,25 +2379,6 @@ smfMainStart(smfInfo *smf)
 	else if (strncmp(smfOptMilterSocket.string, "local:", 6) == 0)
 		(void) unlink(smfOptMilterSocket.string + 6);
 #endif
-	/* Don't need these and they just use up resources. There are
-	 * two schools of throught here: leave the standard files open,
-	 * but redirected to /dev/null to avoid possible errors should
-	 * the milter or C library read or write on standard I/O; the
-	 * other is to close them to free up the file descriptors, which
-	 * may be required in an I/O intensive milter.
-	 */
-	switch (smf->standardIO) {
-	case SMF_STDIO_CLOSE:
-		fclose(stderr);
-		fclose(stdout);
-		fclose(stdin);
-		break;
-	case SMF_STDIO_IGNORE:
-		(void) freopen("/dev/null", "a", stderr);
-		(void) freopen("/dev/null", "a", stdout);
-		(void) freopen("/dev/null", "r", stdin);
-		break;
-	}
 
 #ifdef HAVE_SMFI_OPENSOCKET
 	/* Set the process owner after we have created any special files
