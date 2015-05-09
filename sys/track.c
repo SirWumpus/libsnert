@@ -12,10 +12,6 @@
  *** No configuration below this point.
  ***********************************************************************/
 
-#ifndef TRACK
-#define TRACK
-#endif
-
 #include <com/snert/lib/version.h>
 
 #include <ctype.h>
@@ -255,6 +251,9 @@ track_init(void)
 }
 #endif
 
+#ifdef TRACK
+/* Only hook _exit() when we build with -DTRACK (see --enable-track). */
+
 void
 (_exit)(int ex_code)
 {
@@ -280,6 +279,7 @@ void
 #endif
 	(*track_hook__exit)(ex_code);
 }
+#endif /* TRACK */
 
 void
 T(free)(void *chunk, const char *here, long lineno)
@@ -419,6 +419,7 @@ T(strdup)(const char *orig, const char *here, long lineno)
 	return copy;
 }
 
+#ifdef TRACK
 /*
  * Use our version of strdup() so we ensure that we use matching
  * malloc/free family of functions.  Otherwise you get can get
@@ -429,6 +430,7 @@ char *
 {
 	return T(strdup)(orig, __func__, __LINE__);
 }
+#endif
 
 /***********************************************************************
  *** Test Suite
