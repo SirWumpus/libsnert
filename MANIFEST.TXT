@@ -165,6 +165,7 @@ com/snert/src/lib/type/list.c
 com/snert/src/lib/type/tree.c
 com/snert/src/lib/type/queue.c
 com/snert/src/lib/type/socketmap.txt
+com/snert/src/lib/util/DebugMalloc.c
 com/snert/src/lib/util/b64.c
 com/snert/src/lib/util/Base64.c
 com/snert/src/lib/util/BigInt.c
@@ -304,6 +305,7 @@ com/snert/src/lib/include/type/hash2.h
 com/snert/src/lib/include/type/list.h
 com/snert/src/lib/include/type/tree.h
 com/snert/src/lib/include/type/queue.h
+com/snert/src/lib/include/util/DebugMalloc.h
 com/snert/src/lib/include/util/b64.h
 com/snert/src/lib/include/util/Base64.h
 com/snert/src/lib/include/util/BigInt.h
