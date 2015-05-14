@@ -74,10 +74,6 @@
 #include <com/snert/lib/mail/smf.h>
 #include <com/snert/lib/mail/tlds.h>
 
-#ifdef DEBUG_MALLOC
-# include <com/snert/lib/util/DebugMalloc.h>
-#endif
-
 extern void rlimits(void);
 
 #define	TAG_FORMAT		"%05d %s: "
@@ -1466,6 +1462,20 @@ smfAccessMail2(smfWork *work, const char *tag, const char *mail, long parseFlags
 	free(work->mail);
 	work->mail = NULL;
 
+#ifdef ENABLE_COMBO_TAGS
+	name = delim = "";
+	if (work->info != NULL) {
+		/* Build the milter specific leading tag name for combo
+		 * tags to avoid confusion with sendmail's own tags.
+		 */
+		name = work->info->package;
+		delim = "-";
+	}
+	if (sizeof (connect) <= snprintf(connect, sizeof (connect), "%s%sconnect:", name, delim)) {
+		(void) smfReply(work, 453, "4.1.0", "internal error, buffer overflow");
+		return SMDB_ACCESS_TEMPFAIL;
+	}
+#endif
 	if ((error = parsePath(mail, parseFlags, 1, &path)) != NULL) {
 		smfLog(SMF_LOG_ERROR, "sender %s parse error: %s", mail, error);
 		(void) smfReply(work, SMTP_ISS_TEMP(error) ? 451 : 553, NULL, error);
@@ -1482,22 +1492,6 @@ smfAccessMail2(smfWork *work, const char *tag, const char *mail, long parseFlags
 
 	);
 
-#ifdef ENABLE_COMBO_TAGS
-	if (work->info == NULL) {
-		name = delim = "";
-	} else {
-		/* Build the milter specific leading tag name for combo
-		 * tags to avoid confusion with sendmail's own tags.
-		 */
-		name = work->info->package;
-		delim = "-";
-	}
-
-	if (sizeof (connect) <= snprintf(connect, sizeof (connect), "%s%sconnect:", name, delim)) {
-		(void) smfReply(work, 453, "4.1.0", "internal error, buffer overflow");
-		return SMDB_ACCESS_TEMPFAIL;
-	}
-#endif
 	/* The default is to white list authenticated users. */
 	if (smfOptSmtpAuthOk.value && auth_authen != NULL)
 		access = SMDB_ACCESS_OK;
@@ -1692,6 +1686,21 @@ smfAccessRcpt2(smfWork *work, const char *tag, const char *rcpt, long parseFlags
 	work->rcpt = NULL;
 	work->skipRecipient = 0;
 
+#ifdef ENABLE_COMBO_TAGS
+	name = delim = "";
+	if (work->info != NULL) {
+		name = work->info->package;
+		delim = "-";
+	}
+	if (sizeof (from) <= snprintf(from, sizeof (from), "%s%sfrom:", name, delim)) {
+		(void) smfReply(work, 453, "4.1.0", "internal error, buffer overflow");
+		return SMDB_ACCESS_TEMPFAIL;
+	}
+	if (sizeof (connect) <= snprintf(connect, sizeof (connect), "%s%sconnect:", name, delim)) {
+		(void) smfReply(work, 453, "4.1.0", "internal error, buffer overflow");
+		return SMDB_ACCESS_TEMPFAIL;
+	}
+#endif
 	if ((error = parsePath(rcpt, parseFlags, 0, &path)) != NULL) {
 		smfLog(SMF_LOG_ERROR, "recipient %s parse error: %s", rcpt, error);
 		(void) smfReply(work, SMTP_ISS_TEMP(error) ? 451 : 553, NULL, error);
@@ -1705,23 +1714,6 @@ smfAccessRcpt2(smfWork *work, const char *tag, const char *rcpt, long parseFlags
 		path->localRight.string, path->domain.string
 	);
 
-#ifdef ENABLE_COMBO_TAGS
-	if (work->info == NULL) {
-		name = delim = "";
-	} else {
-		name = work->info->package;
-		delim = "-";
-	}
-
-	if (sizeof (from) <= snprintf(from, sizeof (from), "%s%sfrom:", name, delim)) {
-		(void) smfReply(work, 453, "4.1.0", "internal error, buffer overflow");
-		return SMDB_ACCESS_TEMPFAIL;
-	}
-	if (sizeof (connect) <= snprintf(connect, sizeof (connect), "%s%sconnect:", name, delim)) {
-		(void) smfReply(work, 453, "4.1.0", "internal error, buffer overflow");
-		return SMDB_ACCESS_TEMPFAIL;
-	}
-#endif
 #ifdef HAVE_POP_BEFORE_SMTP
 	if ((popauth_info = smfi_getsymval(work->ctx, smMacro_popauth_info)) != NULL) {
 		smfLog(SMF_LOG_PARSE, TAG_FORMAT "{popauth_info}=%s", TAG_ARGS, popauth_info);
