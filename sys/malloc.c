@@ -461,11 +461,11 @@ void *
 (realloc)(void *orig, size_t size)
 {
 	void *chunk;
-	size_t osize = 0;
+	block_prefix *block;
 	
 	if ((chunk = (malloc)(size)) != NULL && orig != NULL) {
-		osize = ((size_t *)orig)[-1];
-		(void) memcpy(chunk, orig, osize < size ? osize : size);
+		block = &((block_prefix *) orig)[-1];	
+		(void) memcpy(chunk, orig, block->size < size ? block->size : size);
 		(free)(orig);
 	}
 		

@@ -385,11 +385,11 @@ void *
 T(realloc)(void *orig, size_t size, const char *here, long lineno)
 {
 	void *chunk;
-	size_t osize = 0;
+	track_data *track;
 	
 	if ((chunk = T(malloc)(size, here, lineno)) != NULL && orig != NULL) {
-		osize = ((size_t *)orig)[-1];
-		(void) memcpy(chunk, orig, osize < size ? osize : size);
+		track = &((track_data *) chunk)[-1];
+		(void) memcpy(chunk, orig, track->size < size ? track->size : size);
 		T(free)(orig, here, lineno);
 	}
 		
