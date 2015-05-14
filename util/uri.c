@@ -3,7 +3,7 @@
  *
  * RFC 2821, 2396, 3986 Support Routines
  *
- * Copyright 2006, 2013 by Anthony Howe. All rights reserved.
+ * Copyright 2006, 2015 by Anthony Howe. All rights reserved.
  */
 
 #ifndef IMPLICIT_DOMAIN_MIN_DOTS
@@ -44,7 +44,6 @@
 #include <com/snert/lib/util/uri.h>
 #include <com/snert/lib/util/html.h>
 #include <com/snert/lib/util/Text.h>
-#include <com/snert/lib/util/DebugMalloc.h>
 
 /***********************************************************************
  ***
@@ -2034,7 +2033,6 @@ main(int argc, char **argv)
 	int i, ch;
 	UriWorker uw;
 
-	DebugMallocStart();
 	(void) memset(&uw, 0, sizeof (uw));
 
 	if (atexit(at_exit_cleanup)) {

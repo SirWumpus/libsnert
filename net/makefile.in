@@ -134,22 +134,22 @@ debug : build
 lint: title
 	-splint -D_REENTRANT -U__WIN32__ -I${SNERT_INCDIR} +posixlib +boolint *.c
 
-findIP$E: findIP.c
+findIP$E: ${srcdir}/findIP.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}findIP$E ${srcdir}/findIP.c $(LIBSNERT) ${LIBS}
 
-ipinclient$E: ipinclient.c
+ipinclient$E: ${srcdir}/ipinclient.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}ipinclient$E ${srcdir}/ipinclient.c $(LIBSNERT) ${LIBS}
 
-dnsList$O : dnsList.c
+dnsList$O : ${srcdir}/dnsList.c
 	${CC} ${CFLAGS} ${CFLAGS_PTHREAD} -c ${srcdir}/$*.c
 
-pdq$E : ${top_builddir}/io/socket3$O pdq.c
+pdq$E : ${top_builddir}/io/socket3$O ${srcdir}/pdq.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}pdq$E ${srcdir}/pdq.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
 
-formatIP$E: formatIP.c
+formatIP$E: ${srcdir}/formatIP.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}formatIP$E ${srcdir}/formatIP.c $(LIBSNERT) ${LIBS} ${LIB_WS2_32}
 
-server$E : server.c
+server$E : ${srcdir}/server.c
 	${CC} -DTEST ${CFLAGS} ${CFLAGS_PTHREAD} ${LDFLAGS} ${LDFLAGS_PTHREAD} ${CC_E}server$E ${srcdir}/server.c $(LIBSNERT) ${LIB_PTHREAD} ${NETWORK_LIBS} ${LIBS}
 
 ${HDIR}/http.h : ${IDIR}/io/socket3.h ${IDIR}/pt/pt.h ${IDIR}/util/Buf.h \
@@ -158,8 +158,8 @@ ${HDIR}/http.h : ${IDIR}/io/socket3.h ${IDIR}/pt/pt.h ${IDIR}/util/Buf.h \
 http.c : ${IDIR}/util/convertDate.h ${IDIR}/util/time62.h ${IDIR}/util/Text.h \
 	${IDIR}/io/file.h ${top_builddir}/io/socket3$O ${HDIR}/http.h
 
-geturl$E : ${LIB} http.c
+geturl$E : ${srcdir}/http.c
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}geturl$E ${srcdir}/http.c $(LIBSNERT) ${NETWORK_LIBS} ${LIBS}
 
-netcontainsip$E : network$O
+netcontainsip$E : ${srcdir}/network$O
 	${CC} -DTEST ${CFLAGS} ${LDFLAGS} ${CC_E}netcontainsip$E ${srcdir}/network.c $(LIBSNERT) ${LIBS}

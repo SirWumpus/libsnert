@@ -57,6 +57,17 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.44--
+
+   !	Fixed potential leaks smfAccessMail2() and smfAccessRcpt2() on
+   	buffer overflow error when forming combo tags.
+
+   !	Fixed sys/malloc.c and sys/track.c handling of realloc().
+
+   !	Always build alt_daemon(), especially for milters.  Our version
+   	uses exit() to terminate the parent so that atexit() handlers
+   	are processed, while NetBSD (maybe others) use _exit().
+
 --1.75.43--
 
    !	Fixed NET_GET_LONG() macro sign-extension bug when an unsigned

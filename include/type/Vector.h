@@ -21,7 +21,9 @@ typedef struct vector {
 /*@-exportlocal@*/
 
 /**
- * Create a new and initialised Vector.
+ * Create a new and initialised Vector.  The default element 
+ * destructor is assumed to be free() unless VectorSetDestroyEntry()
+ * is called.
  *
  * @param capacity
  *	The initial capacity of the Vector.

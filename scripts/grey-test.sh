@@ -45,6 +45,7 @@ __user=$(echo $__rcpt | cut -d@ -f1 )
 
 : ${NETCAT:=$(which ncat)}		# Nmap version
 : ${NETCAT:=$(which netcat)}		# GNU Linux version
+: ${NETCAT:=$(which nc6)}		#
 : ${NETCAT:=$(which nc)}		# Original 1.10
 if [ -z "$NETCAT" ]; then
 	log_exit $EX_ALERT "NETCAT path is undefined"

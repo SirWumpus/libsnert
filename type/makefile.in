@@ -193,8 +193,8 @@ Decimal$E: ../util/DebugMalloc$O Decimal.c
 Hash$E: ../util/DebugMalloc$O Hash.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Hash$E Hash.c ${SUPPORT} ${LIBSNERT} ${LIBS}
 
-Vector$E: ../util/DebugMalloc$O Vector.c
-	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Vector$E Vector.c ${SUPPORT} ${LIBSNERT} ${LIBS}
+Vector$E: Vector.c
+	$(CC) -DTEST -DTRACK $(CFLAGS) $(LDFLAGS) $(CC_E)Vector$E Vector.c ${SUPPORT} ${LIBSNERT} ${LIBS}
 
 Text$E: ../util/DebugMalloc$O Vector$O ../util/Buf$O ../util/Text$O Text.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)Text$E Text.c ../util/Buf$O ../util/Text$O ${SUPPORT} ${LIBSNERT} ${LIBS}

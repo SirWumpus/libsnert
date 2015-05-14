@@ -48,10 +48,6 @@
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/sys/sysexits.h>
 
-#ifdef DEBUG_MALLOC
-#include <com/snert/lib/util/DebugMalloc.h>
-#endif
-
 /***********************************************************************
  *** MIME Decoders & States
  ***********************************************************************/
