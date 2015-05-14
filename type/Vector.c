@@ -1,7 +1,7 @@
 /*
  * Vector.c
  *
- * Copyright 2001, 2013 by Anthony Howe.  All rights reserved.
+ * Copyright 2001, 2015 by Anthony Howe.  All rights reserved.
  */
 
 #include <ctype.h>
@@ -14,12 +14,8 @@
 #include <com/snert/lib/type/Object.h>
 #include <com/snert/lib/type/Vector.h>
 
-#ifdef DEBUG_MALLOC
-#include <com/snert/lib/util/DebugMalloc.h>
-#endif
-
 #ifndef VECTOR_GROWTH
-#define VECTOR_GROWTH		1000
+#define VECTOR_GROWTH		100
 #endif
 
 #ifdef TRACK
@@ -76,12 +72,6 @@ VectorIsEmpty(Vector self)
 	}
 
 	return self->_length == 0;
-}
-
-void
-FreeStub(void *entry)
-{
-	/* Do nothing */
 }
 
 #ifdef TRACK
@@ -231,7 +221,6 @@ VectorDestroy(void *selfless)
 
 int
 VectorAdd(Vector self, void *data)
-/*@modifies self->_base, self->_length, self->_size @*/
 {
 	void **bigger;
 
@@ -239,27 +228,25 @@ VectorAdd(Vector self, void *data)
 		errno = EFAULT;
 		return -1;
 	}
+	if (data == NULL) {
+		errno = EINVAL;
+		return -1;
+	}
 
-	/*@-branchstate@*/
 	if (self->_size <= self->_length) {
-		/*@-usereleased -compdef -mustfreeonly@*/
 		bigger = realloc(self->_base, sizeof (void *) * (self->_size + VECTOR_GROWTH + 1));
 		if (bigger == NULL)
 			return -1;
-		/*@-usereleased =compdef =mustfreeonly*/
 
 		self->_size += VECTOR_GROWTH;
 		self->_base = bigger;
 	}
-	/*@=branchstate@*/
 
-	/*@-nullstate -compmempass -keeptrans -mustfreeonly@*/
 	self->_base[self->_length++] = data;
 	/* Maintain the NULL pointer sentinel at end of pointer array. */
 	self->_base[self->_length] = NULL;
 
 	return 0;
-	/*@=nullstate =compmempass =keeptrans -mustfreeonly@*/
 }
 
 int
