@@ -6,7 +6,7 @@
 
 #include <com/snert/lib/version.h>
 
-#if !defined(__WIN32__) && !defined(HAVE_DAEMON)
+#if !defined(__WIN32__)
 
 #include <errno.h>
 #include <stdio.h>
@@ -18,6 +18,11 @@
 
 #include <com/snert/lib/sys/process.h>
 
+/*
+ * This version of daemon() uses exit() from the parent process
+ * to ensure atexit() handlers are called.  NetBSD daemon()
+ * appears to use _exit().
+ */
 int
 alt_daemon(int nochdir, int noclose)
 {

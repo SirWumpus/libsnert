@@ -655,7 +655,8 @@ extern int smfMainStart(smfInfo *smf);
 extern int smfSetFileOwner(smfInfo *smf, const char *file);
 extern int smfSetProcessOwner(smfInfo *smf);
 
-#define smfStartBackgroundProcess()	daemon(1,0)
+#include <com/snert/lib/sys/process.h>
+#define smfStartBackgroundProcess()	alt_daemon(1,0)
 
 /*@=exportlocal@*/
 

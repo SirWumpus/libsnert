@@ -94,13 +94,9 @@ extern int processDumpCore(int flag);
  * alternative name.
  */
 #define daemon		alt_daemon
-
-/*
- * Alternative daemon()
- */
-extern int alt_daemon(int nochdir, int noclose);
 #endif /* !defined(HAVE_DAEMON) */
 
+extern int alt_daemon(int nochdir, int noclose);
 extern void nap(unsigned seconds, unsigned nanoseconds);
 
 /***********************************************************************
