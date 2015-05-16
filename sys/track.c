@@ -102,9 +102,7 @@ typedef struct track_data {
 	struct track_data *prev;
 	struct track_data *next;
 	size_t size;
-#ifdef TRACK_STATS
 	unsigned long id;
-#endif
 	pthread_t thread;
 	const char *here;
 	long lineno;
@@ -115,11 +113,9 @@ typedef struct track_data {
 #define TRACK_ARG(p)		&(p)[1], (p)->id, (p)->size, (p)->here, (p)->lineno
 #define TRACK_CRC(p)		((long)((long)(p) ^ (p)->size ^ (p)->lineno ^ (long)(p)->here))
 
-#ifdef TRACK_STATS
 static LOCK_T lock;
 static unsigned long free_count;
 static unsigned long malloc_count;
-#endif
 
 void  (*track_hook__exit)(int);
 void  (*track_hook_free)(void *);
@@ -139,11 +135,13 @@ T(dump)(void *chunk, size_t length)
 	if (track->size < length)
 		length = track->size;
 
-	(void) fprintf(stderr, "\t" TRACK_FMT "dump=%zu:\r\n\t", TRACK_ARG(track), length);
+	(void) fprintf(stderr, "    " TRACK_FMT "dump=%zu:", TRACK_ARG(track), length);
 
 	for (i = 0; i < length; i++, chunk++) {
+		if (i % 16 == 0)
+			(void) fputs("\r\n\t", stderr);
 		if (isprint(*(char *)chunk))
-			(void) fprintf(stderr, "%c", *(char *)chunk);
+			(void) fputc(*(char *)chunk, stderr);
 		else
 			(void) fprintf(stderr, "\\x%02X", *(char *)chunk);
 	}
@@ -154,7 +152,7 @@ T(dump)(void *chunk, size_t length)
 /*
  * Dump the list of leaked memory at thread exit.
  */
-void
+static void
 T(report)(void *data)
 {
 	size_t size;
@@ -165,9 +163,6 @@ T(report)(void *data)
 	if (data == NULL)
 		return;
 		
-	/* Clear thread data to avoid thread key cleanup loop. */
-	(void) pthread_setspecific(thread_key, NULL);
-
 	track = data;	
 	if (main_thread == track->thread)
 		(void) fprintf(stderr, "main:\r\n");
@@ -185,22 +180,31 @@ T(report)(void *data)
 	}
 
 	if (0 < count)
-		(void) fprintf(stderr, "\tleaked blocks=%u size=%zu\r\n", count, size);
+		(void) fprintf(stderr, "    leaked blocks=%u size=%zu\r\n", count, size);
 #ifdef TRACK_STATS
 	if (malloc_count != free_count)
 		(void) fprintf(stderr, "malloc=%lu free=%lu\r\n", malloc_count, free_count);	
 #endif
 }
 
-static void
-track_init_common(void)
+void
+T(clean_key)(void *data)
 {
-#ifdef TRACK_STATS
+	LOGTRACE();
+	if (data != NULL) {
+		T(report)(pthread_getspecific(thread_key));	
+		(void) pthread_setspecific(thread_key, NULL);
+	}	
+}
+
+static void
+T(init_common)(void)
+{
 	(void) LOCK_INIT(&lock);
 	(void) LOCK_LOCK(&lock);
 	(void) LOCK_UNLOCK(&lock);
-#endif
-	(void) pthread_key_create(&thread_key, T(report));
+
+	(void) pthread_key_create(&thread_key, T(clean_key));
 	(void) pthread_setspecific(thread_key, NULL);
 	main_thread = pthread_self();
 
@@ -214,7 +218,7 @@ track_init_common(void)
 # include <dlfcn.h>
 
 static void
-track_init(void)
+T(init)(void)
 {
 	void *libc;
 	const char *err;
@@ -249,7 +253,7 @@ track_init(void)
 	}
 
 	(void) dlclose(libc);
-	track_init_common();
+	T(init_common)();
 	
 	/* We've completed initialisation. */
 	track_hook__exit = libc__exit;
@@ -267,7 +271,7 @@ void
 	LOGTRACE();
 	
 	if (track_hook__exit == NULL)
-		track_init();
+		T(init)();
 	
 	/* We need to hook _exit() so that we can report leaks after
 	 * all the atexit() functions, which might release dynamic 
@@ -279,11 +283,8 @@ void
 	 */
 	T(report)(pthread_getspecific(thread_key));
 	(void) pthread_key_delete(thread_key);
-#ifdef TRACK_STATS
-//	(void) LOCK_TRYLOCK(&lock);
-//	(void) LOCK_UNLOCK(&lock);	
 	(void) LOCK_FREE(&lock);
-#endif
+
 	(*track_hook__exit)(ex_code);
 }
 #endif /* TRACK */
@@ -329,11 +330,9 @@ T(free)(void *chunk, const char *here, long lineno)
 
 	(free)(track);
 
-#ifdef TRACK_STATS
 	(void) LOCK_LOCK(&lock);
 	free_count++;
 	(void) LOCK_UNLOCK(&lock);			
-#endif
 }
 
 void *
@@ -342,19 +341,18 @@ T(malloc)(size_t size, const char *here, long lineno)
 	track_data *track, *head;
 	
 	if (track_hook__exit == NULL)
-		track_init();
+		T(init)();
 	
 	if ((track = (malloc)(sizeof (*track) + size + (size == 0))) == NULL) {
 		LOGMALLOC(NULL, size, here, lineno);
 		return NULL;
 	}
 
-#ifdef TRACK_STATS
 	(void) LOCK_LOCK(&lock);
 	malloc_count++;
 	track->id = malloc_count;
 	(void) LOCK_UNLOCK(&lock);
-#endif
+
 	track->size = size;
 	track->here = here;
 	track->lineno = lineno;
