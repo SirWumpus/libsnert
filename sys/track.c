@@ -25,14 +25,18 @@
 #define HERE_ARG			here, (long)lineno
 
 #ifdef TEST
+# define TRACK_STATS
 # define LOGMSG(...)			(void) fprintf(stderr, __VA_ARGS__)
 # define LOGTRACE()			LOGMSG("%s:%d\n", __func__, __LINE__)
-# define LOGMALLOC(p,n,f,l)		LOGMSG("%s: ptr=%p size=%zu " HERE_FMT "\r\n", __func__, p, n, f, l)
+# define LOGTRACK(t)			LOGMSG("%s: " TRACK_FMT "\r\n",__func__, TRACK_ARG(t))
+# define LOGTRACKAT(t,f,l)		LOGMSG("%s: at " HERE_FMT TRACK_FMT "\r\n",__func__, f, l, TRACK_ARG(t))
+# define LOGMALLOC(p,n,f,l)		LOGMSG("%s: ptr=%p size=%zu" HERE_FMT "\r\n", __func__, p, n, f, l)
 # define LOGFREE(p,f,l)			LOGMSG("%s: ptr=%p " HERE_FMT "\r\n", __func__, p, f, l)
-# define TRACK_STATS
 #else
 # define LOGMSG(...)
 # define LOGTRACE()
+# define LOGTRACK(t)
+# define LOGTRACKAT(t,f,l)
 # define LOGMALLOC(p,n,f,l)
 # define LOGFREE(p,f,l)
 #endif
@@ -97,15 +101,18 @@ typedef struct track_data {
 	Marker lo_guard;	
 	struct track_data *prev;
 	struct track_data *next;
-	pthread_t thread;
 	size_t size;
+#ifdef TRACK_STATS
+	unsigned long id;
+#endif
+	pthread_t thread;
 	const char *here;
 	long lineno;
 	long crc;
 } track_data;
 
-#define TRACK_FMT		"chunk=%p size=%zu " HERE_FMT
-#define TRACK_ARG(p)		&(p)[1], (p)->size, (p)->here, (p)->lineno
+#define TRACK_FMT		"ptr=%p id=%lu size=%zu from " HERE_FMT
+#define TRACK_ARG(p)		&(p)[1], (p)->id, (p)->size, (p)->here, (p)->lineno
 #define TRACK_CRC(p)		((long)((long)(p) ^ (p)->size ^ (p)->lineno ^ (long)(p)->here))
 
 #ifdef TRACK_STATS
@@ -132,7 +139,7 @@ T(dump)(void *chunk, size_t length)
 	if (track->size < length)
 		length = track->size;
 
-	(void) fprintf(stderr, "\t" TRACK_FMT " dump=%zu:\r\n\t", TRACK_ARG(track), length);
+	(void) fprintf(stderr, "\t" TRACK_FMT "dump=%zu:\r\n\t", TRACK_ARG(track), length);
 
 	for (i = 0; i < length; i++, chunk++) {
 		if (isprint(*(char *)chunk))
@@ -286,11 +293,13 @@ T(free)(void *chunk, const char *here, long lineno)
 {
 	track_data *track, *head;
 
-	LOGFREE(chunk, here, lineno);
-	if (chunk == NULL)
+	if (chunk == NULL) {
+		LOGFREE(chunk, here, lineno);
 		return;
+	}
 
 	track = &((track_data *) chunk)[-1];
+	LOGTRACKAT(track, here, lineno);
 
 	/* Check the pointer and core data are valid. */	
 	if (track->crc != TRACK_CRC(track)) {
@@ -318,9 +327,6 @@ T(free)(void *chunk, const char *here, long lineno)
 		track->next->prev = track->prev;
 	(void) pthread_setspecific(thread_key, head);	
 
-#ifdef TEST
-	(void) fprintf(stderr, "freed: " HERE_FMT "size=%zu\r\n", track->here, track->lineno, track->size);
-#endif
 	(free)(track);
 
 #ifdef TRACK_STATS
@@ -346,6 +352,7 @@ T(malloc)(size_t size, const char *here, long lineno)
 #ifdef TRACK_STATS
 	(void) LOCK_LOCK(&lock);
 	malloc_count++;
+	track->id = malloc_count;
 	(void) LOCK_UNLOCK(&lock);
 #endif
 	track->size = size;
@@ -363,7 +370,7 @@ T(malloc)(size_t size, const char *here, long lineno)
 		head->prev = track;
 	(void) pthread_setspecific(thread_key, track);		
 	
-	LOGMALLOC(&track[1], size, here, lineno);
+	LOGTRACKAT(track, here, lineno);
 	
 	return &track[1];
 }
