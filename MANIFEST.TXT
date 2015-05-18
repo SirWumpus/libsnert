@@ -50,8 +50,6 @@ com/snert/src/lib/io/socketAddressIsLocal.c
 com/snert/src/lib/io/socketTimeoutIO.c
 com/snert/src/lib/io/open-close.awk
 com/snert/src/lib/io/.gdbinit
-com/snert/src/lib/io/smtpe.c
-com/snert/src/lib/io/smtpe-api.txt
 com/snert/src/lib/mail/MailSpan.c
 com/snert/src/lib/mail/dkim-all-relaxed.txt
 com/snert/src/lib/mail/dkim-all-simple.txt
@@ -248,6 +246,7 @@ com/snert/src/lib/util/time62.c
 com/snert/src/lib/util/timer.c
 com/snert/src/lib/util/timespec.c
 com/snert/src/lib/util/timeval.c
+com/snert/src/lib/util/ulong.c
 com/snert/src/lib/include/autoconf.h
 com/snert/src/lib/include/berkeley_db.h
 com/snert/src/lib/include/stdlib.h

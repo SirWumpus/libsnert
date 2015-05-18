@@ -569,6 +569,114 @@ extern long TextFind(const char *haystack, const char *needle, long hay_size, in
 
 extern long TextFindQuote(const char *string, char *buffer, size_t size);
 
+/**
+ * @param value
+ *	Unsigned long value to convert to numerical string.
+ *
+ * @param base
+ *	Number base between 2 and 36.
+ *
+ * @param width
+ *	A number shorter than the minimum field width is padded.
+ *	Positive value right justisfies and a negative value left
+ *	justifies.
+ *
+ * @param prec
+ *	A number shorter than the precision width is zero padded.
+ *
+ * @param pad
+ *	Padding character for minimum field width.  Non-printable
+ *	values are replaced by space.
+ *
+ * @param sign
+ *	Prepend the given sign character when not zero.
+ *
+ * @param buffer
+ *	Buffer to save formatted number string.
+ *
+ * @param size
+ *	Size of buffer in bytes.
+ *
+ * @return
+ *	The length of the target string, excluding the terminating null.
+ *	The string will have been truncated if the length exceeds size.
+ *
+ * @note
+ *	This function is signal safe.
+ */
+extern size_t ulong_format(unsigned long value, int base, int width, int prec, int pad, int sign, char *buffer, size_t size);
+
+/**
+ * @param value
+ *	Unsigned long value to convert to numerical string.
+ *
+ * @param base
+ *	Number base between 2 and 36.
+ *
+ * @param width
+ *	A number shorter than the minimum field width is padded.
+ *	Positive value right justisfies and a negative value left
+ *	justifies.
+ *
+ * @param prec
+ *	A number shorter than the precision width is zero padded.
+ *
+ * @param pad
+ *	Padding character for minimum field width.  Non-printable
+ *	values are replaced by space.
+ *
+ * @param sign
+ *	Always prefix the value's sign when either '+' or '-' given.
+ *	Otherwise prefix a minus sign only if value is negative.
+ *
+ * @param buffer
+ *	Buffer to save formatted number string.
+ *
+ * @param size
+ *	Size of buffer in bytes.
+ *
+ * @return
+ *	The length of the target string, excluding the terminating null.
+ *	The string will have been truncated if the length exceeds size.
+ *
+ * @note
+ *	This function is signal safe.
+ */
+extern size_t slong_format(long value, int base, int width, int prec, int pad, int sign, char *buffer, size_t size);
+
+/*
+ * @param value
+ *	Unsigned long value to convert to numerical string.
+ *
+ * @param base
+ *	Number base between 2 and 36.
+ *
+ * @return
+ *	An allocated C numerical string.  Caller responsible
+ *	for free()ing.
+ *
+ * @note
+ *	Not signal safe.
+ */
+extern char *ulong_tostring(unsigned long value, int base);
+
+/*
+ * @param value
+ *	Unsigned long value to convert to numerical string.
+ *
+ * @param base
+ *	Number base between 2 and 36.
+ *
+ * @return
+ *	An allocated C numerical string.  Caller responsible
+ *	for free()ing.
+ *
+ * @note
+ *	Not signal safe.
+ */
+extern char *slong_tostring(unsigned long value, int base);
+
+
 #ifdef  __cplusplus
 }
 #endif
