@@ -197,7 +197,10 @@ dnsListCreate(const char *string)
 	list->ipcodes = NULL;
 	(void) pthread_mutex_init(&list->mutex, NULL);
 
-	if ((list->suffixes = TextSplit(string, ";", 0)) == NULL)
+	/* NOTE that comma (,) for separating list items added
+	 * for backwards compatibility for Alex Broens.
+	 */
+	if ((list->suffixes = TextSplit(string, ";,", 0)) == NULL)
 		goto error1;
 
 	if ((list->hits = calloc(VectorLength(list->suffixes), sizeof (*list->hits))) == NULL)
