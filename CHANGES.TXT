@@ -57,6 +57,13 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.45--
+
+   +	Added ulong_format, slong_format, ulong_tostring, slong_tostring.
+
+   !	Fix dnsListCreate() to support both semi-colon and comma
+	separated list items.  Reported by Alex Broens.
+
 --1.75.44--
 
    !	Fixed potential leaks smfAccessMail2() and smfAccessRcpt2() on

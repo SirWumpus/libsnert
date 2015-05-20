@@ -88,7 +88,7 @@ $O$E :
 
 #######################################################################
 
-EARLY =	getopt$O
+EARLY =	getopt$O ulong$O
 
 OBJS = \
 	ixhash$O md4$O md5$O b64$O cgi$O cipher$O playfair$O convertDate$O escape$O\
@@ -102,14 +102,14 @@ OBJS = \
 	TextNull$O TextC$O setBitWord$O strlrcspn$O strlrspn$O strnatcmp$O bs$O Base64$O \
 	Properties$O Cache$O ProcTitle$O TextFind$O TextMatch$O html$O htmlEntity$O \
 	uriIsDomainBL$O uri$O uriFormat$O option$O sqlite3$O time62$O timespec$O timeval$O timer$O \
-	token_bucket$O buffer$O printVar$O
+	token_bucket$O buffer$O printVar$O ulong$O
 
 TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E TextSplit$E \
        DebugMalloc$E ixhash$E md4$E md5$E htmlstrip$E TextCopy$E TextMatch$E \
        translit$E TextSensitiveEndsWith$E TextInsensitiveEndsWith$E \
-       ProcTitle$E timer$E dmalloct$E
+       ProcTitle$E timer$E dmalloct$E ulong$E
 
-CLI = b64$E convertDate$E uri$E uriFormat$E urid$E playfair$E cipher$E TextFind$E
+CLI = b64$E convertDate$E uri$E uriFormat$E urid$E playfair$E cipher$E TextFind$E ulong$E
 
 .MAIN : build
 
@@ -292,3 +292,5 @@ htmlstrip$E : html.c
 ixhash$E : ixhash.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)ixhash$E ${srcdir}/ixhash.c $(LIBSNERT) ${LIBS_PREFIX}
 
+ulong$E : ${srcdir}/ulong.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)ulong$E ${srcdir}/ulong.c
