@@ -33,13 +33,8 @@
 #include <com/snert/lib/net/pdq.h>
 #include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/mail/limits.h>
-#include <com/snert/lib/mail/MailSpan.h>
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/util/Text.h>
-
-#ifdef DEBUG_MALLOC
-# include <com/snert/lib/util/DebugMalloc.h>
-#endif
 
 /***********************************************************************
  *** Socket Address
@@ -199,7 +194,7 @@ socketAddressCreate(const char *host, unsigned port)
 		if (*host == '[')
 			host++;
 
-		if ((length = MailSpanDomainName(host, 0)) == 0)
+		if ((length = spanDomain(host, 0)) == 0)
 			goto error1;
 
 		if ((name = malloc(length+1)) == NULL)

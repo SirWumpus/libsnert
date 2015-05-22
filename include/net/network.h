@@ -562,6 +562,24 @@ extern int spanDomain(const unsigned char *domain, int minDots);
  */
 extern int spanLocalPart(const unsigned char *s);
 
+/*
+ * RFC 2821 section 4.1.2 Command Argument Syntax
+ *
+ * Validate the characters and syntax.
+ *
+ *	Path = "<" [ A-d-l ":" ] Mailbox ">"
+ *	A-d-l = At-domain *( "," A-d-l )
+ *		; Note that this form, the so-called "source route",
+ *		; MUST BE accepted, SHOULD NOT be generated, and SHOULD be
+ *		; ignored.
+ *	At-domain = "@" domain
+ *	Domain = (sub-domain 1*("." sub-domain)) / address-literal
+ *	sub-domain = Let-dig [Ldh-str]
+ *	Let-dig = ALPHA / DIGIT
+ *	Ldh-str = *( ALPHA / DIGIT / "-" ) Let-dig
+ */
+extern long spanSourceRoute(const unsigned char *s);
+
 /***********************************************************************
  ***
  ***********************************************************************/

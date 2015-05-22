@@ -85,3 +85,36 @@ spanLocalPart(const unsigned char *s)
 	return t - s;
 }
 
+/*
+ * RFC 2821 section 4.1.2 Command Argument Syntax
+ *
+ * Validate the characters and syntax.
+ *
+ *	Path = "<" [ A-d-l ":" ] Mailbox ">"
+ *	A-d-l = At-domain *( "," A-d-l )
+ *		; Note that this form, the so-called "source route",
+ *		; MUST BE accepted, SHOULD NOT be generated, and SHOULD be
+ *		; ignored.
+ *	At-domain = "@" domain
+ *	Domain = (sub-domain 1*("." sub-domain)) / address-literal
+ *	sub-domain = Let-dig [Ldh-str]
+ *	Let-dig = ALPHA / DIGIT
+ *	Ldh-str = *( ALPHA / DIGIT / "-" ) Let-dig
+ */
+long
+spanSourceRoute(const unsigned char *s)
+{
+	long length;
+	const unsigned char *start;
+
+	for (start = s; *s == '@'; s += length) {
+		length = spanDomain(s + 1, 1) + 1;
+		if (length == 1)
+			return 0;
+		if (s[length] == ',')
+			length++;
+	}
+
+	return s - start;
+}
+

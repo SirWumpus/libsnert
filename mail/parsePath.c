@@ -24,7 +24,6 @@
 #include <com/snert/lib/io/Log.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/mail/limits.h>
-#include <com/snert/lib/mail/MailSpan.h>
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/net/network.h>
 
@@ -299,7 +298,7 @@ parsePath(const char *path, unsigned long flags, int dots, ParsePath **out)
 	if (1 < debug)
 		syslog(LOG_DEBUG, "Split the local-part at a plus-sign or at-sign.");
 
-	p->sourceRoute.length = MailSpanAtDomainList(p->sourceRoute.string);
+	p->sourceRoute.length = spanSourceRoute(p->sourceRoute.string);
 	p->localLeft.string = &p->sourceRoute.string[p->sourceRoute.length];
 
 	if (0 < p->sourceRoute.length) {
@@ -319,7 +318,7 @@ parsePath(const char *path, unsigned long flags, int dots, ParsePath **out)
 		syslog(LOG_DEBUG, "source-route-string='%s' source-route-length=%ld", p->sourceRoute.string, p->sourceRoute.length);
 
 	/* Split the local-part at a plus-sign or at-sign. */
-	p->localRight.length = MailSpanLocalPart(p->localLeft.string);
+	p->localRight.length = spanLocalPart(p->localLeft.string);
 	hasAtSign = p->localLeft.string[p->localRight.length] == '@';
 	isUnqualified = p->localLeft.string[p->localRight.length] == '\0';
 	p->localLeft.string[p->localRight.length] = '\0';
@@ -357,7 +356,7 @@ parsePath(const char *path, unsigned long flags, int dots, ParsePath **out)
 	 * at least the demanded number of dots. For example we would
 	 * disallow MAIL FROM:<local>, but allow RCPT TO:<local>.
 	 */
-	p->domain.length = MailSpanDomainName(p->domain.string, dots);
+	p->domain.length = spanDomain(p->domain.string, dots);
 /*	p->domain.length = p->address.length - p->localRight.length - hasAtSign; */
 
 	if (1 < debug)

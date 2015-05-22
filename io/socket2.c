@@ -34,7 +34,6 @@
 #include <com/snert/lib/io/socket2.h>
 #include <com/snert/lib/io/socket3.h>
 #include <com/snert/lib/mail/limits.h>
-#include <com/snert/lib/mail/MailSpan.h>
 #include <com/snert/lib/mail/parsePath.h>
 #include <com/snert/lib/util/Text.h>
 #include <com/snert/lib/util/timer.h>
