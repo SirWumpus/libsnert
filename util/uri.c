@@ -85,6 +85,10 @@ static char uri_unreserved[] = "-_.~";
 static long socket_timeout = SOCKET_CONNECT_TIMEOUT;
 static const char log_error[] = "%s(%d): %s";
 
+/* RFC 5322 */
+static char mail_specials[] = "@:,;\"<>()[]\\";
+static char mail_atext[] = "!#$%&'*+-/=?^_`{|}~.";
+
 /***********************************************************************
  *** URI related support routines.
  ***********************************************************************/
@@ -591,7 +595,8 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		char *local_part;
 		*uri->host++ = '\0';
 
-		for (uri->userInfo = value; *uri->userInfo != '\0' && spanLocalPart((unsigned char *)uri->userInfo) <= 0; uri->userInfo++)
+		/* Scan forward until we're sure we have a valid local-part. */
+		for (uri->userInfo = value; uri->userInfo[spanLocalPart((unsigned char *)uri->userInfo)] != '\0'; uri->userInfo++)
 			;
 
 		if (*uri->userInfo == '\0' || (span = alt_spanDomain((unsigned char *)uri->host, 1)) <= 0)

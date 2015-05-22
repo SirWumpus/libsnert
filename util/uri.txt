@@ -1,5 +1,6 @@
 From uri@snert.test Mon Dec 3 20:17:41 2012
 Return-Path: <uri@snert.test>
+From: Paren Wrapped(some.one@example.com)
 Comment: long headers should not cause header/body state change.
 Received: from [192.168.2.11] (chiisai-11.localdomain. [192.168.2.11])
         by chippy.snert.com (8.14.4/8.14.4) with ESMTP id qB41HXj7022735
@@ -153,6 +154,8 @@ The following test cases
  Y  -  N  -	mailto:abuse@snert.com?subject=Whip+Me
 
  Y  -  N  -	&lt;wumpus@snert.org&gt;
+
+ Y  -  N  -	parenthesis wrapped(user.name@example.org) email
 
  Y  -  -  -	data:,A%20brief%20note				RFC 2397 data: URI
 
