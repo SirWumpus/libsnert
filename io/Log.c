@@ -109,7 +109,7 @@ LogPrintV(int level, const char *msg, va_list args)
 
 	now = time(NULL);
 	(void) localtime_r(&now, &local);
-	(void) strftime(stamp, sizeof (stamp), "%Y-%m-%d %H:%M:%S", &local);
+	(void) strftime(stamp, sizeof (stamp), "%Y-%m-%dT%H:%M:%S", &local);
 
 	length = snprintf(
 		buffer, sizeof (buffer), "%s %s:%lu %s ",
