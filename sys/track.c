@@ -4,8 +4,16 @@
  * Copyright 2015 by Anthony Howe.  All rights reserved.
  */
 
+#ifndef DUMP_LINE
+#define DUMP_LINE			16
+#endif
+
 #ifndef DUMP_SIZE
-#define DUMP_SIZE			32
+#define DUMP_SIZE			(2 * DUMP_LINE)
+#endif
+
+#ifndef DUMP_FILE
+#define DUMP_FILE			"./track_leaks.log"
 #endif
 
 /***********************************************************************
@@ -20,6 +28,7 @@
 #include <string.h>
 
 #include <com/snert/lib/sys/sysexits.h>
+#include <com/snert/lib/util/Text.h>
 
 #define HERE_FMT			"%s:%ld "
 #define HERE_ARG			here, (long)lineno
@@ -78,7 +87,7 @@
 # define pthread_once(o, f)		(0)
 
 /* Mimick per thread data object.  thread_key will be the list head. */
-# define pthread_key_t			track_data *
+# define pthread_key_t			track_list *
 # define pthread_key_create(k, f)	(*(k) = NULL)
 # define pthread_key_delete(k)		(0)
 # define pthread_getspecific(k)		(k)
@@ -103,7 +112,6 @@ typedef struct track_data {
 	struct track_data *next;
 	size_t size;
 	unsigned long id;
-	pthread_t thread;
 	const char *here;
 	long lineno;
 	long crc;
@@ -112,6 +120,15 @@ typedef struct track_data {
 #define TRACK_FMT		"ptr=%p id=%lu size=%zu from " HERE_FMT
 #define TRACK_ARG(p)		&(p)[1], (p)->id, (p)->size, (p)->here, (p)->lineno
 #define TRACK_CRC(p)		((long)((long)(p) ^ (p)->size ^ (p)->lineno ^ (long)(p)->here))
+
+typedef struct track_list {
+	struct track_list *prev;
+	struct track_list *next;
+	struct track_data *head;
+	pthread_t thread;
+} track_list;
+
+static track_list *main_list;
 
 static LOCK_T lock;
 static unsigned long free_count;
@@ -125,62 +142,110 @@ static Marker lo_guard;
 static pthread_t main_thread;
 static pthread_key_t thread_key;
 
-void
-T(dump)(void *chunk, size_t length)
+#ifdef SIGNAL_SAFE
+/*
+ * @note
+ *	Signal safe.
+ */
+static size_t
+T(dump_mem)(const unsigned char *mem, size_t count, char *buffer, size_t size)
 {
-	size_t i;
-	track_data *track;
+	size_t i, n;
 	
-	track = &((track_data *) chunk)[-1];
-	if (track->size < length)
-		length = track->size;
+	if (0 < size)
+		*buffer = '\0';
+	if (size <= count * 4 + 4)
+		return count * 4 + 4;
 
-	(void) fprintf(stderr, "    " TRACK_FMT "dump=%zu:", TRACK_ARG(track), length);
+	*buffer++ = '\t';
 
-	for (i = 0; i < length; i++, chunk++) {
-		if (i % 16 == 0)
-			(void) fputs("\r\n\t", stderr);
-		if (isprint(*(char *)chunk))
-			(void) fputc(*(char *)chunk, stderr);
-		else
-			(void) fprintf(stderr, "\\x%02X", *(char *)chunk);
+	for (i = 0; i < count; i++) {
+		n = ulong_format(mem[i], 16, -3, 2, 0, 0, buffer, size);
+		buffer +=n;
+		size -= n;
 	}
-
-	(void) fprintf(stderr, "\r\n");
+	
+	*buffer++ = ' ';
+	
+	for (i = 0; i < count; i++) {
+		*buffer++ = isprint(mem[i]) ? mem[i] : '.';
+	}
+	
+	*buffer++ = '\r';
+	*buffer++ = '\n';
+	*buffer   = '\0';
+	
+	return count * 4 + 4;
 }
 
 /*
- * Dump the list of leaked memory at thread exit.
+ * @note
+ *	Signal safe.
  */
-static void
-T(report)(void *data)
+static size_t
+T(tostring)(track_data *track, size_t dump_len, char *buffer, size_t size)
 {
-	size_t size;
-	unsigned count;
-	track_data *track;
+	int i;
+	size_t n;
+	char *buf;
+	
+	buf = buffer;
+	n = TextCopy(buf, size, "    ptr=0x");
+	buf += n; if (buf-buffer < size) size -= n; else size = 0;	 
 
-	LOGTRACE();
-	if (data == NULL)
-		return;
+	n = ulong_format((unsigned long)(track+1), 16, 0, 0, 0, 0, buf, size);
+	buf += n; if (buf-buffer < size) size -= n; else size = 0;	 
 		
-	track = data;	
-	if (main_thread == track->thread)
-		(void) fprintf(stderr, "main:\r\n");
-	else
-		(void) fprintf(stderr, "thread 0x%lx:\r\n", (unsigned long) track->thread);
+	n = TextCopy(buf, size, " id=");
+	buf += n; if (buf-buffer < size) size -= n; else size = 0;	 
+	
+	n = ulong_format(track->id, 10, 0, 0, 0, 0, buf, size);
+	buf += n; if (buf-buffer < size) size -= n; else size = 0;	 
 
-	size = 0;
-	for (count = 0; track != NULL; track = track->next, count++) {
-		/* The thread data cleanup will be called before
-		 * the thread releases its pthread_t data, which
-		 * can result in a spurious leak being reported.
-		 */
-		T(dump)(track+1, DUMP_SIZE);
-		size += track->size;
+	n = TextCopy(buf, size, " size=");
+	buf += n; if (buf-buffer < size) size -= n; else size = 0;	 
+
+	n = ulong_format(track->size, 10, 0, 0, 0, 0, buf, size);
+	buf += n; if (buf-buffer < size) size -= n; else size = 0;	 
+
+	n = TextCopy(buf, size, " from ");
+	buf += n; if (buf-buffer < size) size -= n; else size = 0;	 
+
+	n = TextCopy(buf, size, track->here);
+	buf += n; if (buf-buffer < size) size -= n; else size = 0;	 
+
+	if (0 < size) {
+		*buf++ = ':';
+		size--;
 	}
 
-	if (0 < count)
-		(void) fprintf(stderr, "    leaked blocks=%u size=%zu\r\n", count, size);
+	n = ulong_format(track->lineno, 10, 0, 0, 0, 0, buf, size);
+	buf += n; if (buf-buffer < size) size -= n; else size = 0;	 
+		
+	n = TextCopy(buf, size, "\r\n");
+	buf += n; if (buf-buffer < size) size -= n; else size = 0;	 
+
+	/* Round up to multiple of 16. */
+	dump_len = ((dump_len + 15) / 16) * 16;
+	for (i = 0; i < dump_len; i += 16) {
+		n = T(dump_mem)((unsigned char *)(track+1)+i, 16, buf, size);
+		buf += n; if (buf-buffer < size) size -= n; else size = 0;
+	}
+	
+	return buf - buffer;
+}
+
+void
+T(report_all_fd)(int fd)
+{
+	track_list *list;
+	
+	list = main_list;
+	do {
+		T(report_fd)(fd, list);
+		list = list->next;
+	} while (list != main_list);
+
 #ifdef TRACK_STATS
 	if (malloc_count != free_count)
 		(void) fprintf(stderr, "malloc=%lu free=%lu\r\n", malloc_count, free_count);	
@@ -188,11 +253,124 @@ T(report)(void *data)
 }
 
 void
+sig_dump(int signum)
+{
+	int fd;
+	
+	if (0 <= (fd = open(DUMP_FILE, O_CREAT|O_WRONLY|O_APPEND, 0))) {
+		T(report_all_fd)(fd);
+		(void) close(fd);
+	}
+}
+#else
+static void
+T(dump)(FILE *fp, track_data *track, size_t dump_len)
+{
+	size_t i, j;
+	unsigned char *chunk;
+	
+	if (track->size < dump_len)
+		dump_len = track->size;
+	dump_len = ((dump_len + (DUMP_LINE-1)) / DUMP_LINE) * DUMP_LINE;
+	chunk = (unsigned char *)(track+1);
+
+	(void) fprintf(fp, "    " TRACK_FMT "\r\n", TRACK_ARG(track));
+
+	for (i = 0; i < dump_len; i += DUMP_LINE) {
+		(void) fputc('\t', fp);
+		for (j = 0; j < DUMP_LINE; j++)
+			(void) fprintf(fp, "%-3.2X", chunk[i+j]);			
+		(void) fputc(' ', fp);
+		for (j = 0; j < DUMP_LINE; j++)
+			(void) fputc(isprint(chunk[j]) ? chunk[i+j] : '.', fp);
+		(void) fputs("\r\n", fp);
+	}
+	
+	(void) fflush(fp);
+}
+#endif
+
+/*
+ * Dump the list of leaked memory at thread exit.
+ */
+static void
+T(report)(track_list *list)
+{
+	size_t size;
+	unsigned count;
+	track_data *track;
+
+	if (list == NULL)
+		return;
+
+	if (main_thread == list->thread)
+		(void) fprintf(stderr, "main:\r\n");
+	else
+		(void) fprintf(stderr, "thread 0x%lx:\r\n", (unsigned long) list->thread);
+		
+	size = 0;
+	for (count = 0, track = list->head; track != NULL; track = track-> next, count++) {
+		/* The thread data cleanup will be called before
+		 * the thread releases its pthread_t data, which
+		 * can result in a spurious leak being reported.
+		 */
+#ifdef SIGNAL_SAFE		 
+		char buffer[512];
+		(void) T(tostring)(track, DUMP_SIZE, buffer, sizeof (buffer));
+		fputs(buffer, stderr);
+#else
+		(void) T(dump)(stderr, track, DUMP_SIZE);
+#endif
+		(void) fputs("\r\n", stderr);
+		size += track->size;
+	}
+
+	if (0 < count)
+		(void) fprintf(stderr, "    leaked blocks=%u size=%zu\r\n", count, size);
+}
+
+void
+T(report_all_unsafe)(void)
+{
+	track_list *list;
+	
+	list = main_list;
+	do {
+		T(report)(list);
+		list = list->next;
+	} while (list != main_list);
+
+#ifdef TRACK_STATS
+	if (malloc_count != free_count)
+		(void) fprintf(stderr, "malloc=%lu free=%lu\r\n", malloc_count, free_count);	
+#endif
+}
+
+void
+T(report_all)(void)
+{
+	LOCK_LOCK(&lock);
+	T(report_all_unsafe)();
+	LOCK_UNLOCK(&lock);
+}
+
+void
 T(clean_key)(void *data)
 {
+	track_list *list;
+
 	LOGTRACE();
 	if (data != NULL) {
-		T(report)(pthread_getspecific(thread_key));	
+		list = data;
+
+		LOCK_LOCK(&lock);
+		list->prev->next = list->next;
+		list->next->prev = list->prev;
+		LOCK_UNLOCK(&lock);
+
+		T(report)(list);	
+		(free)(list);
+
 		(void) pthread_setspecific(thread_key, NULL);
 	}	
 }
@@ -268,8 +446,9 @@ T(init)(void)
 void
 (_exit)(int ex_code)
 {
-	LOGTRACE();
-	
+	track_list *list;
+
+	LOGTRACE();	
 	if (track_hook__exit == NULL)
 		T(init)();
 	
@@ -281,7 +460,8 @@ void
 	 * NOTE sys/track.c and sys/malloc.c both hook _exit(), so
 	 * cannot be used together (yet).
 	 */
-	T(report)(pthread_getspecific(thread_key));
+	list = (track_list *)pthread_getspecific(thread_key);
+	T(report)(list);	
 	(void) pthread_key_delete(thread_key);
 	(void) LOCK_FREE(&lock);
 
@@ -292,7 +472,8 @@ void
 void
 T(free)(void *chunk, const char *here, long lineno)
 {
-	track_data *track, *head;
+	track_list *list;
+	track_data *track;
 
 	if (chunk == NULL) {
 		LOGFREE(chunk, here, lineno);
@@ -319,14 +500,14 @@ T(free)(void *chunk, const char *here, long lineno)
 	}
 	
 	/* Maintain list of allocated memory per thread, including main() */
-	head = pthread_getspecific(thread_key);
+	list = pthread_getspecific(thread_key);
 	if (track->prev == NULL)
-		head = track->next;
+		list->head = track->next;
 	else
 		track->prev->next = track->next;		
 	if (track->next != NULL)
 		track->next->prev = track->prev;
-	(void) pthread_setspecific(thread_key, head);	
+	(void) pthread_setspecific(thread_key, list);	
 
 	(free)(track);
 
@@ -338,7 +519,8 @@ T(free)(void *chunk, const char *here, long lineno)
 void *
 T(malloc)(size_t size, const char *here, long lineno)
 {
-	track_data *track, *head;
+	track_list *list;
+	track_data *track;
 	
 	if (track_hook__exit == NULL)
 		T(init)();
@@ -356,17 +538,48 @@ T(malloc)(size_t size, const char *here, long lineno)
 	track->size = size;
 	track->here = here;
 	track->lineno = lineno;
-	track->thread = pthread_self();
-	track->crc = TRACK_CRC(track);
 	track->lo_guard = lo_guard;
+	track->crc = TRACK_CRC(track);
 
 	/* Maintain list of allocated memory per thread, including main() */
-	head = pthread_getspecific(thread_key);
+	list = (track_list *)pthread_getspecific(thread_key);
+
+	if (list == NULL) {
+		if ((list = (malloc)(sizeof (*list))) == NULL) {
+			(free)(track);
+			return NULL;
+		}
+		
+		list->thread = pthread_self();
+		list->head = NULL;
+	
+		/* Each thread maintains an allocation list and each
+		 * allocation list is a member of a circular double
+		 * link list of lists.  This allows us to dump all 
+		 * the current allocations for all threads any time.
+		 */
+		LOCK_LOCK(&lock);
+		if (main_list == NULL) {
+			list->prev = list;
+			list->next = list;
+			main_list = list;		
+		} else {
+			list->prev = main_list->prev;
+			list->next = main_list;
+			main_list->prev->next = list;
+			main_list->prev = list;		
+		}		
+		LOCK_UNLOCK(&lock);		
+	}
+	
+	/* Push allocation to head of list. */
 	track->prev = NULL;
-	track->next = head;
-	if (head != NULL)
-		head->prev = track;
-	(void) pthread_setspecific(thread_key, track);		
+	track->next = list->head;
+	if (list->head != NULL)
+		list->head->prev = track;
+	list->head = track;
+	
+	(void) pthread_setspecific(thread_key, list);		
 	
 	LOGTRACKAT(track, here, lineno);
 	
@@ -463,7 +676,7 @@ test_thread(void *data)
 
 	/* Force a leak. */
 	(void) fprintf(stderr, "create test leak 1\n");
-	(void) malloc(101);
+	(void) TextCopy(malloc(101), 101, "leak 1 abcdefghijklmnopqrstuvwxyz");
 	
 	for (argi = 0; argi < arg->argc; argi++) {
 		base[argi] = strdup(arg->argv[argi]);
@@ -484,7 +697,7 @@ test_thread(void *data)
 	
 	/* Force a leak. */
 	(void) fprintf(stderr, "create test leak 2\n");
-	(void) malloc(102);
+	(void) TextCopy(malloc(102), 102, "leak 2 abcdefghijklmnopqrstuvwxyz");
 	
 	return NULL;
 }

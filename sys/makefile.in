@@ -134,11 +134,11 @@ sys$E: sys.c
 malloc$E: ${srcdir}/malloc.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DTEST ${CC_E}malloc$E ${srcdir}/malloc.c
 
-track$E: ${srcdir}/track.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -DTEST ${CC_E}track$E ${srcdir}/track.c
+track$E: ${top_builddir}/util/ulong$O ${srcdir}/track.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DTEST ${CC_E}track$E ${srcdir}/track.c ${top_builddir}/util/ulong$O
 
 ptrack$O: ${srcdir}/track.c
 	$(CC) $(CFLAGS) ${CFLAGS_PTHREAD} ${CC_O}ptrack$O -c ${srcdir}/track.c
 
 ptrack$E: ${srcdir}/track.c
-	$(CC) $(CFLAGS) ${CFLAGS_PTHREAD} $(LDFLAGS) -DTEST ${CC_E}ptrack$E ${srcdir}/track.c ${LIBS_PTHREAD}
+	$(CC) $(CFLAGS) ${CFLAGS_PTHREAD} $(LDFLAGS) -DTEST ${CC_E}ptrack$E ${srcdir}/track.c ${top_builddir}/util/ulong$O ${LIBS_PTHREAD}

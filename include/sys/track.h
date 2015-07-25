@@ -32,6 +32,7 @@ extern void  (*track_hook__exit)(int);
 //extern void  (*track_hook_free)(void *);
 //extern void *(*track_hook_malloc)(size_t);
 
+extern void  track_report_all(void);
 extern void  track_free(void *chunk, const char *here, long lineno);
 extern void *track_malloc(size_t size, const char *here, long lineno);
 extern void *track_calloc(size_t n, size_t size, const char *here, long lineno);
