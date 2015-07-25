@@ -1,4 +1,4 @@
-The Unmentioned LibSnert Tools				2 Feb 2010
+The Unmentioned LibSnert Tools				15 June 2015
 ==============================
 
 LibSnert has several command line interface (CLI) tools that are used
@@ -110,6 +110,9 @@ show		Similar to head(1) and tail(1). Can highlight and/or
 		beep when a constant pattern is seen. Was intended for
 		watching heavy volume logs and/or catch when a rare
 		pattern might appear.
+
+sift
+		Log file monitoring tool.
 
 siq		CLI version of milter-siq.
 
