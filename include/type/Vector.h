@@ -33,13 +33,6 @@ typedef struct vector {
  */
 extern /*@only@*//*@null@*/ Vector VectorCreate(long capacity);
 
-/**
- * Convience function that replaces free() and does nothing.
- * Used with VectorSetDestroyEntry() to specify a destructor
- * that does not destroy vector entries.
- */
-extern void FreeStub(void *);
-
 /*
  * Backwards compatibility with previous API.
  */
