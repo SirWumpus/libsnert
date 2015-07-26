@@ -68,9 +68,9 @@ int uriDebug;
 static char at_sign_delim = '@';
 #ifdef OLD
 /* RFC 2396 */
-static char uri_excluded[] = "#<>%\"{}|\\^[]`";
-static char uri_reserved[] = ";/?:@&=+$,";
-static char uri_unreserved[] = "-_.!~*'()";
+static const char uri_excluded[] = "#<>%\"{}|\\^[]`";
+static const char uri_reserved[] = ";/?:@&=+$,";
+static const char uri_unreserved[] = "-_.!~*'()";
 #else
 /* RFC 3986
  *
@@ -78,16 +78,16 @@ static char uri_unreserved[] = "-_.!~*'()";
  * appear in the file: scheme, eg. "file:///C|/foo/bar/"
  * Assume it is reserved.
  */
-static char uri_excluded[] = "\"<>{}\\^`";
-static char uri_reserved[] = "%:/?#[]@!$&'()*+,;=|";
-static char uri_unreserved[] = "-_.~";
+static const char uri_excluded[] = "\"<>{}\\^`";
+static const char uri_reserved[] = "%:/?#[]@!$&'()*+,;=|";
+static const char uri_unreserved[] = "-_.~";
 #endif
 static long socket_timeout = SOCKET_CONNECT_TIMEOUT;
 static const char log_error[] = "%s(%d): %s";
 
 /* RFC 5322 */
-static char mail_specials[] = "@:,;\"<>()[]\\";
-static char mail_atext[] = "!#$%&'*+-/=?^_`{|}~.";
+static const char mail_specials[] = "@:,;\"<>()[]\\";
+static const char mail_atext[] = "!#$%&'*+-/=?^_`{|}~.";
 
 /***********************************************************************
  *** URI related support routines.
