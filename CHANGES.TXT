@@ -57,6 +57,27 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.46--
+
+   *	Upgraded SQLite to 3.8.10.2
+
+   +	Added pdqListPruneSection().
+
+   !	Modified pdqLog() to take a prefix string to improve log detail.
+
+  !!	Fixed pdqInit() bug when the DNS server does not recurse and
+  	we are using pdqSetShortQuery(1) to skip our own recursion.
+  	Can't use pdqListPruneMatch() nor pdqListPrune() as it will
+  	discard some or all of root_hints list.  pdqRootGetNS() will
+  	fetch an NS's 5A records on-demand as needed, so an incomplete
+  	root_hints is not critical.
+
+  !!	Fixed pdqRootGetNS() to correctly handle "glue record" results
+  	when querying the root NS servers, which return no answer
+  	records, only authority NS records.  Impacted dnsListQueryNs()
+  	and so uri and milter-link NS BL related options.  Reported by
+  	Alex Broens.
+
 --1.75.45--
 
    +	Added ulong_format, slong_format, ulong_tostring, slong_tostring.
