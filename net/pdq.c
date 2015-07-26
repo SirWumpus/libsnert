@@ -759,7 +759,7 @@ pdqListClone(PDQ_rr *orig)
 }
 
 /**
- * @param record
+                                            * @param record
  *	A pointer to a PDQ_rr list.
  *
  * @return
@@ -811,7 +811,7 @@ pdqListPruneDup(PDQ_rr *list)
 	PDQ_rr **prev, *next, *r1, *r2;
 
 	if (debug)
-		syslog(LOG_DEBUG, "pdqListPruneDup() ...");
+		syslog(LOG_DEBUG, "%s ...", __func__);
 
 	for (r1 = list; r1 != NULL; r1 = r1->next) {
 		prev = &r1->next;
@@ -820,7 +820,7 @@ pdqListPruneDup(PDQ_rr *list)
 
 			if (pdqEqual(r1, r2)) {
 				if (debug)
-					pdqLog(r2);
+					pdqLog("prune duplicate ", r2);
 				*prev = r2->next;
 				pdqDestroy(r2);
 				continue;
@@ -831,7 +831,7 @@ pdqListPruneDup(PDQ_rr *list)
 	}
 
 	if (debug)
-		syslog(LOG_DEBUG, "pdqListPruneDup() done, list=0x%lx", (long) list);
+		syslog(LOG_DEBUG, "%s done, list=0x%lx", __func__, (long) list);
 
 	return list;
 }
@@ -861,7 +861,7 @@ pdqListPrune5A(PDQ_rr *list, is_ip_t is_ip_mask, int must_have_ip)
 	PDQ_rr **prev, *rr, *next;
 
 	if (debug)
-		syslog(LOG_DEBUG, "pdqListPrune5A()...");
+		syslog(LOG_DEBUG, "%s ...", __func__);
 
 	/* Remove impossible to reach A/AAAA records. */
 	prev = &list;
@@ -872,7 +872,7 @@ pdqListPrune5A(PDQ_rr *list, is_ip_t is_ip_mask, int must_have_ip)
 			if ((rr->type == PDQ_TYPE_A || rr->type == PDQ_TYPE_AAAA)
 			&& isReservedIPv6(((PDQ_AAAA *) rr)->address.ip.value, is_ip_mask)) {
 				if (debug)
-					pdqLog(rr);
+					pdqLog("prune address ", rr);
 				*prev = rr->next;
 				pdqDestroy(rr);
 				continue;
@@ -883,7 +883,7 @@ pdqListPrune5A(PDQ_rr *list, is_ip_t is_ip_mask, int must_have_ip)
 	}
 
 	if (debug)
-		syslog(LOG_DEBUG, "pdqListPrune5A() done, list=0x%lx", (long) list);
+		syslog(LOG_DEBUG, "%s() done, list=0x%lx", __func__, (long) list);
 
 	return list;
 }
@@ -973,13 +973,13 @@ pdqListPruneQuery(PDQ_rr *list)
 	PDQ_rr **prev, *rr, *next;
 
 	if (debug)
-		syslog(LOG_DEBUG, "pdqListPruneQuery()...");
+		syslog(LOG_DEBUG, "%s ...", __func__);
 
 	/* Remove records upto next query section in list. */
 	prev = &list;
 	for (rr = list; rr != NULL; rr = next) {
 		if (debug)
-			pdqLog(rr);
+			pdqLog("prune query ", rr);
 		*prev = rr->next;
 		next = rr->next;
 		pdqDestroy(rr);
@@ -989,7 +989,43 @@ pdqListPruneQuery(PDQ_rr *list)
 	}
 
 	if (debug)
-		syslog(LOG_DEBUG, "pdqListPruneQuery() done, list=0x%lx", (long) list);
+		syslog(LOG_DEBUG, "%s done, list=0x%lx", __func__, (long) list);
+
+	return list;
+}
+
+/**
+ * @param list
+ *	A pointer to a PDQ_rr list.
+ *
+ * @param section
+ *	The records with the given section type are freed.
+ *
+ * @return
+ *	The updated head of the list or NULL if the list is empty.
+ */
+PDQ_rr *
+pdqListPruneSection(PDQ_rr *list, PDQ_section section)
+{
+	PDQ_rr **prev, *rr, *next;
+
+	if (debug)
+		syslog(LOG_DEBUG, "%s %s ...", __func__, pdqSectionName(section));
+
+	/* Remove records upto next query section in list. */
+	prev = &list;
+	for (rr = list; rr != NULL; rr = next) {
+		next = rr->next;
+		if (rr->section != section)
+			continue;
+		if (debug)
+			pdqLog("prune section ", rr);
+		*prev = rr->next;
+		pdqDestroy(rr);
+	}
+
+	if (debug)
+		syslog(LOG_DEBUG, "%s %s done, list=0x%lx", __func__, pdqSectionName(section), (long) list);
 
 	return list;
 }
@@ -1008,7 +1044,7 @@ pdqListPruneMatch(PDQ_rr *list)
 	PDQ_rr **prev, *rr, *next, *ar;
 
 	if (debug)
-		syslog(LOG_DEBUG, "pdqListPruneMatch()...");
+		syslog(LOG_DEBUG, "%s ...", __func__);
 
 	/* Remove MX/NS/SOA records with no matching A/AAAA records. Note
 	 * that pdqGet() returns the implicit MX 0 record as a convenience.
@@ -1029,7 +1065,7 @@ pdqListPruneMatch(PDQ_rr *list)
 		/* Discard records we can't use (CNAME, DNAME). */
 		if (rr->type == PDQ_TYPE_CNAME || rr->type == PDQ_TYPE_DNAME) {
 			if (debug)
-				pdqLog(rr);
+				pdqLog("prune alias ", rr);
 			*prev = rr->next;
 			pdqDestroy(rr);
 			continue;
@@ -1040,7 +1076,7 @@ pdqListPruneMatch(PDQ_rr *list)
 			ar = pdqListFindName(list, rr->class, PDQ_TYPE_5A, ((PDQ_MX *) rr)->host.string.value);
 			if (PDQ_RR_IS_NOT_VALID(ar)) {
 				if (debug)
-					pdqLog(rr);
+					pdqLog("prune incomplete ", rr);
 				*prev = rr->next;
 				pdqDestroy(rr);
 				continue;
@@ -1051,7 +1087,7 @@ pdqListPruneMatch(PDQ_rr *list)
 	}
 
 	if (debug)
-		syslog(LOG_DEBUG, "pdqListPruneMatch() done, list=0x%lx", (long) list);
+		syslog(LOG_DEBUG, "%s done, list=0x%lx", __func__, (long) list);
 
 	return list;
 }
@@ -1547,13 +1583,16 @@ pdqListDump(FILE *fp, PDQ_rr *list)
 }
 
 void
-pdqLog(PDQ_rr *record)
+pdqLog(const char *prefix, PDQ_rr *record)
 {
+	if (prefix == NULL)
+		prefix = "";		
 	if (record->section == PDQ_SECTION_QUERY) {
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT PDQ_LOG_FMT_END " rcode=%s (%d)", PDQ_LOG_ARG(record),
-			PDQ_LOG_ARG_END(record),
-			pdqRcodeName(((PDQ_QUERY *)record)->rcode), ((PDQ_QUERY *)record)->rcode
+			LOG_DEBUG, "%s" PDQ_LOG_FMT PDQ_LOG_FMT_END " rcode=%s (%d)", 
+			prefix, PDQ_LOG_ARG(record), PDQ_LOG_ARG_END(record),
+			pdqRcodeName(((PDQ_QUERY *)record)->rcode), 
+			((PDQ_QUERY *)record)->rcode
 		);
 		return;
 	}
@@ -1562,8 +1601,8 @@ pdqLog(PDQ_rr *record)
 	case PDQ_TYPE_A:
 	case PDQ_TYPE_AAAA:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%s" PDQ_LOG_FMT_END,
-			PDQ_LOG_ARG(record),
+			LOG_DEBUG, "%s" PDQ_LOG_FMT "%s" PDQ_LOG_FMT_END,
+			prefix, PDQ_LOG_ARG(record),
 			((PDQ_A *) record)->address.string.value,
 			PDQ_LOG_ARG_END(record)
 		);
@@ -1571,8 +1610,8 @@ pdqLog(PDQ_rr *record)
 
 	case PDQ_TYPE_SOA:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%s %s (%lu %ld %ld %ld %lu)" PDQ_LOG_FMT_END,
-			PDQ_LOG_ARG(record),
+			LOG_DEBUG, "%s" PDQ_LOG_FMT "%s %s (%lu %ld %ld %ld %lu)" PDQ_LOG_FMT_END,
+			prefix, PDQ_LOG_ARG(record),
 			((PDQ_SOA *) record)->mname.string.value,
 			((PDQ_SOA *) record)->rname.string.value,
 			(unsigned long)((PDQ_SOA *) record)->serial,
@@ -1586,8 +1625,8 @@ pdqLog(PDQ_rr *record)
 
 	case PDQ_TYPE_MX:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%d %s" PDQ_LOG_FMT_END,
-			PDQ_LOG_ARG(record),
+			LOG_DEBUG, "%s" PDQ_LOG_FMT "%d %s" PDQ_LOG_FMT_END,
+			prefix, PDQ_LOG_ARG(record),
 			((PDQ_MX *) record)->preference,
 			((PDQ_MX *) record)->host.string.value,
 			PDQ_LOG_ARG_END(record)
@@ -1599,8 +1638,8 @@ pdqLog(PDQ_rr *record)
 	case PDQ_TYPE_CNAME:
 	case PDQ_TYPE_DNAME:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%s" PDQ_LOG_FMT_END,
-			PDQ_LOG_ARG(record),
+			LOG_DEBUG, "%s" PDQ_LOG_FMT "%s" PDQ_LOG_FMT_END,
+			prefix, PDQ_LOG_ARG(record),
 			((PDQ_NS *) record)->host.string.value,
 			PDQ_LOG_ARG_END(record)
 		);
@@ -1608,8 +1647,8 @@ pdqLog(PDQ_rr *record)
 
 	case PDQ_TYPE_TXT:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%lu:\"%s\"" PDQ_LOG_FMT_END,
-			PDQ_LOG_ARG(record),
+			LOG_DEBUG, "%s" PDQ_LOG_FMT "%lu:\"%s\"" PDQ_LOG_FMT_END,
+			prefix, PDQ_LOG_ARG(record),
 			((PDQ_TXT *) record)->text.length,
 			TextNull((char *)((PDQ_TXT *) record)->text.value),
 			PDQ_LOG_ARG_END(record)
@@ -1618,8 +1657,8 @@ pdqLog(PDQ_rr *record)
 
 	case PDQ_TYPE_NULL:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "%lu bytes" PDQ_LOG_FMT_END,
-			PDQ_LOG_ARG(record),
+			LOG_DEBUG, "%s" PDQ_LOG_FMT "%lu bytes" PDQ_LOG_FMT_END,
+			prefix, PDQ_LOG_ARG(record),
 			((PDQ_NULL *) record)->text.length,
 			PDQ_LOG_ARG_END(record)
 		);
@@ -1628,8 +1667,8 @@ pdqLog(PDQ_rr *record)
 	case PDQ_TYPE_HINFO:
 	case PDQ_TYPE_MINFO:
 		syslog(
-			LOG_DEBUG, PDQ_LOG_FMT "\"%s\" \"%s\"" PDQ_LOG_FMT_END,
-			PDQ_LOG_ARG(record),
+			LOG_DEBUG, "%s" PDQ_LOG_FMT "\"%s\" \"%s\"" PDQ_LOG_FMT_END,
+			prefix, PDQ_LOG_ARG(record),
 			((PDQ_HINFO *) record)->cpu.string.value,
 			((PDQ_HINFO *) record)->os.string.value,
 			PDQ_LOG_ARG_END(record)
@@ -1641,9 +1680,13 @@ pdqLog(PDQ_rr *record)
 void
 pdqListLog(PDQ_rr *list)
 {
+	if (debug)
+		syslog(LOG_DEBUG, "RR list dump...");
 	for ( ; list != NULL; list = list->next) {
-		pdqLog(list);
+		pdqLog(NULL, list);
 	}
+	if (debug)
+		syslog(LOG_DEBUG, "RR list dump done");
 }
 
 size_t
@@ -3856,22 +3899,19 @@ pdqRootGetNS(PDQ *pdq, PDQ_class class, const char *name)
 				continue;
 
 			if (0 <debug)
-				syslog(LOG_DEBUG, "pdqRootGetNS %s %s NS @%s (%s)", name, pdqClassName(class), ((PDQ_NS *) ns_rr)->host.string.value, ((PDQ_AAAA *) a_rr)->address.string.value);
+				syslog(LOG_DEBUG, "%s %s %s NS @%s (%s)", __func__, name, pdqClassName(class), ((PDQ_NS *) ns_rr)->host.string.value, ((PDQ_AAAA *) a_rr)->address.string.value);
 
 			answer = pdqGet(pdq, class, PDQ_TYPE_NS, name+offset, ((PDQ_AAAA *) a_rr)->address.string.value);
 
 			if (answer != NULL) {
 				if (((PDQ_QUERY *) answer)->rcode == PDQ_RCODE_OK) {
-#ifdef MORE_DIG_LIKE
-/* Consider dig ns www.snert.com will return a CNAME and SOA,
- * which this code will duplicate, BUT we want to find the NS
- * for a name, be it authoritative or parent zone's glue.
- */
-					if ((((PDQ_QUERY *) answer)->flags & PDQ_BITS_AA) && ((PDQ_QUERY *) answer)->ancount == 0) {
-#else
-					if ((((PDQ_QUERY *) answer)->flags & PDQ_BITS_AA)) {
+					/* Consider dig ns www.snert.com will return a CNAME and SOA,
+					 * which this code will duplicate, BUT we want to find the NS
+					 * for a name, be it authoritative or parent zone's glue.
+					 */
+					if ((((PDQ_QUERY *) answer)->flags & PDQ_BITS_AA) 
+					|| ((PDQ_QUERY *) answer)->ancount == 0) {
 						/* Use glue records that got us here. */
-#endif
 						ns_rr = NULL;
 					}
 					break;
@@ -3886,13 +3926,11 @@ pdqRootGetNS(PDQ *pdq, PDQ_class class, const char *name)
 			/* Assume end of list without an answer bumps to glue records. */
 			if (0 < debug)
 				syslog(LOG_DEBUG, "glue records %s %s NS", name, pdqClassName(class));
-			pdqListFree(answer);
-			answer = ns_list;
 
 			/* Make it look like an authoriative answer.
 			 * Required for dnsListQueryNs.
 			 */
-			for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
+			for (ns_rr = answer; ns_rr != NULL; ns_rr = ns_rr->next) {
 				if (ns_rr->type == PDQ_TYPE_NS)
 					ns_rr->section = PDQ_SECTION_ANSWER;
 			}
@@ -4139,18 +4177,32 @@ pdqInit(void)
 		rc = pdqSetServers(name_servers);
 		VectorDestroy(name_servers);
 
-		/* Fetch a copy of the current root servers. */
+		/* Fetch a copy of the current root servers.
+		 *
+		 * Note that with a short non-recursive query,
+		 * the list of root servers will have none or
+		 * some IP addresses returned with the query.
+		 * See pdqRootGetNS(), which will get missing
+		 * NS 5A records on-demand as needed.
+		 */
 		pdqSetRoundRobin(1);
 		pdqSetShortQuery(1);
 		if (0 < debug)
 			syslog(LOG_DEBUG, "fetch root_hints...");
 		root_hints = pdqFetch(PDQ_CLASS_IN, PDQ_TYPE_NS, ".", NULL);
+
+		/* Careful when pruning the root_hints, since
+		 * some	NS hosts will not have matching 5A 
+		 * records yet, so avoid pdqListPrune() and
+		 * pdqListPruneMatch().
+		 */		 
 		if (0 < debug)
 			syslog(LOG_DEBUG, "prune root_hints...");
 		root_hints = pdqListKeepType(root_hints, PDQ_KEEP_NS|PDQ_KEEP_5A);
-		root_hints = pdqListPrune(root_hints, IS_IP_RESTRICTED|IS_IP_LAN);
+		root_hints = pdqListPrune5A(root_hints, IS_IP_RESTRICTED|IS_IP_LAN, 1);
 		if (0 < debug)
 			pdqListLog(root_hints);
+
 		pdqSetRoundRobin(0);
 		pdqSetShortQuery(0);
 
@@ -4226,6 +4278,15 @@ pdqSetRoundRobin(int flag)
 	pdq_round_robin = flag;
 }
 
+/**
+ * @param flag
+ *	Set false (default) to perform secondary queries for MX, NS,
+ *	and SOA to get the associated A/AAAA records.  Set true to
+ *	disable the extra lookups.
+ *
+ * @see
+ *	pdqSetBasicQuery()
+ */
 void
 pdqSetShortQuery(int flag)
 {

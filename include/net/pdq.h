@@ -149,6 +149,7 @@ typedef enum {
 	PDQ_KEEP_A6			= 0x1000,	/* RFC 2874, not supported */
 	PDQ_KEEP_DNAME			= 0x2000,	/* RFC 2672 */
 	PDQ_KEEP_5A			= PDQ_KEEP_A|PDQ_KEEP_AAAA,
+	PDQ_KEEP_ALL			= 0xFFFF,
 } PDQ_keep;
 
 typedef enum {
@@ -322,6 +323,15 @@ extern void pdqSetDebug(int level);
  */
 extern void pdqSetRoundRobin(int flag);
 
+/**
+ * @param flag
+ *	Set false (default) to perform secondary queries for MX, NS,
+ *	and SOA to get the associated A/AAAA records.  Set true to
+ *	disable the extra lookups.
+ *
+ * @see
+ *	pdqSetBasicQuery()
+ */
 extern void pdqSetShortQuery(int flag);
 
 /**
@@ -1076,6 +1086,9 @@ extern unsigned pdqListLength(PDQ_rr *record);
 extern void pdqListLog(PDQ_rr *list);
 
 /**
+ * @param prefix
+ *	A C string to be prefixed to the record. Can be NULL.
+ *
  * @param record
  *	A singleDNS resource record to dump via syslog.
  *	The output will be one log line per record.
@@ -1083,7 +1096,7 @@ extern void pdqListLog(PDQ_rr *list);
  * @see
  *	pdqListLog, pdqListDump, pdqDump
  */
-extern void pdqLog(PDQ_rr *record);
+extern void pdqLog(const char *prefix, PDQ_rr *record);
 
 /**
  * @param a_record
@@ -1151,6 +1164,18 @@ extern PDQ_rr *pdqListPruneDup(PDQ_rr *list);
  *	The updated head of the list or NULL if the list is empty.
  */
 extern PDQ_rr *pdqListPruneQuery(PDQ_rr *list);
+
+/**
+ * @param list
+ *	A pointer to a PDQ_rr list.
+ *
+ * @param section
+ *	The records with the given section type are freed.
+ *
+ * @return
+ *	The updated head of the list or NULL if the list is empty.
+ */
+extern PDQ_rr *pdqListPruneSection(PDQ_rr *list, PDQ_section section);
 
 /**
  * @param list
