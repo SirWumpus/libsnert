@@ -705,7 +705,7 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 		if (0 < debug)
 			syslog(LOG_DEBUG, "dnsListQueryNs name=\"%s\" offset=%d tld_offset=%d", name, offset, tld_offset);
 
-		if ((ns_list = pdqRootGet(pdq, PDQ_CLASS_IN, PDQ_TYPE_NS, name+offset, NULL)) != NULL) {
+		if ((ns_list = pdqRootGetNS(pdq, PDQ_CLASS_IN, name+offset)) != NULL) {
 			if (ns_list->section == PDQ_SECTION_QUERY)
 				ns_rcode_ok = ((PDQ_QUERY *)ns_list)->rcode == PDQ_RCODE_OK;
 			else
@@ -715,25 +715,23 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 				if (rr->section == PDQ_SECTION_QUERY)
 					continue;
 
-				switch (rr->section) {
-				case PDQ_SECTION_ANSWER:
-					if (rr->type == PDQ_TYPE_CNAME) {
-						/* Add to list to detect CNAME loops. */
-						if (VectorAdd(names_seen, copy = strdup(name)))
-							free(copy);
-						list_name = dnsListQueryNs(ns_bl, ns_ip_bl, pdq, names_seen, ((PDQ_CNAME *) rr)->host.string.value);
+				switch (rr->type) {
+				case PDQ_TYPE_CNAME:
+					/* Add to list to detect CNAME loops. */
+					if (VectorAdd(names_seen, copy = strdup(name)))
+						free(copy);
+					list_name = dnsListQueryNs(ns_bl, ns_ip_bl, pdq, names_seen, ((PDQ_CNAME *) rr)->host.string.value);
+					goto ns_list_break;
+				
+				case PDQ_TYPE_NS:
+					ns_found = 1;
+					if ((list_name = dnsListCheckIP(ns_ip_bl, pdq, names_seen, ((PDQ_NS *) rr)->host.string.value, ns_list)) != NULL)
 						goto ns_list_break;
-					}
-					if (rr->type == PDQ_TYPE_NS) {
-						ns_found = 1;
-						if ((list_name = dnsListCheckIP(ns_ip_bl, pdq, names_seen, ((PDQ_NS *) rr)->host.string.value, ns_list)) != NULL)
-							goto ns_list_break;
-						if ((list_name = dnsListQueryDomain(ns_bl, pdq, names_seen, 1, ((PDQ_NS *) rr)->host.string.value)) != NULL)
-							goto ns_list_break;
-					}
+					if ((list_name = dnsListQueryDomain(ns_bl, pdq, names_seen, 1, ((PDQ_NS *) rr)->host.string.value)) != NULL)
+						goto ns_list_break;
 					break;
 
-				case PDQ_SECTION_AUTHORITY:
+				case PDQ_TYPE_SOA:
 				/* Three possible SOA handling:
 				 *
 				 * 1. Use the SOA RR domain to do recursive
@@ -750,7 +748,7 @@ dnsListQueryNs(DnsList *ns_bl, DnsList *ns_ip_bl, PDQ *pdq, Vector names_seen, c
 				 *    that the primary NS would be one of the
 				 *    set of NS listed.
 				 */
-					if (!ns_found && rr->type == PDQ_TYPE_SOA) {
+					if (!ns_found) {
 						if ((list_name = dnsListCheckIP(ns_ip_bl, pdq, names_seen, ((PDQ_SOA *) rr)->mname.string.value, ns_list)) != NULL)
 							goto ns_list_break;
 						if ((list_name = dnsListQueryDomain(ns_bl, pdq, names_seen, 1, ((PDQ_SOA *) rr)->mname.string.value)) != NULL)

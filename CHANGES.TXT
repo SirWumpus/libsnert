@@ -62,6 +62,12 @@ is no set schedule for releases.
    !	Modify makefiles and version.sh.in to correspond with recent
    	switch to acsite.m4 and renaming of some macros.
 
+  !!	Fixed memory leak in pdqRootGetNS().
+
+   !	Modified dnsListQueryNs() to use pdqRootGetNS() instead of
+   	pdqRootGet().
+
+
 --1.75.46--
 
    *	Upgraded SQLite to 3.8.10.2

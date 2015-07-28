@@ -219,12 +219,12 @@ typedef struct pdq_rr {
 typedef struct {
 	PDQ_rr rr;
 	time_t created;			/* When this record was created. */
-	uint16_t flags;
+	uint16_t flags;			/* header flags */
 	PDQ_rcode rcode;
-	uint16_t qdcount;
-	uint16_t ancount;
-	uint16_t nscount;
-	uint16_t arcount;
+	uint16_t qdcount;		/* query count */
+	uint16_t ancount;		/* answer count */
+	uint16_t nscount;		/* ns / authoritative count */
+	uint16_t arcount;		/* extra / additional count */
 } PDQ_QUERY;
 
 #define PDQ_LIST_WALK(rr, list)		for ((rr) = (list); (rr) != NULL; (rr) = (rr)->next)
@@ -518,7 +518,7 @@ extern void pdqClose(PDQ *pdq);
  *	the timeout assigned by pdqMaxTimeout() when pdqOpen()
  *	created this PDQ instance.
  */
-extern void pdqSetTimeout(PDQ *pdq, unsigned seconds);
+extern unsigned pdqSetTimeout(PDQ *pdq, unsigned seconds);
 
 extern unsigned pdqGetTimeout(PDQ *pdq);
 extern int pdqGetBasicQuery(PDQ *pdq);
@@ -823,6 +823,49 @@ extern PDQ_rr *pdqGetMX(PDQ *pdq, PDQ_class class, const char *name, is_ip_t is_
  */
 extern PDQ_rr *pdqFetchMX(PDQ_class class, const char *name, is_ip_t is_ip_mask);
 
+/**
+ * @param pdq
+ *	A PDQ structure pointer for handling queries.
+ *
+ * @param class
+ *	A PDQ_CLASS_ code of the DNS record class to find.
+ *
+ * @param name
+ *	A domain name for which to find the NS glue records
+ *	pointing at the authoritative NS servers.
+ *
+ * @return
+ *	A PDQ_rr pointer to the head of records list or NULL if
+ *	no result found.  It is the caller's responsibility to
+ *	pdqListFree() this list when done.
+ */
+extern PDQ_rr *pdqRootGetNS(PDQ *pdq, PDQ_class class, const char *name);
+
+/**
+ * @param pdq
+ *	A PDQ structure pointer for handling queries.
+ *
+ * @param class
+ *	A PDQ_CLASS_ code of the DNS record class to find.
+ *
+ * @param type
+ *	A PDQ_TYPE_ code of the DNS record type to find.
+ *
+ * @param name
+ *	A domain name for which to find the NS glue records
+ *	pointing at the authoritative NS servers.
+ *
+ * @param ns
+ *	The name or IP address of a specific DNS name server to
+ *	query. NULL if the system configued name servers should
+ *	be used.
+ *
+ * @return
+ *	A PDQ_rr pointer to the head of records list or NULL if
+ *	no result found, or error occured and errno was set. It
+ *	is the caller's responsibility to pdqListFree() this list
+ *	when done.
+ */
 extern PDQ_rr *pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *ns);
 
 /***********************************************************************

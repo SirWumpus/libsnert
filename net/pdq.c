@@ -1568,8 +1568,19 @@ pdqDump(FILE *fp, PDQ_rr *record)
 
 	(void) fprintf(fp, PDQ_LOG_FMT_END, PDQ_LOG_ARG_END(record));
 
-	if (record->section == PDQ_SECTION_QUERY)
-		(void) fprintf(fp, " rcode=%s (%d)", pdqRcodeName(((PDQ_QUERY *)record)->rcode), ((PDQ_QUERY *)record)->rcode);
+	if (record->section == PDQ_SECTION_QUERY) {
+		(void) fprintf(
+			fp, " %s %d %s %s %s %s rc=%s (%d)", 
+			(((PDQ_QUERY *)record)->flags & PDQ_BITS_QR) ? "an" : "qr",
+			(((PDQ_QUERY *)record)->flags >> SHIFT_OP) & 0xF,
+			(((PDQ_QUERY *)record)->flags & PDQ_BITS_AA) ? "aa" : "--",
+			(((PDQ_QUERY *)record)->flags & PDQ_BITS_TC) ? "tc" : "--",
+			(((PDQ_QUERY *)record)->flags & PDQ_BITS_RD) ? "rd" : "--",
+			(((PDQ_QUERY *)record)->flags & PDQ_BITS_RA) ? "ra" : "--",									
+			pdqRcodeName(((PDQ_QUERY *)record)->rcode), 
+			((PDQ_QUERY *)record)->rcode
+		);
+	}
 
 	(void) fputc('\n', fp);
 }
@@ -1589,8 +1600,14 @@ pdqLog(const char *prefix, PDQ_rr *record)
 		prefix = "";		
 	if (record->section == PDQ_SECTION_QUERY) {
 		syslog(
-			LOG_DEBUG, "%s" PDQ_LOG_FMT PDQ_LOG_FMT_END " rcode=%s (%d)", 
+			LOG_DEBUG, "%s" PDQ_LOG_FMT PDQ_LOG_FMT_END " %s %d %s %s %s %s rc=%s (%d)", 
 			prefix, PDQ_LOG_ARG(record), PDQ_LOG_ARG_END(record),
+			(((PDQ_QUERY *)record)->flags & PDQ_BITS_QR) ? "an" : "qr",
+			(((PDQ_QUERY *)record)->flags >> SHIFT_OP) & 0xF,
+			(((PDQ_QUERY *)record)->flags & PDQ_BITS_AA) ? "aa" : "--",
+			(((PDQ_QUERY *)record)->flags & PDQ_BITS_TC) ? "tc" : "--",
+			(((PDQ_QUERY *)record)->flags & PDQ_BITS_RD) ? "rd" : "--",
+			(((PDQ_QUERY *)record)->flags & PDQ_BITS_RA) ? "ra" : "--",			
 			pdqRcodeName(((PDQ_QUERY *)record)->rcode), 
 			((PDQ_QUERY *)record)->rcode
 		);
@@ -2404,8 +2421,22 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 	packet->header.nscount = ntohs(packet->header.nscount);
 	packet->header.arcount = ntohs(packet->header.arcount);
 
-	if (0 < debug)
-		syslog(LOG_DEBUG, "header id=%u an=%u ns=%u ar=%u rcode=%s", packet->header.id, packet->header.ancount, packet->header.nscount, packet->header.arcount, pdqRcodeName(rcode));
+	if (0 < debug) {
+		syslog(
+			LOG_DEBUG, "header id=%u %s %d %s %s %s %s an=%u ns=%u ar=%u rc=%s",
+			packet->header.id, 
+			(packet->header.bits & PDQ_BITS_QR) ? "an" : "qr",
+			(packet->header.bits >> SHIFT_OP) & 0xF,
+			(packet->header.bits & PDQ_BITS_AA) ? "aa" : "--",
+			(packet->header.bits & PDQ_BITS_TC) ? "tc" : "--",
+			(packet->header.bits & PDQ_BITS_RD) ? "rd" : "--",
+			(packet->header.bits & PDQ_BITS_RA) ? "ra" : "--",
+			packet->header.ancount,
+			packet->header.nscount,
+			packet->header.arcount,
+			pdqRcodeName(rcode)
+		);
+	}
 
 	if (1 < debug)
 		pdqLogPacket(packet, 0);
@@ -2968,10 +2999,12 @@ pdqClose(PDQ *pdq)
  *	the timeout assigned by pdqMaxTimeout() when pdqOpen()
  *	created this PDQ instance.
  */
-void
+unsigned 
 pdqSetTimeout(PDQ *pdq, unsigned seconds)
 {
+	unsigned old = pdq->timeout;
 	pdq->timeout = seconds;
+	return old;
 }
 
 SOCKET
@@ -3873,83 +3906,118 @@ pdq_list_find_5A_by_name(PDQ *pdq, PDQ_class class, const char *name, PDQ_rr **l
 	return a_rr;
 }
 
+/**
+ * @param pdq
+ *	A PDQ structure pointer for handling queries.
+ *
+ * @param class
+ *	A PDQ_CLASS_ code of the DNS record class to find.
+ *
+ * @param name
+ *	A domain name for which to find the NS glue records
+ *	pointing at the authoritative NS servers.
+ *
+ * @return
+ *	A PDQ_rr pointer to the head of records list of NS glue
+ *	records or NULL if no result found.  It is the caller's
+ *	responsibility to pdqListFree() this list when done.
+ */
 PDQ_rr *
 pdqRootGetNS(PDQ *pdq, PDQ_class class, const char *name)
 {
-	PDQ_rr *ns_list, *ns_rr, *a_rr, *answer;
-	int offset, old_linear_query, old_basic_query;
+	PDQ_rr *ns_list, *ns_rr, *a_rr, *answer, *prev_list;
+	int offset, old_linear_query, old_basic_query, old_timeout;
 
+	/* Root servers shouldn't take long to answer and we have 13 of them. */
+	old_timeout = pdqSetTimeout(pdq, 3);	
 	old_basic_query = pdqSetBasicQuery(pdq, 1);
 	old_linear_query = pdqSetLinearQuery(pdq, 1);
 
+	prev_list = NULL;
 	ns_list = root_hints;
 	offset = (int) strlen(name);
 
+	/* Loop through root NS to TLD NS to domain NS to sub-domain NS ... */
 	do {
 		answer = NULL;
 		offset = strlrcspn(name, offset-1, ".");
 
+		/* Try each NS looking for the next level below. */
 		for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
 			if (ns_rr->section == PDQ_SECTION_QUERY
 			|| (ns_rr->type != PDQ_TYPE_NS && ns_rr->type != PDQ_TYPE_CNAME))
 				continue;
 
+			/* If the NS does not have a matching 5A, get now. 
+			 * See pdqInit() about root_hints being incomplete.
+			 */
 			a_rr = pdq_list_find_5A_by_name(pdq, class, ((PDQ_NS *) ns_rr)->host.string.value, &ns_rr->next);
 			if (a_rr == NULL)
 				continue;
 
-			if (0 <debug)
+			if (0 < debug)
 				syslog(LOG_DEBUG, "%s %s %s NS @%s (%s)", __func__, name, pdqClassName(class), ((PDQ_NS *) ns_rr)->host.string.value, ((PDQ_AAAA *) a_rr)->address.string.value);
 
+			/* Query the NS for the next level NS leading to target. */
 			answer = pdqGet(pdq, class, PDQ_TYPE_NS, name+offset, ((PDQ_AAAA *) a_rr)->address.string.value);
+			if (answer != NULL && ((PDQ_QUERY *) answer)->rcode == PDQ_RCODE_OK)
+				break;
 
-			if (answer != NULL) {
-				if (((PDQ_QUERY *) answer)->rcode == PDQ_RCODE_OK) {
-					/* Consider dig ns www.snert.com will return a CNAME and SOA,
-					 * which this code will duplicate, BUT we want to find the NS
-					 * for a name, be it authoritative or parent zone's glue.
-					 */
-					if ((((PDQ_QUERY *) answer)->flags & PDQ_BITS_AA) 
-					|| ((PDQ_QUERY *) answer)->ancount == 0) {
-						/* Use glue records that got us here. */
-						ns_rr = NULL;
-					}
-					break;
-				}
-
-				pdqListFree(answer);
-				answer = NULL;
-			}
+			pdqListFree(answer);
+			answer = NULL;
 		}
 
-		if (ns_rr == NULL && ns_list != root_hints) {
-			/* Assume end of list without an answer bumps to glue records. */
-			if (0 < debug)
-				syslog(LOG_DEBUG, "glue records %s %s NS", name, pdqClassName(class));
+		if (prev_list != root_hints)
+			pdqListFree(prev_list);
+		prev_list = ns_list;
 
-			/* Make it look like an authoriative answer.
-			 * Required for dnsListQueryNs.
-			 */
-			for (ns_rr = answer; ns_rr != NULL; ns_rr = ns_rr->next) {
-				if (ns_rr->type == PDQ_TYPE_NS)
-					ns_rr->section = PDQ_SECTION_ANSWER;
-			}
-
-			goto use_glue_records;
-		}
-
-		if (ns_list != root_hints)
-			pdqListFree(ns_list);
-
+		/* Follow next set of NS to get closer to target. */
 		ns_list = answer;
 	} while (0 < offset);
-use_glue_records:
+	
+	if (answer != NULL && (((PDQ_QUERY *) answer)->flags & PDQ_BITS_AA)) {
+		/* Consider dig ns www.snert.com will return a CNAME and SOA,
+		 * which is the correct intermediate answer according to dig,
+		 * but we want the previous glue records that lead here.
+		 */
+		pdqListFree(answer);
+		answer = prev_list;
+	} else if (prev_list != root_hints) {
+		pdqListFree(prev_list);
+	}
+		
 	(void) pdqSetLinearQuery(pdq, old_linear_query);
 	(void) pdqSetBasicQuery(pdq, old_basic_query);
+	(void) pdqSetTimeout(pdq, old_timeout);
 
 	return answer;
 }
 
+/**
+ * @param pdq
+ *	A PDQ structure pointer for handling queries.
+ *
+ * @param class
+ *	A PDQ_CLASS_ code of the DNS record class to find.
+ *
+ * @param type
+ *	A PDQ_TYPE_ code of the DNS record type to find.
+ *
+ * @param name
+ *	A domain name for which to find the NS glue records
+ *	pointing at the authoritative NS servers.
+ *
+ * @param ns
+ *	The name or IP address of a specific DNS name server to
+ *	query. NULL if the system configued name servers should
+ *	be used.
+ *
+ * @return
+ *	A PDQ_rr pointer to the head of records list or NULL if
+ *	no result found, or error occured and errno was set. It
+ *	is the caller's responsibility to pdqListFree() this list
+ *	when done.
+ */
 PDQ_rr *
 pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *ns)
 {
@@ -3960,30 +4028,41 @@ pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const cha
 	if ((ns_list = pdqRootGetNS(pdq, class, name)) == NULL)
 		return NULL;
 
+#ifdef NOT_LIKE_DIG
+/* Consider dig ns www.snert.com will return a CNAME and SOA,
+ * but if we stop at the glue records, which would ultimately
+ * be a correct answer, its not correct intermediate answer.
+ */
 	if (type == PDQ_TYPE_NS)
 		return ns_list;
+#endif		
 
 	/* Sequential query of the NS servers. */
 	old_linear_query = pdqSetLinearQuery(pdq, 1);
 
 	answer = NULL;
 	for (ns_rr = ns_list; ns_rr != NULL; ns_rr = ns_rr->next) {
-		if (ns_rr->section != PDQ_SECTION_QUERY
+		if (ns_rr->section == PDQ_SECTION_QUERY
 		|| (ns_rr->type != PDQ_TYPE_NS && ns_rr->type != PDQ_TYPE_CNAME))
 			continue;
 
+		/* If the NS does not have a matching 5A, get now. */
 		a_rr = pdq_list_find_5A_by_name(pdq, class, ((PDQ_NS *) ns_rr)->host.string.value, &ns_rr->next);
 		if (a_rr == NULL)
 			continue;
 
-		answer = pdqGet(pdq, class, type, name, ((PDQ_AAAA *) a_rr)->address.string.value);
+		if (0 < debug)
+			syslog(LOG_DEBUG, "%s %s %s NS @%s (%s)", __func__, name, pdqClassName(class), ((PDQ_NS *) ns_rr)->host.string.value, ((PDQ_AAAA *) a_rr)->address.string.value);
 
-		if (answer != NULL) {
-			if (((PDQ_QUERY *) answer)->rcode == PDQ_RCODE_OK)
-				break;
-			pdqListFree(answer);
-			answer = NULL;
-		}
+		answer = pdqGet(pdq, class, type, name, ((PDQ_AAAA *) a_rr)->address.string.value);
+		if (answer == NULL)
+			continue;
+
+		if (((PDQ_QUERY *) answer)->rcode == PDQ_RCODE_OK)
+			break;
+
+		pdqListFree(answer);
+		answer = NULL;
 	}
 	pdqListFree(ns_list);
 
