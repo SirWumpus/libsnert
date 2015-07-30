@@ -57,6 +57,16 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.48--
+
+   +	Added pdqIgnoreTCP() and dns-ignore-tcp option for PDQ API.
+   	pdq CLI now has -T option to disable TCP lookups.  Requested
+   	by Alex Broens.
+
+   !	When making a TCP query, assert the TC bit is off.
+
+   !	Some cosmetic changes to PDQ logging.
+
 --1.75.47--
 
    !	Modify makefiles and version.sh.in to correspond with recent

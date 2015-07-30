@@ -315,6 +315,13 @@ typedef struct {
  */
 extern void pdqSetDebug(int level);
 
+/**
+ * @param flag
+ *	Set true to ignore TCP queries in response to the TC truncation
+ *	bit being set.  Set false (default) to enable the RFC behaviour.
+ */
+extern void pdqIgnoreTCP(int flag);
+
 /*
  * @param flag
  *	Set true to query NS servers, per pdqQuery, in round robin order
@@ -1338,15 +1345,18 @@ extern PDQ_valid_soa pdqTestSOA(PDQ *pdq, PDQ_class class, const char *name, PDQ
 
 #include <com/snert/lib/util/option.h>
 
+extern Option optDnsIgnoreTCP;
 extern Option optDnsMaxTimeout;
 extern Option optDnsRoundRobin;
 
 #define PDQ_OPTIONS_TABLE \
+	&optDnsIgnoreTCP, \
 	&optDnsMaxTimeout, \
 	&optDnsRoundRobin
 
 #define PDQ_OPTIONS_SETTING(debug) \
 	pdqSetDebug(debug); \
+	pdqIgnoreTCP(optDnsIgnoreTCP.value); \
 	pdqMaxTimeout(optDnsMaxTimeout.value); \
 	pdqSetRoundRobin(optDnsRoundRobin.value)
 

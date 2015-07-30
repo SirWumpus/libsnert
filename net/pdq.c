@@ -183,6 +183,7 @@ struct host {
 
 static int debug = 0;
 static int rand_seed;
+static int pdq_ignore_tcp;
 static int pdq_short_query;
 static int pdq_round_robin;
 static int pdq_source_port_randomise;
@@ -290,6 +291,14 @@ static const char usage_dns_round_robin[] =
 ;
 
 Option optDnsRoundRobin	= { "dns-round-robin",	"-", usage_dns_round_robin };
+
+static const char usage_dns_ignore_tcp[] =
+  "Set true to ignore TCP queries in response to the TC truncation\n"
+"# bit being set.  Set false (default) to enable the RFC behaviour.\n"
+"#"
+;
+
+Option optDnsIgnoreTCP	= { "dns-ignore-tcp",	"-", usage_dns_ignore_tcp };
 
 /***********************************************************************
  *** Support
@@ -423,12 +432,12 @@ pdqLogPacket(void *_packet, int is_network_order)
 		LOG_DEBUG, "packet id=%hu %s-order length=%hu bits=0x%.4hx (%s %d %s %s %s %s %d %d=%s) qd=%hu an=%hu ns=%hu ar=%hu",
 		pkt_hdr.id, is_network_order ? "net" : "host",
 		packet->length, pkt_hdr.bits,
-		(pkt_hdr.bits & PDQ_BITS_QR) ? "AN" : "QR",
+		(pkt_hdr.bits & PDQ_BITS_QR) ? "an" : "qr",
 		(pkt_hdr.bits >> SHIFT_OP) & 0xF,
-		(pkt_hdr.bits & PDQ_BITS_AA) ? "AA" : "--",
-		(pkt_hdr.bits & PDQ_BITS_TC) ? "TC" : "--",
-		(pkt_hdr.bits & PDQ_BITS_RD) ? "RD" : "--",
-		(pkt_hdr.bits & PDQ_BITS_RA) ? "RA" : "--",
+		(pkt_hdr.bits & PDQ_BITS_AA) ? "aa" : "--",
+		(pkt_hdr.bits & PDQ_BITS_TC) ? "tc" : "--",
+		(pkt_hdr.bits & PDQ_BITS_RD) ? "rd" : "--",
+		(pkt_hdr.bits & PDQ_BITS_RA) ? "ra" : "--",
 		(pkt_hdr.bits >> SHIFT_Z) & 0x7,
 		rcode, pdqRcodeName(rcode),
 		pkt_hdr.qdcount, pkt_hdr.ancount,
@@ -2412,7 +2421,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 	ptr = packet->data;
 	packet_end = (unsigned char *) &packet->header + packet->length;
 
-	/* Already converted in pdq_query_reply. */
+	/* Already converted in pdqPoll(). */
 	rcode = packet->header.bits & PDQ_BITS_RCODE;
 
 	packet->header.id = ntohs(packet->header.id);
@@ -2733,6 +2742,13 @@ pdq_query_tcp(PDQ *pdq, PDQ_query *query, SocketAddress *address, PDQ_rr **list)
 		UPDATE_ERRNO;
 		goto error2;
 	}
+	
+	/* Try for recursion, though not always allowed. */
+	query->packet.header.bits |= PDQ_BITS_RD;
+
+	/* Asssert that the TC bit is off. */
+	query->packet.header.bits &= ~PDQ_BITS_TC;
+	query->packet.header.bits = htons(query->packet.header.bits);
 
 	/* Send two byte length plus the original query packet. */
 	length = query->packet.length + sizeof (query->packet.length);
@@ -2743,8 +2759,12 @@ pdq_query_tcp(PDQ *pdq, PDQ_query *query, SocketAddress *address, PDQ_rr **list)
 	 */
 	old_id = query->packet.header.id;
 	query->packet.header.id = htons(RANDOM_NUMBER(0xFFFF));
-	if (0 <debug)
-		syslog(LOG_DEBUG, "%s.%d: old-id=%u new-id=%u", __FUNCTION__, __LINE__, old_id, query->packet.header.id);
+	if (0 <debug) {
+		syslog(
+			LOG_DEBUG, "%s.%d: old-id=%u new-id=%u", __FUNCTION__, __LINE__,
+			ntohs(old_id), ntohs(query->packet.header.id)
+		);
+	}
 
 	if (send(fd, (char *) &query->packet, length, 0) != length) {
 		UPDATE_ERRNO;
@@ -2781,7 +2801,11 @@ pdq_query_tcp(PDQ *pdq, PDQ_query *query, SocketAddress *address, PDQ_rr **list)
 	 * should not see the TC bit or a small amount of data.
 	 */
 	if ((packet->header.bits & PDQ_BITS_TC) || packet->length <= 512) {
-		syslog(LOG_WARN, "id=%u TCP query returned TC bit or short data len=%u", query->packet.header.id, packet->length);
+		/* Downgraded from a warning to debug as AlexB was
+		 * seeing these with some frequency, possibly with
+		 * the uri-ns-bl queries.
+		 */
+		syslog(LOG_DEBUG, "id=%u TCP query returned TC bit or short data len=%u", query->packet.header.id, packet->length);
 		goto error2;
 	}
 
@@ -2834,10 +2858,10 @@ pdq_query_reply(PDQ *pdq, struct udp_packet *packet, SocketAddress *address, PDQ
 		return PDQ_RCODE_ERRNO;
 	}
 
-	if (packet->header.bits & PDQ_BITS_TC)
-		rcode = pdq_query_tcp(pdq, query, address, list);
-	else
+	if (pdq_ignore_tcp || (packet->header.bits & PDQ_BITS_TC) == 0)
 		rcode = pdq_reply_parse(pdq, packet, list);
+	else
+		rcode = pdq_query_tcp(pdq, query, address, list);
 
 	switch (rcode) {
 	case PDQ_RCODE_SERVFAIL:
@@ -4334,6 +4358,17 @@ pdqInitialTimeout(unsigned seconds)
 }
 
 /**
+ * @param flag
+ *	Set true to ignore TCP queries in response to the TC truncation
+ *	bit being set.  Set false (default) to enable the RFC behaviour.
+ */
+void
+pdqIgnoreTCP(int flag)
+{
+	pdq_ignore_tcp = flag;
+}
+
+/**
  * @param seconds
  *	Set the default maximum timeout value for any lookup.
  *	This is the timeout initially assigned to a PDQ instance
@@ -4395,7 +4430,7 @@ pdqSetSourcePortRandomisation(int flag)
 static char *query_server;
 
 static const char usage[] =
-"usage: pdq [-LprRsSv][-c class][-l suffixes][-t sec][-q server]\n"
+"usage: pdq [-LprRsSTv][-c class][-l suffixes][-t sec][-q server]\n"
 "           type name [type name ...]\n"
 "\n"
 "-c class\tone of IN (default), CH, CS, HS, or ANY\n"
@@ -4407,6 +4442,7 @@ static const char usage[] =
 "-s\t\tenable source port randomisation\n"
 "-S\t\tcheck SOA is valid for name\n"
 "-t sec\t\ttimeout in seconds, default 45\n"
+"-T\t\tdisable TCP retry when UDP packet is truncated\n"
 "-q server\tname server to query\n"
 "-v\t\tverbose debug output\n"
 "type\t\tone of A, AAAA, CNAME, DNAME, HINFO, MINFO, MX,\n"
@@ -4508,7 +4544,7 @@ main(int argc, char **argv)
 	suffix_list = NULL;
 	class = PDQ_CLASS_IN;
 
-	while ((ch = getopt(argc, argv, "LprRsSvc:l:t:q:")) != -1) {
+	while ((ch = getopt(argc, argv, "LprRsSTvc:l:t:q:")) != -1) {
 		switch (ch) {
 		case 'c':
 			class = pdqClassCode(optarg);
@@ -4524,6 +4560,10 @@ main(int argc, char **argv)
 
 		case 't':
 			pdqMaxTimeout(strtol(optarg, NULL, 10));
+			break;
+
+		case 'T':
+			pdqIgnoreTCP(1);
 			break;
 
 		case 'q':
