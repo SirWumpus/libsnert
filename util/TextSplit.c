@@ -286,15 +286,13 @@ main(int argc, char **argv)
 	}
 	
 	for (argi = optind; argi < argc; argi++) {		
-		(void) printf("\"%s\"\n", argv[argi]);
-
 		if ((v = TextSplit(argv[argi], delims, flags)) == NULL) {
 			(void) fprintf(stderr, "out of memory\n");
 			return EXIT_FAILURE;
 		}
 		
 		for (i = 0; i < VectorLength(v); i++)
-			(void) printf("\t%d:%s\n", i, (char *)VectorGet(v, i));			
+			(void) printf("%s\n", (char *)VectorGet(v, i));			
 
 		VectorDestroy(v);
 	}

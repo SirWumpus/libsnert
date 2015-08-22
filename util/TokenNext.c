@@ -115,6 +115,8 @@ TokenNext(const char *string, const char **stop, const char *delims, int flags)
 	if (delims == NULL)
 		/* Default is C white space. */
 		delims = " \t\r\n\f";
+	else if (strcmp(delims, "\\0") == 0)
+		delims = "";
 
 	/* Skip leading delimiters? */
 	if (!(flags & TOKEN_KEEP_EMPTY)) {

@@ -143,7 +143,7 @@ optionPrintAssignment(const char *name, const char *value, int comment)
 	if ((quoted = TokenQuote(value, "'\"")) == NULL)
 		return;
 
- 	if ((list = TextSplit(quoted, ";", 0)) == NULL)
+ 	if ((list = TextSplit(quoted, ";", TOKEN_KEEP_EMPTY)) == NULL)
  		goto error0;
 
 	hash = comment ? "#" : "";
@@ -731,7 +731,7 @@ static Option optNum2	= { "num2",	"1",	"Specify a number." };
 static Option optString	= { "string",	"boo!",	"Specify a string." };
 static Option optString2= { "string2",	"space and\ttab",	"Specify a quoted string." };
 static Option optString3= { "_name",	"whatever",	"Specify whatever." };
-static Option optList1  = { "list",	"element1; element2",	"A list" };
+static Option optList1  = { "list",	"item1;item\\;2\\;;item3",	"A list" };
 static Option optCopyright = { "", NULL, LIBSNERT_COPYRIGHT };
 
 static Option *table0[] = {
