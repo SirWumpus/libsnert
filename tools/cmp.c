@@ -117,6 +117,9 @@ char **argv;
 	if ((lflag && sflag) || optind + 2 != argc)
 		UsagePrintLine(usage_msg);
 
+	if (lflag && n_count == 1)
+		n_count = 0;
+
 	if (argv[optind][0] == '-' && argv[optind][1] == '\0') {
 		argv[optind] = "(standard input)";
 		fp1 = stdin;
