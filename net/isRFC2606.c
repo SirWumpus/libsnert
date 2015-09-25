@@ -83,6 +83,9 @@ isReservedTLD(const char *path, unsigned long flags)
 	/* RFC 6761 reserved domain. */
 	if ((flags & IS_TLD_ARPA) && TextInsensitiveCompare(dot, ".arpa") == 0)
 		return 1;
+
+	if ((flags & IS_TLD_ONION) && TextInsensitiveCompare(dot, ".onion") == 0)
+		return 1;
 	
 	/* RFC 2606 and 6761 reserve example.com, example.net, example.org,
 	 * but we allow for example.ANY_TLD.
