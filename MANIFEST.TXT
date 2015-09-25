@@ -175,6 +175,7 @@ com/snert/src/lib/util/Memory.c
 com/snert/src/lib/util/ProcTitle.c
 com/snert/src/lib/util/Properties.c
 com/snert/src/lib/util/Rotate.c
+com/snert/src/lib/util/search.c
 com/snert/src/lib/util/TextBackslash.c
 com/snert/src/lib/util/TextEscape.c
 com/snert/src/lib/util/TextC.c
