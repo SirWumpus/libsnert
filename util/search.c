@@ -52,6 +52,8 @@ horspool_search(Pattern *pp, const unsigned char *str, size_t len)
  * Boyer-Moore-Horspool-Sunday search algorithm (quick search variant).
  *
  * https://csclub.uwaterloo.ca/~pbarfuss/p132-sunday.pdf
+ * http://www-igm.univ-mlv.fr/~lecroq/string/node19.html#SECTION00190
+ * http://alg.csie.ncnu.edu.tw/course/StringMatching/Quick%20Searching.ppt
  */
 void
 sunday_init(Pattern *pp, const unsigned char *pattern)
@@ -63,8 +65,8 @@ sunday_init(Pattern *pp, const unsigned char *pattern)
 
 	for (i = 0; i < 256; i++)
 		pp->delta[i] = pp->length + 1;
-	for (i = 0; i < pp->length - 1; i++)
-		pp->delta[pattern[i]] = pp->length - 1 - i;	
+	for (i = 0; i < pp->length; i++)
+		pp->delta[pattern[i]] = pp->length - i;	
 }
 
 long
@@ -75,7 +77,7 @@ sunday_search(Pattern *pp, const unsigned char *str, size_t len)
 	while (offset + pp->length <= len) {
 		if (memcmp(pp->pattern, str + offset, pp->length) == 0)
 			return offset;
-		offset += pp->delta[str[offset + pp->length-1]];
+		offset += pp->delta[str[offset + pp->length]];
 	}
 	
 	return -1;
@@ -153,7 +155,7 @@ main(int argc, char **argv)
 		
 		while (0 < (line_len = inputline(fp, line, sizeof (line)))) {
 			if (fn_srch(&pat, line, line_len) != -1) {
-				if (3 < argc)
+				if (optind+2 < argc)
 					(void) printf("%s: %s", argv[argi], line);
 				else
 					(void) printf("%s", line);					

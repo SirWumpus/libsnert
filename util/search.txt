@@ -1,0 +1,6 @@
+search for "return"
+nothing on this line
+return trailing text
+leading return trailing
+leading text return
+some text ret urn
