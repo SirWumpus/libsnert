@@ -107,7 +107,7 @@ OBJS = \
 TEST = Memory$E TextC$E Base64$O Properties$E Cache$E TokenSplit$E TextSplit$E \
        DebugMalloc$E ixhash$E md4$E md5$E htmlstrip$E TextCopy$E TextMatch$E \
        translit$E TextSensitiveEndsWith$E TextInsensitiveEndsWith$E \
-       ProcTitle$E timer$E dmalloct$E ulong$E
+       ProcTitle$E timer$E dmalloct$E ulong$E search$E
 
 CLI = b64$E convertDate$E uri$E uriFormat$E urid$E playfair$E cipher$E TextFind$E ulong$E
 
@@ -294,3 +294,6 @@ ixhash$E : ixhash.c
 
 ulong$E : ${srcdir}/ulong.c
 	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)ulong$E ${srcdir}/ulong.c
+
+search$E : ${srcdir}/search.c
+	$(CC) -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)search$E ${srcdir}/search.c

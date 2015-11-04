@@ -3,46 +3,105 @@
  *
  * Copyright 2015 by Anthony Howe. All rights reserved.
  */
-
+ 
+#include <err.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#define min(a, b)	(a < b ? a : b)
+#define max(a, b)	(a < b ? b : a)
+
+#define INFO(...)       { if (0 < debug) { warnx(__VA_ARGS__); } }
+#define DEBUG(...)      { if (1 < debug) { warnx(__VA_ARGS__); } }
+#define DUMP(...)       { if (2 < debug) { warnx(__VA_ARGS__); } }
+
+static int debug;
 
 typedef struct {
 	const unsigned char *pattern;
 	size_t length;
-	size_t delta[256];
+	size_t (*delta)[256];
+	unsigned max_err;
 } Pattern;	
 
 /*
  * Boyer-Moore-Horspool search algorithm.
  *
  * https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore%E2%80%93Horspool_algorithm
+ * http://www-igm.univ-mlv.fr/~lecroq/string/node18.html#SECTION00180
+ * http://alg.csie.ncnu.edu.tw/course/StringMatching/Horspool.ppt
  */
-void
-horspool_init(Pattern *pp, const unsigned char *pattern)
+int
+horspool_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
 {
-	int i;
+	long i, k, m;
 	
+	pp->max_err = max_err;
 	pp->pattern = pattern;
 	pp->length = strlen((char *)pattern);
+	m = pp->length - 1;		
 
-	for (i = 0; i < 256; i++)
-		pp->delta[i] = pp->length;
-	for (i = 0; i < pp->length - 1; i++)
-		pp->delta[pattern[i]] = pp->length - 1 - i;	
+	if (pp->length < max_err) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	if ((pp->delta = malloc((max_err+1) * sizeof (*pp->delta))) == NULL) {
+		return -1;
+	}
+
+	for (k = 0; k <= max_err; k++) {
+		for (i = 0; i < sizeof (*pp->delta); i++)
+			pp->delta[k][i] = pp->length;
+		pp->delta[k][pattern[m - k]] = pp->length - k;		
+		for (i = 0; i < m - k; i++)
+			pp->delta[k][pattern[i]] = m - k - i;
+	}
+
+	return 0;
+}
+
+void
+horspool_fini(Pattern *pp)
+{
+	if (pp != NULL)
+		free(pp->delta);
 }
 
 long
 horspool_search(Pattern *pp, const unsigned char *str, size_t len)
 {
 	long offset = 0;
+	size_t m = pp->length - 1;	
 	
 	while (offset + pp->length <= len) {
-		size_t i;
-		for (i = pp->length - 1; str[offset + i] == pp->pattern[i]; i--) {
-			if (i == 0)
-				return offset;
+		long i;
+		int err = 0;
+		size_t delta = pp->length - pp->max_err;
+		
+		INFO("off=%ld str=\"%s\"", offset, str+offset);		
+
+		for (i = m; 0 <= i && err <= pp->max_err; i--) {			
+			INFO(
+				"delta=%lu e=%d T='%c' P='%c' m-1='%c' m='%c' d-1=%lu d=%lu",
+				delta, err, str[offset + i], pp->pattern[i], 
+				str[offset + m-1], str[offset + m],
+				pp->delta[err][str[offset + m-1]], pp->delta[err][str[offset + m]]
+			);
+			
+			if (str[offset + i] != pp->pattern[i]) {
+				delta = min(delta, pp->delta[err][str[offset + m]]);
+				delta = min(delta, pp->delta[err + 1][str[offset + m -1]]);
+				err++;
+			}
 		}
-		offset += pp->delta[str[offset + pp->length-1]];
+
+		if (err <= pp->max_err) {
+			return offset;
+		}
+		offset += delta;
 	}
 
 	return -1;
@@ -55,18 +114,32 @@ horspool_search(Pattern *pp, const unsigned char *str, size_t len)
  * http://www-igm.univ-mlv.fr/~lecroq/string/node19.html#SECTION00190
  * http://alg.csie.ncnu.edu.tw/course/StringMatching/Quick%20Searching.ppt
  */
-void
-sunday_init(Pattern *pp, const unsigned char *pattern)
+int
+sunday_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
 {
 	int i;
 	
+	pp->max_err = max_err;
 	pp->pattern = pattern;
 	pp->length = strlen((char *)pattern);
 
+	if (pp->length < max_err) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	for (i = 0; i < 256; i++)
-		pp->delta[i] = pp->length + 1;
+		pp->delta[0][i] = pp->length + 1;
 	for (i = 0; i < pp->length; i++)
-		pp->delta[pattern[i]] = pp->length - i;	
+		pp->delta[0][pattern[i]] = pp->length - i;	
+		
+	return 0;
+}
+
+void
+sunday_fini(Pattern *pp)
+{
+	/* stub */
 }
 
 long
@@ -77,7 +150,7 @@ sunday_search(Pattern *pp, const unsigned char *str, size_t len)
 	while (offset + pp->length <= len) {
 		if (memcmp(pp->pattern, str + offset, pp->length) == 0)
 			return offset;
-		offset += pp->delta[str[offset + pp->length]];
+		offset += pp->delta[0][str[offset + pp->length]];
 	}
 	
 	return -1;
@@ -120,19 +193,35 @@ main(int argc, char **argv)
 	FILE *fp;
 	Pattern pat;
 	size_t line_len;
-	int ch, rc, argi;
+	unsigned max_err;
+	long lineno, offset;
+	int brackets, ch, rc, argi;
 	unsigned char line[LINE_SIZE];
-	void (*fn_init)(Pattern *, const unsigned char *);
+	void (*fn_fini)(Pattern *);
+	int (*fn_init)(Pattern *, const unsigned char *, unsigned);
 	long (*fn_srch)(Pattern *, const unsigned char *, size_t);
 	
+	max_err = 0;
+	brackets = 0;
 	fn_init = sunday_init;
+	fn_fini = sunday_fini;
 	fn_srch = sunday_search;
 	
-	while ((ch = getopt(argc, argv, "h")) != -1) {
+	while ((ch = getopt(argc, argv, "bhk:v")) != -1) {
 		switch (ch) {
+		case 'b':
+			brackets = 1;
+			break;
 		case 'h':
+			fn_fini = horspool_fini;
 			fn_init = horspool_init;
 			fn_srch = horspool_search;
+			break;
+		case 'k':
+			max_err = strtoul(optarg, NULL, 10);
+			break;
+		case 'v':
+			debug++;
 			break;
 		default:
 			optind = argc;
@@ -140,12 +229,12 @@ main(int argc, char **argv)
 	}
 	
 	if (argc <= optind + 1) {
-		(void) fputs("usage: search [-h] string file ...\n", stderr);
+		(void) fputs("usage: search [-bhv][-k n] string file ...\n", stderr);
 		return 2;
 	}
 
 	rc = 1;
-	fn_init(&pat, (const unsigned char *)argv[optind]);
+	fn_init(&pat, (const unsigned char *)argv[optind], max_err);
 
 	for (argi = optind+1; argi < argc; argi++) {
 		if ((fp = fopen(argv[argi], "r")) == NULL) {
@@ -153,18 +242,31 @@ main(int argc, char **argv)
 			continue;
 		}
 		
+		lineno = 0;
 		while (0 < (line_len = inputline(fp, line, sizeof (line)))) {
-			if (fn_srch(&pat, line, line_len) != -1) {
+			lineno++;
+			if ((offset = fn_srch(&pat, line, line_len)) != -1) {
 				if (optind+2 < argc)
-					(void) printf("%s: %s", argv[argi], line);
-				else
-					(void) printf("%s", line);					
+					(void) printf("%s: ", argv[argi]);
+				if (brackets) {
+					(void) printf(
+						"%ld %ld %.*s[%.*s]%s", 
+						lineno, offset,
+						(int) offset, line,
+						(int) pat.length, line + offset,
+						line + offset + pat.length
+					);
+				} else {
+					(void) printf("%ld %-2ld %s", lineno, offset, line);					
+				}
 				rc = 0;
 			}
 		}
 				
 		(void) fclose(fp);
 	}
+	
+	fn_fini(&pat);
 			
 	return rc;
 }
