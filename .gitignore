@@ -117,6 +117,9 @@ util/md4
 util/md5
 util/time62
 util/convertDate
+util/option
+util/search
+util/ulong
 util/TextFind
 util/uri-samples/*
 util/playfair

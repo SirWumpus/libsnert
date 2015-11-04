@@ -32,6 +32,12 @@ typedef struct {
  * https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore%E2%80%93Horspool_algorithm
  * http://www-igm.univ-mlv.fr/~lecroq/string/node18.html#SECTION00180
  * http://alg.csie.ncnu.edu.tw/course/StringMatching/Horspool.ppt
+ *
+ * https://www.cs.hut.fi/u/tarhio/papers/abm.pdf
+ *	Approximate Boyer-Moore String Matching
+ *	Jorma Tarhio And  Esko Ukkonen, 1989
+ *
+ * http://t2.ecp168.net/webs@73/cyberhood/Approximate_String_Matching/BHM_approximate_string_Algorithm.ppt
  */
 int
 horspool_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
@@ -43,7 +49,7 @@ horspool_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
 	pp->length = strlen((char *)pattern);
 	m = pp->length - 1;		
 
-	if (pp->length < max_err) {
+	if (pp->length <= max_err) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -133,26 +139,21 @@ sunday_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
 		return -1;
 	}
 
-#ifdef K_EQ_0
-	for (i = 0; i < sizeof (*pp->delta); i++)
-		pp->delta[0][i] = pp->length + 1;
-	for (i = 0; i < pp->length; i++)
-		pp->delta[0][pattern[i]] = pp->length - i;
-#else
 	for (k = 0; k <= max_err; k++) {
 		for (i = 0; i < sizeof (*pp->delta); i++)
 			pp->delta[k][i] = pp->length + 1 - k;
 		for (i = 0; i < pp->length - k; i++)
 			pp->delta[k][pattern[i]] = pp->length - i - k;
 	}
-#endif		
+
 	return 0;
 }
 
 void
 sunday_fini(Pattern *pp)
 {
-	horspool_fini(pp);
+	if (pp != NULL)
+		free(pp->delta);
 }
 
 long
@@ -160,18 +161,18 @@ sunday_search(Pattern *pp, const unsigned char *str, size_t len)
 {
 	long offset = 0;
 	
+	/* Note that this can reference the NUL byte when "offset
+	 * + pp->length == len", which is not an index bounds error
+	 * in C, but when ported to other languages languages like
+	 * Java or C# that have no sentinel end of string byte, this
+	 * has to be handled specially.
+	 */
 	while (offset + pp->length <= len) {
-		INFO("off=%ld str=\"%s\"", offset, str+offset);		
-#ifdef K_EQ_0
-		if (memcmp(pp->pattern, str + offset, pp->length) == 0) {
-			INFO("return offset=%ld", offset);
-			return offset;
-		}
-		offset += pp->delta[0][str[offset + pp->length]];
-#else
 		long i;
 		int err = 0;
 		size_t delta = pp->length + 1 - pp->max_err;
+
+		INFO("off=%ld str=\"%s\"", offset, str+offset);		
 
 		/* Sunday algorithm can scan any order. */
 		for (i = 0; i < pp->length && err <= pp->max_err; i++) {			
@@ -192,7 +193,6 @@ sunday_search(Pattern *pp, const unsigned char *str, size_t len)
 			return offset;
 		}
 		offset += delta;
-#endif
 	}
 	
 	INFO("return -1 no match");

@@ -55,7 +55,7 @@ srch 0 AGCT AGCT.txt 2 12 0
 srch 1 AGCT AGCT.txt 2 12 0
 srch 2 AGCT AGCT.txt 2 2 0
 srch 3 AGCT AGCT.txt 2 2 0
-srch 4 AGCT AGCT.txt 2 0 0
+#srch 4 AGCT AGCT.txt 2 0 0
 
 srch 0 GCAGAGAG GCAGAGAG.txt 2 5 0
 srch 1 GCAGAGAG GCAGAGAG.txt 3 5 10 0
