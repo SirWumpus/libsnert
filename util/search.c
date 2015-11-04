@@ -163,9 +163,9 @@ sunday_search(Pattern *pp, const unsigned char *str, size_t len)
 	
 	/* Note that this can reference the NUL byte when "offset
 	 * + pp->length == len", which is not an index bounds error
-	 * in C, but when ported to other languages languages like
-	 * Java or C# that have no sentinel end of string byte, this
-	 * has to be handled specially.
+	 * in C, but when ported to other languages like Java or C#
+	 * that have no sentinel end of string byte, this has to be
+	 * handled specially.
 	 */
 	while (offset + pp->length <= len) {
 		long i;
