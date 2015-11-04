@@ -85,25 +85,26 @@ horspool_search(Pattern *pp, const unsigned char *str, size_t len)
 
 		for (i = m; 0 <= i && err <= pp->max_err; i--) {			
 			INFO(
-				"delta=%lu e=%d T='%c' P='%c' m-1='%c' m='%c' d-1=%lu d=%lu",
+				"delta=%lu e=%d T='%c' P='%c' m='%c' d=%lu",
 				delta, err, str[offset + i], pp->pattern[i], 
-				str[offset + m-1], str[offset + m],
-				pp->delta[err][str[offset + m-1]], pp->delta[err][str[offset + m]]
+				str[offset + m], pp->delta[err][str[offset + m]]
 			);
 			
 			if (str[offset + i] != pp->pattern[i]) {
 				delta = min(delta, pp->delta[err][str[offset + m]]);
-				delta = min(delta, pp->delta[err + 1][str[offset + m -1]]);
+				delta = min(delta, pp->delta[err][str[offset + m -1]]);
 				err++;
 			}
 		}
 
 		if (err <= pp->max_err) {
+			INFO("return offset=%ld", offset);
 			return offset;
 		}
 		offset += delta;
 	}
 
+	INFO("return -1 no match");
 	return -1;
 }
 
@@ -117,7 +118,7 @@ horspool_search(Pattern *pp, const unsigned char *str, size_t len)
 int
 sunday_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
 {
-	int i;
+	long i, k;
 	
 	pp->max_err = max_err;
 	pp->pattern = pattern;
@@ -128,18 +129,30 @@ sunday_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
 		return -1;
 	}
 
-	for (i = 0; i < 256; i++)
+	if ((pp->delta = malloc((max_err+1) * sizeof (*pp->delta))) == NULL) {
+		return -1;
+	}
+
+#ifdef K_EQ_0
+	for (i = 0; i < sizeof (*pp->delta); i++)
 		pp->delta[0][i] = pp->length + 1;
 	for (i = 0; i < pp->length; i++)
-		pp->delta[0][pattern[i]] = pp->length - i;	
-		
+		pp->delta[0][pattern[i]] = pp->length - i;
+#else
+	for (k = 0; k <= max_err; k++) {
+		for (i = 0; i < sizeof (*pp->delta); i++)
+			pp->delta[k][i] = pp->length + 1 - k;
+		for (i = 0; i < pp->length - k; i++)
+			pp->delta[k][pattern[i]] = pp->length - i - k;
+	}
+#endif		
 	return 0;
 }
 
 void
 sunday_fini(Pattern *pp)
 {
-	/* stub */
+	horspool_fini(pp);
 }
 
 long
@@ -148,11 +161,41 @@ sunday_search(Pattern *pp, const unsigned char *str, size_t len)
 	long offset = 0;
 	
 	while (offset + pp->length <= len) {
-		if (memcmp(pp->pattern, str + offset, pp->length) == 0)
+		INFO("off=%ld str=\"%s\"", offset, str+offset);		
+#ifdef K_EQ_0
+		if (memcmp(pp->pattern, str + offset, pp->length) == 0) {
+			INFO("return offset=%ld", offset);
 			return offset;
+		}
 		offset += pp->delta[0][str[offset + pp->length]];
+#else
+		long i;
+		int err = 0;
+		size_t delta = pp->length + 1 - pp->max_err;
+
+		/* Sunday algorithm can scan any order. */
+		for (i = 0; i < pp->length && err <= pp->max_err; i++) {			
+			INFO(
+				"delta=%lu e=%d T='%c' P='%c' m='%c'",
+				delta, err, str[offset + i], pp->pattern[i], 
+				str[offset + pp->length - err]
+			);
+
+			if (str[offset + i] != pp->pattern[i]) {
+				delta = min(delta, pp->delta[err][str[offset + pp->length - err]]);
+				err++;
+			}
+		}
+
+		if (err <= pp->max_err) {
+			INFO("return offset=%ld", offset);
+			return offset;
+		}
+		offset += delta;
+#endif
 	}
 	
+	INFO("return -1 no match");
 	return -1;
 }
 

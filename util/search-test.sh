@@ -2,14 +2,17 @@
 
 PROG="./search"
 
-args=$(getopt '' $*)
+args=$(getopt 'h' $*)
 if [ $? -ne 0 ]; then
-	echo "usage: ${PROG}-test.sh "
+	echo "usage: ${PROG}-test.sh [-h]"
 	exit 2
 fi
 set -- $args
 while [ $# -gt 0 ]; do
 	case "$1" in
+	(-h)
+		__h='-h'
+		;;
 	(--)
 		shift; break
 		;;
@@ -25,10 +28,10 @@ function srch
 	typeset lines="$1"; shift
 
  	echo "<<< k=$max_err pat=$pattern $file"
-	count=$($PROG -b -h -k $max_err "$pattern" $file | tee search.tmp | wc -l)
+	count=$($PROG $__h -b -k $max_err "$pattern" $file | tee search.tmp | wc -l)
 	cat search.tmp
 
-	printf '>>> got=%d expect=%d ' $count $lines
+	printf 'got=%d expect=%d ' $count $lines
 	if [ $count -ne $lines ]; then
 		echo FAIL
 		return 1
@@ -66,4 +69,5 @@ srch 2 return search.txt 6 12 0 8 13 9 9
 srch 3 return search.txt 8 12 0 8 13 9 9 9 10
 
 rm search.tmp
+
 echo DONE
