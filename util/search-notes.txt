@@ -93,52 +93,54 @@ A G C T
 
    A C G T *
 -------------
-0: 1 6 2 8 8
+0: 2 7 1 9 9
 
 
 G C A T C G C A G A G C G T A T G C A G A G A G
 
 G C A G A G A G
 = = = .
-              1
+		1
   G C A G A G A G
   .
-                2
+		  2
       G C A G A G A G
       .
-                    2
-          G C A G A G A G
-          = = = = = = .
-                        2
-              G C A G A G A G
-              .
-                            1
-                G C A G A G A G
-                = .
-                              8
-                                G C A G A G A G
-                                = = = = = = = =
+		      7
+		    G C A G A G A G
+		    = = .
+				    2
+			G C A G A G A G
+			= .
+					2
+			    G C A G A G A G
+			    .
+					    2
+				G C A G A G A G
+				= = = = = = = =
 
 
 <<< k=1 m=8 pat=G C A G A G A G
 
-
    A C G T *
 -------------
-0: 1 6 2 8 8
-1: 2 5 1 8 8
+0: 2 7 1 9 9
+1: 1 6 2 8 8
 
 G C A T C G C A G A G C G T A T G C A G A G A G
 
 G C A G A G A G
-= = = .
-            5 1
+= = = . .
+              1 2
   G C A G A G A G
-  .
-              2 2
+  . .
+                2 1
+    G C A G A G A G
+    . .
+                  1 2
       G C A G A G A G
-      .
-                  2 2
+      . .
+                    2 6
           G C A G A G A G
           = = = = = = . =
 

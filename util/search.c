@@ -22,7 +22,8 @@ static int debug;
 typedef struct {
 	const unsigned char *pattern;
 	size_t length;
-	size_t (*delta)[256];
+	size_t (*bm)[256];
+	size_t (*qs)[256];
 	unsigned max_err;
 } Pattern;	
 
@@ -54,16 +55,16 @@ horspool_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
 		return -1;
 	}
 
-	if ((pp->delta = malloc((max_err+1) * sizeof (*pp->delta))) == NULL) {
+	if ((pp->bm = malloc((max_err+1) * sizeof (*pp->bm))) == NULL) {
 		return -1;
 	}
 
 	for (k = 0; k <= max_err; k++) {
-		for (i = 0; i < sizeof (*pp->delta); i++)
-			pp->delta[k][i] = pp->length;
-		pp->delta[k][pattern[m - k]] = pp->length - k;		
+		for (i = 0; i < sizeof (*pp->bm); i++)
+			pp->bm[k][i] = pp->length;
+		pp->bm[k][pattern[m - k]] = pp->length - k;		
 		for (i = 0; i < m - k; i++)
-			pp->delta[k][pattern[i]] = m - k - i;
+			pp->bm[k][pattern[i]] = m - k - i;
 	}
 
 	return 0;
@@ -73,7 +74,7 @@ void
 horspool_fini(Pattern *pp)
 {
 	if (pp != NULL)
-		free(pp->delta);
+		free(pp->bm);
 }
 
 long
@@ -93,12 +94,12 @@ horspool_search(Pattern *pp, const unsigned char *str, size_t len)
 			INFO(
 				"delta=%lu e=%d T='%c' P='%c' m='%c' d=%lu",
 				delta, err, str[offset + i], pp->pattern[i], 
-				str[offset + m], pp->delta[err][str[offset + m]]
+				str[offset + m], pp->bm[err][str[offset + m]]
 			);
 			
 			if (str[offset + i] != pp->pattern[i]) {
-				delta = min(delta, pp->delta[err][str[offset + m]]);
-				delta = min(delta, pp->delta[err][str[offset + m -1]]);
+				delta = min(delta, pp->bm[err][str[offset + m]]);
+				delta = min(delta, pp->bm[err][str[offset + m -1]]);
 				err++;
 			}
 		}
@@ -135,15 +136,15 @@ sunday_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
 		return -1;
 	}
 
-	if ((pp->delta = malloc((max_err+1) * sizeof (*pp->delta))) == NULL) {
+	if ((pp->qs = malloc((max_err+1) * sizeof (*pp->qs))) == NULL) {
 		return -1;
 	}
 
 	for (k = 0; k <= max_err; k++) {
-		for (i = 0; i < sizeof (*pp->delta); i++)
-			pp->delta[k][i] = pp->length + 1 - k;
+		for (i = 0; i < sizeof (*pp->qs); i++)
+			pp->qs[k][i] = pp->length + 1 - k;
 		for (i = 0; i < pp->length - k; i++)
-			pp->delta[k][pattern[i]] = pp->length - i - k;
+			pp->qs[k][pattern[i]] = pp->length - i - k;
 	}
 
 	return 0;
@@ -153,7 +154,7 @@ void
 sunday_fini(Pattern *pp)
 {
 	if (pp != NULL)
-		free(pp->delta);
+		free(pp->qs);
 }
 
 long
@@ -183,7 +184,78 @@ sunday_search(Pattern *pp, const unsigned char *str, size_t len)
 			);
 
 			if (str[offset + i] != pp->pattern[i]) {
-				delta = min(delta, pp->delta[err][str[offset + pp->length - err]]);
+				delta = min(delta, pp->qs[err][str[offset + pp->length - err]]);
+				err++;
+			}
+		}
+
+		if (err <= pp->max_err) {
+			INFO("return offset=%ld", offset);
+			return offset;
+		}
+		offset += delta;
+	}
+	
+	INFO("return -1 no match");
+	return -1;
+}
+
+/*
+ * http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.14.703&rep=rep1&type=pdf
+ *	Experiments with a Very Fast Substring Search Algorithm
+ *	P. D. SMITH; SOFTWARE—PRACTICE AND EXPERIENCE, VOL. 21(10), 1065–1074 (OCTOBER 1991)
+ *
+ * http://www-igm.univ-mlv.fr/~lecroq/string/node21.html
+ */
+int
+smith_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
+{	
+	return horspool_init(pp, pattern, max_err) < 0 
+	|| sunday_init(pp, pattern, max_err) < 0
+	? -1 : 0;
+}
+
+void
+smith_fini(Pattern *pp)
+{
+	if (pp != NULL) {
+		free(pp->bm);
+		free(pp->qs);
+	}
+}
+
+long
+smith_search(Pattern *pp, const unsigned char *str, size_t len)
+{
+	long offset = 0;
+	
+	/* Note that this can reference the NUL byte when "offset
+	 * + pp->length == len", which is not an index bounds error
+	 * in C, but when ported to other languages like Java or C#
+	 * that have no sentinel end of string byte, this has to be
+	 * handled specially.
+	 */
+	while (offset + pp->length <= len) {
+		long i;
+		int err = 0;
+		size_t delta = pp->length + 1 - pp->max_err;
+
+		INFO("off=%ld str=\"%s\"", offset, str+offset);		
+
+		/* Sunday algorithm can scan any order. */
+		for (i = 0; i < pp->length && err <= pp->max_err; i++) {			
+			INFO(
+				"delta=%lu e=%d T='%c' P='%c' m='%c'",
+				delta, err, str[offset + i], pp->pattern[i], 
+				str[offset + pp->length - err]
+			);
+
+			if (str[offset + i] != pp->pattern[i]) {
+				int shift = max(
+					pp->bm[err][str[offset + pp->length - 1 - err]],
+					pp->qs[err][str[offset + pp->length - err]]
+				);
+				delta = min(delta, shift);
 				err++;
 			}
 		}
@@ -206,6 +278,27 @@ sunday_search(Pattern *pp, const unsigned char *str, size_t len)
 #include <getopt.h>
 
 #define LINE_SIZE	2048
+
+static const char usage[] = 
+"usage: search [-bv][-a 0|1|2][-k num] string file ...\n"
+"-a 0|1|2\t0 = horspool, 1 = sunday (*), 2 = smith\n"
+"-b\t\tbracket the first match\n"
+"-k num\t\tmax. k-mismatches (0)\n"
+"-v\t\tverbose debug\n"
+;
+
+typedef struct {
+	int (*fn_init)(Pattern *, const unsigned char *, unsigned);
+	long (*fn_srch)(Pattern *, const unsigned char *, size_t);
+	void (*fn_fini)(Pattern *);
+} Search;
+
+static Search srch_alg[] = {
+	{ horspool_init, horspool_search, horspool_fini },
+	{ sunday_init, sunday_search, sunday_fini },
+	{ smith_init, smith_search, smith_fini },
+	{ NULL, NULL, NULL }
+};
 
 size_t
 inputline(FILE *fp, unsigned char *buf, size_t size)
@@ -240,25 +333,18 @@ main(int argc, char **argv)
 	long lineno, offset;
 	int brackets, ch, rc, argi;
 	unsigned char line[LINE_SIZE];
-	void (*fn_fini)(Pattern *);
-	int (*fn_init)(Pattern *, const unsigned char *, unsigned);
-	long (*fn_srch)(Pattern *, const unsigned char *, size_t);
+	Search *alg = &srch_alg[1];
 	
 	max_err = 0;
 	brackets = 0;
-	fn_init = sunday_init;
-	fn_fini = sunday_fini;
-	fn_srch = sunday_search;
 	
-	while ((ch = getopt(argc, argv, "bhk:v")) != -1) {
+	while ((ch = getopt(argc, argv, "a:bk:v")) != -1) {
 		switch (ch) {
+		case 'a':
+			alg = &srch_alg[strtoul(optarg, NULL, 10)];
+			break;
 		case 'b':
 			brackets = 1;
-			break;
-		case 'h':
-			fn_fini = horspool_fini;
-			fn_init = horspool_init;
-			fn_srch = horspool_search;
 			break;
 		case 'k':
 			max_err = strtoul(optarg, NULL, 10);
@@ -272,12 +358,12 @@ main(int argc, char **argv)
 	}
 	
 	if (argc <= optind + 1) {
-		(void) fputs("usage: search [-bhv][-k n] string file ...\n", stderr);
+		(void) fputs(usage, stderr);
 		return 2;
 	}
 
 	rc = 1;
-	fn_init(&pat, (const unsigned char *)argv[optind], max_err);
+	alg->fn_init(&pat, (const unsigned char *)argv[optind], max_err);
 
 	for (argi = optind+1; argi < argc; argi++) {
 		if ((fp = fopen(argv[argi], "r")) == NULL) {
@@ -288,7 +374,7 @@ main(int argc, char **argv)
 		lineno = 0;
 		while (0 < (line_len = inputline(fp, line, sizeof (line)))) {
 			lineno++;
-			if ((offset = fn_srch(&pat, line, line_len)) != -1) {
+			if ((offset = alg->fn_srch(&pat, line, line_len)) != -1) {
 				if (optind+2 < argc)
 					(void) printf("%s: ", argv[argi]);
 				if (brackets) {
@@ -309,7 +395,7 @@ main(int argc, char **argv)
 		(void) fclose(fp);
 	}
 	
-	fn_fini(&pat);
+	alg->fn_fini(&pat);
 			
 	return rc;
 }
