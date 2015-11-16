@@ -98,7 +98,8 @@ REPLACED = URI$O
 IDIR := ${top_srcdir}/include
 HDIR := ${IDIR}/io
 OBJS =	Error$O Log$O mkpath$O socketTimeoutIO$O socketAddress$O \
-	socketAddressIsLocal$O socket2$O socket3$O socket3_tls$O events$O flock$O file$O
+	socketAddressIsLocal$O socket2$O socket3$O socket3_tls$O \
+	events$O flock$O file$O utf8$O
 
 .MAIN : build
 
@@ -123,7 +124,7 @@ add-lib:
 
 clean : title
 	-rm -f *.o *.obj *.i *.map *.tds *.TR2 *.stackdump core *.core core.* *.log
-	-rm -f output*.dat Dns$E socketAddressIsLocal$E socket2$E
+	-rm -f output*.dat Dns$E socketAddressIsLocal$E socket2$E utf8$E
 
 distclean: clean
 	-rm -f makefile
@@ -161,3 +162,7 @@ smtpe$E : socketAddress$O socket3$O events$O smtpe.c
 
 smtpe.i : smtpe.c
 	$(CC) -E ${CFLAGS_LUA} $(CFLAGS) -I/usr/local/include -o smtpe.i smtpe.c
+
+utf8$E : utf8.c
+	$(CC) -std=c99 -DTEST $(CFLAGS) $(LDFLAGS) $(CC_E)utf8$E utf8.c
+

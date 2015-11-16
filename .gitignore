@@ -43,6 +43,7 @@ crc/crcccitt.tbl
 crc/crctable
 io/Dns
 io/smtpe
+io/utf8
 mail/digestbl
 mail/dkim-hash
 mail/mime

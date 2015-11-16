@@ -120,6 +120,17 @@ extern int alt_flock(int, int);
 #endif
 
 /***********************************************************************
+ *** Stream IO
+ ***********************************************************************/
+
+#include <wchar.h>
+
+extern wint_t fgetwc_utf8(FILE *);
+extern size_t fgetws_utf8(wchar_t *, size_t, FILE *);
+extern int fputwc_utf8(wchar_t, FILE *);
+extern int fputws_utf8(wchar_t *, FILE *);
+
+/***********************************************************************
  ***
  ***********************************************************************/
 
