@@ -1,4 +1,4 @@
-org/sqlite/sqlite-autoconf-3081002.tar.gz
+org/sqlite/sqlite-autoconf-3090200.tar.gz
 com/snert/lib
 com/snert/include/com/snert/lib
 com/snert/include/org/valgrind
@@ -49,7 +49,7 @@ com/snert/src/lib/io/socketAddress.c
 com/snert/src/lib/io/socketAddressIsLocal.c
 com/snert/src/lib/io/socketTimeoutIO.c
 com/snert/src/lib/io/open-close.awk
-com/snert/src/lib/io/.gdbinit
+com/snert/src/lib/io/utf8.c
 com/snert/src/lib/mail/MailSpan.c
 com/snert/src/lib/mail/dkim-all-relaxed.txt
 com/snert/src/lib/mail/dkim-all-simple.txt

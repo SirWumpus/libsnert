@@ -57,6 +57,27 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.49--
+
+   *	Upgraded SQLite to 3.9.2
+
+   !	Updated TLD list.
+
+   +	Add functions to read/write UTF8 file streams.
+
+   +	Add string search functions based on Horspool, Sunday, and Smith.
+
+   +	Add .onion to RFC2606 reserved list.
+
+   +	Add basic err.h for Windows native.
+
+   !	Fixed my version of cmp -l option to behave like normal cmp(1).
+
+   !	Fix TokenNext handling of empty string from command line, ie. '\0'.
+
+   !	Fixed option usage dump to allow for empty list items and handling
+	of escaped semi-colon in a list item.
+
 --1.75.48--
 
    +	Added pdqIgnoreTCP() and dns-ignore-tcp option for PDQ API.
