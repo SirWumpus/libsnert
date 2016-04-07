@@ -340,7 +340,7 @@ socket3_set_linger(SOCKET fd, int seconds)
 #ifdef SO_LINGER
 	struct linger setlinger = { 0, 0 };
 
-	if (0 <= seconds) {
+	if (0 < seconds) {
 		setlinger.l_onoff = 1;
 # if defined(__WIN32__)
 		setlinger.l_linger = (u_short) seconds;

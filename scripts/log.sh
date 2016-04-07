@@ -28,6 +28,42 @@ EX_PROTOCOL=76		# remote error in protocol
 EX_NOPERM=77		# permission denied
 EX_CONFIG=78		# configuration error
 
+# Bash Exit Codes (Reserved)
+EX_NOT_EXECUTABLE=126	# Command found, but not executable.
+EX_NOT_FOUND=127	# Command not found (in PATH).
+EX__SIGNAL=128		# 128+N where N is the signal number
+
+ex_name[$EX_OK]='-OK-'
+ex_name[$EX_FAIL]='FAIL'
+ex_name[$EX_KNOWN]='KNOWN'
+ex_name[$EX_VERIFY]='VERIFY'
+ex_name[$EX_ABORT]='ABORT'
+ex_name[$EX_COREFOUND]='CORE'
+ex_name[$EX_ERROR]='ERROR'
+ex_name[$EX_INCOMPLETE]='INCOMPLETE'
+ex_name[$EX_INCONCLUSIVE]='INCONCLUSIVE'
+ex_name[$EX_BLOCKED]='BLOCKED'
+ex_name[$EX_PARTIALLY_BLOCKED]='PARTIALLY_BLOCKED'
+ex_name[$EX_PERMANENTLY_FAILED]='PERMANENTLY_FAILED'
+ex_name[$EX_DEFERRED]='DEFERRED'
+ex_name[$EX_USAGE]='USAGE'
+ex_name[$EX_DATAERR]='DATAERR'
+ex_name[$EX_NOINPUT]='NOINPUT'
+ex_name[$EX_NOUSER]='NOUSER'
+ex_name[$EX_NOHOST]='NOHOST'
+ex_name[$EX_UNAVAILABLE]='UNAVAILABLE'
+ex_name[$EX_SOFTWARE]='SOFTWARE'
+ex_name[$EX_OSERR]='OSERR'
+ex_name[$EX_OSFILE]='OSFILE'
+ex_name[$EX_CANTCREAT]='CANTCREAT'
+ex_name[$EX_IOERR]='IOERR'
+ex_name[$EX_TEMPFAIL]='TEMPFAIL'
+ex_name[$EX_PROTOCOL]='PROTOCOL'
+ex_name[$EX_NOPERM]='NOPERM'
+ex_name[$EX_CONFIG]='CONFIG'
+ex_name[$EX_NOT_EXECUTABLE]='NOT_EXECUTABLE'
+ex_name[$EX_NOT_FOUND]='NOT_FOUND'
+
 #######################################################################
 # Logging
 #######################################################################

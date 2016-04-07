@@ -3,7 +3,7 @@
  *
  * A simple SMTP engine.
  *
- * Copyright 2007, 2013 by Anthony Howe. All rights reserved.
+ * Copyright 2007, 2016 by Anthony Howe. All rights reserved.
  */
 
 /***********************************************************************
@@ -300,7 +300,7 @@ mxPrint(SMTP2 *smtp, const char *line, size_t length)
 		syslog(LOG_DEBUG, LOG_FMT ">> %lu:%s", LOG_ARG(smtp), (unsigned long) length, line);
 
 	if ((rc = smtp2Write(smtp->mx, (char *) line, length)) != SMTP_OK) {
-		if (smtp->flags & SMTP_FLAG_LOG)
+		if (smtp->flags & SMTP_FLAG_INFO)
 			syslog(LOG_ERR, LOG_FMT "I/O error: %s (%d)", LOG_ARG(smtp), strerror(errno), errno);
 		smtp->flags |= SMTP_FLAG_ERROR;
 	}
@@ -321,7 +321,7 @@ mxResponse(SMTP2 *smtp)
 	rc = smtp2Read(smtp->mx, &lines);
 
 	if (SMTP_IS_ERROR(rc)) {
-		if (smtp->flags & SMTP_FLAG_LOG)
+		if (smtp->flags & SMTP_FLAG_INFO)
 			syslog(LOG_ERR, LOG_FMT "I/O error: %s (%d)", LOG_ARG(smtp), strerror(errno), errno);
 		smtp->flags |= SMTP_FLAG_ERROR;
 	} else {
@@ -371,13 +371,14 @@ smtp2Start(SMTP2 *smtp)
 	if (getsockname(smtp->mx->fd, (struct sockaddr *) &name, &namelen))
 		return SMTP_ERROR;
 
-	socketAddressGetString(&name, SOCKET_ADDRESS_WITH_BRACKETS, smtp->local_ip, sizeof (smtp->local_ip));
-	(void) snprintf(smtp->text, sizeof (smtp->text), "EHLO %s\r\n", smtp->local_ip);
+	if (*smtp->helo_host == '\0')
+		socketAddressGetString(&name, SOCKET_ADDRESS_WITH_BRACKETS, smtp->helo_host, sizeof (smtp->helo_host));
+	(void) snprintf(smtp->text, sizeof (smtp->text), "EHLO %s\r\n", smtp->helo_host);
 	if ((rc = mxCommand(smtp, smtp->text)) == SMTP_OK) {
 		smtp->flags |= SMTP_FLAG_EHLO;
 	} else {
 		smtp->flags &= ~SMTP_FLAG_EHLO;
-		(void) snprintf(smtp->text, sizeof (smtp->text), "HELO %s\r\n", smtp->local_ip);
+		(void) snprintf(smtp->text, sizeof (smtp->text), "HELO %s\r\n", smtp->helo_host);
 		rc = mxCommand(smtp, smtp->text);
 	}
 
@@ -387,6 +388,9 @@ smtp2Start(SMTP2 *smtp)
 static SMTP_Reply_Code
 smtp2Connect(SMTP2 *smtp, const char *host)
 {
+	if (smtp->flags & SMTP_FLAG_DEBUG)
+		syslog(LOG_DEBUG, LOG_FMT "connecting host=%s", LOG_ARG(smtp), host);
+
 	if ((smtp->mx = socketConnect(host, SMTP_PORT, smtp->connect_to)) == NULL)
 		return SMTP_ERROR;
 
@@ -394,7 +398,7 @@ smtp2Connect(SMTP2 *smtp, const char *host)
 	(void) socketSetNonBlocking(smtp->mx, 1);
 	(void) socketSetLinger(smtp->mx, 0);
 
-	if (smtp->flags & SMTP_FLAG_LOG)
+	if (smtp->flags & SMTP_FLAG_INFO)
 		syslog(LOG_INFO, LOG_FMT "connected host=%s", LOG_ARG(smtp), host);
 
 	return smtp2Start(smtp);
@@ -437,7 +441,7 @@ smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 }
 
 static SMTP2 *
-smtp2Create(unsigned connect_ms, unsigned command_ms, int flags)
+smtp2Create(unsigned connect_ms, unsigned command_ms, int flags, const char *helo)
 {
 	SMTP2 *smtp;
 
@@ -457,6 +461,8 @@ smtp2Create(unsigned connect_ms, unsigned command_ms, int flags)
 		smtp->command_to = command_ms;
 		smtp->id = (unsigned short) RAND_MSG_COUNT;
 
+		(void) snprintf(smtp->helo_host, sizeof (smtp->helo_host), "%s", TextEmpty(helo));
+		
 		/* The smtp-id is a message-id with cc=00, is composed of
 		 *
 		 *	ymd HMS ppppp sssss cc
@@ -468,7 +474,7 @@ smtp2Create(unsigned connect_ms, unsigned command_ms, int flags)
 
 		(void) time(&smtp->start);
 		time_encode(smtp->start, smtp->id_string);
-		snprintf(smtp->id_string+6, 20-6, "%05u%05u00", getpid(), smtp->id);
+		(void) snprintf(smtp->id_string+6, 20-6, "%05u%05u00", getpid(), smtp->id);
 	}
 
 	return smtp;
@@ -490,11 +496,11 @@ smtp2Close(void *_smtp)
 }
 
 SMTP2 *
-smtp2Open(const char *host, unsigned connect_ms, unsigned command_ms, int flags)
+smtp2Open(const char *host, unsigned connect_ms, unsigned command_ms, int flags, const char *helo)
 {
 	SMTP2 *smtp;
 
-	if ((smtp = smtp2Create(connect_ms, command_ms, flags)) != NULL) {
+	if ((smtp = smtp2Create(connect_ms, command_ms, flags, helo)) != NULL) {
 		if (host == NULL || *host == '\0')
 			host = "127.0.0.1";
 
@@ -508,11 +514,11 @@ smtp2Open(const char *host, unsigned connect_ms, unsigned command_ms, int flags)
 }
 
 SMTP2 *
-smtp2OpenMx(const char *domain, unsigned connect_ms, unsigned command_ms, int flags)
+smtp2OpenMx(const char *domain, unsigned connect_ms, unsigned command_ms, int flags, const char *helo)
 {
 	SMTP2 *smtp;
 
-	if ((smtp = smtp2Create(connect_ms, command_ms, flags)) != NULL) {
+	if ((smtp = smtp2Create(connect_ms, command_ms, flags, helo)) != NULL) {		
 		if (smtp2ConnectMx(smtp, domain) != SMTP_OK) {
 			smtp2Close(smtp);
 			smtp = NULL;
@@ -561,7 +567,7 @@ smtp2Mail(SMTP2 *smtp, const char *sender)
 	next_msg_id(smtp, smtp->id_string);
 
 	if (sender == NULL) {
-		(void) snprintf(smtp->text, sizeof (smtp->text), "postmaster@%s", smtp->local_ip);
+		(void) snprintf(smtp->text, sizeof (smtp->text), "postmaster@%s", smtp->helo_host);
 		sender = smtp->text;
 	}
 
@@ -584,7 +590,10 @@ SMTP_Reply_Code
 smtp2Data(SMTP2 *smtp)
 {
 	SMTP_Reply_Code rc;
-
+	
+	if (smtp->flags & SMTP_FLAG_DATA)
+		return SMTP_WAITING;
+		
 	if ((rc = mxCommand(smtp, "DATA\r\n")) == SMTP_WAITING)
 		smtp->flags |= SMTP_FLAG_DATA;
 
@@ -618,7 +627,7 @@ smtp2Rset(SMTP2 *smtp)
 	reset_msg_id(smtp);
 	free(smtp->sender);
 	smtp->sender = NULL;
-	smtp->flags &= (SMTP_FLAG_LOG|SMTP_FLAG_DEBUG|SMTP_FLAG_TRY_ALL);
+	smtp->flags &= (SMTP_FLAG_INFO|SMTP_FLAG_DEBUG|SMTP_FLAG_TRY_ALL);
 	return mxCommand(smtp, "RSET\r\n");
 }
 
@@ -638,12 +647,8 @@ smtp2Print(SMTP2 *smtp, const char *line, size_t length)
 		line = smtp->text;
 	}
 
-	if (!(smtp->flags & SMTP_FLAG_DATA)) {
-		if ((rc = mxCommand(smtp, "DATA\r\n")) != SMTP_WAITING)
-			return rc;
-
-		smtp->flags |= SMTP_FLAG_DATA;
-	}
+	if (!(smtp->flags & SMTP_FLAG_DATA) && (rc = smtp2Data(smtp)) != SMTP_WAITING)
+		return rc;
 
 	/* Check for required headers. */
 	if (!(smtp->flags & SMTP_FLAG_EOH)) {
@@ -664,7 +669,7 @@ smtp2Print(SMTP2 *smtp, const char *line, size_t length)
 				(void) mxPrint(smtp, "Subject: \r\n", sizeof ("Subject: \r\n")-1);
 
 			if (!(smtp->flags & SMTP_FLAG_MSGID))
-				(void) smtp2Printf(smtp, "Message-ID: <%s@%s>\r\n", smtp->id_string, smtp->local_ip);
+				(void) smtp2Printf(smtp, "Message-ID: <%s@%s>\r\n", smtp->id_string, smtp->helo_host);
 		} else if (!(smtp->flags & SMTP_FLAG_SUBJECT) && TextMatch(line, "Subject:*", length, 1)) {
 			smtp->flags |= SMTP_FLAG_SUBJECT;
 		} else if (!(smtp->flags & SMTP_FLAG_FROM) && TextMatch(line, "From:*", length, 1)) {
@@ -739,7 +744,7 @@ mailFunction(Mail *mail, SMTP_Reply_Code (*fn)(SMTP2 *), int expect)
 }
 
 Mail *
-mailOpen(unsigned connect_ms, unsigned command_ms, int flags)
+mailOpen(unsigned connect_ms, unsigned command_ms, int flags, const char *helo)
 {
 	Mail *mail;
 
@@ -747,6 +752,7 @@ mailOpen(unsigned connect_ms, unsigned command_ms, int flags)
 		mail->flags = flags;
 		mail->connect_to = connect_ms;
 		mail->command_to = command_ms;
+		(void) snprintf(mail->helo_host, sizeof (mail->helo_host), "%s", TextEmpty(helo));
 	}
 
 	return mail;
@@ -810,7 +816,7 @@ mailRcpt(Mail *mail, const char *recipient)
 	}
 
 	/* Open a new connection for this recipient's domain. */
-	if ((smtp = smtp2OpenMx(domain, mail->connect_to, mail->command_to, mail->flags)) == NULL)
+	if ((smtp = smtp2OpenMx(domain, mail->connect_to, mail->command_to, mail->flags, mail->helo_host)) == NULL)
 		return SMTP_ERROR_CONNECT;
 
 	/* Start the first transaction. */
@@ -914,11 +920,13 @@ mailPrintf(Mail *mail, const char *fmt, ...)
 #define _NAME			"smtp2"
 
 static char usage[] =
-"usage: " _NAME " [-av][-f mail][-h host[:port]][-t timeout] rcpt... < message\n"
+"usage: " _NAME " [-aev][-f mail][-h host[:port]][-H helo][-t timeout] rcpt... < message\n"
 "\n"
 "-a\t\ttry sending to all recipients even if some fail\n"
+"-e\t\ttest connection and envelope details only\n"
 "-f from\t\tMAIL FROM: address\n"
 "-h host[:port]\tconnect to this SMTP host\n"
+"-H helo\t\tEHLO/HELO argument to use; default IP-domain-literal\n"
 "-t timeout\tSMTP command timeout in seconds, default 5 minutes\n"
 "-v\t\tverbose debug messages; 1 log, 2 debug, 3 stderr\n"
 "\n"
@@ -927,8 +935,10 @@ LIBSNERT_COPYRIGHT "\n"
 
 Mail *message;
 SMTP2 *session;
+char *helo_host;
 char *mail_from;
 char *smart_host;
+int envelope_test;
 unsigned connect_to = SMTP_WELCOME_TO*1000;
 unsigned command_to = SMTP_COMMAND_TO*1000;
 char text[SMTP_TEXT_LINE_LENGTH+1];
@@ -992,44 +1002,47 @@ sendMessage(void *context, CommandSet *cmd, const char *from, int argc, char **a
 
 	if (context == NULL)
 		exit(1);
-
+		
 	do {
 		offset = 0;
 		sender = NULL;
-		if (from == NULL) {
-			/* Read in the message headers and find the original sender. */
-			for (offset = 0; offset+SMTP_TEXT_LINE_LENGTH < sizeof (headers); offset += length) {
-				if (fgets(headers+offset, sizeof (headers)-offset, stdin) == NULL)
-					break;
 
-				length = smtp2AssertCRLF(headers+offset, strlen(headers+offset), sizeof (headers)-offset);
+		if (!envelope_test) {
+			if (from == NULL) {
+				/* Read in the message headers and find the original sender. */
+				for (offset = 0; offset+SMTP_TEXT_LINE_LENGTH < sizeof (headers); offset += length) {
+					if (fgets(headers+offset, sizeof (headers)-offset, stdin) == NULL)
+						break;
 
-				if (headers[offset] == '\r' && headers[offset+1] == '\n') {
-					offset += length;
-					break;
+					length = smtp2AssertCRLF(headers+offset, strlen(headers+offset), sizeof (headers)-offset);
+
+					if (headers[offset] == '\r' && headers[offset+1] == '\n') {
+						offset += length;
+						break;
+					}
+
+					if (TextMatch(headers+offset, "Return-Path:*", length, 1)) {
+						if (parsePath(headers+offset+sizeof ("Return-Path:")-1, 0, 1, &sender) != NULL)
+							exit(1);
+					} else if (TextMatch(headers+offset, "Sender:*", length, 1)) {
+						if (parsePath(headers+offset+sizeof ("Sender:")-1, 0, 1, &sender) != NULL)
+							exit(1);
+					} else if (TextMatch(headers+offset, "From:*", length, 1)) {
+						if (parsePath(headers+offset+sizeof ("From:")-1, 0, 1, &sender) != NULL)
+							exit(1);
+					}
+
+					if (sender != NULL) {
+						from = sender->address.string;
+						offset += length;
+						break;
+					}
 				}
-
-				if (TextMatch(headers+offset, "Return-Path:*", length, 1)) {
-					if (parsePath(headers+offset+sizeof ("Return-Path:")-1, 0, 1, &sender) != NULL)
-						exit(1);
-				} else if (TextMatch(headers+offset, "Sender:*", length, 1)) {
-					if (parsePath(headers+offset+sizeof ("Sender:")-1, 0, 1, &sender) != NULL)
-						exit(1);
-				} else if (TextMatch(headers+offset, "From:*", length, 1)) {
-					if (parsePath(headers+offset+sizeof ("From:")-1, 0, 1, &sender) != NULL)
-						exit(1);
-				}
-
-				if (sender != NULL) {
-					from = sender->address.string;
-					offset += length;
-					break;
-				}
+			} else if ((i = fgetc(stdin)) != EOF) {
+				ungetc(i, stdin);
+			} else { 
+				break;
 			}
-		} else if ((i = fgetc(stdin)) != EOF) {
-			ungetc(i, stdin);
-		} else {
-			break;
 		}
 
 		if ((*cmd->mail)(context, from) != SMTP_OK)
@@ -1041,6 +1054,9 @@ sendMessage(void *context, CommandSet *cmd, const char *from, int argc, char **a
 			if ((*cmd->rcpt)(context, argv[i]) != SMTP_OK)
 				exit(1);
 		}
+		
+		if (envelope_test)
+			break;
 
 		if (0 < offset) {
 			if ((*cmd->print)(context, headers, offset) != SMTP_OK)
@@ -1068,10 +1084,13 @@ main(int argc, char **argv)
 
 	openlog(_NAME, LOG_PID, LOG_MAIL);
 
-	while ((ch = getopt(argc, argv, "af:h:t:v")) != -1) {
+	while ((ch = getopt(argc, argv, "aef:h:H:t:v")) != -1) {
 		switch (ch) {
 		case 'a':
 			flags |= SMTP_FLAG_TRY_ALL;
+			break;
+		case 'e':
+			envelope_test = 1;
 			break;
 		case 'f':
 			mail_from = optarg;
@@ -1079,14 +1098,19 @@ main(int argc, char **argv)
 		case 'h':
 			smart_host = optarg;
 			break;
+		case 'H':
+			helo_host = optarg;
+			break;
 		case 't':
 			command_to = (unsigned) strtol(optarg, NULL, 10) * 1000;
 			break;
 		case 'v':
 			debug++;
 			switch (debug) {
-			case 1: flags |= SMTP_FLAG_LOG; break;
-			case 2: flags |= SMTP_FLAG_DEBUG; break;
+			case 3:
+			case 2: flags |= SMTP_FLAG_DEBUG;
+			case 1: flags |= SMTP_FLAG_INFO;
+			case 0: break;
 			}
 			break;
 		default:
@@ -1112,15 +1136,11 @@ main(int argc, char **argv)
 	}
 
 	if (smart_host == NULL) {
-		sendMessage(
-			message = mailOpen(connect_to, command_to, flags), &mail_cmds,
-			mail_from, argc-optind+1, argv+optind-1
-		);
+		message = mailOpen(connect_to, command_to, flags, helo_host);
+		sendMessage(message, &mail_cmds, mail_from, argc-optind+1, argv+optind-1);
 	} else {
-		sendMessage(
-			session = smtp2Open(smart_host, connect_to, command_to, flags), &smtp2_cmds,
-			mail_from, argc-optind+1, argv+optind-1
-		);
+		session = smtp2Open(smart_host, connect_to, command_to, flags, helo_host);
+		sendMessage(session, &smtp2_cmds, mail_from, argc-optind+1, argv+optind-1);
 	}
 
 	return 0;

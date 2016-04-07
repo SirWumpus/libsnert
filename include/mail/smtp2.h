@@ -3,7 +3,7 @@
  *
  * A simple SMTP engine.
  *
- * Copyright 2007, 2010 by Anthony Howe. All rights reserved.
+ * Copyright 2007, 2016 by Anthony Howe. All rights reserved.
  */
 
 #ifndef __com_snert_lib_mail_smtp2_h__
@@ -112,9 +112,10 @@ typedef enum {
  ***********************************************************************/
 
 /* smtp2Open, mailOpen */
-#define SMTP_FLAG_LOG			0x0001
+#define SMTP_FLAG_INFO			0x0001
 #define SMTP_FLAG_DEBUG			0x0002
 #define SMTP_FLAG_TRY_ALL		0x0004
+#define SMTP_FLAG_LOG			(SMTP_FLAG_INFO|SMTP_FLAG_DEBUG)
 
 /* Internal flags. */
 #define SMTP_FLAG_SUBJECT		0x0010
@@ -139,12 +140,12 @@ typedef struct smtp2 {
 	int code;			/* Last SMTP response code. */
 	char *domain;			/* Domain or host for connection. */
 	char *sender;
-	char local_ip[IPV6_STRING_SIZE];
+	char helo_host[DOMAIN_SIZE];	/* Local IP or specified host. */
 	char text[SMTP_TEXT_LINE_LENGTH+1];
 } SMTP2;
 
-extern SMTP2 *smtp2OpenMx(const char *domain, unsigned connect_ms, unsigned command_ms, int flags);
-extern SMTP2 *smtp2Open(const char *host, unsigned connect_ms, unsigned command_ms, int flags);
+extern SMTP2 *smtp2OpenMx(const char *domain, unsigned connect_ms, unsigned command_ms, int flags, const char *helo);
+extern SMTP2 *smtp2Open(const char *host, unsigned connect_ms, unsigned command_ms, int flags, const char *helo);
 extern void smtp2Close(void *_session);
 
 extern SMTP_Reply_Code smtp2Auth(SMTP2 *session, const char *user, const char *pass);
@@ -198,9 +199,10 @@ typedef struct {
 	char *sender;
 	unsigned connect_to;
 	unsigned command_to;
+	char helo_host[DOMAIN_SIZE];	/* Local IP or specified host. */
 } Mail;
 
-extern Mail *mailOpen(unsigned connect_ms, unsigned command_ms, int flags);
+extern Mail *mailOpen(unsigned connect_ms, unsigned command_ms, int flags, const char *helo);
 extern void mailClose(void *_mail);
 
 extern SMTP_Reply_Code mailMail(Mail *mail, const char *sender);
