@@ -11,7 +11,7 @@
 # This configure script is free software; the Free Software Foundation
 # gives unlimited permission to copy, distribute and modify it.
 #
-# Copyright 1996, 2015 by Anthony Howe. All rights reserved.
+# Copyright 1996, 2016 by Anthony Howe. All rights reserved.
 ## -------------------- ##
 ## M4sh Initialization. ##
 ## -------------------- ##
@@ -1522,7 +1522,7 @@ Copyright (C) 2012 Free Software Foundation, Inc.
 This configure script is free software; the Free Software Foundation
 gives unlimited permission to copy, distribute and modify it.
 
-Copyright 1996, 2015 by Anthony Howe. All rights reserved.
+Copyright 1996, 2016 by Anthony Howe. All rights reserved.
 _ACEOF
   exit
 fi
@@ -2596,7 +2596,7 @@ fi
 
 
 
-	package_copyright='Copyright 1996, 2015 by Anthony Howe. All rights reserved.'
+	package_copyright='Copyright 1996, 2016 by Anthony Howe. All rights reserved.'
 
 	package_major=`echo $PACKAGE_VERSION | sed -e 's/^\([0-9]*\)\.\([0-9]*\)/\1/'`
 

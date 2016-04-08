@@ -18,7 +18,7 @@ AS_IF([test "$prefix" = 'NONE'],[
 ])
 AC_SUBST(prefix_copy)
 
-SNERT_INIT(LIBSNERT, [Copyright 1996, 2015 by Anthony Howe. All rights reserved.])
+SNERT_INIT(LIBSNERT, [Copyright 1996, 2016 by Anthony Howe. All rights reserved.])
 
 AC_DEFINE_UNQUOTED(LIBSNERT_UNAME, [["${platform}"]])
 AH_TEMPLATE(LIBSNERT_UNAME)

@@ -1,4 +1,4 @@
-org/sqlite/sqlite-autoconf-3090200.tar.gz
+org/sqlite/sqlite-autoconf-3120100.tar.gz
 com/snert/lib
 com/snert/include/com/snert/lib
 com/snert/include/org/valgrind
