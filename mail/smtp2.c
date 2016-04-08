@@ -392,7 +392,7 @@ smtp2Connect(SMTP2 *smtp, const char *host)
 		syslog(LOG_DEBUG, LOG_FMT "connecting host=%s", LOG_ARG(smtp), host);
 
 	if ((smtp->mx = socketConnect(host, SMTP_PORT, smtp->connect_to)) == NULL)
-		return SMTP_ERROR;
+		return SMTP_ERROR_CONNECT;
 
 	(void) fileSetCloseOnExec(socketGetFd(smtp->mx), 1);
 	(void) socketSetNonBlocking(smtp->mx, 1);
@@ -410,6 +410,9 @@ smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 	SMTP_Reply_Code rc;
 	PDQ_rr *list, *rr;
 
+	if (smtp->flags & SMTP_FLAG_DEBUG)
+		syslog(LOG_DEBUG, LOG_FMT "MX lookup domain=%s", LOG_ARG(smtp), domain);
+
 	list = pdqFetchMX(PDQ_CLASS_IN, domain, IS_IP_RESTRICTED|IS_IP_LAN);
 
 	if (list == NULL && (smtp->flags & SMTP_FLAG_DEBUG))
@@ -419,8 +422,8 @@ smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 
 	/* Try all MX of a lower preference until one answers. */
 	for (rr = list; rr != NULL; rr = rr->next) {
-		if (rr->section == PDQ_SECTION_QUERY)
-			continue;
+		if (rr->section != PDQ_SECTION_ANSWER || rr->type != PDQ_TYPE_MX)
+			continue;			
 		if (smtp2Connect(smtp, ((PDQ_MX *) rr)->host.string.value) == SMTP_OK) {
 			if ((smtp->domain = strdup(domain)) == NULL) {
 				socketClose(smtp->mx);
@@ -434,6 +437,9 @@ smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 			break;
 		}
 	}
+
+	if (rc == SMTP_ERROR_CONNECT && (smtp->flags & SMTP_FLAG_DEBUG))
+		syslog(LOG_DEBUG, LOG_FMT "connection error MX domain=%s", LOG_ARG(smtp), domain);
 
 	pdqListFree(list);
 
@@ -928,7 +934,7 @@ static char usage[] =
 "-h host[:port]\tconnect to this SMTP host\n"
 "-H helo\t\tEHLO/HELO argument to use; default IP-domain-literal\n"
 "-t timeout\tSMTP command timeout in seconds, default 5 minutes\n"
-"-v\t\tverbose debug messages; 1 log, 2 debug, 3 stderr\n"
+"-v\t\tverbose debug messages; x1 log, x2 debug, x3 stderr\n"
 "\n"
 LIBSNERT_COPYRIGHT "\n"
 ;
@@ -1103,6 +1109,7 @@ main(int argc, char **argv)
 			break;
 		case 't':
 			command_to = (unsigned) strtol(optarg, NULL, 10) * 1000;
+			connect_to = command_to;
 			break;
 		case 'v':
 			debug++;

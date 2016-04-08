@@ -14,9 +14,6 @@
 
 #include <com/snert/lib/version.h>
 
-#undef HAVE_KQUEUE
-#undef HAVE_EPOLL_CREATE
-
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -451,14 +448,13 @@ socket3_client(SOCKET fd, SocketAddress *addr, long timeout)
 #endif
 	case EINPROGRESS:
 		if ((rc = socket3_get_error(fd)) != EINPROGRESS && rc != 0) {
-			errno = rc;
 			goto error1;
 		}
-		if (!socket3_can_send(fd, timeout))
+		/* Can we write the socket for the TCP handshake? */
+		if ((rc = socket3_wait(fd, timeout, SOCKET_WAIT_WRITE)) != 0)			
 			goto error1;
 		/* Resets the socket's copy of the error code. */
 		if ((rc = socket3_get_error(fd)) != 0) {
-			errno = rc;
 			goto error1;
 		}
 		/*@fallthrough@*/
@@ -467,6 +463,9 @@ socket3_client(SOCKET fd, SocketAddress *addr, long timeout)
 	}
 error1:
 	(void) socket3_set_nonblocking(fd, 0);
+	if (0 < socket3_debug)
+		syslog(LOG_DEBUG, "socket3_client(%d, %lx, %ld) rc=%d (%s)", (int) fd, (unsigned long) addr, timeout, rc, strerror(rc));
+	errno = rc;
 error0:
 	return rc;
 }
