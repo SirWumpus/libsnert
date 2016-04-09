@@ -59,8 +59,6 @@ is no set schedule for releases.
 
 --1.75.50--
 
-   *	Upgraded SQLite to 3.12.1
-
    +	Add support to smtp2 API to pass in the HELO argument, fix the
 	logging, and add -e and -H options to smtp2 CLI for envelope
 	testing and HELO argument.
