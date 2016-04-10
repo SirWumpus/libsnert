@@ -73,12 +73,14 @@ LOG_ERROR=1
 LOG_WARN=2
 LOG_INFO=3
 LOG_DEBUG=4
+LOG_DUMP=5
 
 log_levels[$LOG_ALERT]="ALERT"
 log_levels[$LOG_ERROR]="ERROR"
 log_levels[$LOG_WARN]="WARN"
 log_levels[$LOG_INFO]="INFO"
 log_levels[$LOG_DEBUG]="DEBUG"
+log_levels[$LOG_DUMP]="DUMP"
 
 #
 # Default log to standard error.
@@ -90,32 +92,44 @@ log_levels[$LOG_DEBUG]="DEBUG"
 #
 : ${log_level:=$LOG_INFO}
 
+#
+# Log application name
+#
+: ${log_app:=unknown}
+
+#
+# Internal function
+#
 function log_print
 {
 	typeset level=$1; shift
 
 	if [ $level -le $log_level ]; then
 		typeset iso_8601=$(date +'%Y-%m-%dT%H:%M:%S')
-		printf "%s %s %s\n" $iso_8601 ${log_levels[$level]} "$@" 1>&2
+		printf "%s %s:$$ %s %s\n" $iso_8601 $log_app ${log_levels[$level]} "$@" 1>&2
 		if [ -n "$log_file" ]; then
-			printf "%s %s %s\n" $iso_8601 ${log_levels[$level]} "$@" >>$log_file
+			printf "%s %s:$$ %s %s\n" $iso_8601 $log_app ${log_levels[$level]} "$@" >>$log_file
 		fi
 	fi
 }
 
-function log_file
+function log_write_file
 {
-	typeset level=$1; shift
 	typeset file=$1; shift
 
-	if [ $level -le $log_level ]; then
-		log_print $level "--start: $2"
-		cat $file
+	if [ $LOG_DUMP -le $log_level ]; then
+		log_print $LOG_DUMP "--start: $file"
+		cat $file 1>&2
 		if [ -n "$log_file" ]; then
 			cat $file >>$log_file
 		fi
-		log_print $level "--end: $2"
+		log_print $LOG_DUMP "--end: $file"
 	fi
+}
+
+function log_dump
+{
+	log_print $LOG_DUMP "$@"
 }
 
 function log_debug
