@@ -92,6 +92,8 @@ typedef enum {
 	SMTP_ERROR_TIMEOUT		= 120,
 	SMTP_ERROR_EOF			= 130,
 	SMTP_ERROR_IO			= 140,
+	SMTP_ERROR_NXDOMAIN		= 150,
+	SMTP_ERROR_NOMX			= 151,
 } SMTP_Reply_Code;
 
 #define SMTP_IS_ERROR(x)		(100 <= (x) && (x) < 200)

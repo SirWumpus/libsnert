@@ -27,10 +27,19 @@ log_app=$(basename $0 .sh)
 
 function usage
 {
-        log_exit $EX_USAGE 'usage: smtp-profile.sh [-v][-H helo] domain|list.txt'
+        log_exit $EX_USAGE 'usage: smtp-profile.sh [-v][-H helo][-t sec] domain|list.txt'
 }
 
-args=$(getopt 'vH:' $*)
+# If no HELO argument given, then use the host's name.  Note that smtp2
+# defaults to the host's IP-domain-literal if no HELO argument given,
+# which is valid, but not as pretty.
+__helo=$(hostname)
+
+# The default SMTP connection and command timeout is 300 seconds, which
+# is too long to spend when we're simply testing SMTP connectivity.
+__timeout=30
+
+args=$(getopt 'vH:t:' $*)
 if [ $? -ne $EX_OK ]; then
 	usage
 fi
@@ -38,7 +47,13 @@ set -- $args
 while [ $# -gt 0 ]; do
         case "$1" in
 	-H) __helo=$2; shift ;;
-        -v) __verbose=true ; log_level=$LOG_DUMP ;;
+	-t)
+		if [ "$2" -gt 0 ]; then
+			__timeout=$2
+		fi
+		shift
+		;;
+        -v) log_level=$LOG_DUMP ;;
         --) shift; break ;;
         esac
         shift
@@ -49,13 +64,6 @@ fi
 
 __list="$1"
 __domain="$1"
-
-# If no HELO argument given, then use the host's name.  Note that smtp2
-# defaults to the host's IP-domain-literal if no HELO argument given,
-# which is valid, but not as pretty.
-if [ -z "$__helo" ]; then
-	__helo=$(hostname)
-fi
 
 #######################################################################
 # Constants
@@ -90,7 +98,7 @@ function analyse
 	typeset no_service=false
 	typeset server_busy=false
 	typeset connect_reply=$(sed -e'1,/connected host=/d' $session | head -n1)
-	typeset connect_rcode=$(echo "$connect_reply" | sed -e's/.*<< \([245][0-9][0-9]\)[- ].*/\1/')
+	typeset connect_rcode=$(echo "$connect_reply" | sed -n -e's/.*<< \([245][0-9][0-9]\)[- ].*/\1/p')
 	case "$connect_rcode" in
 	# Successful connection.
 	(220) connect=true;;
@@ -99,7 +107,20 @@ function analyse
 	# Successful connection, but no service.
 	(554) connect=true; no_service=true;;
 	# Successful connection, but unexpected non-compliant SMTP code.
-	(*) connect=true;;
+	([0-9]*) connect=true;;
+	(*)
+		if grep -q "domain=$domain does not exist" $session; then
+			connect_rcode='NXDOMAIN'
+			connect=':'
+			mx='n/a'
+		elif grep -q "connection timeout MX domain=$domain" $session; then
+			connect_rcode='TIMEOUT'
+			connect=':'
+		elif grep -iq "Connection timed out" $session; then
+			connect_rcode='TIMEOUT'
+			connect=':'
+		fi
+		;;
 	esac
 
 	# Was it multiline banner?  These can screw with some poorly
@@ -117,11 +138,10 @@ function analyse
 
 	log_debug "conn=$connect rcode=$connect_rcode multiline=$multiline_banner helo=$helo_used"
 
-
 	# Was the sender blocked or accepted?
 	typeset mail_from=false
 	typeset mail_reply=$(sed -e'1,/MAIL FROM/d' $session | head -n1)
-	typeset mail_rcode=$(echo "$mail_reply" | sed -e's/.*<< \([245][0-9][0-9]\)[- ].*/\1/')
+	typeset mail_rcode=$(echo "$mail_reply" | sed -n -e's/.*<< \([245][0-9][0-9]\)[- ].*/\1/p')
 	case "$mail_rcode" in
 	(250) mail_from=true;;
 	esac
@@ -132,7 +152,7 @@ function analyse
 	typeset rcpt_to=false
 	typeset grey_list=false
 	typeset rcpt_reply=$(sed -e'1,/RCPT TO/d' $session | head -n1)
-	typeset rcpt_rcode=$(echo "$rcpt_reply" | sed -e's/.*<< \([245][0-9][0-9]\)[- ].*/\1/')
+	typeset rcpt_rcode=$(echo "$rcpt_reply" | sed -n -e's/.*<< \([245][0-9][0-9]\)[- ].*/\1/p')
 	case "$rcpt_rcode" in
 	(250) rcpt_to=true;;
 	esac
@@ -156,7 +176,7 @@ function analyse
 		delay_checks=true
 	fi
 
-	log_debug "rcpt=$rcpt_from rcode=$rcpt_rcode grey_list=$grey_list delayed=$delay_checks"
+	log_debug "rcpt=$rcpt_to rcode=$rcpt_rcode grey_list=$grey_list delayed=$delay_checks"
 
 	# Were we dropped before QUIT reply?  Server well behaved?
 	typeset quit_ok=false
@@ -169,7 +189,7 @@ function analyse
 	if grep -iq spamhaus $session; then
 		log_debug "spamhaus referenced in log"
 		spamhaus=true;
-	elif ! $connect ; then
+	elif ! $connect; then
 		log_debug "connection dropped, assume spamhaus BL"
 		spamhaus=true;
 	elif $delay_checks ; then
@@ -180,7 +200,15 @@ function analyse
 	log_debug "quit=$quit_ok spamhaus=$spamhaus"
 
 	# Write CSV row.
-	echo "${domain}, ${mx}, $spamhaus, $connect_rcode, $multiline_banner, $helo_used, $mail_rcode, $rcpt_rcode, $grey_list, $delay_checks, $quit_ok"
+	echo "$domain, $mx, $spamhaus, $connect_rcode, $multiline_banner, $helo_used, $mail_rcode, $rcpt_rcode, $grey_list, $delay_checks, $quit_ok"
+}
+
+#
+# Write CSV column headings for humans.
+#
+function csv_headings
+{
+	echo "domain, mx, spamhaus, connect_rcode, multiline_banner, helo_used, mail_rcode, rcpt_rcode, grey_list, delay_checks, quit_ok"
 }
 
 function test_domain
@@ -190,7 +218,7 @@ function test_domain
 	# Test connection.  Normally smtp2 logs to /var/log/maillog,
 	# so the -vvv sets debugging and logging to stderr instead
 	# which separates the logging from the system's maillog.
-	smtp2 -e -f $FROM -H $__helo -vvv info@$domain >$SESSION 2>&1
+	smtp2 -e -f $FROM -H $__helo -t $__timeout -vvv info@$domain >$SESSION 2>&1
 
 	# The SMTP session will contain CRLF newlines; strip the CR.
 	flip -u $SESSION
@@ -207,14 +235,13 @@ function test_file
 {
 	typeset list="$1"
 
-	# Write CSV column headings for humans.
-	echo "domain, mx, spamhaus, connect_rcode, multiline_banner, helo_used, mail_rcode, rcpt_rcode, grey_list, delay_checks, quit_ok" >$REPORT
+	csv_headings
 
 	# Sort and remove duplicate domains.
-	sed -e's/^.*@//' "$list" | sort | uniq -u >$DOMAINS
+	sed -e's/"//g; y/,;/\n\n/; s/.stopped$//i; s/^.*@//' "$list" | sort | uniq -u >$DOMAINS
 
 	for domain in $(cat $DOMAINS); do
-		test_domain "$domain" >>$REPORT
+		test_domain "$domain"
 	done
 
 	rm $DOMAINS
@@ -225,8 +252,9 @@ function test_file
 #######################################################################
 
 if [ -f "$__list" ]; then
-	test_file "$__list"
+	test_file "$__list" >$REPORT
 else
+	csv_headings
 	test_domain "$__domain"
 fi
 

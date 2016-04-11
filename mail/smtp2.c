@@ -392,7 +392,7 @@ smtp2Connect(SMTP2 *smtp, const char *host)
 		syslog(LOG_DEBUG, LOG_FMT "connecting host=%s", LOG_ARG(smtp), host);
 
 	if ((smtp->mx = socketConnect(host, SMTP_PORT, smtp->connect_to)) == NULL)
-		return SMTP_ERROR_CONNECT;
+		return errno == ETIMEDOUT ? SMTP_ERROR_TIMEOUT : SMTP_ERROR_CONNECT;
 
 	(void) fileSetCloseOnExec(socketGetFd(smtp->mx), 1);
 	(void) socketSetNonBlocking(smtp->mx, 1);
@@ -418,13 +418,24 @@ smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 	if (list == NULL && (smtp->flags & SMTP_FLAG_DEBUG))
 		syslog(LOG_DEBUG, LOG_FMT "domain=%s has no acceptable MX", LOG_ARG(smtp), domain);
 
+	if (list->section == PDQ_SECTION_QUERY) {
+		if (((PDQ_QUERY *)list)->rcode == PDQ_RCODE_NXDOMAIN) {
+			syslog(LOG_ERR, LOG_FMT "domain=%s does not exist", LOG_ARG(smtp), domain);
+			return SMTP_ERROR_NXDOMAIN;
+		}
+		if (((PDQ_QUERY *)list)->ancount == 0) {
+			syslog(LOG_ERR, LOG_FMT "domain=%s has no MX", LOG_ARG(smtp), domain);
+			return SMTP_ERROR_NOMX;
+		}
+	}
+
 	rc = SMTP_ERROR_CONNECT;
 
 	/* Try all MX of a lower preference until one answers. */
 	for (rr = list; rr != NULL; rr = rr->next) {
 		if (rr->section != PDQ_SECTION_ANSWER || rr->type != PDQ_TYPE_MX)
 			continue;			
-		if (smtp2Connect(smtp, ((PDQ_MX *) rr)->host.string.value) == SMTP_OK) {
+		if ((rc = smtp2Connect(smtp, ((PDQ_MX *) rr)->host.string.value)) == SMTP_OK) {
 			if ((smtp->domain = strdup(domain)) == NULL) {
 				socketClose(smtp->mx);
 				rc = SMTP_ERROR;
@@ -438,8 +449,18 @@ smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 		}
 	}
 
-	if (rc == SMTP_ERROR_CONNECT && (smtp->flags & SMTP_FLAG_DEBUG))
-		syslog(LOG_DEBUG, LOG_FMT "connection error MX domain=%s", LOG_ARG(smtp), domain);
+	switch (rc) {
+	case SMTP_OK:
+		break;
+	case SMTP_ERROR_CONNECT:
+		syslog(LOG_ERR, LOG_FMT "connection error MX domain=%s", LOG_ARG(smtp), domain);
+		break;
+	case SMTP_ERROR_TIMEOUT:
+		syslog(LOG_ERR, LOG_FMT "connection timeout MX domain=%s", LOG_ARG(smtp), domain);
+		break;
+	default:
+		syslog(LOG_ERR, LOG_FMT "error (%d) MX domain=%s", LOG_ARG(smtp), rc, domain);		
+	}
 
 	pdqListFree(list);
 
