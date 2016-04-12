@@ -121,6 +121,7 @@ com/snert/src/lib/net/spanHost.c
 com/snert/src/lib/net/spanLocalPart.c
 com/snert/src/lib/net/getRFC2821DateTime.c
 com/snert/src/lib/net/server.c
+com/snert/src/lib/scripts/addpasswd.sh
 com/snert/src/lib/scripts/log.sh
 com/snert/src/lib/scripts/grey-test.sh
 com/snert/src/lib/sys/Mutex.c

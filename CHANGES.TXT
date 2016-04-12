@@ -65,6 +65,8 @@ is no set schedule for releases.
 
    !	Fix socket3_client() handling of ETIMEOUT reporting.
 
+   +	Add addpasswd.sh for Nginx password files.
+
 --1.75.49--
 
    *	Upgraded SQLite to 3.9.2
