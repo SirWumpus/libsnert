@@ -23,7 +23,9 @@ while [ "$pass1" != "$pass2" ]; do
 done
 stty echo
 
-sed -e"/^$__user:/d" $__file >$$.tmp
-mv $$.tmp $__file
-printf "$__user:$(openssl passwd -1 \"$pass1\")\n" >>$__file
+if [ -f "$__file" ]; then
+	sed -e"/^$__user:/d" $__file >$$.tmp
+	mv $$.tmp $__file
+fi
+printf "$__user:$(openssl passwd -1 $pass1)\n" >>$__file
 
