@@ -16,6 +16,8 @@ export LANG=C
 # Imports
 #######################################################################
 
+cd $(dirname -- $0)
+. ./smtp-profile.cf
 . ./log.sh
 
 log_level=$LOG_ERROR
@@ -69,18 +71,41 @@ __domain="$1"
 # Constants
 #######################################################################
 
+# See config file used by this script and the .php script.
+#ROOTDIR="/tmp/smtp-profile"
+
 NOW=$(date +'%Y%m%dT%H%M%S')
-DOMAINS="/tmp/domains$$.txt"
-SESSION="/tmp/smtp$$.log"
-LOG="/tmp/smtp-profile-$NOW.log"
-REPORT="/tmp/smtp-profile-$NOW.csv"
+DOMAINS="$ROOTDIR/domains$$.tmp"
+SESSION="$ROOTDIR/smtp$$.log"
+CSV="$ROOTDIR/$NOW.csv"
+LOG="$ROOTDIR/$NOW.log"
+JOB="$ROOTDIR/$NOW.job"
+COUNT="$ROOTDIR/$NOW.count"
+SPAMHAUS="$ROOTDIR/spamhaus.txt"
+LOCK="$ROOTDIR/spamhaus.lock"
 FROM="postmaster@$__helo"
 
+# Enable log file in addition to stderr.
 log_file="$LOG"
 
 #######################################################################
 # Functions
 #######################################################################
+
+function lf_nl
+{
+	typeset txt="$1"
+	tr -d '\r' $txt >$txt.tmp
+	mv $txt.tmp $txt
+}
+
+function crlf_nl
+{
+	typeset txt="$1"
+	CR=$(printf '\r')
+	sed "s/\([^$CR]\)\$/\1$CR/" $txt >$txt.tmp
+	mv $txt.tmp $txt
+}
 
 function analyse
 {
@@ -171,7 +196,7 @@ function analyse
 	# are considered.  The human readable text can be empty, nonsense,
 	# or possible useful feedback as to the reason.
 	typeset delay_checks=false
-	echo "$rcpt_reply" | grep -iqE '(client|IP|host|connection) .*(blocked|rejected|refused|blacklisted)'
+	echo "$rcpt_reply" | grep -iqE 'spamhaus|(client|IP|host|connection) .*(blocked|rejected|refused|blacklisted)'
 	if [ $? -eq 0 ];then
 		delay_checks=true
 	fi
@@ -197,6 +222,17 @@ function analyse
 		spamhaus=true;
 	fi
 
+	# Collect SpamHaus hits in a separate file.
+	if $spamhaus ; then
+		# Make sure only one instance can update at a time.
+		(
+			flock -x 99
+			echo $domain >>$SPAMHAUS
+			sort $SPAMHAUS | uniq -u >$ROOTDIR/$$.tmp
+			mv $ROOTDIR/$$.tmp $SPAMHAUS
+		) 99>$LOCK
+	fi
+
 	log_debug "quit=$quit_ok spamhaus=$spamhaus"
 
 	# Write CSV row.
@@ -218,17 +254,14 @@ function test_domain
 	# Test connection.  Normally smtp2 logs to /var/log/maillog,
 	# so the -vvv sets debugging and logging to stderr instead
 	# which separates the logging from the system's maillog.
-	smtp2 -e -f $FROM -H $__helo -t $__timeout -vvv info@$domain >$SESSION 2>&1
-
-	# The SMTP session will contain CRLF newlines; strip the CR.
-	flip -u $SESSION
+	smtp2 -e -f $FROM -H $__helo -t $__timeout -vvv info@$domain 2>&1 | tr -d '\r' >$SESSION
 
 	log_write_file $SESSION
 
 	# Analyse SESSION session writing out CSV row.
 	analyse "$domain" "$SESSION"
 
-	rm $SESSION
+	rm -f $SESSION
 }
 
 function test_file
@@ -238,24 +271,48 @@ function test_file
 	csv_headings
 
 	# Sort and remove duplicate domains.
-	sed -e's/"//g; y/,;/\n\n/; s/.stopped$//i; s/^.*@//' "$list" | sort | uniq -u >$DOMAINS
+	sed -e's/"//g; y/,;/\n\n/; s/.stopped$//i; s/.gone$//i; s/.notrenew$//i; ;s/^.*@//' "$list" | sort | uniq -u >$DOMAINS
+
+	typeset count=0
+	typeset total=$(wc -l <$DOMAINS)
 
 	for domain in $(cat $DOMAINS); do
+		echo "$count $total" >$COUNT
 		test_domain "$domain"
+		(( count++ ))
 	done
 
-	rm $DOMAINS
+	rm -f $DOMAINS $COUNT
 }
 
 #######################################################################
 # Main
 #######################################################################
 
+# Assert report directory is present.  If held within /tmp, then
+# /tmp is typically emptied on system reboot, so need to recreate
+# it.
+mkdir $ROOTDIR >/dev/null 2>&1
+
 if [ -f "$__list" ]; then
-	test_file "$__list" >$REPORT
+	# Convert from CRLF to LF.
+	tr -d '\r' <"$__list" >$JOB.busy
+	test_file $JOB.busy >$CSV
+	mv $JOB.busy $JOB
 else
 	csv_headings
 	test_domain "$__domain"
 fi
+
+# Convert the output files to CRLF newlines for Windows users.
+crlf_nl $CSV
+crlf_nl $LOG
+crlf_nl	$JOB
+(
+	flock -x 99
+	if [ -f $SPAMHAUS ]; then
+		crlf_nl $SPAMHAUS
+	fi
+) 99>$LOCK
 
 log_exit $EX_OK "$LOG DONE"

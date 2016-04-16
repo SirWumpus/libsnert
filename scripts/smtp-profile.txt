@@ -1,0 +1,40 @@
+SMTP Profiler
+=============
+
+site/				0755
+	jobs/			0755	nginx:nginx
+	log.sh			0644
+	smtp-profile.cf		0644
+	smtp-profile.css	0644
+	smtp-profile.php	0644	rename/link to index.php
+	smtp-profile.sh		0755
+
+/etc/nginx/
+	addpasswd.sh		0755	root:wheel
+
+/usr/local/bin/
+	smtp2			0555	root:wheel
+
+* The nginx user account requires a working shell in order for smtp-
+profile.php to use at(1) to schedule jobs; NOT /sbin/nologin.
+
+* On CentOS or other Linux with SELinux facilities, nginx and php-fpm
+will need a security policy OR disable SELinux for more traditional Unix
+behaviour.  Temporary disable it with:
+
+	$ setenforce 0
+
+or across reboots modify:
+
+	$ vi /etc/sysconfig/selinux
+
+* The addpasswd.sh script can be used to create or update nginx password
+files for controlled access.
+
+* smtp-profile.sh requries smtp2 CLI from LibSnert 1.75.50 or better.
+The remainder of the script uses stock unix tools.
+
+* To build LibSnert smtp2, a C complier needs to be installed.  All the
+smtp-profile* files are found in com/snert/src/lib/scripts.
+
+-END-
