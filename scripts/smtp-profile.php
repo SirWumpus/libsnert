@@ -57,6 +57,7 @@ case 'DELETE':
 				unlink($rootdir.'/'.$job.'.job');
 				unlink($rootdir.'/'.$job.'.csv');
 				unlink($rootdir.'/'.$job.'.log');
+				unlink($rootdir.'/'.$job.'.mx');
 			}
 		}
 	}
@@ -150,6 +151,7 @@ foreach ($jobs as $job) {
 	print "&nbsp;&nbsp;<a href=\"jobs/{$job}.csv\">[.csv]</a>";
 	print "&nbsp;&nbsp;<a href=\"jobs/{$job}.log\">[.log]</a>";
 	print "&nbsp;&nbsp;<a href=\"jobs/{$job}.job\">[.job]</a>";
+	print "&nbsp;&nbsp;<a href=\"jobs/{$job}.mx\">[.mx]</a>";
 	print "</li>\n";
 }
 print "<br/>";

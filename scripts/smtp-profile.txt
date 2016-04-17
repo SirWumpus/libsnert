@@ -2,7 +2,7 @@ SMTP Profiler
 =============
 
 site/				0755
-	jobs/			0755	nginx:nginx
+	jobs/			0775	nginx:nginx
 	log.sh			0644
 	smtp-profile.cf		0644
 	smtp-profile.css	0644

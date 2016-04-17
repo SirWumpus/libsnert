@@ -80,6 +80,7 @@ SESSION="$ROOTDIR/smtp$$.log"
 CSV="$ROOTDIR/$NOW.csv"
 LOG="$ROOTDIR/$NOW.log"
 JOB="$ROOTDIR/$NOW.job"
+MX="$ROOTDIR/$NOW.mx"
 COUNT="$ROOTDIR/$NOW.count"
 SPAMHAUS="$ROOTDIR/spamhaus.txt"
 LOCK="$ROOTDIR/spamhaus.lock"
@@ -276,8 +277,21 @@ function test_file
 	typeset count=0
 	typeset total=$(wc -l <$DOMAINS)
 
+	>$MX
 	for domain in $(cat $DOMAINS); do
 		echo "$count $total" >$COUNT
+
+		# Keep track of what MXes have been tested to
+		# avoid repeatedly testing domains hosted with
+		# outlook.com, google.com, etc.
+		mx=$(dig +short mx "$domain" | cut -d' ' -f2 | tr '\n' '|' | sed -e's/|$//; /^$/d')
+		if [ -n "$mx" ]; then
+			if grep -i -q -E "$mx" $MX; then
+				continue
+			fi
+			echo "$mx" >>$MX
+		fi
+
 		test_domain "$domain"
 		(( count++ ))
 	done
