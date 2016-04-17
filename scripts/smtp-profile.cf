@@ -1,1 +1,4 @@
-ROOTDIR="/var/www/mxtest/jobs"
+MAXCHILD=2
+MAXPERCHILD=4
+CHILDPOLL=10
+JOBDIR="/var/www/mxtest/multi/jobs"

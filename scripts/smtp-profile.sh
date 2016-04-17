@@ -29,7 +29,8 @@ log_app=$(basename $0 .sh)
 
 function usage
 {
-        log_exit $EX_USAGE 'usage: smtp-profile.sh [-v][-H helo][-t sec] domain|list.txt'
+        echo 'usage: smtp-profile.sh [-v][-H helo][-t sec] domain|list.txt'
+        exit $EX_USAGE
 }
 
 # If no HELO argument given, then use the host's name.  Note that smtp2
@@ -71,27 +72,27 @@ __domain="$1"
 # Constants
 #######################################################################
 
+: ${CHILDPOLL:=10}
+
 # See config file used by this script and the .php script.
-#ROOTDIR="/tmp/smtp-profile"
+#JOBDIR="/tmp/smtp-profile"
 
 NOW=$(date +'%Y%m%dT%H%M%S')
-DOMAINS="$ROOTDIR/domains$$.tmp"
-SESSION="$ROOTDIR/smtp$$.log"
-CSV="$ROOTDIR/$NOW.csv"
-LOG="$ROOTDIR/$NOW.log"
-JOB="$ROOTDIR/$NOW.job"
-MX="$ROOTDIR/$NOW.mx"
-COUNT="$ROOTDIR/$NOW.count"
-SPAMHAUS="$ROOTDIR/spamhaus.txt"
-LOCK="$ROOTDIR/spamhaus.lock"
+CSV="$JOBDIR/$NOW.csv"
+LOG="$JOBDIR/$NOW.log"
+JOB="$JOBDIR/$NOW.job"
+#COUNT="$JOBDIR/$NOW.count"
+SPAMHAUS="$JOBDIR/spamhaus.txt"
+SPAMHAUSLOCK="$JOBDIR/spamhaus.lock"
 FROM="postmaster@$__helo"
 
-# Enable log file in addition to stderr.
-log_file="$LOG"
+log_file_set "$LOG"
 
 #######################################################################
 # Functions
 #######################################################################
+
+trap "kill 0; exit $EX_ABORT" SIGINT SIGQUIT SIGTERM
 
 function lf_nl
 {
@@ -229,9 +230,9 @@ function analyse
 		(
 			flock -x 99
 			echo $domain >>$SPAMHAUS
-			sort $SPAMHAUS | uniq -u >$ROOTDIR/$$.tmp
-			mv $ROOTDIR/$$.tmp $SPAMHAUS
-		) 99>$LOCK
+			sort -u $SPAMHAUS >$JOBDIR/$$.tmp
+			mv $JOBDIR/$$.tmp $SPAMHAUS
+		) 99>$SPAMHAUSLOCK
 	fi
 
 	log_debug "quit=$quit_ok spamhaus=$spamhaus"
@@ -251,6 +252,7 @@ function csv_headings
 function test_domain
 {
 	typeset domain="$1"
+	typeset SESSION="$JOBDIR/smtp$$.$domain"
 
 	# Test connection.  Normally smtp2 logs to /var/log/maillog,
 	# so the -vvv sets debugging and logging to stderr instead
@@ -259,44 +261,86 @@ function test_domain
 
 	log_write_file $SESSION
 
-	# Analyse SESSION session writing out CSV row.
 	analyse "$domain" "$SESSION"
 
 	rm -f $SESSION
 }
 
-function test_file
+function test_job
 {
-	typeset list="$1"
+	typeset job="$1"
 
-	csv_headings
-
-	# Sort and remove duplicate domains.
-	sed -e's/"//g; y/,;/\n\n/; s/.stopped$//i; s/.gone$//i; s/.notrenew$//i; ;s/^.*@//' "$list" | sort | uniq -u >$DOMAINS
-
+	typeset domain
 	typeset count=0
-	typeset total=$(wc -l <$DOMAINS)
+	typeset total=$(wc -l <$job)
+	typeset COUNT="$job.count"
 
-	>$MX
-	for domain in $(cat $DOMAINS); do
+	for domain in $(cat $job); do
 		echo "$count $total" >$COUNT
 
 		# Keep track of what MXes have been tested to
 		# avoid repeatedly testing domains hosted with
 		# outlook.com, google.com, etc.
-		mx=$(dig +short mx "$domain" | cut -d' ' -f2 | tr '\n' '|' | sed -e's/|$//; /^$/d')
+		typeset mx=$(dig +short mx "$domain" | cut -d' ' -f2 | tr '\n' '|' | sed -e's/|$//; /^$/d')
 		if [ -n "$mx" ]; then
 			if grep -i -q -E "$mx" $MX; then
 				continue
 			fi
-			echo "$mx" >>$MX
+			flock -x $MXLOCK echo "$mx" >>$MX
 		fi
 
 		test_domain "$domain"
 		(( count++ ))
 	done
 
-	rm -f $DOMAINS $COUNT
+	rm -f $COUNT
+}
+
+function test_file
+{
+	typeset list="$1"
+
+	typeset MX="$JOBDIR/$NOW.mx"
+	typeset MXLOCK="$MX.lock"
+	typeset DOMAINS="$JOBDIR/domains$$.tmp"
+
+	csv_headings
+
+	# Create MX tracking file shared across sub-shells.
+	>$MX
+
+	# Sort and remove duplicate domains.
+	typeset count=$( \
+		sed -e's/"//g; y/,;/\n\n/; s/.stopped$//i; s/.gone$//i; s/.notrenew$//i; s/^.*@//' "$list" \
+		| sort -u | tee $DOMAINS | wc -l \
+	)
+
+	# Do we want to split large jobs?
+	if [ ${MAXCHILD:-0} -gt 1 -a $count -gt ${MAXPERCHILD:=100} ]; then
+		typeset prefix="$JOBDIR/$NOW.job$$"
+		split -a 3 -l $MAXPERCHILD $DOMAINS $prefix
+
+		for subset in ${prefix}* ; do
+			# Start background sub-shell.
+			( test_job $subset >$subset.csv ) &
+
+			# Limit how many sub-shells we run at a given time;
+			# too many and we might "thrash" the CPU.
+			while [ $(pgrep $0 | wc -l) -gt $MAXCHILD ]; do
+				sleep $CHILDPOLL
+			done
+		done
+		wait
+
+		sort ${prefix}*.csv >$CSV
+		rm -f ${prefix}*
+	else
+		test_job $DOMAINS >$CSV
+	fi
+
+	crlf_nl $CSV
+
+	rm -f $DOMAINS $MXLOCK $MX
 }
 
 #######################################################################
@@ -306,27 +350,30 @@ function test_file
 # Assert report directory is present.  If held within /tmp, then
 # /tmp is typically emptied on system reboot, so need to recreate
 # it.
-mkdir $ROOTDIR >/dev/null 2>&1
+mkdir $JOBDIR >/dev/null 2>&1
 
 if [ -f "$__list" ]; then
 	# Convert from CRLF to LF.
 	tr -d '\r' <"$__list" >$JOB.busy
-	test_file $JOB.busy >$CSV
+	test_file $JOB.busy
 	mv $JOB.busy $JOB
+	crlf_nl	$JOB
 else
 	csv_headings
 	test_domain "$__domain"
 fi
 
 # Convert the output files to CRLF newlines for Windows users.
-crlf_nl $CSV
+log_info "$LOG DONE"
 crlf_nl $LOG
-crlf_nl	$JOB
 (
 	flock -x 99
 	if [ -f $SPAMHAUS ]; then
 		crlf_nl $SPAMHAUS
 	fi
-) 99>$LOCK
+) 99>$SPAMHAUSLOCK
+# Do not remove SPAMHAUSLOCK in case multiple instances of this
+# script are running.
 
-log_exit $EX_OK "$LOG DONE"
+rm -f $log_lock
+exit $EX_OK

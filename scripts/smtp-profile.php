@@ -1,8 +1,8 @@
 <?php
-
-$config = parse_ini_file('smtp-profile.cf');
-$rootdir = $config['ROOTDIR'];
-$profile = $_SERVER['DOCUMENT_ROOT'].'/smtp-profile.sh -v -H '.gethostname();
+$scriptdir = dirname($_SERVER['SCRIPT_FILENAME']);
+$config = parse_ini_file($scriptdir.'/smtp-profile.cf');
+$jobdir = $config['JOBDIR'];
+$profile = $scriptdir.'/smtp-profile.sh -v';
 $self = 'http://'. $_SERVER['SERVER_NAME'] . $_SERVER['PHP_SELF'];
 
 function start_job($file)
@@ -27,7 +27,7 @@ if (empty($_POST['action']))
 switch ($_POST['action']) {
 case 'UPLOAD':
 	if (file_exists($_FILES['file']['tmp_name'])) {
-		$tmp = tempnam($rootdir, "job_");
+		$tmp = tempnam($jobdir, "job_");
 		move_uploaded_file($_FILES['file']['tmp_name'], $tmp);
 		chmod($tmp, 0644);
 		start_job($tmp);
@@ -36,7 +36,7 @@ case 'UPLOAD':
 
 case 'SUBMIT':
 	if (!empty($_POST['list'])) {
-		$tmp = tempnam($rootdir, "job_");
+		$tmp = tempnam($jobdir, "job_");
 		if (($fd = fopen($tmp, "w"))) {
 			fwrite($fd, $_POST['list']);
 			fclose($fd);
@@ -49,15 +49,14 @@ case 'SUBMIT':
 case 'DELETE':
 	if (!empty($_POST['job'])) {
 		foreach ($_POST['job'] as $job) {
-			if ($job == 'spamhaus.txt' && file_exists($rootdir.'/'.$job)) {
-				unlink($rootdir.'/'.$job);
+			if ($job == 'spamhaus.txt' && file_exists($jobdir.'/'.$job)) {
+				unlink($jobdir.'/'.$job);
 				continue;
 			}
-			if (file_exists($rootdir.'/'.$job.'.job')) {
-				unlink($rootdir.'/'.$job.'.job');
-				unlink($rootdir.'/'.$job.'.csv');
-				unlink($rootdir.'/'.$job.'.log');
-				unlink($rootdir.'/'.$job.'.mx');
+			if (file_exists($jobdir.'/'.$job.'.job')) {
+				unlink($jobdir.'/'.$job.'.job');
+				unlink($jobdir.'/'.$job.'.csv');
+				unlink($jobdir.'/'.$job.'.log');
 			}
 		}
 	}
@@ -70,7 +69,7 @@ default:
 // Get list of jobs.
 $jobs = Array();
 $busy = Array();
-if ($dir = opendir($rootdir)) {
+if ($dir = opendir($jobdir)) {
 	while ($entry = readdir($dir)) {
 		$path = pathinfo($entry);
 
@@ -126,41 +125,38 @@ Or enter one or more domains and/or email addresses below:
 if (0 < count($busy)) {
 	print "<h2>Jobs In Progress</h2><ul>";
 	foreach ($busy as $job) {
-		if (($fd = fopen($rootdir.'/'.$job.'.count', 'r'))) {
+		if (($fd = fopen($jobdir.'/'.$job.'.count', 'r'))) {
 			fscanf($fd, '%d %d', $count, $total);
 			fclose($fd);
 		}
-		print "<li>{$job} ... {$count} / {$total}</li>";
+		print "<li>{$job} ... {$count} / {$total}</li>\n";
 	}
-	print "</ul>";
+	print "<br/><input type='submit' name='action' value='REFRESH'></ul>\n";
 }
 ?>
-<h2>Completed Jobs</h2>
-<ul>
 <?php
-if (file_exists("jobs/spamhaus.txt")) {
-	print "<li>";
-	print "<input type='checkbox' name='job[]' value='spamhaus.txt'/> SpamHaus Hit List ...";
-	print "&nbsp;&nbsp;<a href=\"jobs/spamhaus.txt\">[.txt]</a>";
-	print "</li>\n";
-}
+if (count($jobs) > 0 || file_exists("jobs/spamhaus.txt")) {
+	print "<h2>Completed Jobs</h2><ul>";
 
-foreach ($jobs as $job) {
-	print "<li>";
-	print "<input type='checkbox' name='job[]' value='{$job}'/> {$job} ...";
-	print "&nbsp;&nbsp;<a href=\"jobs/{$job}.csv\">[.csv]</a>";
-	print "&nbsp;&nbsp;<a href=\"jobs/{$job}.log\">[.log]</a>";
-	print "&nbsp;&nbsp;<a href=\"jobs/{$job}.job\">[.job]</a>";
-	print "&nbsp;&nbsp;<a href=\"jobs/{$job}.mx\">[.mx]</a>";
-	print "</li>\n";
-}
-print "<br/>";
+	if (file_exists("jobs/spamhaus.txt")) {
+		print "<li>";
+		print "<input type='checkbox' name='job[]' value='spamhaus.txt'/> SpamHaus Hit List ...";
+		print "&nbsp;&nbsp;<a href=\"jobs/spamhaus.txt\">[.txt]</a>";
+		print "</li>\n";
+	}
 
-if (0 < count($jobs) || file_exists("jobs/spamhaus.txt")) {
-	print '<input type="submit" name="action" value="DELETE">';
+	foreach ($jobs as $job) {
+		print "<li>";
+		print "<input type='checkbox' name='job[]' value='{$job}'/> {$job} ...";
+		print "&nbsp;&nbsp;<a href=\"jobs/{$job}.csv\">[.csv]</a>";
+		print "&nbsp;&nbsp;<a href=\"jobs/{$job}.log\">[.log]</a>";
+		print "&nbsp;&nbsp;<a href=\"jobs/{$job}.job\">[.job]</a>";
+//		print "&nbsp;&nbsp;<a href=\"jobs/{$job}.mx\">[.mx]</a>";
+		print "</li>\n";
+	}
+	print '<br/><input type="submit" name="action" value="DELETE">&nbsp;&nbsp;<input type="submit" name="action" value="REFRESH">';
 }
 ?>
-&nbsp;&nbsp;<input type="submit" name="action" value="REFRESH">
 </ul>
 </form>
 

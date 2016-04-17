@@ -83,11 +83,6 @@ log_levels[$LOG_DEBUG]="DEBUG"
 log_levels[$LOG_DUMP]="DUMP"
 
 #
-# Default log to standard error.
-#
-: ${log_file:=}
-
-#
 # Default log level
 #
 : ${log_level:=$LOG_INFO}
@@ -96,6 +91,15 @@ log_levels[$LOG_DUMP]="DUMP"
 # Log application name
 #
 : ${log_app:=unknown}
+
+#
+# Default is to simply write to standard error.
+#
+function log_file_set
+{
+	log_file="$1"
+	log_lock="$1.lock"
+}
 
 #
 # Internal function
@@ -108,7 +112,7 @@ function log_print
 		typeset iso_8601=$(date +'%Y-%m-%dT%H:%M:%S')
 		printf "%s %s:$$ %s %s\n" $iso_8601 $log_app ${log_levels[$level]} "$@" 1>&2
 		if [ -n "$log_file" ]; then
-			printf "%s %s:$$ %s %s\n" $iso_8601 $log_app ${log_levels[$level]} "$@" >>$log_file
+			flock -x "$log_lock" printf "%s %s:$$ %s %s\n" $iso_8601 $log_app ${log_levels[$level]} "$@" >>$log_file
 		fi
 	fi
 }
@@ -121,7 +125,7 @@ function log_write_file
 		log_print $LOG_DUMP "--start: $file"
 		cat $file 1>&2
 		if [ -n "$log_file" ]; then
-			cat $file >>$log_file
+			flock -x "$log_lock" cat $file >>$log_file
 		fi
 		log_print $LOG_DUMP "--end: $file"
 	fi
@@ -167,6 +171,7 @@ function log_exit
 	else
 		log_error "$@"
 	fi
+	rm -f "$log_lock"
 	exit $ex
 }
 
