@@ -2,8 +2,21 @@
 $scriptdir = dirname($_SERVER['SCRIPT_FILENAME']);
 $config = parse_ini_file($scriptdir.'/smtp-profile.cf');
 $jobdir = $config['JOBDIR'];
-$profile = $scriptdir.'/smtp-profile.sh -v';
-$self = 'http://'. $_SERVER['SERVER_NAME'] . $_SERVER['PHP_SELF'];
+$joburi = 'jobs';
+
+// Separate jobs by authenticated users.  Not secure.
+if (isset($_SERVER['PHP_AUTH_USER'])) {
+	$userdir = $jobdir.'/'.$_SERVER['PHP_AUTH_USER'];
+	$joburi = $joburi.'/'.$_SERVER['PHP_AUTH_USER'];
+	if (!file_exists($userdir)) {
+		mkdir($userdir, 0777, true);
+		chmod($userdir, 0777);
+		chmod($jobdir, 0777);
+	}
+	$jobdir=$userdir;
+}
+
+$profile = $scriptdir."/smtp-profile.sh -v -j {$jobdir}";
 
 function start_job($file)
 {
@@ -16,7 +29,7 @@ function start_job($file)
 		$msg = 'Failed to start job.';
 	} else {
 		$msg = 'Started '.$out;
-		sleep(4);
+		sleep(2);
 	}
 }
 
@@ -39,6 +52,7 @@ case 'SUBMIT':
 		$tmp = tempnam($jobdir, "job_");
 		if (($fd = fopen($tmp, "w"))) {
 			fwrite($fd, $_POST['list']);
+			fwrite($fd, "\n");
 			fclose($fd);
 			chmod($tmp, 0644);
 			start_job($tmp);
@@ -51,12 +65,8 @@ case 'DELETE':
 		foreach ($_POST['job'] as $job) {
 			if ($job == 'spamhaus.txt' && file_exists($jobdir.'/'.$job)) {
 				unlink($jobdir.'/'.$job);
-				continue;
-			}
-			if (file_exists($jobdir.'/'.$job.'.job')) {
-				unlink($jobdir.'/'.$job.'.job');
-				unlink($jobdir.'/'.$job.'.csv');
-				unlink($jobdir.'/'.$job.'.log');
+			} else if (file_exists($jobdir.'/'.$job.'.log')) {
+				array_map('unlink', glob($jobdir.'/'.$job.'*'));
 			}
 		}
 	}
@@ -88,6 +98,8 @@ if ($dir = opendir($jobdir)) {
 	$busy = array_reverse($busy);
 	$jobs = array_reverse($jobs);
 }
+
+
 ?>
 <html>
 <head>
@@ -99,8 +111,9 @@ SMTP Profiler
 </head>
 <body>
 <div class="container">
-	<div class="page">
-
+	<div class="page lhs">
+<div style="float: right;">
+[<a href="admin.php"><?= $_SERVER['PHP_AUTH_USER'] ?></a>]</div>
 <h1>SMTP Profiler</h1>
 <p class="error"><?= $msg ?></p>
 <h2>Start Job</h2>
@@ -135,23 +148,22 @@ if (0 < count($busy)) {
 }
 ?>
 <?php
-if (count($jobs) > 0 || file_exists("jobs/spamhaus.txt")) {
+if (count($jobs) > 0 || file_exists("{$jobdir}/spamhaus.txt")) {
 	print "<h2>Completed Jobs</h2><ul>";
 
-	if (file_exists("jobs/spamhaus.txt")) {
+	if (file_exists("{$jobdir}/spamhaus.txt")) {
 		print "<li>";
 		print "<input type='checkbox' name='job[]' value='spamhaus.txt'/> SpamHaus Hit List ...";
-		print "&nbsp;&nbsp;<a href=\"jobs/spamhaus.txt\">[.txt]</a>";
+		print "&nbsp;&nbsp;<a href=\"{$joburi}/spamhaus.txt\">[.txt]</a>";
 		print "</li>\n";
 	}
 
 	foreach ($jobs as $job) {
 		print "<li>";
 		print "<input type='checkbox' name='job[]' value='{$job}'/> {$job} ...";
-		print "&nbsp;&nbsp;<a href=\"jobs/{$job}.csv\">[.csv]</a>";
-		print "&nbsp;&nbsp;<a href=\"jobs/{$job}.log\">[.log]</a>";
-		print "&nbsp;&nbsp;<a href=\"jobs/{$job}.job\">[.job]</a>";
-//		print "&nbsp;&nbsp;<a href=\"jobs/{$job}.mx\">[.mx]</a>";
+		print "&nbsp;&nbsp;<a href=\"{$joburi}/{$job}.csv\">[.csv]</a>";
+		print "&nbsp;&nbsp;<a href=\"{$joburi}/{$job}.log\">[.log]</a>";
+		print "&nbsp;&nbsp;<a href=\"{$joburi}/{$job}.job\">[.job]</a>";
 		print "</li>\n";
 	}
 	print '<br/><input type="submit" name="action" value="DELETE">&nbsp;&nbsp;<input type="submit" name="action" value="REFRESH">';

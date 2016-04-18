@@ -10,6 +10,8 @@ DIV.container {
 }
 DIV.page {
 	width: 600px;
+}
+DIV.lhs {
 	text-align: left;
 }
 DIV.rhs {

@@ -29,7 +29,7 @@ log_app=$(basename $0 .sh)
 
 function usage
 {
-        echo 'usage: smtp-profile.sh [-v][-H helo][-t sec] domain|list.txt'
+        echo 'usage: smtp-profile.sh [-v][-H helo][-j dir][-t sec] domain|list.txt'
         exit $EX_USAGE
 }
 
@@ -42,7 +42,7 @@ __helo=$(hostname)
 # is too long to spend when we're simply testing SMTP connectivity.
 __timeout=30
 
-args=$(getopt 'vH:t:' $*)
+args=$(getopt 'vH:j:t:' $*)
 if [ $? -ne $EX_OK ]; then
 	usage
 fi
@@ -50,6 +50,7 @@ set -- $args
 while [ $# -gt 0 ]; do
         case "$1" in
 	-H) __helo=$2; shift ;;
+	-j) JOBDIR=$2; shift ;;
 	-t)
 		if [ "$2" -gt 0 ]; then
 			__timeout=$2
@@ -77,11 +78,15 @@ __domain="$1"
 # See config file used by this script and the .php script.
 #JOBDIR="/tmp/smtp-profile"
 
+## Should be part of environment variables.
+#if [ -n "$PHP_AUTH_USER" ]; then
+#	JOBDIR="$JOBDIR/$PHP_AUTH_USER";
+#fi
+
 NOW=$(date +'%Y%m%dT%H%M%S')
 CSV="$JOBDIR/$NOW.csv"
 LOG="$JOBDIR/$NOW.log"
 JOB="$JOBDIR/$NOW.job"
-#COUNT="$JOBDIR/$NOW.count"
 SPAMHAUS="$JOBDIR/spamhaus.txt"
 SPAMHAUSLOCK="$JOBDIR/spamhaus.lock"
 FROM="postmaster@$__helo"
@@ -97,7 +102,7 @@ trap "kill 0; exit $EX_ABORT" SIGINT SIGQUIT SIGTERM
 function lf_nl
 {
 	typeset txt="$1"
-	tr -d '\r' $txt >$txt.tmp
+	cat  $txt | tr -d '\r' >$txt.tmp
 	mv $txt.tmp $txt
 }
 
@@ -226,13 +231,7 @@ function analyse
 
 	# Collect SpamHaus hits in a separate file.
 	if $spamhaus ; then
-		# Make sure only one instance can update at a time.
-		(
-			flock -x 99
-			echo $domain >>$SPAMHAUS
-			sort -u $SPAMHAUS >$JOBDIR/$$.tmp
-			mv $JOBDIR/$$.tmp $SPAMHAUS
-		) 99>$SPAMHAUSLOCK
+		flock -x $SPAMHAUSLOCK echo $domain >>$SPAMHAUS
 	fi
 
 	log_debug "quit=$quit_ok spamhaus=$spamhaus"
@@ -298,27 +297,21 @@ function test_job
 
 function test_file
 {
-	typeset list="$1"
+	typeset domains="$1"
 
 	typeset MX="$JOBDIR/$NOW.mx"
 	typeset MXLOCK="$MX.lock"
-	typeset DOMAINS="$JOBDIR/domains$$.tmp"
 
 	csv_headings
 
 	# Create MX tracking file shared across sub-shells.
 	>$MX
 
-	# Sort and remove duplicate domains.
-	typeset count=$( \
-		sed -e's/"//g; y/,;/\n\n/; s/.stopped$//i; s/.gone$//i; s/.notrenew$//i; s/^.*@//' "$list" \
-		| sort -u | tee $DOMAINS | wc -l \
-	)
-
 	# Do we want to split large jobs?
+	typeset count=$(cat $domains | wc -l)
 	if [ ${MAXCHILD:-0} -gt 1 -a $count -gt ${MAXPERCHILD:=100} ]; then
 		typeset prefix="$JOBDIR/$NOW.job$$"
-		split -a 3 -l $MAXPERCHILD $DOMAINS $prefix
+		split -a 3 -l $MAXPERCHILD $domains $prefix
 
 		for subset in ${prefix}* ; do
 			# Start background sub-shell.
@@ -335,12 +328,12 @@ function test_file
 		sort ${prefix}*.csv >$CSV
 		rm -f ${prefix}*
 	else
-		test_job $DOMAINS >$CSV
+		test_job $domains >$CSV
 	fi
 
 	crlf_nl $CSV
 
-	rm -f $DOMAINS $MXLOCK $MX
+	rm -f $MXLOCK $MX
 }
 
 #######################################################################
@@ -350,11 +343,16 @@ function test_file
 # Assert report directory is present.  If held within /tmp, then
 # /tmp is typically emptied on system reboot, so need to recreate
 # it.
-mkdir $JOBDIR >/dev/null 2>&1
+mkdir -p $JOBDIR >/dev/null 2>&1
+
+# Allow it to be accessible by a web server.
+chmod -R 0777 $JOBDIR >/dev/null 2>&1
 
 if [ -f "$__list" ]; then
-	# Convert from CRLF to LF.
-	tr -d '\r' <"$__list" >$JOB.busy
+	# Ensure the list is one domain per line with Unix newlines.
+	# Account for email addresses, list of emails, and odd suffixes.
+	sed -e's/"//g; s/[ ,;] */\n/g; s/.stopped$//i; s/.gone$//i; s/.notrenew$//i; s/^.*@//' "$__list" \
+		| tr -d '\r' | sort -u >$JOB.busy
 	test_file $JOB.busy
 	mv $JOB.busy $JOB
 	crlf_nl	$JOB
@@ -369,6 +367,9 @@ crlf_nl $LOG
 (
 	flock -x 99
 	if [ -f $SPAMHAUS ]; then
+		# Before sorting, ensure Unix newlines.
+		cat $SPAMHAUS | tr -d '\r' | sort -u >$JOBDIR/$$.tmp
+		mv $JOBDIR/$$.tmp $SPAMHAUS
 		crlf_nl $SPAMHAUS
 	fi
 ) 99>$SPAMHAUSLOCK
