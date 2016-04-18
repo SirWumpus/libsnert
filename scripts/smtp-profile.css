@@ -11,15 +11,15 @@ DIV.container {
 DIV.page {
 	width: 600px;
 }
-DIV.lhs {
-	text-align: left;
-}
-DIV.rhs {
-	text-align: right;
-}
 A {
 	text-decoration: none;
 	font-weight: bold;
+}
+.lhs {
+	text-align: left;
+}
+.rhs {
+	text-align: right;
 }
 .copyright {
 	font-family: Arial, Verdana, Helvetica, sans-serif;

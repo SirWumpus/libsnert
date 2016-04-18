@@ -49,16 +49,16 @@ fi
 set -- $args
 while [ $# -gt 0 ]; do
         case "$1" in
-	-H) __helo=$2; shift ;;
-	-j) JOBDIR=$2; shift ;;
-	-t)
+	(-H) __helo=$2; shift ;;
+	(-j) JOBDIR=$2; shift ;;
+	(-t)
 		if [ "$2" -gt 0 ]; then
 			__timeout=$2
 		fi
 		shift
 		;;
-        -v) log_level=$LOG_DUMP ;;
-        --) shift; break ;;
+        (-v) log_level=$LOG_DUMP ;;
+        (--) shift; break ;;
         esac
         shift
 done

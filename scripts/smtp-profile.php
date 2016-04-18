@@ -112,8 +112,7 @@ SMTP Profiler
 <body>
 <div class="container">
 	<div class="page lhs">
-<div style="float: right;">
-[<a href="admin.php"><?= $_SERVER['PHP_AUTH_USER'] ?></a>]</div>
+<div style="float: right;">[<a href="admin.php"><?= $_SERVER['PHP_AUTH_USER'] ?></a>]</div>
 <h1>SMTP Profiler</h1>
 <p class="error"><?= $msg ?></p>
 <h2>Start Job</h2>
