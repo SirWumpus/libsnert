@@ -83,10 +83,20 @@ __domain="$1"
 #	JOBDIR="$JOBDIR/$PHP_AUTH_USER";
 #fi
 
+if [ -f "$__list" ]; then
+	file=$(basename "$__list" | tr ' ' '_')
+	file=$(expr "$file" : '\(.[^.]*\)')
+	file=$(echo "-$file")
+else
+	file=''
+fi
+
 NOW=$(date +'%Y%m%dT%H%M%S')
-CSV="$JOBDIR/$NOW.csv"
-LOG="$JOBDIR/$NOW.log"
-JOB="$JOBDIR/$NOW.job"
+STEM=$(echo "$JOBDIR/$NOW$file")
+
+CSV="$STEM.csv"
+LOG="$STEM.log"
+JOB="$STEM.job"
 SPAMHAUS="$JOBDIR/spamhaus.txt"
 SPAMHAUSLOCK="$JOBDIR/spamhaus.lock"
 FROM="postmaster@$__helo"
@@ -299,10 +309,10 @@ function test_file
 {
 	typeset domains="$1"
 
-	typeset MX="$JOBDIR/$NOW.mx"
+	typeset MX="$STEM.mx"
 	typeset MXLOCK="$MX.lock"
 
-	csv_headings
+	csv_headings >$CSV
 
 	# Create MX tracking file shared across sub-shells.
 	>$MX
@@ -310,7 +320,7 @@ function test_file
 	# Do we want to split large jobs?
 	typeset count=$(cat $domains | wc -l)
 	if [ ${MAXCHILD:-0} -gt 1 -a $count -gt ${MAXPERCHILD:=100} ]; then
-		typeset prefix="$JOBDIR/$NOW.job$$"
+		typeset prefix="$STEM.job$$"
 		split -a 3 -l $MAXPERCHILD $domains $prefix
 
 		for subset in ${prefix}* ; do
@@ -325,10 +335,10 @@ function test_file
 		done
 		wait
 
-		sort ${prefix}*.csv >$CSV
+		sort ${prefix}*.csv >>$CSV
 		rm -f ${prefix}*
 	else
-		test_job $domains >$CSV
+		test_job $domains >>$CSV
 	fi
 
 	crlf_nl $CSV

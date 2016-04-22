@@ -6,10 +6,10 @@ BODY, FRAME, FRAMESET {
 DIV.container {
 	position: relative;
 	margin: 0px auto;
-	width: 600px;
+	width: 750px;
 }
 DIV.page {
-	width: 600px;
+	width: 750px;
 }
 A {
 	text-decoration: none;

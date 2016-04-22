@@ -29,7 +29,7 @@ function start_job($file)
 		$msg = 'Failed to start job.';
 	} else {
 		$msg = 'Started '.$out;
-		sleep(2);
+		sleep(4);
 	}
 }
 
@@ -40,7 +40,7 @@ if (empty($_POST['action']))
 switch ($_POST['action']) {
 case 'UPLOAD':
 	if (file_exists($_FILES['file']['tmp_name'])) {
-		$tmp = tempnam($jobdir, "job_");
+		$tmp = $jobdir.'/'.$_FILES['file']['name'];
 		move_uploaded_file($_FILES['file']['tmp_name'], $tmp);
 		chmod($tmp, 0644);
 		start_job($tmp);
@@ -159,7 +159,7 @@ if (count($jobs) > 0 || file_exists("{$jobdir}/spamhaus.txt")) {
 
 	foreach ($jobs as $job) {
 		print "<li>";
-		print "<input type='checkbox' name='job[]' value='{$job}'/> {$job} ...";
+		print "<input type='checkbox' name='job[]' value='{$job}'/> <a href=\"csvview.php?file={$joburi}/{$job}.csv\">{$job}</a> ...";
 		print "&nbsp;&nbsp;<a href=\"{$joburi}/{$job}.csv\">[.csv]</a>";
 		print "&nbsp;&nbsp;<a href=\"{$joburi}/{$job}.log\">[.log]</a>";
 		print "&nbsp;&nbsp;<a href=\"{$joburi}/{$job}.job\">[.job]</a>";
