@@ -31,7 +31,8 @@ if (($fd = fopen($file, 'r')) && ($row = fgetcsv($fd))) {
 
 	while (($row = fgetcsv($fd))) {
 		print "<tr>";
-		for ($i = 0; $i < $cols; $i++) {
+		print "<td><a href='phpwhois.php?query={$row[0]}'>{$row[0]}</a></td>";
+		for ($i = 1; $i < $cols; $i++) {
 			print "<td>{$row[$i]}</td>";
 		}
 		print "</tr>\n";

@@ -97,8 +97,11 @@ STEM=$(echo "$JOBDIR/$NOW$file")
 CSV="$STEM.csv"
 LOG="$STEM.log"
 JOB="$STEM.job"
+
+WHOIS="$JOBDIR/whois.txt"
 SPAMHAUS="$JOBDIR/spamhaus.txt"
 SPAMHAUSLOCK="$JOBDIR/spamhaus.lock"
+
 FROM="postmaster@$__helo"
 
 log_file_set "$LOG"
@@ -241,7 +244,12 @@ function analyse
 
 	# Collect SpamHaus hits in a separate file.
 	if $spamhaus ; then
-		flock -x $SPAMHAUSLOCK echo $domain >>$SPAMHAUS
+		(
+			flock -x 99
+			echo $domain >>$SPAMHAUS
+			echo "----=_$domain" >>$WHOIS
+			whois -H $domain >>$WHOIS
+		) 99>$SPAMHAUSLOCK
 	fi
 
 	log_debug "quit=$quit_ok spamhaus=$spamhaus"

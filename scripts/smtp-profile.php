@@ -154,6 +154,7 @@ if (count($jobs) > 0 || file_exists("{$jobdir}/spamhaus.txt")) {
 		print "<li>";
 		print "<input type='checkbox' name='job[]' value='spamhaus.txt'/> SpamHaus Hit List ...";
 		print "&nbsp;&nbsp;<a href=\"{$joburi}/spamhaus.txt\">[.txt]</a>";
+		print "&nbsp;&nbsp;<a href=\"{$joburi}/whois.txt\">[whois.txt]</a>";
 		print "</li>\n";
 	}
 
