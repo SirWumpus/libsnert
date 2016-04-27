@@ -128,48 +128,59 @@ Supply a text file containing domains and/or email addresses:
 Or enter one or more domains and/or email addresses below:
 </p>
 
-<textarea name="list" rows="6" cols="40"></textarea>
+<textarea name="list" rows="5" cols="60"></textarea>
 <br/>
 <input type="submit" name="action" value="SUBMIT"/>
 <br/>
 
+<?php if (0 < count($busy)) { ?>
+
+<h2>Jobs In Progress</h2>
+<table cellpadding="2" cellspacing="1" border="0" width="100%">
+
 <?php
-if (0 < count($busy)) {
-	print "<h2>Jobs In Progress</h2><ul>";
 	foreach ($busy as $job) {
 		if (($fd = fopen($jobdir.'/'.$job.'.count', 'r'))) {
 			fscanf($fd, '%d %d', $count, $total);
 			fclose($fd);
 		}
-		print "<li>{$job} ... {$count} / {$total}</li>\n";
+		print "<tr><td width='50%'>{$job}</td><td>... {$count} / {$total}</td></tr>\n";
 	}
-	print "<br/><input type='submit' name='action' value='REFRESH'></ul>\n";
-}
 ?>
-<?php
-if (count($jobs) > 0 || file_exists("{$jobdir}/spamhaus.txt")) {
-	print "<h2>Completed Jobs</h2><ul>";
 
+</table>
+<br/>
+<input type='submit' name='action' value='REFRESH'>
+
+<?php } ?>
+
+<?php if (count($jobs) > 0 || file_exists("{$jobdir}/spamhaus.txt")) { ?>
+
+<h2>Completed Jobs</h2>
+<table cellpadding="2" cellspacing="1" border="0" width="100%">
+<?php
 	if (file_exists("{$jobdir}/spamhaus.txt")) {
-		print "<li>";
-		print "<input type='checkbox' name='job[]' value='spamhaus.txt'/> SpamHaus Hit List ...";
-		print "&nbsp;&nbsp;<a href=\"{$joburi}/spamhaus.txt\">[.txt]</a>";
+		print "<tr>";
+		print "<td width='50%'><input type='checkbox' name='job[]' value='spamhaus.txt'/> <a href='smtp-ping.php'>SpamHaus Hit List</a></td>";
+		print "<td>... <a href=\"{$joburi}/spamhaus.txt\">[.txt]</a>";
 		print "&nbsp;&nbsp;<a href=\"{$joburi}/whois.txt\">[whois.txt]</a>";
-		print "</li>\n";
+		print "</td></tr>\n";
 	}
 
 	foreach ($jobs as $job) {
-		print "<li>";
-		print "<input type='checkbox' name='job[]' value='{$job}'/> <a href=\"csvview.php?file={$joburi}/{$job}.csv\">{$job}</a> ...";
-		print "&nbsp;&nbsp;<a href=\"{$joburi}/{$job}.csv\">[.csv]</a>";
+		print "<tr>";
+		print "<td width='50%'><input type='checkbox' name='job[]' value='{$job}'/> <a href=\"csvview.php?file={$joburi}/{$job}.csv\">{$job}</a></td>";
+		print "<td>... <a href=\"{$joburi}/{$job}.csv\">[.csv]</a>";
 		print "&nbsp;&nbsp;<a href=\"{$joburi}/{$job}.log\">[.log]</a>";
 		print "&nbsp;&nbsp;<a href=\"{$joburi}/{$job}.job\">[.job]</a>";
-		print "</li>\n";
+		print "</td></tr>\n";
 	}
-	print '<br/><input type="submit" name="action" value="DELETE">&nbsp;&nbsp;<input type="submit" name="action" value="REFRESH">';
-}
 ?>
-</ul>
+</table>
+<br/>
+<input type="submit" name="action" value="DELETE">&nbsp;&nbsp;<input type="submit" name="action" value="REFRESH">
+
+<?php } ?>
 </form>
 
 	</div>

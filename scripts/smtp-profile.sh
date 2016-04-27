@@ -29,7 +29,7 @@ log_app=$(basename $0 .sh)
 
 function usage
 {
-        echo 'usage: smtp-profile.sh [-v][-H helo][-j dir][-t sec] domain|list.txt'
+        echo 'usage: smtp-profile.sh [-v][-H helo][-j dir][-r retry][-p sec][-t sec] domain|list.txt'
         exit $EX_USAGE
 }
 
@@ -40,9 +40,18 @@ __helo=$(hostname)
 
 # The default SMTP connection and command timeout is 300 seconds, which
 # is too long to spend when we're simply testing SMTP connectivity.
-__timeout=30
+__timeout=$TIMEOUT
 
-args=$(getopt 'vH:j:t:' $*)
+# Enable SMTP Ping Test.  How many retries should be made per domain.
+__retry=0
+
+# How to pause, in seconds, between domains.
+__pause=0
+
+# Assumed TTL for this host's IP with public SpamHaus ZEN BL.
+__ttl=$PINGTTL
+
+args=$(getopt 'vH:j:r:p:t:' $*)
 if [ $? -ne $EX_OK ]; then
 	usage
 fi
@@ -51,6 +60,18 @@ while [ $# -gt 0 ]; do
         case "$1" in
 	(-H) __helo=$2; shift ;;
 	(-j) JOBDIR=$2; shift ;;
+	(-p)
+		if [ "$2" -gt 0 ]; then
+			__pause=$2
+		fi
+		shift
+		;;
+	(-r)
+		if [ "$2" -gt 0 ]; then
+			__retry=$2
+		fi
+		shift
+		;;
 	(-t)
 		if [ "$2" -gt 0 ]; then
 			__timeout=$2
@@ -115,16 +136,20 @@ trap "kill 0; exit $EX_ABORT" SIGINT SIGQUIT SIGTERM
 function lf_nl
 {
 	typeset txt="$1"
-	cat  $txt | tr -d '\r' >$txt.tmp
-	mv $txt.tmp $txt
+	if [ -f "$txt" ]; then
+		cat  $txt | tr -d '\r' >$txt.tmp
+		mv $txt.tmp $txt
+	fi
 }
 
 function crlf_nl
 {
 	typeset txt="$1"
-	CR=$(printf '\r')
-	sed "s/\([^$CR]\)\$/\1$CR/" $txt >$txt.tmp
-	mv $txt.tmp $txt
+	if [ -f "$txt" ]; then
+		CR=$(printf '\r')
+		sed "s/\([^$CR]\)\$/\1$CR/" $txt >$txt.tmp
+		mv $txt.tmp $txt
+	fi
 }
 
 function analyse
@@ -247,7 +272,7 @@ function analyse
 		(
 			flock -x 99
 			echo $domain >>$SPAMHAUS
-			echo "----=_$domain" >>$WHOIS
+			printf "\n----=_$domain\n" >>$WHOIS
 			whois -H $domain >>$WHOIS
 		) 99>$SPAMHAUSLOCK
 	fi
@@ -263,7 +288,53 @@ function analyse
 #
 function csv_headings
 {
-	echo "domain, mx, spamhaus, connect_rcode, multiline_banner, helo_used, mail_rcode, rcpt_rcode, grey_list, delay_checks, quit_ok"
+	if [ $__retry -gt 0 ]; then
+		printf 'domain, mx-ip' >$CSV
+		typeset count
+		for (( count=0; count < __retry; count++)); do
+			printf ', smtp-ping %d' $count >>$CSV
+		done
+		echo >>$CSV
+	else
+		echo "domain, mx, spamhaus, connect_rcode, multiline_banner, helo_used, mail_rcode, rcpt_rcode, grey_list, delay_checks, quit_ok"
+	fi
+}
+
+#
+# SpamHaus's Greatest Hits ACL
+#
+# In order for SpamHaus to identify a target domain's MX or DNS client
+# lookups for the test machine's IP address, we need to perform N
+# retries at set intervals, no shorter than the Zen BL's TTL for the
+# test machine's IP.
+#
+function test_ping_domain
+{
+	typeset domain="$1"
+
+	# Use first MX listed only.  In order to ensure easy
+	# DNS log search for SpamHaus, focus on a single MX.
+	typeset mx=$(dig +short MX $domain | cut -d' ' -f2 | head -n1)
+	typeset mxip=$(dig +short A $mx)
+
+	typeset count
+	printf '%s, %s' $domain $mxip >>$CSV
+	for (( count=0; count < __retry; count++ )); do
+		log_info "ping domain=$domain mx=$mx mxip=$mxip"
+
+		# Record time of test.
+		printf ', %s' $(date +'%Y%m%dT%H%M%S') >>$CSV
+
+		# Do not care about output.
+		smtp2 -e -f $FROM -h $mx -H $__helo -t $__timeout info@$domain
+
+		# The test machine's IP added to the public SpamHaus Zen
+		# BL will have a specific TTL.  We need to wait this for
+		# the target domain's DNS cache to expire the previous
+		# Zen lookup.
+		sleep $__ttl
+	done
+	echo >>$CSV
 }
 
 function test_domain
@@ -306,7 +377,8 @@ function test_job
 			flock -x $MXLOCK echo "$mx" >>$MX
 		fi
 
-		test_domain "$domain"
+		$__test_domain_fn "$domain"
+		sleep $__pause
 		(( count++ ))
 	done
 
@@ -366,6 +438,20 @@ mkdir -p $JOBDIR >/dev/null 2>&1
 # Allow it to be accessible by a web server.
 chmod -R 0777 $JOBDIR >/dev/null 2>&1
 
+if [ $__retry -gt 0 ]; then
+	# Force linear testing.  To aid SpmaHaus in DNS log seatches,
+	# we need to ensure we test domains in a linear fashion at
+	# clear intervals (__ttl) per test and with clear separation
+	# (__pause) between domains.
+	unset MAXCHILD
+
+	log_info 'Enable SMTP ping test'
+	__test_domain_fn=test_ping_domain
+else
+	# Regular SMTP profiler.
+	__test_domain_fn=test_domain
+fi
+
 if [ -f "$__list" ]; then
 	# Ensure the list is one domain per line with Unix newlines.
 	# Account for email addresses, list of emails, and odd suffixes.
@@ -376,7 +462,7 @@ if [ -f "$__list" ]; then
 	crlf_nl	$JOB
 else
 	csv_headings
-	test_domain "$__domain"
+	$__test_domain_fn "$__domain"
 fi
 
 # Convert the output files to CRLF newlines for Windows users.

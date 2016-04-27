@@ -14,10 +14,13 @@ CSV Viewer
 </head>
 <body>
 
+<div style="float: right;">
+[<a href="index.php">Jobs</a>]&nbsp;&nbsp;<br/>
+</div>
+
 <h1><?= $file ?></h1>
 
 <div align="center">
-[<a href="index.php">Jobs</a>]<br/>
 <table cellpadding="3" cellspacing="1" border="1" width="98%">
 <?php
 if (($fd = fopen($file, 'r')) && ($row = fgetcsv($fd))) {
@@ -42,7 +45,6 @@ if (($fd = fopen($file, 'r')) && ($row = fgetcsv($fd))) {
 }
 ?>
 </table>
-[<a href="index.php">Jobs</a>]<br/>
 </div>
 
 	</div>
