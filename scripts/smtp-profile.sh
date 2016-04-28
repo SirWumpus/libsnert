@@ -323,7 +323,7 @@ function test_ping_domain
 		log_info "ping domain=$domain mx=$mx mxip=$mxip"
 
 		# Record time of test.
-		printf ', %s' $(date +'%Y%m%dT%H%M%S') >>$CSV
+		printf ', %s' $(date -u +'%Y%m%dT%H%M%SZ') >>$CSV
 
 		# Do not care about output.
 		smtp2 -e -f $FROM -h $mx -H $__helo -t $__timeout info@$domain

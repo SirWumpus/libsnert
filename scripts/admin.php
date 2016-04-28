@@ -67,7 +67,10 @@ SMTP Profiler User Management
 <div style="float: right;">
 [<a href="index.php">Jobs</a>]<br/>
 [<a href="admin.php"><?= $_SERVER['PHP_AUTH_USER'] ?></a>]<br/>
+<!--
+This doesn't work 100%; only reliable way is restart browser and login with different credentials
 [<a href="http://_logout_:_out_@<?= $_SERVER['SERVER_NAME'] ?>">Logout</a>]
+-->
 </div>
 <h1>User Management</h1>
 <p class="error"><?= $msg ?></p>

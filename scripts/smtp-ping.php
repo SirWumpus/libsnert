@@ -21,10 +21,31 @@ $smtpping = $scriptdir."/smtp-profile.sh -v -j {$jobdir}";
 function start_job($file)
 {
 	global $msg, $smtpping;
+
+	// How many queued jobs?
+	$queued = shell_exec("atq | wc -l");
+	if (empty($queued))
+		$queued = 0;
+
+	// Wait until after business-hours to schedule job
+	// offset by number already queued jobs.  This is
+	// not perfect if there is more than one SMTP ping
+	// job, their run times may overlap and possibly
+	// make it difficult for SpamHaus to search their
+	// DNS logs.
+	$time = getdate();
+	if ($time['hours'] < 19) {
+		// Schedule for this evening.
+		$at = (19 + $queued).':'.$time['minutes'];
+	} else {
+		// Schedule sometime tonight.
+		$at = "now".($queued == 0 ? '' : " + {$queued} hours");
+	}
+
 	// This places the long running script into a scheduled
 	// background task.  For this to work, the nginx user
 	// account needs an assigned shell, not /sbin/nologin.
-	$out = shell_exec("echo '{$smtpping} -r{$_POST['retry']} -p{$_POST['pause']} {$file}; rm {$file}' | at -M now 2>&1");
+	$out = shell_exec("echo '{$smtpping} -r{$_POST['retry']} -p{$_POST['pause']} {$file}; rm {$file}' | at -M {$at} 2>&1");
 	if (is_null($out)) {
 		$msg = 'Failed to start job.';
 		return false;

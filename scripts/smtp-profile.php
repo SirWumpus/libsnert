@@ -64,11 +64,33 @@ case 'DELETE':
 	if (!empty($_POST['job'])) {
 		foreach ($_POST['job'] as $job) {
 			if ($job == 'spamhaus.txt' && file_exists($jobdir.'/'.$job)) {
-				unlink($jobdir.'/'.$job);
+				unlink($jobdir.'/spamhaus.txt');
+				unlink($jobdir.'/whois.txt');
 			} else if (file_exists($jobdir.'/'.$job.'.log')) {
 				array_map('unlink', glob($jobdir.'/'.$job.'*'));
 			}
 		}
+	}
+	break;
+
+case 'CLEAN':
+	if ($dir = opendir($jobdir)) {
+		while ($entry = readdir($dir)) {
+			if (!preg_match('/\.(busy|count|mx|lock)$/', $entry)
+			&&   preg_match('/^\.|^[0-9]|^spamhaus|^whois/', $entry))
+				continue;
+			unlink($jobdir.'/'.$entry);
+		}
+		closedir($dir);
+	}
+	break;
+
+case 'REMOVE':
+	if (!empty($_POST['queue'])) {
+		$ids = implode(' ', $_POST['queue']);
+		$out = shell_exec("at -r {$ids} 2>&1");
+		if (!empty($out))
+			$msg = $out;
 	}
 	break;
 
@@ -133,6 +155,34 @@ Or enter one or more domains and/or email addresses below:
 <input type="submit" name="action" value="SUBMIT"/>
 <br/>
 
+<?php
+$queued = shell_exec("atq");
+if (!empty($queued)) {
+?>
+
+<h2>Job Queue</h2>
+<table cellpadding="2" cellspacing="1" border="0" width="100%">
+
+<?php
+	$lines = explode(PHP_EOL, $queued);
+	foreach ($lines as $line) {
+		if (empty($line))
+			continue;
+		$words = preg_split("/\s+/", $line);
+
+		// Is job is in progress?
+		if ($words[6] == '=')
+			printf("<td>&nbsp;&nbsp; %s</td></tr>\n", $line);
+		else
+			printf("<td><input type='checkbox' name='queue[]' value='%s'/> %s</td></tr>\n", $words[0], $line);
+	}
+?>
+</table>
+<br/>
+<input type='submit' name='action' value='REMOVE'>
+
+<?php } ?>
+
 <?php if (0 < count($busy)) { ?>
 
 <h2>Jobs In Progress</h2>
@@ -152,12 +202,34 @@ Or enter one or more domains and/or email addresses below:
 <br/>
 <input type='submit' name='action' value='REFRESH'>
 
+<p>
+If the machine is rebooted with jobs pending or in progress, then
+job working files might appear in the list above.  Click this button
+to
+</p>
+<input type='submit' name='action' value='CLEAN'>
+
+
 <?php } ?>
 
 <?php if (count($jobs) > 0 || file_exists("{$jobdir}/spamhaus.txt")) { ?>
 
 <h2>Completed Jobs</h2>
+<script>
+<!--
+function checkAll(source)
+{
+	var checkboxes = document.getElementsByName(source.name);
+	for (var i = 0; i < checkboxes.length; i++) {
+		if (checkboxes[i].type == 'checkbox') {
+			checkboxes[i].checked = source.checked;
+		}
+	}
+}
+-->
+</script>
 <table cellpadding="2" cellspacing="1" border="0" width="100%">
+<tr><td width="50%"><input type='checkbox' name='job[]' onchange="checkAll(this)"/></td></tr>
 <?php
 	if (file_exists("{$jobdir}/spamhaus.txt")) {
 		print "<tr>";
