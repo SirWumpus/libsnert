@@ -119,7 +119,7 @@ CSV="$STEM.csv"
 LOG="$STEM.log"
 JOB="$STEM.job"
 
-WHOIS="$JOBDIR/whois.txt"
+WHOIS="$JOBDIR/whois.csv"
 SPAMHAUS="$JOBDIR/spamhaus.txt"
 SPAMHAUSLOCK="$JOBDIR/spamhaus.lock"
 
@@ -273,7 +273,8 @@ function analyse
 			flock -x 99
 			echo $domain >>$SPAMHAUS
 			printf "\n----=_$domain\n" >>$WHOIS
-			whois -H $domain >>$WHOIS
+#			whois -H $domain >>$WHOIS
+			whois.sh $domain >>$WHOIS
 		) 99>$SPAMHAUSLOCK
 	fi
 

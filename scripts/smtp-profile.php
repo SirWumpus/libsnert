@@ -235,7 +235,7 @@ function checkAll(source)
 		print "<tr>";
 		print "<td width='50%'><input type='checkbox' name='job[]' value='spamhaus.txt'/> <a href='smtp-ping.php'>SpamHaus Hit List</a></td>";
 		print "<td>... <a href=\"{$joburi}/spamhaus.txt\">[.txt]</a>";
-		print "&nbsp;&nbsp;<a href=\"{$joburi}/whois.txt\">[whois.txt]</a>";
+		print "&nbsp;&nbsp;<a href=\"{$joburi}/whois.csv\">[whois.csv]</a>";
 		print "</td></tr>\n";
 	}
 
