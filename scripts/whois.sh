@@ -32,11 +32,11 @@ function usage
         exit $EX_USAGE
 }
 
-args=$(getopt 'd:' $*)
+args=$(getopt -- 'd:' "$@")
 if [ $? -ne $EX_OK ]; then
 	usage
 fi
-set -- $args
+eval set -- $args
 while [ $# -gt 0 ]; do
         case "$1" in
 	(-d) __data=$2; shift ;;
@@ -104,7 +104,9 @@ function whois_domain
 function whois_file
 {
 	typeset domains="$1"
+	typeset domain
 	for domain in $(cat "$domains"); do
+		domain=$(echo $domain | tr -d '\r')
 		whois_domain $domain
 	done
 }

@@ -24,7 +24,7 @@ function start_job($file)
 	// This places the long running script into a scheduled
 	// background task.  For this to work, the nginx user
 	// account needs an assigned shell, not /sbin/nologin.
-	$out = shell_exec("echo '{$profile} {$file}; rm {$file}' | at -M now 2>&1");
+	$out = shell_exec("echo \"{$profile} '{$file}'; rm '{$file}'\" | at -M now 2>&1");
 	if (is_null($out)) {
 		$msg = 'Failed to start job.';
 	} else {
@@ -41,9 +41,12 @@ switch ($_POST['action']) {
 case 'UPLOAD':
 	if (file_exists($_FILES['file']['tmp_name'])) {
 		$tmp = $jobdir.'/'.$_FILES['file']['name'];
-		move_uploaded_file($_FILES['file']['tmp_name'], $tmp);
-		chmod($tmp, 0644);
-		start_job($tmp);
+		if (move_uploaded_file($_FILES['file']['tmp_name'], $tmp)) {
+			chmod($tmp, 0644);
+			start_job($tmp);
+		} else {
+			$msg = 'Error moving uploaded file.';
+		}
 	}
 	break;
 
@@ -65,7 +68,7 @@ case 'DELETE':
 		foreach ($_POST['job'] as $job) {
 			if ($job == 'spamhaus.txt' && file_exists($jobdir.'/'.$job)) {
 				unlink($jobdir.'/spamhaus.txt');
-				unlink($jobdir.'/whois.txt');
+				unlink($jobdir.'/whois.csv');
 			} else if (file_exists($jobdir.'/'.$job.'.log')) {
 				array_map('unlink', glob($jobdir.'/'.$job.'*'));
 			}

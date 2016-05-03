@@ -45,7 +45,7 @@ function start_job($file)
 	// This places the long running script into a scheduled
 	// background task.  For this to work, the nginx user
 	// account needs an assigned shell, not /sbin/nologin.
-	$out = shell_exec("echo '{$smtpping} -r{$_POST['retry']} -p{$_POST['pause']} {$file}; rm {$file}' | at -M {$at} 2>&1");
+	$out = shell_exec("echo '{$smtpping} -r{$_POST['retry']} -p{$_POST['pause']} \"{$file}\"; rm \"{$file}\"' | at -M {$at} 2>&1");
 	if (is_null($out)) {
 		$msg = 'Failed to start job.';
 		return false;

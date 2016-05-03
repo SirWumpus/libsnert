@@ -11,11 +11,11 @@ function usage
 
 __change=true
 
-args=$(getopt 'dp:' $*)
+args=$(getopt -- 'dp:' "$@")
 if [ $? -ne 0 ]; then
 	usage
 fi
-set -- $args
+eval set -- $args
 while [ $# -gt 0 ]; do
         case "$1" in
         (-d) __change=false ;;

@@ -51,11 +51,15 @@ __pause=0
 # Assumed TTL for this host's IP with public SpamHaus ZEN BL.
 __ttl=$PINGTTL
 
-args=$(getopt 'vH:j:r:p:t:' $*)
+# Linux getopt(1), it will single quote the arguments preserving spaces
+# and special characters.  So "$@" is needed to feed getopt(1).  The
+# subsequent set(1) needs eval to maintain the arguments.  These changes
+# do not affect BSD getopt(1), which fails to preserve spaces.
+args=$(getopt -- 'vH:j:r:p:t:' "$@")
 if [ $? -ne $EX_OK ]; then
 	usage
 fi
-set -- $args
+eval set -- $args
 while [ $# -gt 0 ]; do
         case "$1" in
 	(-H) __helo=$2; shift ;;
@@ -272,9 +276,9 @@ function analyse
 		(
 			flock -x 99
 			echo $domain >>$SPAMHAUS
-			printf "\n----=_$domain\n" >>$WHOIS
+#			printf "\n----=_$domain\n" >>$WHOIS
 #			whois -H $domain >>$WHOIS
-			whois.sh $domain >>$WHOIS
+			./whois.sh $domain >>$WHOIS
 		) 99>$SPAMHAUSLOCK
 	fi
 
