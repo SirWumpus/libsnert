@@ -3,11 +3,16 @@ SMTP Profiler
 
 site/				0755
 	jobs/			0775	nginx:nginx
+	addpasswd.sh		0755
+	admin.php		0644
+	csvview.php		0644
 	log.sh			0644
+	smtp-ping.php		0644
 	smtp-profile.cf		0644
 	smtp-profile.css	0644
 	smtp-profile.php	0644	rename/link to index.php
 	smtp-profile.sh		0755
+	whois.sh		0755
 
 /etc/nginx/
 	addpasswd.sh		0755	root:wheel

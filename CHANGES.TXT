@@ -67,6 +67,10 @@ is no set schedule for releases.
 
    +	Add addpasswd.sh for Nginx password files.
 
+   !	Fix flip tool handling of temporary file name to avoid name
+	collisions if multiple instances run at the same time.  Also
+	replace custom error reporting code in favour of err.h.
+
 --1.75.49--
 
    *	Upgraded SQLite to 3.9.2
