@@ -71,6 +71,10 @@ is no set schedule for releases.
 	collisions if multiple instances run at the same time.  Also
 	replace custom error reporting code in favour of err.h.
 
+   +	Simple inetd service (myip) reports IPv4 or IPv6 address and
+	port number. If the server port is 80 or any port between
+	8000..8999, then treat it as an HTTP request.
+
 --1.75.49--
 
    *	Upgraded SQLite to 3.9.2

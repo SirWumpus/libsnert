@@ -1,0 +1,9 @@
+[Unit]
+Description=Simple myip server
+
+[Socket]
+ListenStream=8008
+Accept=yes
+
+[Install]
+WantedBy=sockets.target

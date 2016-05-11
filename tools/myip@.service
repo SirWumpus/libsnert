@@ -1,0 +1,6 @@
+[Unit]
+Description=Simple myip server
+
+[Service]
+ExecStart=-/usr/local/sbin/myip
+StandardInput=socket

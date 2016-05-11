@@ -67,6 +67,10 @@ mime		A MIME part extractor.
 
 mimepart	Predecessor to the mime tool above. Deprecated.
 
+myip		Simple inetd service reports IPv4 or IPv6 address and
+		port number. If the server port is 80 or any port
+		between 8000..8999, then treat it as an HTTP request.
+
 natsort		Natural sort test tool sorts lines of text.
 
 netcontainsip	Simple tool to test if a given IPv4 or IPv6 address is

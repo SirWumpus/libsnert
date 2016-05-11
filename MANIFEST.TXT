@@ -382,6 +382,7 @@ com/snert/src/lib/tools/makefile.in
 com/snert/src/lib/tools/md5main.c
 com/snert/src/lib/tools/mimepart.c
 com/snert/src/lib/tools/myhostname.c
+com/snert/src/lib/tools/myip.c
 com/snert/src/lib/tools/natsort.c
 com/snert/src/lib/tools/nctee.c
 com/snert/src/lib/tools/nothing.c
