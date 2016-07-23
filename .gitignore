@@ -76,6 +76,7 @@ tools/echo
 tools/echod
 tools/flip
 tools/here-i-am
+tools/inplace
 tools/kat
 tools/mailgroup
 tools/mimepart

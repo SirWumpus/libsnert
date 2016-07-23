@@ -38,6 +38,22 @@ flip		Yet another newline flipper for DOS, old Mac, and Unix.
 
 geturl		A simple HTTP retrieval program similar to wget(1).
 
+inplace		A simple tool that takes a shell command line argument
+		and one or more files to modify "inplace".  The most
+		common example is when you want to use sed to modify a
+		file typically:
+
+			sed 's/teh/the/' file >tmp
+			mv tmp file
+
+		But now you can simplify the use of a temporary file
+		with:
+
+			inplace "sed 's/teh/the/" file
+
+		(I know GNU sed has an option to do this, but BSD sed
+		does not and many other command line tools can't do it.)
+
 ixhash		Generate iXhash checksums, typically used for anti-spam
 		filtering and testing against iXhash blacklists.
 		http://ixhash.sourceforge.net/

@@ -86,8 +86,9 @@ $O$E :
 
 #######################################################################
 
-ORIGINAL	= ansi$E flip$E fmtjson$E pad$E popin$E uue$E show$E range$E sqlargs$E \
-		  counter$E clamstream$E dnsd$E secho$E sechod$E natsort$E nctee$E
+ORIGINAL	= ansi$E flip$E fmtjson$E pad$E popin$E uue$E show$E range$E \
+		  sqlargs$E counter$E clamstream$E dnsd$E secho$E sechod$E \
+		  natsort$E nctee$E inplace$E
 MEH_TOOLS	= sendform$E nph-download.cgi ziplist$E rarlist$E taglengths$E rsleep$E
 MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E \
 		  echod$E
@@ -191,6 +192,9 @@ cmp$E : cmp.c
 
 echo$E : echo.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)echo$E ${srcdir}/echo.c $(LIBSNERT) ${LIBS_PREFIX}
+
+inplace$E : inplace.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)inplace$E ${srcdir}/inplace.c
 
 nctee$E : nctee.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)nctee$E ${srcdir}/nctee.c
