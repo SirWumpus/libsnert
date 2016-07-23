@@ -2,12 +2,11 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <getopt.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 
-static char usage[] = "usage: inplace -c 'cmd' file ...\n";
+static char usage[] = "usage: inplace 'shell command' file ...\n";
 
 int
 process(const char *cmd, const char *file) 
@@ -93,30 +92,16 @@ error0:
 int
 main(int argc, char **argv)
 {
-	char *cmd;
-	int ch, argi, ex;
+	int argi, ex;
 
-	cmd = "cat";
-
-	while ((ch = getopt(argc, argv, "c:")) != -1) {
-		switch (ch) {
-		case 'c':
-			cmd = optarg;
-			break;
-		default:
-			optind = argc;
-			break;
-		}
-	}
-
-	if (argc <= optind) {
+	if (argc < 3) {
 		(void) fputs(usage, stderr);
 		return EXIT_FAILURE;
 	}
 
 	ex = EXIT_SUCCESS;
-	for (argi = optind; argi < argc; argi++) {
-		if (process(cmd, argv[argi])) {
+	for (argi = 2; argi < argc; argi++) {
+		if (process(argv[1], argv[argi])) {
 			ex = EXIT_FAILURE;
 		}
 	}
