@@ -23,7 +23,7 @@ process(const char *cmd, const char *file)
 	/* Does the file exist and is writable? */
 	if (stat(file, &sb) < 0 || !S_ISREG(sb.st_mode) 
 	|| (sb.st_mode & (S_IRUSR|S_IWUSR)) != (S_IRUSR|S_IWUSR)) {
-		warnx("%s not r/w file", file);
+		warnx("%s not R/W file", file);
 		goto error0;
 	}
 

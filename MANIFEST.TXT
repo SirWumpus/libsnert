@@ -374,6 +374,7 @@ com/snert/src/lib/tools/filed.c
 com/snert/src/lib/tools/flip.c
 com/snert/src/lib/tools/fmtjson.c
 com/snert/src/lib/tools/grouplist.c
+com/snert/src/lib/tools/inplace.c
 com/snert/src/lib/tools/taglengths.c
 com/snert/src/lib/tools/kat.c
 com/snert/src/lib/tools/mail-cycle.sh
