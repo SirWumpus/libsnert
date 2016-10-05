@@ -1077,7 +1077,7 @@ dnl #endif
 		chdir getcwd mkdir rmdir closedir opendir readdir dnl
 		chmod chown chroot fchmod stat fstat link rename symlink unlink umask utime dnl
 		close creat dup dup2 ftruncate chsize truncate lseek open pipe read write dnl
-		isatty getdtablesize dnl
+		isatty getdtablesize fmemopen open_memstream open_wmemstream dnl
 	])
 	AC_FUNC_CHOWN
 ])

@@ -275,6 +275,9 @@ typedef unsigned long time_t;
 #undef HAVE_READDIR
 #undef HAVE_ISATTY
 #undef HAVE_GETDTABLESIZE
+#undef HAVE_FMEMOPEN
+#undef HAVE_OPEN_MEMSTREAM
+#undef HAVE_OPEN_WMEMSTREAM
 
 #ifdef HAVE_CHSIZE
 #define ftruncate chsize
