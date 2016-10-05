@@ -806,6 +806,11 @@ static char *regression[] = {
 	"<achowe@[IPv6:1:2:3:4:5:6:7]>",	/* too few IPv6 words */
 	"<achowe@[IPv6:1:2:3:4:5:6:7:]>",	/* missing word after colon */
 	"<achowe@[IPv6:1:2:3:4:5:6:7:8:9]>",	/* too many IPv6 words */
+	"<.achowe@snert.com>",			/* Cannot start with dot. */
+	"<achowe@.snert.com>",			/* Cannot start with dot. */
+	"<achowe.@snert.com>",			/* Cannot end with dot. */
+	"<achowe...@snert.com>",		/* No consectutive dots. */
+	"<achowe@snert..com>",			/* No consectutive dots. */
 
 	/* Colon reserved for source route address. */
 	"<Vanessa-kauskas:@SELSOL.COM>",
