@@ -10,7 +10,7 @@ export CDPATH=''
 export LANG=C
 
 #######################################################################
-# 
+#
 #######################################################################
 
 usage()
@@ -23,30 +23,27 @@ __mail="noreply@$(hostname)"
 __rcpt="root@$(hostname)"
 __subject="Mailed File Attachments"
 
-args=$(getopt 'm:r:s:' "$@")
-if [ $? -ne 0 ]; then
-        usage
-fi
-eval set -- $args
-while [ $# -gt 0 ]; do
-        case "$1" in
-        (-m)
-                __mail="$2"; shift 
-                ;;
-	(-r)
-		__rcpts=$(echo $2 | tr ',' ' '); shift
+while getopts 'm:r:s:' opt; do
+	case "$opt" in
+	(m)
+		__mail="$OPTARG"; shift
 		;;
-	(-s)
-		__subject="$2"; shift
+	(r)
+		__rcpts=$(echo $OPTARG | tr ',' ' '); shift
 		;;
-        (--)
-                shift; break
-                ;;
-        esac
-        shift
+	(s)
+		__subject="$OPTARG"; shift
+		;;
+	(*)
+		usage
+	esac
+	shift
 done
+if [ "$1" = '--' ]; then
+	shift
+fi
 if [ $# -lt 1 ]; then
-        usage
+	usage
 fi
 
 now=$(date +'%s')
@@ -84,7 +81,7 @@ EOF
 for f in "$@"; do
 	cat <<-EOF >>$msg
 		--${boundary1}
-		Content-Type: application/octet; name="$f"
+		Content-Type: application/octet; name="$(basename $f)"
 		Content-Transfer-Encoding: base64
 
 		$(uuencode -m $f $f | sed '1d')
@@ -97,4 +94,11 @@ cat <<EOF >>$msg
 EOF
 
 sendmail ${__rcpts} <$msg
-echo "Done $msg"
+excode=$?
+rm $msg
+exit $excode
+
+#######################################################################
+# -END-
+#######################################################################
+
