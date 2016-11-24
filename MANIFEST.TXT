@@ -359,6 +359,7 @@ com/snert/src/lib/include/pt/pt-sem.h
 com/snert/src/lib/include/pt/pt.h
 com/snert/src/lib/tools/ansi.c
 com/snert/src/lib/tools/basename.c
+com/snert/src/lib/tools/bitdump.c
 com/snert/src/lib/tools/cksum.c
 com/snert/src/lib/tools/clamstream.c
 com/snert/src/lib/tools/climits.c

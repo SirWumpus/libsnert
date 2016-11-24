@@ -88,7 +88,7 @@ $O$E :
 
 ORIGINAL	= ansi$E flip$E fmtjson$E pad$E popin$E uue$E show$E range$E \
 		  sqlargs$E counter$E clamstream$E dnsd$E secho$E sechod$E \
-		  natsort$E nctee$E inplace$E
+		  natsort$E nctee$E inplace$E bitdump$E
 MEH_TOOLS	= sendform$E nph-download.cgi ziplist$E rarlist$E taglengths$E rsleep$E
 MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E \
 		  echod$E
@@ -159,6 +159,9 @@ clamstream$E : ${top_builddir}/io/socket2$O clamstream.c
 
 socketsink$E : ${top_builddir}/io/socket2$O socketsink.c
 	$(CC) $(CFLAGS) ${LDFLAGS_PTHREAD} $(LDFLAGS) $(CC_E)socketsink$E ${srcdir}/socketsink.c $(LIBSNERT) ${LIBS} ${NETWORK_LIBS}
+
+bitdump$E : bitdump.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)bitdump$E ${srcdir}/bitdump.c
 
 flip$E : flip.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)flip$E ${srcdir}/flip.c

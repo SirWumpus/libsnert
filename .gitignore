@@ -65,6 +65,7 @@ net/pdq
 net/server
 sys/sys
 tools/ansi
+tools/bitdump
 tools/cksum
 tools/clamstream
 tools/climits

@@ -18,6 +18,8 @@ ansi		A pumped up echo(1) that does only ANSI (vt100)
 
 		ansi bold say something clever normal bell lf
 
+bitdump		Bit stream dump.
+
 b64		Yet another Base64 encoder/decoder.
 
 cipher		An API and CLI for the paper & pencil cipher techniques
