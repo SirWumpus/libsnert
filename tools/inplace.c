@@ -1,3 +1,11 @@
+/*
+ * inplace
+ *
+ * Replace an input file "inplace".
+ *
+ * Copyright 2016 by Anthony Howe.  All rights reserved.
+ */
+
 #include <err.h>
 #include <limits.h>
 #include <stdio.h>
