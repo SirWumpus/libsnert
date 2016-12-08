@@ -57,6 +57,17 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+
+--1.75.51--
+
+   *	Upgraded SQLite to 3.15.2.
+
+   +	Added inplace tool.
+
+   +	Added od-like bitdump tool.
+
+   +	Added inetd myip service tool and check_myip.sh dynamic DNS script.
+
 --1.75.50--
 
    +	Add support to smtp2 API to pass in the HELO argument, fix the
