@@ -26,22 +26,19 @@ __subject="Mailed File Attachments"
 while getopts 'm:r:s:' opt; do
 	case "$opt" in
 	(m)
-		__mail="$OPTARG"; shift
+		__mail="$OPTARG"
 		;;
 	(r)
-		__rcpts=$(echo $OPTARG | tr ',' ' '); shift
+		__rcpts=$(echo $OPTARG | tr ',' ' ')
 		;;
 	(s)
-		__subject="$OPTARG"; shift
+		__subject="$OPTARG"
 		;;
 	(*)
 		usage
 	esac
-	shift
 done
-if [ "$1" = '--' ]; then
-	shift
-fi
+shift $(($OPTIND - 1))
 if [ $# -lt 1 ]; then
 	usage
 fi
@@ -54,6 +51,7 @@ msg="/tmp/$$.eml"
 cat <<EOF >$msg
 Subject: ${__subject}
 From: <${__mail}>
+To: $(echo "$__rcpts" | sed 's/^\([^ ]*\)/<\1>/; s/ \([^ ]*\)/, <\1>/g')
 Date: $(date +'%d %b %Y %H:%M:%S %z')
 Message-ID: <${now}@$(hostname)>
 MIME-Version: 1.0
