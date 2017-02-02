@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <getopt.h>
 
-const char *usage =
+const char usage[] =
 "usage: bitdump [-A base][-j skip][-N count] [file ...]\n"
 "\n"
 "-A base\t\taddress base, one of n, o, d, x\n"

@@ -22,7 +22,7 @@ print_indent(FILE *out, const char *indent, int count)
 		(void) fputs(indent, out);
 }
 
-void
+int
 json_reader_dump(FILE *in, const char *indent, FILE *out)
 {
 	int escape = 0;
@@ -85,11 +85,14 @@ json_reader_dump(FILE *in, const char *indent, FILE *out)
 	}
 
 	fputs(newline, out);
+
+	return level != 0 || quote != 0;
 }
 
 int
 file(const char *fn, const char *indent, int flags)
 {
+	int ex;
 	FILE *in = stdin;
 
 	if (fn != NULL && fn[0] != '-' && fn[1] != '\0') {
@@ -99,10 +102,14 @@ file(const char *fn, const char *indent, int flags)
 		}
 	}
 
-	(void) json_reader_dump(in, indent, stdout);
+	ex = json_reader_dump(in, indent, stdout) ? EX_DATAERR : EXIT_SUCCESS; 
 	(void) fclose(in);
 
-	return 0;
+	if (ex != EXIT_SUCCESS) {
+		(void) fprintf(stderr, "missing closing \", }, and/or ]\n");
+	}
+
+	return ex;
 }
 
 int
