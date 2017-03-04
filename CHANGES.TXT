@@ -68,6 +68,8 @@ is no set schedule for releases.
 
    +	Added inetd myip service tool and check_myip.sh dynamic DNS script.
 
+   +	Fix some makefile build issues.
+
 --1.75.50--
 
    +	Add support to smtp2 API to pass in the HELO argument, fix the

@@ -205,10 +205,10 @@ kvmd$E : ../io/socket2$O kvm.c
 
 # This cannot be built until AFTER the lib/io routines have been built.
 kvmc$E : ../io/socket2$O kvm$O kvmc.c
-	${WRAPPER} $(CC) ${CFLAGS_PTHREAD} ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_PTHREAD} ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmc$E ${srcdir}/kvmc.c ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
+	${WRAPPER} $(CC) ${CFLAGS_PTHREAD} ${CFLAGS_DB} ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_PTHREAD} ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmc$E ${srcdir}/kvmc.c ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
 
 kvmap$E : kvm$O kvmap.c
-	${WRAPPER} $(CC) ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_PTHREAD} ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmap$E ${srcdir}/kvmap.c kvm$O ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
+	${WRAPPER} $(CC) ${CFLAGS_DB} ${CFLAGS_SQLITE3} $(CFLAGS) ${LDFLAGS_PTHREAD} ${LDFLAGS_DB} ${LDFLAGS_SQLITE3} $(LDFLAGS) $(CC_E)kvmap$E ${srcdir}/kvmap.c kvm$O ${LIBSNERT} ${LIBS} ${LIB_DB} ${LIB_SQLITE3} ${LIB_PTHREAD} ${NETWORK_LIBS}
 
 # This cannot be built until AFTER the lib/io routines have been built.
 mcc$E : ../io/socket2$O mcc.c

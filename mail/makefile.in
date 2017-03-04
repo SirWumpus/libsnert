@@ -205,6 +205,9 @@ digestbl$E : digestbl.c
 mfReply$O : mfReply.c
 	${CC} ${CFLAGS_MILTER} ${CFLAGS} -c ${srcdir}/$*.c
 
+smdb$O : smdb.c
+	${CC} ${CFLAGS_DB} ${CFLAGS_SQLITE3} ${CFLAGS_MILTER} ${CFLAGS} -c ${srcdir}/$*.c
+
 smf$O : smf.c
 	${CC} ${CFLAGS_DB} ${CFLAGS_SQLITE3} ${CFLAGS_MILTER} ${CFLAGS} -c ${srcdir}/$*.c
 
