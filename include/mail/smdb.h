@@ -91,7 +91,7 @@ extern char *smdbGetValue(smdb *sm, const char *key);	/* DEPRECATED, use smdbFet
 extern void smdbSetKeyHasNul(smdb *sm, int flag);
 
 /* To be removed... */
-#define SMDB_DEBUG_ALL			1
+#define SMDB_DEBUG_ALL			2
 #define smdbSetDebugMask		smdbSetDebug
 
 
