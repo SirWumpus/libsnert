@@ -1,0 +1,13 @@
+/configure     -diff -merge
+*.docx binary
+*.gif binary
+*.jbf binary
+*.jpg binary
+*.mng binary
+*.pdf binary
+*.png binary
+*.psp binary
+*.ttf binary
+*.TTF binary
+*.wsa binary
+
