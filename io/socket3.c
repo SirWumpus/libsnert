@@ -451,7 +451,7 @@ socket3_client(SOCKET fd, SocketAddress *addr, long timeout)
 			goto error1;
 		}
 		/* Can we write the socket for the TCP handshake? */
-		if ((rc = socket3_wait(fd, timeout, SOCKET_WAIT_WRITE)) != 0)			
+		if ((rc = socket3_wait(fd, timeout, SOCKET_WAIT_WRITE)) != 0)
 			goto error1;
 		/* Resets the socket's copy of the error code. */
 		if ((rc = socket3_get_error(fd)) != 0) {
@@ -769,8 +769,10 @@ socket3_write_fd(SOCKET fd, unsigned char *buffer, long size, SocketAddress *to)
 	socklen_t socklen;
 	long offset = -1, sent = SOCKET_ERROR;
 
-	if (buffer == NULL || size <= 0)
+	if (buffer == NULL || size < 0) {
+		errno = EINVAL;
 		goto error1;
+	}
 
 	errno = 0;
 #if defined(HAVE_ISATTY)
