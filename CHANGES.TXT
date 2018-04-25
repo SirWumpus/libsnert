@@ -58,6 +58,20 @@ is no set schedule for releases.
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
 
+--1.75.52--
+
+   *	Upgraded SQLite to 3.23.1.
+
+   !	Updated TLD list.
+
+  **	Fix guard bug in socket3_write_fd() where zero bytes resulted
+	in an error return instead of simply zero count.  Reported by
+	Chris C.
+
+   *	Fix smdb logging bug where a milter with verbose=database wasn't
+	logging the lookups.
+
+
 --1.75.51--
 
    *	Upgraded SQLite to 3.15.2.
