@@ -82,7 +82,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#ifdef __sun__
+#if defined(__sun__) && !defined(_POSIX_PTHREAD_SEMANTICS)
 # define _POSIX_PTHREAD_SEMANTICS
 #endif
 #include <signal.h>

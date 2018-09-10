@@ -11,7 +11,7 @@
 # This configure script is free software; the Free Software Foundation
 # gives unlimited permission to copy, distribute and modify it.
 #
-# Copyright 1996, 2016 by Anthony Howe. All rights reserved.
+# Copyright 1996, 2018 by Anthony Howe. All rights reserved.
 ## -------------------- ##
 ## M4sh Initialization. ##
 ## -------------------- ##
@@ -663,9 +663,10 @@ CFLAGS_SSL
 LIBS_SSL
 LDFLAGS_SSL
 CPPFLAGS_SSL
-NETWORK_LIBS
 HAVE_LIB_IPHLPAPI
 HAVE_LIB_WS2_32
+NETWORK_LIBS
+LIBS_MD
 HAVE_LIB_SCHED
 CFLAGS_SCHED
 LIBS_SCHED
@@ -1522,7 +1523,7 @@ Copyright (C) 2012 Free Software Foundation, Inc.
 This configure script is free software; the Free Software Foundation
 gives unlimited permission to copy, distribute and modify it.
 
-Copyright 1996, 2016 by Anthony Howe. All rights reserved.
+Copyright 1996, 2018 by Anthony Howe. All rights reserved.
 _ACEOF
   exit
 fi
@@ -2596,7 +2597,7 @@ fi
 
 
 
-	package_copyright='Copyright 1996, 2016 by Anthony Howe. All rights reserved.'
+	package_copyright='Copyright 1996, 2018 by Anthony Howe. All rights reserved.'
 
 	package_major=`echo $PACKAGE_VERSION | sed -e 's/^\([0-9]*\)\.\([0-9]*\)/\1/'`
 
@@ -6350,7 +6351,7 @@ done
 fi
 
 
-	for ac_header in limits.h sysexits.h syslog.h
+	for ac_header in limits.h sysexits.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
@@ -6358,6 +6359,129 @@ if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
   cat >>confdefs.h <<_ACEOF
 #define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
 _ACEOF
+
+fi
+
+done
+
+	for ac_header in syslog.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "syslog.h" "ac_cv_header_syslog_h" "$ac_includes_default"
+if test "x$ac_cv_header_syslog_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_SYSLOG_H 1
+_ACEOF
+
+		# SunOS doesn't define PERROR.
+
+	ac_ext=c
+ac_cpp='$CPP $CPPFLAGS'
+ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_c_compiler_gnu
+
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for LOG_PERROR macro" >&5
+$as_echo_n "checking for LOG_PERROR macro... " >&6; }
+if ${ac_cv_define_LOG_PERROR+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+		if test -z "syslog.h"; then :
+
+			if test "$cross_compiling" = yes; then :
+  { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+as_fn_error $? "cannot run test program while cross compiling
+See \`config.log' for more details" "$LINENO" 5; }
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+
+int main()
+{
+#ifdef LOG_PERROR
+	return 0;
+#else
+	return 1;
+#endif
+}
+
+
+_ACEOF
+if ac_fn_c_try_run "$LINENO"; then :
+
+				ac_cv_define_LOG_PERROR=yes
+
+else
+
+				ac_cv_define_LOG_PERROR=no
+
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+  conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+
+
+else
+
+			if test "$cross_compiling" = yes; then :
+  { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+as_fn_error $? "cannot run test program while cross compiling
+See \`config.log' for more details" "$LINENO" 5; }
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+
+#include <syslog.h>
+int main()
+{
+#ifdef LOG_PERROR
+	return 0;
+#else
+	return 1;
+#endif
+}
+
+
+_ACEOF
+if ac_fn_c_try_run "$LINENO"; then :
+
+				ac_cv_define_LOG_PERROR=yes
+
+else
+
+				ac_cv_define_LOG_PERROR=no
+
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+  conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+
+
+fi
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_define_LOG_PERROR" >&5
+$as_echo "$ac_cv_define_LOG_PERROR" >&6; }
+	ac_ext=c
+ac_cpp='$CPP $CPPFLAGS'
+ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_c_compiler_gnu
+
+	if test $ac_cv_define_LOG_PERROR = 'yes'; then :
+
+		cat >>confdefs.h <<_ACEOF
+#define HAVE_MACRO_LOG_PERROR 1
+_ACEOF
+
+
+
+fi
+
 
 fi
 
@@ -6819,7 +6943,33 @@ _ACEOF
 
 			HAVE_LIB_SEM=${ac_cv_search_sem_init}
 
-			NETWORK_LIBS="${ac_cv_search_sem_init} $NETWORK_LIBS"
+
+	list=`eval echo \$NETWORK_LIBS`
+	if test -n ""${ac_cv_search_sem_init}""; then :
+
+		for item in "${ac_cv_search_sem_init}"; do
+			if expr " $list " : ".* $item " >/dev/null; then :
+
+
+else
+
+				if test "tail" = 'head'; then :
+
+					list="$item${list:+ $list}"
+
+else
+
+					list="${list:+$list }$item"
+
+fi
+
+fi
+		done
+
+fi
+	eval NETWORK_LIBS="\"$list\""
+
+#			NETWORK_LIBS="${ac_cv_search_sem_init} $NETWORK_LIBS"
 
 fi
 
@@ -7423,7 +7573,7 @@ _ACEOF
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename -- $f | sed -e's/^lib//'`
+				lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_PTHREAD`
 	if test -n ""-l$lib""; then :
@@ -7510,7 +7660,7 @@ fi
 
 else
 
-					lib=`basename -- $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_PTHREAD`
 	if test -n ""-l$lib""; then :
@@ -8528,7 +8678,7 @@ _ACEOF
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename -- $f | sed -e's/^lib//'`
+				lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SCHED`
 	if test -n ""-l$lib""; then :
@@ -8615,7 +8765,7 @@ fi
 
 else
 
-					lib=`basename -- $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SCHED`
 	if test -n ""-l$lib""; then :
@@ -8784,6 +8934,74 @@ if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
   cat >>confdefs.h <<_ACEOF
 #define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
 _ACEOF
+
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing SHA256Init" >&5
+$as_echo_n "checking for library containing SHA256Init... " >&6; }
+if ${ac_cv_search_SHA256Init+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_func_search_save_LIBS=$LIBS
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char SHA256Init ();
+int
+main ()
+{
+return SHA256Init ();
+  ;
+  return 0;
+}
+_ACEOF
+for ac_lib in '' md; do
+  if test -z "$ac_lib"; then
+    ac_res="none required"
+  else
+    ac_res=-l$ac_lib
+    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
+  fi
+  if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_search_SHA256Init=$ac_res
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext
+  if ${ac_cv_search_SHA256Init+:} false; then :
+  break
+fi
+done
+if ${ac_cv_search_SHA256Init+:} false; then :
+
+else
+  ac_cv_search_SHA256Init=no
+fi
+rm conftest.$ac_ext
+LIBS=$ac_func_search_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_SHA256Init" >&5
+$as_echo "$ac_cv_search_SHA256Init" >&6; }
+ac_res=$ac_cv_search_SHA256Init
+if test "$ac_res" != no; then :
+  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
+
+fi
+
+		if expr "$ac_cv_search_SHA256Init" : '-l' >/dev/null; then :
+
+			LIBS_MD="$ac_cv_search_SHA256Init"
+
+cat >>confdefs.h <<_ACEOF
+#define LIBS_MD "$LIBS_MD"
+_ACEOF
+
+
+
+fi
 
 fi
 
@@ -9019,7 +9237,41 @@ fi
 
 	if test "$ac_cv_define___WIN32__" = 'no'; then :
 
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing socket" >&5
+		case $platform in #(
+  SunOS) :
+
+
+	list=`eval echo \$NETWORK_LIBS`
+	if test -n ""-lresolv -lsocket -lnsl""; then :
+
+		for item in "-lresolv -lsocket -lnsl"; do
+			if expr " $list " : ".* $item " >/dev/null; then :
+
+
+else
+
+				if test "tail" = 'head'; then :
+
+					list="$item${list:+ $list}"
+
+else
+
+					list="${list:+$list }$item"
+
+fi
+
+fi
+		done
+
+fi
+	eval NETWORK_LIBS="\"$list\""
+
+			NETWORK_LIBS=${NETWORK_LIBS}
+
+		 ;; #(
+  *) :
+
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing socket" >&5
 $as_echo_n "checking for library containing socket... " >&6; }
 if ${ac_cv_search_socket+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -9073,9 +9325,41 @@ ac_res=$ac_cv_search_socket
 if test "$ac_res" != no; then :
   test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
 
+				if test "${ac_cv_search_socket}" = 'none required'; then :
+  ac_cv_search_socket=''
 fi
 
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing inet_aton" >&5
+	list=`eval echo \$NETWORK_LIBS`
+	if test -n ""${ac_cv_search_socket}""; then :
+
+		for item in "${ac_cv_search_socket}"; do
+			if expr " $list " : ".* $item " >/dev/null; then :
+
+
+else
+
+				if test "tail" = 'head'; then :
+
+					list="$item${list:+ $list}"
+
+else
+
+					list="${list:+$list }$item"
+
+fi
+
+fi
+		done
+
+fi
+	eval NETWORK_LIBS="\"$list\""
+
+				NETWORK_LIBS=${NETWORK_LIBS}
+
+
+fi
+
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing inet_aton" >&5
 $as_echo_n "checking for library containing inet_aton... " >&6; }
 if ${ac_cv_search_inet_aton+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -9099,7 +9383,7 @@ return inet_aton ();
   return 0;
 }
 _ACEOF
-for ac_lib in '' socket nsl resolv; do
+for ac_lib in '' resolv socket nsl; do
   if test -z "$ac_lib"; then
     ac_res="none required"
   else
@@ -9129,8 +9413,42 @@ ac_res=$ac_cv_search_inet_aton
 if test "$ac_res" != no; then :
   test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
 
+				if test "${ac_cv_search_inet_aton}" = 'none required'; then :
+  ac_cv_search_inet_aton=''
 fi
 
+	list=`eval echo \$NETWORK_LIBS`
+	if test -n ""${ac_cv_search_inet_aton}""; then :
+
+		for item in "${ac_cv_search_inet_aton}"; do
+			if expr " $list " : ".* $item " >/dev/null; then :
+
+
+else
+
+				if test "tail" = 'head'; then :
+
+					list="$item${list:+ $list}"
+
+else
+
+					list="${list:+$list }$item"
+
+fi
+
+fi
+		done
+
+fi
+	eval NETWORK_LIBS="\"$list\""
+
+				NETWORK_LIBS=${NETWORK_LIBS}
+
+
+fi
+
+		 ;;
+esac
 
 		for ac_header in  \
 			sys/socket.h netinet/in.h netinet/in6.h netinet6/in6.h \
@@ -10000,7 +10318,7 @@ _ACEOF
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename -- $f | sed -e's/^lib//'`
+				lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SSL`
 	if test -n ""-l$lib""; then :
@@ -10087,7 +10405,7 @@ fi
 
 else
 
-					lib=`basename -- $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SSL`
 	if test -n ""-l$lib""; then :
@@ -10645,7 +10963,7 @@ _ACEOF
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename -- $f | sed -e's/^lib//'`
+				lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SQLITE3`
 	if test -n ""-l$lib""; then :
@@ -10732,7 +11050,7 @@ fi
 
 else
 
-					lib=`basename -- $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SQLITE3`
 	if test -n ""-l$lib""; then :
@@ -11080,7 +11398,7 @@ _ACEOF
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename -- $f | sed -e's/^lib//'`
+				lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_LIBEV`
 	if test -n ""-l$lib""; then :
@@ -11167,7 +11485,7 @@ fi
 
 else
 
-					lib=`basename -- $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_LIBEV`
 	if test -n ""-l$lib""; then :
@@ -11515,7 +11833,7 @@ _ACEOF
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename -- $f | sed -e's/^lib//'`
+				lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_LUA`
 	if test -n ""-l$lib""; then :
@@ -11602,7 +11920,7 @@ fi
 
 else
 
-					lib=`basename -- $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_LUA`
 	if test -n ""-l$lib""; then :
@@ -11942,7 +12260,7 @@ _ACEOF
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename -- $f | sed -e's/^lib//'`
+				lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SASL2`
 	if test -n ""-l$lib""; then :
@@ -12029,7 +12347,7 @@ fi
 
 else
 
-					lib=`basename -- $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SASL2`
 	if test -n ""-l$lib""; then :
@@ -12692,7 +13010,41 @@ fi
 
 	if test "$ac_cv_define___WIN32__" = 'no'; then :
 
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing socket" >&5
+		case $platform in #(
+  SunOS) :
+
+
+	list=`eval echo \$NETWORK_LIBS`
+	if test -n ""-lresolv -lsocket -lnsl""; then :
+
+		for item in "-lresolv -lsocket -lnsl"; do
+			if expr " $list " : ".* $item " >/dev/null; then :
+
+
+else
+
+				if test "tail" = 'head'; then :
+
+					list="$item${list:+ $list}"
+
+else
+
+					list="${list:+$list }$item"
+
+fi
+
+fi
+		done
+
+fi
+	eval NETWORK_LIBS="\"$list\""
+
+			NETWORK_LIBS=${NETWORK_LIBS}
+
+		 ;; #(
+  *) :
+
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing socket" >&5
 $as_echo_n "checking for library containing socket... " >&6; }
 if ${ac_cv_search_socket+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -12746,9 +13098,41 @@ ac_res=$ac_cv_search_socket
 if test "$ac_res" != no; then :
   test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
 
+				if test "${ac_cv_search_socket}" = 'none required'; then :
+  ac_cv_search_socket=''
 fi
 
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing inet_aton" >&5
+	list=`eval echo \$NETWORK_LIBS`
+	if test -n ""${ac_cv_search_socket}""; then :
+
+		for item in "${ac_cv_search_socket}"; do
+			if expr " $list " : ".* $item " >/dev/null; then :
+
+
+else
+
+				if test "tail" = 'head'; then :
+
+					list="$item${list:+ $list}"
+
+else
+
+					list="${list:+$list }$item"
+
+fi
+
+fi
+		done
+
+fi
+	eval NETWORK_LIBS="\"$list\""
+
+				NETWORK_LIBS=${NETWORK_LIBS}
+
+
+fi
+
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing inet_aton" >&5
 $as_echo_n "checking for library containing inet_aton... " >&6; }
 if ${ac_cv_search_inet_aton+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -12772,7 +13156,7 @@ return inet_aton ();
   return 0;
 }
 _ACEOF
-for ac_lib in '' socket nsl resolv; do
+for ac_lib in '' resolv socket nsl; do
   if test -z "$ac_lib"; then
     ac_res="none required"
   else
@@ -12802,8 +13186,42 @@ ac_res=$ac_cv_search_inet_aton
 if test "$ac_res" != no; then :
   test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
 
+				if test "${ac_cv_search_inet_aton}" = 'none required'; then :
+  ac_cv_search_inet_aton=''
 fi
 
+	list=`eval echo \$NETWORK_LIBS`
+	if test -n ""${ac_cv_search_inet_aton}""; then :
+
+		for item in "${ac_cv_search_inet_aton}"; do
+			if expr " $list " : ".* $item " >/dev/null; then :
+
+
+else
+
+				if test "tail" = 'head'; then :
+
+					list="$item${list:+ $list}"
+
+else
+
+					list="${list:+$list }$item"
+
+fi
+
+fi
+		done
+
+fi
+	eval NETWORK_LIBS="\"$list\""
+
+				NETWORK_LIBS=${NETWORK_LIBS}
+
+
+fi
+
+		 ;;
+esac
 
 		for ac_header in  \
 			sys/socket.h netinet/in.h netinet/in6.h netinet6/in6.h \
@@ -14550,7 +14968,7 @@ _ACEOF
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename -- $f | sed -e's/^lib//'`
+				lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_MILTER`
 	if test -n ""-l$lib""; then :
@@ -14637,7 +15055,7 @@ fi
 
 else
 
-					lib=`basename -- $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_MILTER`
 	if test -n ""-l$lib""; then :
@@ -17034,8 +17452,8 @@ $as_echo "  CPPFLAGS............: $CPPFLAGS" >&6; }
 $as_echo "  LDFLAGS.............: $LDFLAGS" >&6; }
 { $as_echo "$as_me:${as_lineno-$LINENO}: result:   LIBS................: $LIBS" >&5
 $as_echo "  LIBS................: $LIBS" >&6; }
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result:   Network LIBS........: $NETWORK_LIBS" >&5
-$as_echo "  Network LIBS........: $NETWORK_LIBS" >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result:   NETWORK_LIBS........: $NETWORK_LIBS" >&5
+$as_echo "  NETWORK_LIBS........: $NETWORK_LIBS" >&6; }
 echo
 
 #######################################################################

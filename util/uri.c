@@ -605,7 +605,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		uri->host[span] = '\0';
 		uri->scheme = "mailto";
 		uri->schemeInfo = uri->uriDecoded;
-		
+
 		/* Any spaces in userInfo were URI decoded plus-signs.
 		 * However plus-signs in the local-part of an address
 		 * are permitted.
@@ -614,7 +614,7 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 			if (*local_part == ' ')
 				*local_part = '+';
 		}
-		 
+
 		(void) snprintf(uri->uriDecoded, length+1, "%s%c%s", uri->userInfo, at_sign_delim, uri->host);
 	}
 
@@ -2357,9 +2357,15 @@ extern void rlimits(void);
 
 #ifndef THREAD_STACK_SIZE
 # define THREAD_STACK_SIZE		(32 * 1024)
-# if THREAD_STACK_SIZE < PTHREAD_STACK_MIN
-#  undef THREAD_STACK_SIZE
-#  define THREAD_STACK_SIZE		PTHREAD_STACK_MIN
+# ifndef __sun__
+/* SunOS has to be the most annoying implementation of SUS ever conceived,
+ * in this case they defined a limits.h macro as a function call to _sysconf
+ * which can't be used in #if expressions; bloody wankers.
+ */
+#  if THREAD_STACK_SIZE < PTHREAD_STACK_MIN
+#   undef THREAD_STACK_SIZE
+#   define THREAD_STACK_SIZE		PTHREAD_STACK_MIN
+#  endif
 # endif
 #endif
 

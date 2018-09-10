@@ -46,7 +46,8 @@ ARCHIVE		:= @ARCHIVE@
 COMPILE		:= @COMPILE@
 
 LIBSNERT 	= @LIBSNERT@
-LIB_RT		= @HAVE_LIB_RT@
+LIB_RT		= @LIBS_RT@
+LIB_MD		= @LIBS_MD@
 
 LIB_SEM		= @HAVE_LIB_SEM@
 LIB_WS2_32	= @HAVE_LIB_WS2_32@
@@ -212,4 +213,4 @@ smf$O : smf.c
 	${CC} ${CFLAGS_DB} ${CFLAGS_SQLITE3} ${CFLAGS_MILTER} ${CFLAGS} -c ${srcdir}/$*.c
 
 dkim-hash$E : dkim-hash.c
-	${CC} ${CFLAGS} ${LDFLAGS} ${CC_E}dkim-hash ${srcdir}/dkim-hash.c ${LIBSNERT}
+	${CC} ${CFLAGS} ${LDFLAGS} ${CC_E}dkim-hash ${srcdir}/dkim-hash.c ${LIBSNERT} ${LIB_MD}

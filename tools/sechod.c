@@ -37,7 +37,7 @@
 #ifdef HAVE_UNISTD_H
 # include <unistd.h>
 #endif
-#ifdef __sun__
+#if defined(__sun__) && !defined(_POSIX_PTHREAD_SEMANTICS)
 # define _POSIX_PTHREAD_SEMANTICS
 #endif
 #include <signal.h>

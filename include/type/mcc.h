@@ -26,10 +26,16 @@ extern "C" {
 
 #ifndef MCC_STACK_SIZE
 # define MCC_STACK_SIZE		(64 * 1024)
-#endif
-#if MCC_STACK_SIZE < PTHREAD_STACK_MIN
-# undef MCC_STACK_SIZE
-# define MCC_STACK_SIZE		PTHREAD_STACK_MIN
+# ifndef __sun__
+/* SunOS has to be the most annoying implementation of SUS ever conceived,
+ * in this case they defined a limits.h macro as a function call to _sysconf
+ * which can't be used in #if expressions; bloody wankers.
+ */
+#  if MCC_STACK_SIZE < PTHREAD_STACK_MIN
+#   undef MCC_STACK_SIZE
+#   define MCC_STACK_SIZE		PTHREAD_STACK_MIN
+#  endif
+# endif
 #endif
 
 /*

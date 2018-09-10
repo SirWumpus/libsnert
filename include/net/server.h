@@ -17,7 +17,7 @@ extern "C" {
  ***
  ***********************************************************************/
 
-#if defined(NDEBUG) || ! defined(__linux__) 
+#if defined(NDEBUG) || ! defined(__linux__)
 # define NVALGRIND
 #endif
 #include <org/valgrind/valgrind.h>
@@ -27,7 +27,7 @@ extern "C" {
 # include <windows.h>
 #endif
 
-#ifdef __sun__
+#if defined(__sun__) && !defined(_POSIX_PTHREAD_SEMANTICS)
 # define _POSIX_PTHREAD_SEMANTICS
 #endif
 #include <signal.h>
@@ -62,9 +62,16 @@ extern "C" {
 
 #ifndef SERVER_STACK_SIZE
 # define SERVER_STACK_SIZE		(64 * 1024)
-# if SERVER_STACK_SIZE < PTHREAD_STACK_MIN
-#  undef SERVER_STACK_SIZE
-#  define SERVER_STACK_SIZE		PTHREAD_STACK_MIN
+
+# ifndef __sun__
+/* SunOS has to be the most annoying implementation of SUS ever conceived,
+ * in this case they defined a limits.h macro as a function call to _sysconf
+ * which can't be used in #if expressions; bloody wankers.
+ */
+#  if SERVER_STACK_SIZE < PTHREAD_STACK_MIN
+#   undef SERVER_STACK_SIZE
+#   define SERVER_STACK_SIZE		PTHREAD_STACK_MIN
+#  endif
 # endif
 #endif
 

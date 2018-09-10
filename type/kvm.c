@@ -3309,7 +3309,7 @@ kvmOpen(const char *table_name, const char *map_location, int mode)
 
 #include <stdio.h>
 
-#ifdef __sun__
+#if defined(__sun__) && !defined(_POSIX_PTHREAD_SEMANTICS)
 # define _POSIX_PTHREAD_SEMANTICS
 #endif
 #include <signal.h>

@@ -286,7 +286,7 @@ typedef unsigned long time_t;
 /*
  * POSIX Signals
  */
-#ifdef __sun__
+#if defined(__sun__) && !defined(_POSIX_PTHREAD_SEMANTICS)
 /* Required before #include <signal.h> */
 # define _POSIX_PTHREAD_SEMANTICS
 #endif
@@ -495,6 +495,10 @@ union semun {
 #undef HAVE_RLIM_T
 #undef HAVE_GETRLIMIT
 #undef HAVE_SETRLIMIT
+
+#ifndef HAVE_LOG_PERROR
+#define LOG_PERROR 0
+#endif
 
 #ifndef HAVE_RLIM_T
 /* My old Linux does not define this type */
@@ -731,6 +735,16 @@ union semun {
 #undef HAVE_SHUTDOWN
 #undef HAVE_SOCKET
 
+#ifdef __sun__
+/* Maze of Sun's standard's macros. */
+# define __XOPEN_OR_POSIX
+# define _XOPEN_SOURCE		600
+/* Some members of struct msghdr only available when defined. */
+# define _XPG4_2
+# define _XPG6
+# define __EXTENSIONS__
+#endif
+
 /*
  * Linux I/O Events
  */
@@ -947,6 +961,15 @@ typedef int socklen_t;
 #undef HAVE_SHA1_H
 #undef HAVE_SHA2_H
 
+#ifdef __sun__
+# define SHA256_Init	SHA256Init
+# define SHA256_Update	SHA256Update
+# define SHA256_Final	SHA256Final
+
+# define SHA512_Init	SHA512Init
+# define SHA512_Update	SHA512Update
+# define SHA512_Final	SHA512Final
+#endif
 
 #undef HAVE_POP_BEFORE_SMTP
 

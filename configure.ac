@@ -18,7 +18,7 @@ AS_IF([test "$prefix" = 'NONE'],[
 ])
 AC_SUBST(prefix_copy)
 
-SNERT_INIT(LIBSNERT, [Copyright 1996, 2016 by Anthony Howe. All rights reserved.])
+SNERT_INIT(LIBSNERT, [Copyright 1996, 2018 by Anthony Howe. All rights reserved.])
 
 AC_DEFINE_UNQUOTED(LIBSNERT_UNAME, [["${platform}"]])
 AH_TEMPLATE(LIBSNERT_UNAME)
@@ -656,7 +656,7 @@ AC_MSG_RESULT([  CFLAGS..............: $CFLAGS])
 AC_MSG_RESULT([  CPPFLAGS............: $CPPFLAGS])
 AC_MSG_RESULT([  LDFLAGS.............: $LDFLAGS])
 AC_MSG_RESULT([  LIBS................: $LIBS])
-AC_MSG_RESULT([  Network LIBS........: $NETWORK_LIBS])
+AC_MSG_RESULT([  NETWORK_LIBS........: $NETWORK_LIBS])
 echo
 
 #######################################################################

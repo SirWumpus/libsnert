@@ -978,7 +978,9 @@ static struct mapping logFacilityMap[] = {
 	{ LOG_AUTH,		"auth"		},
 	{ LOG_CRON,		"cron" 		},
 	{ LOG_DAEMON,		"daemon" 	},
+#ifdef LOG_FTP
 	{ LOG_FTP,		"ftp" 		},
+#endif
 	{ LOG_LPR,		"lpr"		},
 	{ LOG_MAIL,		"mail"		},
 	{ LOG_NEWS,		"news"		},

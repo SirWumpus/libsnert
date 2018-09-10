@@ -211,7 +211,7 @@ dnl	eval extra_CPPFLAGS="\${CPPFLAGS_$1}"
 			have=AS_TR_CPP(HAVE_$f)
 			AC_DEFINE_UNQUOTED($have,["$dir_val"])
 			SNERT_IF_SYSTEM_DIR([$dir_val],[
-				lib=`basename -- $f | sed -e's/^lib//'`
+				lib=`basename $f | sed -e's/^lib//'`
 				SNERT_JOIN_UNIQ([LIBS_$1],["-l$lib"],[tail])
 			],[
 				SNERT_JOIN_UNIQ([LDFLAGS_$1],["-L$dir_val"])
@@ -219,7 +219,7 @@ dnl	eval extra_CPPFLAGS="\${CPPFLAGS_$1}"
 					dnl Explicit static library.
 					SNERT_JOIN_UNIQ([LIBS_$1],["$dir_val/$f"],[tail])
 				],[
-					lib=`basename -- $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 					SNERT_JOIN_UNIQ([LIBS_$1],["-l$lib"],[tail])
 				])
 			])
@@ -1148,7 +1148,11 @@ AC_DEFUN(SNERT_PROCESS,[
 		AC_CHECK_FUNCS([getrlimit setrlimit])
 
 	])
-	AC_CHECK_HEADERS([limits.h sysexits.h syslog.h])
+	AC_CHECK_HEADERS([limits.h sysexits.h])
+	AC_CHECK_HEADERS([syslog.h],[
+		# SunOS doesn't define PERROR.
+		SNERT_CHECK_DEFINE(LOG_PERROR, syslog.h)
+	])
 ])
 
 dnl
@@ -1239,7 +1243,8 @@ AC_DEFUN(SNERT_POSIX_SEMAPHORES,[
 			AC_DEFINE_UNQUOTED(HAVE_LIB_SEM, "${ac_cv_search_sem_init}")
 			AH_TEMPLATE(HAVE_LIB_SEM,[POSIX Semaphores])
 			AC_SUBST(HAVE_LIB_SEM, ${ac_cv_search_sem_init})
-			NETWORK_LIBS="${ac_cv_search_sem_init} $NETWORK_LIBS"
+			SNERT_JOIN_UNIQ([NETWORK_LIBS],["${ac_cv_search_sem_init}"],[tail])
+#			NETWORK_LIBS="${ac_cv_search_sem_init} $NETWORK_LIBS"
 		])
 		AC_CHECK_TYPES([sem_t],[],[],[
 #ifdef HAVE_SYS_TYPES_H
@@ -1504,7 +1509,14 @@ AC_DEFUN(SNERT_HASHES,[
 	echo
 	echo "Check for common hashes..."
 	echo
-	AC_CHECK_HEADERS([md4.h md5.h rmd160.h sha1.h sha2.h],[],[],[/* */])
+	AC_CHECK_HEADERS([md4.h md5.h rmd160.h sha1.h sha2.h],[
+		AC_SEARCH_LIBS([SHA256Init],[md])
+		AS_IF([expr "$ac_cv_search_SHA256Init" : '-l' >/dev/null],[
+			LIBS_MD="$ac_cv_search_SHA256Init"
+			AC_DEFINE_UNQUOTED(LIBS_MD,"$LIBS_MD",[Message Digest Library])
+			AC_SUBST(LIBS_MD)
+		])
+	],[],[/* */])
 ])
 
 dnl
@@ -2070,8 +2082,22 @@ AC_DEFUN(SNERT_NETWORK,[
 	SNERT_CHECK_PREDEFINE(__CYGWIN__)
 
 	AS_IF([test "$ac_cv_define___WIN32__" = 'no'],[
-		AC_SEARCH_LIBS([socket], [socket nsl])
-		AC_SEARCH_LIBS([inet_aton], [socket nsl resolv])
+		AS_CASE([$platform],
+		[SunOS],[
+			SNERT_JOIN_UNIQ([NETWORK_LIBS],["-lresolv -lsocket -lnsl"],[tail])
+			AC_SUBST(NETWORK_LIBS, ${NETWORK_LIBS})
+		],[
+			AC_SEARCH_LIBS([socket], [socket nsl], [
+				AS_IF([test "${ac_cv_search_socket}" = 'none required'],[ac_cv_search_socket=''])
+				SNERT_JOIN_UNIQ([NETWORK_LIBS],["${ac_cv_search_socket}"],[tail])
+				AC_SUBST(NETWORK_LIBS, ${NETWORK_LIBS})
+			])
+			AC_SEARCH_LIBS([inet_aton], [resolv socket nsl], [
+				AS_IF([test "${ac_cv_search_inet_aton}" = 'none required'],[ac_cv_search_inet_aton=''])
+				SNERT_JOIN_UNIQ([NETWORK_LIBS],["${ac_cv_search_inet_aton}"],[tail])
+				AC_SUBST(NETWORK_LIBS, ${NETWORK_LIBS})
+			])
+		])
 
 		AC_CHECK_HEADERS([ \
 			sys/socket.h netinet/in.h netinet/in6.h netinet6/in6.h \

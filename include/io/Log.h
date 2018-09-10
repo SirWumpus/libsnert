@@ -113,7 +113,10 @@ extern void LogFatal(const char *fmt, ...);
 # define LOG_ODELAY      0x04    /* delay open until first syslog() (default) */
 # define LOG_NDELAY      0x08    /* don't delay open */
 # define LOG_NOWAIT      0x10    /* don't wait for console forks: DEPRECATED */
-# define LOG_PERROR      0x20    /* log to stderr as well */
+
+# ifndef LOG_PERROR
+#  define LOG_PERROR     0x20    /* log to stderr as well */
+# endif
 
 /* facility codes */
 # define LOG_KERN        (0<<3)  /* kernel messages */
