@@ -755,6 +755,16 @@ AC_DEFUN(SNERT_LIBSNERT,[
 
 	])
 
+AC_DEFUN(SNERT_OPTION_ENABLE_32BIT,[
+	AC_ARG_ENABLE(32bit,
+		[AC_HELP_STRING([--enable-32bit ],[enable compile & link options for 32-bit])],
+		[
+			CFLAGS="-m32${CFLAGS:+ $CFLAGS}"
+			LDFLAGS="-m32${LDFLAGS:+ $LDFLAGS}"
+		]
+	)
+])
+
 AC_DEFUN(SNERT_OPTION_ENABLE_64BIT,[
 	AC_ARG_ENABLE(64bit,
 		[AC_HELP_STRING([--enable-64bit ],[enable compile & link options for 64-bit])],
@@ -2039,7 +2049,7 @@ AS_IF([test ${with_sqlite3:-default} = 'default'],[
 				echo
 				echo 'Configuring threaded SQLite3...'
 
-				sqlite3_cflags="-DSQLITE_ENABLE_UNLOCK_NOTIFY"
+				sqlite3_cflags="-DSQLITE_ENABLE_UNLOCK_NOTIFY ${CFLAGS}"
 				sqlite3_configure_options="--prefix=$with_sqlite3 --enable-threadsafe"
 
 				AS_IF([$is_amalgamation],

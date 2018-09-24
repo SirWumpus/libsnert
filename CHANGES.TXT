@@ -57,6 +57,10 @@ is no set schedule for releases.
    	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
    	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
 
+--1.75.54--
+
+   +	Add --enable-32bit flag for SunOS.
+
 --1.75.53--
 
   **	Configure and build fixes for SunOS.  Reported by warwick.ac.uk.

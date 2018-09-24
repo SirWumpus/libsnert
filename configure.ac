@@ -81,6 +81,7 @@ SNERT_JOIN_UNIQ([LDFLAGS],[-L$srcdir/../../lib],[head])
 #	Configuration options: settings
 #######################################################################
 
+SNERT_OPTION_ENABLE_32BIT
 SNERT_OPTION_ENABLE_64BIT
 
 AC_ARG_ENABLE(access-tagless,

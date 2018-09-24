@@ -767,6 +767,7 @@ SHELL'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
+enable_32bit
 enable_64bit
 enable_access_tagless
 enable_cache_db_185
@@ -1409,6 +1410,7 @@ Optional Features:
   --disable-option-checking  ignore unrecognized --enable/--with options
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+  --enable-32bit          enable compile & link options for 32-bit
   --enable-64bit          enable compile & link options for 64-bit
   --enable-access-tagless support for tagless access records (Sendmail,
                           Postfix)
@@ -2943,6 +2945,17 @@ fi
 #######################################################################
 
 
+	# Check whether --enable-32bit was given.
+if test "${enable_32bit+set}" = set; then :
+  enableval=$enable_32bit;
+			CFLAGS="-m32${CFLAGS:+ $CFLAGS}"
+			LDFLAGS="-m32${LDFLAGS:+ $LDFLAGS}"
+
+
+fi
+
+
+
 	# Check whether --enable-64bit was given.
 if test "${enable_64bit+set}" = set; then :
   enableval=$enable_64bit;
@@ -3233,7 +3246,7 @@ $as_echo_n "checking sqlite3 build directory... " >&6; }
 				echo
 				echo 'Configuring threaded SQLite3...'
 
-				sqlite3_cflags="-DSQLITE_ENABLE_UNLOCK_NOTIFY"
+				sqlite3_cflags="-DSQLITE_ENABLE_UNLOCK_NOTIFY ${CFLAGS}"
 				sqlite3_configure_options="--prefix=$with_sqlite3 --enable-threadsafe"
 
 				if $is_amalgamation; then :
@@ -10684,7 +10697,7 @@ fi
 
 else
 
-				if test "" = 'head'; then :
+				if test "head" = 'head'; then :
 
 					list="$item${list:+ $list}"
 
