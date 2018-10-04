@@ -349,9 +349,9 @@ T(report_all_unsafe)(void)
 void
 T(report_all)(void)
 {
-	LOCK_LOCK(&lock);
+	(void) LOCK_LOCK(&lock);
 	T(report_all_unsafe)();
-	LOCK_UNLOCK(&lock);
+	(void) LOCK_UNLOCK(&lock);
 }
 
 void
@@ -363,10 +363,10 @@ T(clean_key)(void *data)
 	if (data != NULL) {
 		list = data;
 
-		LOCK_LOCK(&lock);
+		(void) LOCK_LOCK(&lock);
 		list->prev->next = list->next;
 		list->next->prev = list->prev;
-		LOCK_UNLOCK(&lock);
+		(void) LOCK_UNLOCK(&lock);
 
 		T(report)(list);	
 		(free)(list);
@@ -558,7 +558,7 @@ T(malloc)(size_t size, const char *here, long lineno)
 		 * link list of lists.  This allows us to dump all 
 		 * the current allocations for all threads any time.
 		 */
-		LOCK_LOCK(&lock);
+		(void) LOCK_LOCK(&lock);
 		if (main_list == NULL) {
 			list->prev = list;
 			list->next = list;
@@ -569,7 +569,7 @@ T(malloc)(size_t size, const char *here, long lineno)
 			main_list->prev->next = list;
 			main_list->prev = list;		
 		}		
-		LOCK_UNLOCK(&lock);		
+		(void) LOCK_UNLOCK(&lock);
 	}
 	
 	/* Push allocation to head of list. */

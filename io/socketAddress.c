@@ -194,7 +194,7 @@ socketAddressCreate(const char *host, unsigned port)
 		if (*host == '[')
 			host++;
 
-		if ((length = spanDomain(host, 0)) == 0)
+		if ((length = spanDomain((const unsigned char *)host, 0)) == 0)
 			goto error1;
 
 		if ((name = malloc(length+1)) == NULL)
