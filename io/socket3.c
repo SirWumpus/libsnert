@@ -477,7 +477,7 @@ socket3_basic_connect(const char *host, unsigned port, long timeout)
 	SOCKET fd;
 	SocketAddress *addr;
 
-	if ((addr = socketAddressNew(host, port)) == NULL)
+	if ((addr = socketAddressCreate(host, port)) == NULL)
 		return SOCKET_ERROR;
 
 	fd = socket3_open(addr, 1);
@@ -495,7 +495,7 @@ socket3_basic_connect(const char *host, unsigned port, long timeout)
 }
 
 /**
- * A convenience function that combines the steps for socketAddressNew()
+ * A convenience function that combines the steps for socketAddressCreate()
  * socket3_open() and socket3_client() into one function call. This version
  * handles multi-homed hosts.
  *

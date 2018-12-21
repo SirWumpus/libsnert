@@ -62,6 +62,9 @@ is no set schedule for releases.
 
    *	Upgraded SQLite to 3.26.0.
 
+   !	Fix socket3_basic_connect() to use socketAddressCreate() to allow
+   	opening hosts with a port and/or domain-literal brackets.
+
 --1.75.54--
 
    +	Add --enable-32bit flag for SunOS.

@@ -410,8 +410,6 @@ socketClient(Socket2 *s, long timeout)
 	return socket3_client(socketGetFd(s), &s->address, timeout);
 }
 
-extern SocketAddress *socketAddressNew(const char *host, unsigned port);
-
 /**
  * A convenience function that combines the steps for socketAddressCreate()
  * socketOpen() and socketClient() into one function call. This version
@@ -474,38 +472,6 @@ socketConnect(const char *host, unsigned port, long timeout)
 int
 socketOpenClient(const char *host, unsigned port, long timeout, SocketAddress **out_addr, Socket2 **out_sock)
 {
-#ifdef OLD_CRAP_VERSION
-	SocketAddress *addr;
-
-	if (out_sock == NULL) {
-		errno = EFAULT;
-		goto error0;
-	}
-
-	if ((addr = socketAddressCreate(host, port)) == NULL)
-		goto error1;
-
-	if ((*out_sock = socketOpen(addr, 1)) == NULL)
-		goto error2;
-
-	if (socketClient(*out_sock, timeout))
-		goto error3;
-
-	if (out_addr != NULL)
-		*out_addr = addr;
-	else
-		free(addr);
-
-	return 0;
-error3:
-	socketClose(*out_sock);
-error2:
-	free(addr);
-error1:
-	*out_sock = NULL;
-error0:
-	return SOCKET_ERROR;
-#else
 	if (out_sock == NULL)
 		return SOCKET_ERROR;
 
@@ -516,7 +482,6 @@ error0:
 		*out_addr = NULL;
 
 	return 0;
-#endif
 }
 
 /**
