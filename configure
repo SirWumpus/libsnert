@@ -10697,7 +10697,7 @@ fi
 
 else
 
-				if test "head" = 'head'; then :
+				if test "" = 'head'; then :
 
 					list="$item${list:+ $list}"
 
@@ -11216,6 +11216,91 @@ $as_echo "$as_me: Package SQLITE3 has been explicitly disabled." >&6;}
 
 fi
 
+
+	save_CPPFLAGS="$CPPFLAGS"
+	CPPFLAGS="$CPPFLAGS_SQLITE3 $CPPFLAGS"
+
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for SQLITE_VERSION_NUMBER" >&5
+$as_echo_n "checking for SQLITE_VERSION_NUMBER... " >&6; }
+if ${snert_cv_define_sqlite3_h_SQLITE_VERSION_NUMBER+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+		if test "$cross_compiling" = yes; then :
+  { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+as_fn_error $? "cannot run test program while cross compiling
+See \`config.log' for more details" "$LINENO" 5; }
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+
+#include <stdio.h>
+#include <sqlite3.h>
+int main()
+{
+#ifdef SQLITE_VERSION_NUMBER
+	FILE *fp;
+	if ((fp = fopen("snert_output.txt", "w")) == NULL)
+		return 1;
+	fprintf(fp, "%d", SQLITE_VERSION_NUMBER);
+	fclose(fp);
+	return 0;
+#else
+	return 1;
+#endif
+}
+
+
+_ACEOF
+if ac_fn_c_try_run "$LINENO"; then :
+
+			snert_cv_define_sqlite3_h_SQLITE_VERSION_NUMBER=`cat snert_output.txt`
+			rm -f snert_output.txt
+
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+  conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $snert_cv_define_sqlite3_h_SQLITE_VERSION_NUMBER" >&5
+$as_echo "$snert_cv_define_sqlite3_h_SQLITE_VERSION_NUMBER" >&6; }
+
+	CPPFLAGS="$save_CPPFLAGS"
+
+	if test $snert_cv_define_sqlite3_h_SQLITE_VERSION_NUMBER -ge 3025000; then :
+
+
+	list=`eval echo \$LIBS_SQLITE3`
+	if test -n "-lm"; then :
+
+		for item in -lm; do
+			if expr " $list " : ".* $item " >/dev/null; then :
+
+
+else
+
+				if test "" = 'head'; then :
+
+					list="$item${list:+ $list}"
+
+else
+
+					list="${list:+$list }$item"
+
+fi
+
+fi
+		done
+
+fi
+	eval LIBS_SQLITE3="\"$list\""
+
+
+fi
 
 
 

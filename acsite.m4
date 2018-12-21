@@ -419,9 +419,10 @@ dnl
 dnl SNERT_GET_NUMERIC_DEFINE(header_file, symbol)
 dnl
 AC_DEFUN(SNERT_GET_NUMERIC_DEFINE,[
-	AS_VAR_PUSHDEF([ac_Header], [snert_define_$1_$2])dnl
+	AS_VAR_PUSHDEF([ac_Header], [snert_cv_define_$1_$2])dnl
 	AC_CACHE_CHECK([for $2],[ac_Header],[
 		AC_RUN_IFELSE([
+			AC_LANG_SOURCE([[
 #include <stdio.h>
 #include <$1>
 int main()
@@ -437,6 +438,7 @@ int main()
 	return 1;
 #endif
 }
+			]])
 		],[
 			AS_VAR_SET([ac_Header], [[`cat snert_output.txt`]])
 			rm -f snert_output.txt
@@ -1918,11 +1920,19 @@ AC_DEFUN(SNERT_SQLITE3,[
 	SNERT_CHECK_PACKAGE([SQLITE3],[sqlite3.h],[libsqlite3],[sqlite3_open], dnl
 		[$with_sqlite3],[$with_sqlite3_inc],[$with_sqlite3_lib] dnl
 	)
+
+	save_CPPFLAGS="$CPPFLAGS"
+	CPPFLAGS="$CPPFLAGS_SQLITE3 $CPPFLAGS"
+	SNERT_GET_NUMERIC_DEFINE([sqlite3.h],[SQLITE_VERSION_NUMBER])
+	CPPFLAGS="$save_CPPFLAGS"
+
+	AS_IF([test $snert_cv_define_sqlite3_h_SQLITE_VERSION_NUMBER -ge 3025000],[
+		SNERT_JOIN_UNIQ([LIBS_SQLITE3],[-lm])
+	])
 dnl 	AC_SUBST(LIBS_SQLITE3)
 dnl 	AC_SUBST(CPPFLAGS_SQLITE3)
 dnl 	AC_SUBST(LDFLAGS_SQLITE3)
 	AH_VERBATIM(LIBS_SQLITE3,[
-#undef HAVE_LIBSQLITE3
 #undef HAVE_SQLITE3_H
 #undef HAVE_SQLITE3_OPEN
 #undef CPPFLAGS_SQLITE3

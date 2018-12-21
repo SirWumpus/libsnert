@@ -592,11 +592,11 @@ union semun {
 /*
  * SQLite3
  */
-#undef HAVE_LIB_SQLITE3
-#undef CFLAGS_SQLITE3
-#undef LDFLAGS_SQLITE3
 #undef HAVE_SQLITE3_H
 #undef HAVE_SQLITE3_OPEN
+#undef CFLAGS_SQLITE3
+#undef LDFLAGS_SQLITE3
+#undef LIBS_SQLITE3
 
 /*
  * ANSI & POSIX Time Functions
