@@ -71,13 +71,15 @@ ex_name[$EX_NOT_FOUND]='NOT_FOUND'
 LOG_ALERT=0
 LOG_ERROR=1
 LOG_WARN=2
-LOG_INFO=3
-LOG_DEBUG=4
-LOG_DUMP=5
+LOG_NOTICE=3
+LOG_INFO=4
+LOG_DEBUG=5
+LOG_DUMP=6
 
 log_levels[$LOG_ALERT]="ALERT"
 log_levels[$LOG_ERROR]="ERROR"
 log_levels[$LOG_WARN]="WARN"
+log_levels[$LOG_NOTICE]="NOTICE"
 log_levels[$LOG_INFO]="INFO"
 log_levels[$LOG_DEBUG]="DEBUG"
 log_levels[$LOG_DUMP]="DUMP"
@@ -144,6 +146,11 @@ function log_debug
 function log_info
 {
 	log_print $LOG_INFO "$@"
+}
+
+function log_notice
+{
+	log_print $LOG_NOTICE "$@"
 }
 
 function log_warn
