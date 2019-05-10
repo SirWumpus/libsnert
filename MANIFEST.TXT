@@ -236,6 +236,8 @@ com/snert/src/lib/util/htmlEntity.c
 com/snert/src/lib/util/makefile.in
 com/snert/src/lib/util/ixhash.c
 com/snert/src/lib/util/ixhash.eml
+com/snert/src/lib/util/jspr.c
+com/snert/src/lib/util/jspr.h
 com/snert/src/lib/util/md4.c
 com/snert/src/lib/util/md5.c
 com/snert/src/lib/util/playfair.c

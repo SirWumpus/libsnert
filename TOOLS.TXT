@@ -60,6 +60,8 @@ ixhash		Generate iXhash checksums, typically used for anti-spam
 		filtering and testing against iXhash blacklists.
 		http://ixhash.sourceforge.net/
 
+jspr		Jasper: JSON String Path Recovery
+
 kvmap		Key-value map tool similar to makemap(1) or postmap(1).
 		Supports a variety of formats.
 
