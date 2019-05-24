@@ -129,6 +129,7 @@ com/snert/src/lib/scripts/csvview.php
 com/snert/src/lib/scripts/getopt2.php
 com/snert/src/lib/scripts/grey-test.sh
 com/snert/src/lib/scripts/log.sh
+com/snert/src/lib/scripts/semver.sh
 com/snert/src/lib/scripts/smtp-ping.php
 com/snert/src/lib/scripts/smtp-profile-list.txt
 com/snert/src/lib/scripts/smtp-profile.cf
