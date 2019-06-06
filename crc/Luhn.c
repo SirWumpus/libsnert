@@ -76,10 +76,10 @@ sum(const char *s, size_t length)
 		return -1;
 
 	if (base36['Z'] != 35) {
-		for (i = 0, p = alnum; *p != '\0'; p++, i++)
+		for (i = 0, p = alnum; *p != '\0'; p++, i++) {
 			base36[(int) *p] = (unsigned) i;
-		for (i = 0, p = alnum; *p != '\0'; p++, i++)
 			base36[tolower(*p)] = (unsigned) i;
+		}
 	}
 
 	/* Working right to left... */
