@@ -116,6 +116,7 @@ util/b64
 util/cipher
 util/htmlstrip
 util/ixhash
+util/jspr
 util/md4
 util/md5
 util/time62
