@@ -185,6 +185,7 @@ main(int argc, char **argv)
 		}
 	} else {
 		flip(NULL);
+		ex = EXIT_SUCCESS;
 	}
 
 	return ex;
