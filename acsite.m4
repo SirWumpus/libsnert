@@ -1596,7 +1596,7 @@ AS_IF([test "$enable_win32" = 'yes'],[
 	CPPFLAGS="$CPPFLAGS_PTHREAD $saved_CPPFLAGS"
 	CFLAGS="$CFLAGS_PTHREAD $saved_CFLAGS"
 
-	AC_CHECK_TYPES([pthread_t, pthread_attr_t, pthread_mutex_t, pthread_mutexattr_t, pthread_once_t sigset_t],[],[],[
+	AC_CHECK_TYPES([pthread_t, pthread_attr_t, pthread_mutex_t, pthread_mutexattr_t, pthread_once_t, sigset_t],[],[],[
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
 #endif

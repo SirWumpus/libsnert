@@ -7918,7 +7918,7 @@ _ACEOF
 
 
 fi
-ac_fn_c_check_type "$LINENO" "pthread_once_t sigset_t" "ac_cv_type_pthread_once_t_sigset_t" "
+ac_fn_c_check_type "$LINENO" "pthread_once_t" "ac_cv_type_pthread_once_t" "
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
 #endif
@@ -7930,10 +7930,30 @@ ac_fn_c_check_type "$LINENO" "pthread_once_t sigset_t" "ac_cv_type_pthread_once_
 #endif
 
 "
-if test "x$ac_cv_type_pthread_once_t_sigset_t" = xyes; then :
+if test "x$ac_cv_type_pthread_once_t" = xyes; then :
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_PTHREAD_ONCE_T_SIGSET_T 1
+#define HAVE_PTHREAD_ONCE_T 1
+_ACEOF
+
+
+fi
+ac_fn_c_check_type "$LINENO" "sigset_t" "ac_cv_type_sigset_t" "
+#ifdef HAVE_SYS_TYPES_H
+# include <sys/types.h>
+#endif
+#ifdef HAVE_SIGNAL_H
+# include <signal.h>
+#endif
+#ifdef HAVE_PTHREAD_H
+# include <pthread.h>
+#endif
+
+"
+if test "x$ac_cv_type_sigset_t" = xyes; then :
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_SIGSET_T 1
 _ACEOF
 
 
