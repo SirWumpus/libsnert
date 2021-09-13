@@ -11,6 +11,9 @@ const char usage[] =
 "-j skip\t\tskip N bytes from start of input\n"
 "-N count\tread at most N bytes of input\n"
 "\n"
+"An od(1) like tool for displaying standard input or files as\n"
+"a stream of bits instead of bytes.\n"
+"\n"
 ;
 
 char filemsg[] = "File \"%s\" ";
