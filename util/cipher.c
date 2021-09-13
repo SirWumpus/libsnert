@@ -273,27 +273,24 @@ cipher_chain_add(const char *seed_number, char *buffer, size_t size)
 
 /**
  * @param in
- *      A C string of up to 255 bytes in length.
+ *      A C string of up to 256 bytes in length.
  *
  * @param out
  *      An output buffer that starts with the length N of the
- *      input string followed by N octets. Each octet in the
+ *      input string followed by N octets.  Each octet in the
  *      output array contains the index by which the input
- *      string should be read according to the ordinal order
- *      of the input.
+ *      string should be read according to the ASCII character
+ *	sort order of the input.
  *
- *      Examples assuming ASCII:
+ *      Examples assuming ASCII sort order:
  *
  *          B A B Y L O N 5             input
- *          2 1 3 7 4 6 5 0             ordinal order
- *          7 1 0 2 4 6 5 3             index of ordinal
+ *          2 1 3 7 4 6 5 0             character order
+ *          7 1 0 2 4 6 5 3             column indices
  *
  *          H E L L O W O R L D         input
- *          2 1 3 4 6 9 7 8 5 0         ordinal order
- *          9 1 0 2 3 8 4 6 7 5         index of ordinal
- *
- * @return
- *	Zero on success.
+ *          2 1 3 4 6 9 7 8 5 0         character order
+ *          9 1 0 2 3 8 4 6 7 5         column indices
  */
 void
 cipher_index_order(const char *in, int out[256])
