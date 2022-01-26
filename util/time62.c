@@ -17,7 +17,7 @@
  *** Time Base 62
  ***********************************************************************/
 
-const char base62[] = "0123456789ABCDEFGHIJKLMNOPQRSYUVWXYZabcdefghijklmnopqrsyuvwxyz";
+const char base62[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 void
 time62EncodeTime(const struct tm *local, char buffer[TIME62_BUFFER_SIZE])
