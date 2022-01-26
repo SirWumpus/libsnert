@@ -1,4 +1,3 @@
-/configure     -diff -merge
 *.docx binary
 *.gif binary
 *.jbf binary
@@ -10,4 +9,5 @@
 *.ttf binary
 *.TTF binary
 *.wsa binary
-
+configure -diff -merge
+erlang.mk -diff
