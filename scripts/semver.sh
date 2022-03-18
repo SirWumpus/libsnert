@@ -13,18 +13,22 @@ export LANG=C
 #
 #######################################################################
 
+__update=false
 __file="VERSION.TXT"
 
 usage()
 {
-	echo 'usage: semver.sh [-f file] [major|minor|patch|$VERSION]'
+	echo 'usage: semver.sh [-u][-f file] [major|minor|patch|$VERSION]'
 	exit 2
 }
 
-while getopts 'f:' opt; do
+while getopts 'f:u' opt; do
 	case "$opt" in
 	(f)
 		__file="$OPTARG"
+		;;
+	(u)
+		__update=true
 		;;
 	(*)
 		usage
@@ -41,9 +45,19 @@ if [ $# -le 0 ]; then
 	exit 0
 fi
 
+echo $__file $version
 major=$(expr "$version" : "\([0-9]*\)\.[0-9]*\.[0-9]*")
 minor=$(expr "$version" : "[0-9]*\.\([0-9]*\)\.[0-9]*")
 patch=$(expr "$version" : "[0-9]*\.[0-9]*\.\([0-9]*\)")
+
+if ! $__update ; then
+	case "$1" in
+	(major)	echo $major ;;
+	(minor)	echo $minor ;;
+	(patch)	echo $patch ;;
+	esac
+	exit 0
+fi
 
 case "$1" in
 (major)
