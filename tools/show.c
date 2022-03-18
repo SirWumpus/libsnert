@@ -60,35 +60,37 @@ static const char asciiBeep[] = "\007";
 static const char ansiNormal[] = "\033[0m";
 static const char ansiReverse[] = "\033[5;7m";
 
-static long
-output(const char *buf, long length, const char *pattern, long *resume)
+static size_t
+output(const char *buf, size_t length, const char *pattern, long *resume)
 {
 	long i, plen;
 	const char *stop;
 
-	if (pattern == NULL)
+	if (pattern == NULL) {
 		return fwrite(buf, 1, length, stdout);
+	}
 
 	plen = strlen(pattern);
 	stop = buf + length;
 
 	if (0 < *resume) {
 		for (i = 0; buf + i < stop; i++) {
-			if (buf[i] != pattern[*resume + i])
+			if (buf[i] != pattern[*resume + i]) {
 				break;
+			}
 		}
 
 		if (pattern[*resume + i] == '\0') {
-			fwrite(ansiReverse, 1, sizeof (ansiReverse) - 1, stdout);
-			fwrite(pattern, 1, plen, stdout);
-			fwrite(ansiNormal, 1, sizeof (ansiNormal) - 1, stdout);
+			(void) fwrite(ansiReverse, 1, sizeof (ansiReverse) - 1, stdout);
+			(void) fwrite(pattern, 1, plen, stdout);
+			(void) fwrite(ansiNormal, 1, sizeof (ansiNormal) - 1, stdout);
 
 			buf += i;
 		} else if (stop <= buf + i) {
 			*resume += i;
 			return length - i;
 		} else {
-			fwrite(pattern, 1, *resume + i, stdout);
+			(void) fwrite(pattern, 1, *resume + i, stdout);
 			buf += i;
 		}
 
@@ -97,24 +99,27 @@ output(const char *buf, long length, const char *pattern, long *resume)
 
 	while (buf < stop) {
 		for (i = 0; buf + i < stop; i++) {
-			if (buf[i] == pattern[0])
+			if (buf[i] == pattern[0]) {
 				break;
+			}
 		}
 
 		(void) fwrite(buf, 1, i, stdout);
 		buf += i;
 
 		for (i = 0; buf + i < stop && pattern[i] != '\0'; i++) {
-			if (buf[i] != pattern[i])
+			if (buf[i] != pattern[i]) {
 				break;
+			}
 		}
 
 		if (pattern[i] == '\0') {
-			if (beep)
-				fwrite(asciiBeep, 1, sizeof (asciiBeep) - 1, stdout);
-			fwrite(ansiReverse, 1, sizeof (ansiReverse) - 1, stdout);
-			fwrite(pattern, 1, plen, stdout);
-			fwrite(ansiNormal, 1, sizeof (ansiNormal) - 1, stdout);
+			if (beep) {
+				(void) fwrite(asciiBeep, 1, sizeof (asciiBeep) - 1, stdout);
+			}
+			(void) fwrite(ansiReverse, 1, sizeof (ansiReverse) - 1, stdout);
+			(void) fwrite(pattern, 1, plen, stdout);
+			(void) fwrite(ansiNormal, 1, sizeof (ansiNormal) - 1, stdout);
 			buf += i;
 		} else if (stop <= buf + i) {
 			*resume += i;
@@ -168,8 +173,9 @@ follow_stream(FILE *fp)
 			|| sb.st_size < last_size
 			|| sb.st_ino != last_ino
 			|| sb.st_dev != last_dev
-			|| sb.st_rdev != last_rdev)
+			|| sb.st_rdev != last_rdev) {
 				return -1;
+			}
 
 			last_ino = sb.st_ino;
 			last_dev = sb.st_dev;
@@ -178,7 +184,7 @@ follow_stream(FILE *fp)
 		}
 	} while (follow_flag && !ferror(fp));
 
-	fflush(stdout);
+	(void) fflush(stdout);
 
 	return 0;
 }
@@ -191,31 +197,35 @@ seek_last_n_lines(FILE *fp, size_t lines)
 	size_t n, count;
 	struct stat finfo;
 
-	if (fstat(fileno(fp), &finfo) != 0)
+	if (fstat(fileno(fp), &finfo) != 0) {
 		return -1;
+	}
 
 	/* Start with the odd buffer length from the end of file. */
 	offset = finfo.st_size - finfo.st_size % sizeof (buffer);
 
 	for (count = 0; ; ) {
 		/* Seeking on a pipe will fail with errno ESPIPE. */
-		if (fseek(fp, offset, SEEK_SET) == -1)
+		if (fseek(fp, offset, SEEK_SET) == -1) {
 			break;
+		}
 
 		/* Fill the buffer. */
-		if ((n = fread(buffer, 1, sizeof (buffer), fp)) <= 0)
+		if ((n = fread(buffer, 1, sizeof (buffer), fp)) <= 0) {
 			break;
+		}
 
 		/* Count backwards N newlines. */
-		for (eb = buffer+n; buffer < eb; ) {
+		for (eb = buffer + n; buffer < eb; ) {
 			if (*--eb == '\n' && lines <= count++) {
 				offset += (eb+1-buffer);
 				break;
 			}
 		}
 
-		if (offset <= 0 || lines <= count)
+		if (offset <= 0 || lines <= count) {
 			break;
+		}
 
 		/* Move backwards by buffer size units until we reach
 		 * the start of the file.
@@ -237,10 +247,11 @@ show_n_lines(const char *file, long lines)
 	char *b, *eb;
 	long pattern_offset = 0;
 
-	if (file[0] == '-' && file[1] == '\0')
+	if (file[0] == '-' && file[1] == '\0') {
 		fp = stdin;
-	else if ((fp = fopen(file, "rb")) == NULL)
+	} else if ((fp = fopen(file, "rb")) == NULL) {
 		return NULL;
+	}
 
 	if (lines < 0) {
 		lines = -lines;
@@ -251,19 +262,21 @@ show_n_lines(const char *file, long lines)
 	}
 
 	while (0 < lines) {
-		if ((n = fread(buffer, 1, sizeof (buffer), fp)) == 0)
+		if ((n = fread(buffer, 1, sizeof (buffer), fp)) == 0) {
 			break;
+		}
 
 		/* Count newlines in the buffer. */
 		for (b = buffer, eb = buffer+n; b < eb; ) {
-			if (*b++ == '\n' && --lines <= 0)
+			if (*b++ == '\n' && --lines <= 0) {
 				break;
+			}
 		}
 
 		(void) output(buffer, b - buffer, pattern, &pattern_offset);
 	}
 
-	fflush(stdout);
+	(void) fflush(stdout);
 
 	return fp;
 }
@@ -282,10 +295,11 @@ show_file(const char *file)
 		fp = freopen(file, "rb", fp);
 	}
 
-	if (fp != NULL)
+	if (fp != NULL) {
 		(void) fclose(fp);
-	else
+	} else {
 		(void) fprintf(stderr, "%s: %s (%d)\n", file, strerror(errno), errno);
+	}
 }
 
 int
@@ -305,7 +319,7 @@ main(int argc, char **argv)
 			pattern = optarg;
 			break;
 		case 'u':
-			setvbuf(stdout, NULL, _IONBF, 0);
+			(void) setvbuf(stdout, NULL, _IONBF, 0);
 			break;
 		case 'n':
 			nlines = strtol(optarg, NULL, 10);
@@ -325,8 +339,9 @@ main(int argc, char **argv)
 	}
 
 	/* Can follow only a single file argument. */
-	if (optind + 1 != argc)
+	if (optind + 1 != argc) {
 		follow_flag = 0;
+	}
 
 	if (argc == optind) {
 		show_file("-");
