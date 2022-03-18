@@ -1,7 +1,7 @@
 /*
  * show.c
  *
- * Copyright 2000, 2013 by Anthony Howe.  All rights reserved.
+ * Copyright 2000, 2022 by Anthony Howe.  All rights reserved.
  *
  * usage: show [-bfu][-n lines][-p string] file ...
  */
@@ -47,7 +47,7 @@ static char usage[] =
 "-u\t\tunbuffered output\n"
 "files ...\tlist of files to show\n"
 "\n"
-"show Copyright 2000, 2013 by Anthony Howe. All rights reserved.\n"
+"show Copyright 2000, 2022 by Anthony Howe. All rights reserved.\n"
 ;
 
 static int beep;
@@ -144,6 +144,10 @@ follow_stream(FILE *fp)
 	size_t last_size = 0;
 	long pattern_offset = 0;
 
+	if (!follow_flag) {
+		return 0;
+	}
+
 	/* Initialise our current position and file "instance" variables. */
 	if (fstat(fileno(fp), &sb) == 0) {
 		last_ino = sb.st_ino;
@@ -154,19 +158,15 @@ follow_stream(FILE *fp)
 		/* The -f option is ignored if the standard input
 		 * is a pipe, but not if it is a FIFO.
 		 */
-		if (follow_flag)
-			follow_flag = fileno(fp) != STDIN_FILENO || S_ISFIFO(sb.st_mode);
+		follow_flag = fileno(fp) != STDIN_FILENO || S_ISFIFO(sb.st_mode);
 	}
 
 	do {
-		clearerr(fp);
+		/* Wait for new data to accumulate. */
+		(void) sleep(POLL_INTERVAL);
+
 		while (0 < (n = fread(buffer, 1, sizeof (buffer), fp))) {
 			(void) output(buffer, n, pattern, &pattern_offset);
-		}
-
-		if (follow_flag) {
-			/* Wait for new data to accumulate. */
-			sleep(POLL_INTERVAL);
 
 			/* Check for truncation or new instance of file. */
 			if (fstat(fileno(fp), &sb) != 0
@@ -182,7 +182,7 @@ follow_stream(FILE *fp)
 			last_rdev = sb.st_dev;
 			last_size = sb.st_size;
 		}
-	} while (follow_flag && !ferror(fp));
+	} while (!ferror(fp));
 
 	(void) fflush(stdout);
 
@@ -293,6 +293,9 @@ show_file(const char *file)
 	while (fp != NULL && follow_stream(fp)) {
 		/* The file has been truncated or replaced. */
 		fp = freopen(file, "rb", fp);
+		if (seek_last_n_lines(fp, 1)) {
+			break;
+		}
 	}
 
 	if (fp != NULL) {
