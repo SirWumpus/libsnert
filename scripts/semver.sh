@@ -45,7 +45,7 @@ if [ $# -le 0 ]; then
 	exit 0
 fi
 
-echo $__file $version
+#echo $__file $version
 major=$(expr "$version" : "\([0-9]*\)\.[0-9]*\.[0-9]*")
 minor=$(expr "$version" : "[0-9]*\.\([0-9]*\)\.[0-9]*")
 patch=$(expr "$version" : "[0-9]*\.[0-9]*\.\([0-9]*\)")
