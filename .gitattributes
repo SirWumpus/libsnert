@@ -10,4 +10,6 @@
 *.TTF binary
 *.wsa binary
 configure -diff -merge
+config.guess -diff -merge
+config.sub -diff -merge
 erlang.mk -diff

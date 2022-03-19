@@ -13,7 +13,6 @@ E = @EXEEXT@
 .SUFFIXES : .c .i $O $A
 
 PACKAGE		:= @PACKAGE_TARNAME@
-VERSION		:= @PACKAGE_VERSION@.${BUILD}
 
 VPATH		:= @srcdir@
 srcdir		:= @srcdir@
@@ -23,6 +22,8 @@ abs_srcdir	:= @abs_srcdir@
 builddir	:= @builddir@
 top_builddir	:= @top_builddir@
 abs_builddir	:= @abs_builddir@
+
+VERSION		:= `${abs_builddir}/scripts/semver.sh -f ${abs_builddir}/VERSION.TXT`
 
 SNERT_TARDIR	:= ${top_srcdir}/../../../..
 SNERT_INCDIR	:= ${top_srcdir}/../../include
@@ -36,8 +37,6 @@ TARFILE		:= ${PACKAGE}-${VERSION}.tar.gz
 TGZ		:= $(SNERT_TARDIR)/${TARFILE}
 
 TAR_I		:= @TAR_I@
-BUILD		:= `cat ${abs_srcdir}/BUILD_ID.TXT`
-DEFINES 	:= -DLIBSNERT_BUILD=${BUILD} -DLIBSNERT_BUILD_STRING='"'${BUILD}'"'
 
 LIBSNERT_SHARE	:= @datarootdir@/${PACAKGE}
 LIBSNERT_SQLITE3_DIR := @LIBSNERT_SQLITE3_DIR@
@@ -204,11 +203,15 @@ install: build-tools
 	@echo '***************************************************************'
 	@echo
 
-next-id:
-	expr `cat ${top_srcdir}/BUILD_ID.TXT` + 1 >${top_srcdir}/BUILD_ID.TXT
-	sed -e 's/LIBSNERT_BUILD [0-9]*/LIBSNERT_BUILD '`cat ${top_srcdir}/BUILD_ID.TXT`'/' $(SNERT_INCDIR)/com/snert/lib/version.h >$(SNERT_INCDIR)/com/snert/lib/version.h.new
-	sed -e 's/\(LIBSNERT_VERSION.*\.\)[0-9]*"/\1'`cat ${top_srcdir}/BUILD_ID.TXT`'"/' $(SNERT_INCDIR)/com/snert/lib/version.h.new >$(SNERT_INCDIR)/com/snert/lib/version.h
-	rm -f $(SNERT_INCDIR)/com/snert/lib/version.h.new
+next-major:
+	./scripts/semver.sh -f ${abs_srcdir}/VERSION.TXT -u major
+	./config.status
+next-minor:
+	./scripts/semver.sh -f ${abs_srcdir}/VERSION.TXT -u minor
+	./config.status
+next-patch:
+	./scripts/semver.sh -f ${abs_srcdir}/VERSION.TXT -u patch
+	./config.status
 
 add-lib: ${OBJS}
 	@echo
@@ -235,7 +238,7 @@ distclean: title
 	-rm -f $(LIB) $(BAK) td32.TR2
 	-rm -rf autom4te.cache configure.lineno version.h.in
 	-rm -f *.log *.o *.obj *.tds *.stackdump core *.core core.*
-	-rm -f config.log config.status install.sh makefile version.sh
+	-rm -f config.log config.status configure~ install.sh makefile version.sh
 	if test -f "${LIBSNERT_SQLITE3_DIR}/include/sqlite3.h" ; then \
 	    rm -rf ${LIBSNERT_SQLITE3_DIR}/bin ${LIBSNERT_SQLITE3_DIR}/include ${LIBSNERT_SQLITE3_DIR}/lib ; \
 	    cd ${LIBSNERT_SQLITE3_DIR}/${LIBSNERT_SQLITE3_VERSION} ; ${MAKE} ${MFLAGS} $@ ; \
@@ -264,7 +267,7 @@ flipunix: ../tools/flip$E
 flipdos: ../tools/flip.exe
 	-find ../.. -name "*.[ch]" -o -name "*.in" | $(XARGSI) -t ../tools/flip$E -d {}
 
-${top_srcdir}/configure: ${top_srcdir}/BUILD_ID.TXT aclocal.m4 configure.in
+${top_srcdir}/configure: aclocal.m4 config.guess config.sub configure.ac
 	cd ${top_srcdir}; ${AUTOCONF} -f
 
 config.status: configure
@@ -277,12 +280,10 @@ list:
 	tar -tvzf $(TGZ)
 
 tar: configure
-	echo '${VERSION}' >VERSION.TXT
-	echo '${PACKAGE}-${VERSION}.tar.gz' >FILE.TXT
 	tar -C ${SNERT_TARDIR} ${TAR_I} ${top_srcdir}/MANIFEST.TXT -zcf ${TGZ}
 	@echo
 	@echo '***************************************************************'
-	@cd ${SNERT_TARDIR}; ${MD5SUM} ${TARFILE}* | tee com/snert/src/lib/${PACKAGE}.md5
+	@cd ${SNERT_TARDIR}; ${MD5SUM} ${TARFILE} | tee com/snert/src/lib/${PACKAGE}.md5
 	@echo '***************************************************************'
 	@cd ${SNERT_TARDIR}; wc -c ${TARFILE}
 	@echo '***************************************************************'

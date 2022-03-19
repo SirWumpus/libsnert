@@ -113,6 +113,9 @@ popin		POP3 interface mail retrieval tool. I originally used
 		this with smtpout (replaced by smtp2) to test a "mail
 		send & receive circuit" with Nagios (see mail-cycle.sh).
 
+rot		Caesar cipher using English alphabet, printable ASCII,
+		or user defined.
+
 secho		Secure echo test client and server. Note that server can
 sechod		only handle a single connection at a time (no threads,
 		no forking) since it was only intended for testing. The

@@ -24,38 +24,26 @@ is no set schedule for releases.
 
    ?	mcc: appears to hang on exit when input piped from standard in.
 
-   ?	Consider a TextFind2. Brain storm...
-
-   	a) that supports a regex-like subset and single character back references
-   	b) shortest match instead of longest
-   	c) parse on the fly
-   	d) ^ $ anchors, . ? wild cards, * + (long match), # ~ (short match),
-   	   < > word boundaries,
-        e) \w \W word chars, \d \D digits, \s \S white space, and other predefined
-           classes with a special design that treats them like "(\w)" so that
-           back references could be done on single characters;
-           \p \P punctuation, \x \X hex digits,
-	f) no ( ) or { } to avoid recursion issues
-
-	As long as you have enough punctuation characters for special operations,
-	you can parse in real time. Actually if you drop the longest match and only
-	use first/shortest match, you simplify things and you can drop the +
-	operator since you can do "a+" as "aa*"
-
-	*** To be refined. (ARSE = Anthony's reduced search expressions)
-
-
-   ?	lockpick.c: Add recursive mutex debugging support.
-
    ? 	mime.c, uri.c: Fix message/rfc822 hack.
 
    ?	Add a minimum size limit for conditional extraction of a MIME
    	part. Requested by AlexB.
 
-   ?	Linux RPM options:
 
-   	CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector
-   	--param=ssp-buffer-size=4 -mtune=generic'  ./configure --without-db --without-openssl
+--1.76.0
+
+   *	Upgraded SQLite to 3.38.1.  Note this might be the last update to
+   	include it.  It was needed when SQLite did not default to a threaded
+   	build for milters and BarricadeMX.
+
+   !	Fix show -f behaviour.
+
+   !	Add senver.sh -u option.
+
+   !	Fix major typos time62.c, reported by Florian Kirstein.
+
+   !	Add a `rot` tool just because.
+
 
 --1.75.58
 

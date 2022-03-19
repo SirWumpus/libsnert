@@ -1181,7 +1181,6 @@ AC_DEFUN(SNERT_SETJMP,[
 # include <setjmp.h>
 #endif
 		])
-		AC_CHECK_FUNCS([setjmp longjmp sigsetjmp siglongjmp])
 		AH_VERBATIM([HAVE_SETJMP_H],[
 #undef HAVE_SETJMP_H
 
@@ -2383,16 +2382,12 @@ AC_DEFUN(SNERT_INIT,[
 	dnl development.
 
 	AC_SUBST(package_copyright, ['$2'])
-	AC_SUBST(package_major, [[`echo $PACKAGE_VERSION | sed -e 's/^\([0-9]*\)\.\([0-9]*\)/\1/'`]])
-	AC_SUBST(package_minor, [[`echo $PACKAGE_VERSION | sed -e 's/^\([0-9]*\)\.\([0-9]*\)/\2/'`]])
 
-	AS_IF([test -f "$3"],[
-		AC_SUBST(package_build, [[`cat $3`]])
-	],[test -f $srcdir/BUILD_ID.TXT],[
-		AC_SUBST(package_build, [[`cat $srcdir/BUILD_ID.TXT | tr -d '[\r\n]'`]])
-	])
+	AC_SUBST(package_version, [[`cat $srcdir/VERSION.TXT`]])
+	AC_SUBST(package_major, [[`expr "$package_version" : "\([0-9]*\)\.[0-9]*\.[0-9]*"`]])
+	AC_SUBST(package_minor, [[`expr "$package_version" : "[0-9]*\.\([0-9]*\)\.[0-9]*"`]])
+	AC_SUBST(package_build, [[`expr "$package_version" : "[0-9]*\.[0-9]*\.\([0-9]*\)"`]])
 
-	AC_SUBST(package_version, "${PACKAGE_VERSION}${package_build:+.}${package_build}")
 	AC_SUBST(package_string, "${PACKAGE_NAME} ${package_version}")
 	AC_SUBST(package_number, [[`printf "%d%03d%03d" $package_major $package_minor $package_build`]])
 
@@ -2434,7 +2429,7 @@ AC_DEFUN(SNERT_INIT,[
 	])
 
 	AS_ECHO
-	AS_ECHO("$PACKAGE_NAME/$package_major.$package_minor${package_build:+.}${package_build}")
+	AS_ECHO("$PACKAGE_NAME/$package_version")
 	AS_ECHO("$package_copyright")
 	AS_ECHO
 ])
