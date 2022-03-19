@@ -132,9 +132,9 @@ jspr_find(const char *js, const char **end, const char *key)
 			// Length of key.
 			js = jspr_token(js, &stop, ":}" WS);
 			ws = strspn(stop, WS);
-			*end = stop;
+			*end = stop + ws;
 
-			// Colon delimiter following key?
+			// Colon delimiter must follow key.
 			if (stop[ws] != ':')
 				break;
 

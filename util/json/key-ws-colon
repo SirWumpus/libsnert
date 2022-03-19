@@ -1,0 +1,11 @@
+{
+	"foo" : "bar",
+	empty: [ ],
+	nil : { },
+	"bat"    :    [
+		"x", "y", {
+			boo: 123,
+			xyz: [ true, null, baka ]
+		}
+	]
+}

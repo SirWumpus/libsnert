@@ -1,0 +1,11 @@
+{
+	user1: {
+		first: anthony,
+		last: howe
+	},
+	user2: {
+		first: baka,
+		last: howe
+	}
+}
+
