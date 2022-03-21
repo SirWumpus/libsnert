@@ -165,6 +165,10 @@ jspr_find(const char *js, const char **end, const char *key)
 			stop += strspn(stop, WS);
 			*end = stop;
 
+			if (*js == ']') {
+				// End of array before index found.
+				break;
+			}
 			if (--index < 0) {
 				// Return start of value.
 				return js;
