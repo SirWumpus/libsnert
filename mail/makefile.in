@@ -139,10 +139,15 @@ distclean: clean
 
 debug : build
 
+clean-tlds:
+	rm tlds-alpha-by-domain.txt three-level-tlds.txt #two-level-tlds.txt
+
 update-tlds: tlds-alpha-by-domain.txt two-level-tlds.txt three-level-tlds.txt
 
+force-tlds: clean-tlds update-tlds tlds$O
+
 tlds-alpha-by-domain.txt:
-	wget -r -O tlds-alpha-by-domain.txt http://data.iana.org/TLD/tlds-alpha-by-domain.txt
+	curl -O http://data.iana.org/TLD/tlds-alpha-by-domain.txt
 
 tlds-alpha-by-domain.c : ${srcdir}/tlds.sed ${srcdir}/tlds-alpha-by-domain.txt
 	sed -f ${srcdir}/tlds.sed ${srcdir}/tlds-alpha-by-domain.txt >tlds-alpha-by-domain.c
@@ -152,10 +157,11 @@ tlds-alpha-by-domain.c : ${srcdir}/tlds.sed ${srcdir}/tlds-alpha-by-domain.txt
 # to change regularly. Not included are "vanity" domains.
 # https://svn.apache.org/repos/asf/spamassassin/trunk/lib/Mail/SpamAssassin/Util/RegistrarBoundaries.pm
 #two-level-tlds.txt:
-#	wget -r -O two-level-tlds.txt http://www.surbl.org/tld/two-level-tlds
+#	curl -O http://www.surbl.org/static/two-level-tlds
 
-# Managed by hand.
-# https://svn.apache.org/repos/asf/spamassassin/trunk/lib/Mail/SpamAssassin/Util/RegistrarBoundaries.pm
+# The previous apache.org source above no longer exists and the SURBL source
+# is too polluted with junk second levels unrelated to country TLDs.  Until
+# a new reliable source is found must retain the last known two-level-tlds.txt.
 two-level-tlds.txt:
 	true
 
@@ -163,7 +169,7 @@ two-level-tlds.c : ${srcdir}/two-level-tlds.txt
 	sed -e '/^#/d' -e '/[^A-Za-z0-9.-]/d' -e 's/.*/"&",/' ${srcdir}/two-level-tlds.txt >two-level-tlds.c
 
 three-level-tlds.txt:
-	wget -r -O three-level-tlds.txt http://www.surbl.org/tld/three-level-tlds
+	curl -o$@ http://www.surbl.org/static/three-level-tlds
 
 three-level-tlds.c : ${srcdir}/three-level-tlds.txt
 	sed -e '/^#/d' -e '/[^A-Za-z0-9.-]/d' -e 's/.*/"&",/' ${srcdir}/three-level-tlds.txt >three-level-tlds.c
