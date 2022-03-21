@@ -27,6 +27,7 @@ FILE.TXT
 config.h*
 config.log
 config.status
+configure~
 install.sh
 version.sh
 version.h.in
