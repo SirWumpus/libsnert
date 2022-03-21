@@ -267,7 +267,7 @@ flipunix: ../tools/flip$E
 flipdos: ../tools/flip.exe
 	-find ../.. -name "*.[ch]" -o -name "*.in" | $(XARGSI) -t ../tools/flip$E -d {}
 
-${top_srcdir}/configure: aclocal.m4 config.guess config.sub configure.ac
+${top_srcdir}/configure: acsite.m4 config.guess config.sub configure.ac
 	cd ${top_srcdir}; ${AUTOCONF} -f
 
 config.status: configure

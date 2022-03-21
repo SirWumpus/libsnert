@@ -179,9 +179,13 @@ dnl	eval extra_LIBS="\${LIBS_$1}"
 dnl	eval extra_LDFLAGS="\${LDFLAGS_$1}"
 dnl	eval extra_CPPFLAGS="\${CPPFLAGS_$1}"
 
+	found=0
+	headers=0
 	for f in $2; do
+		headers=`expr $headers + 1`
 		cache_id=AS_TR_SH(ac_cv_header_$f)
 		SNERT_CHECK_PACKAGE_HEADER([$f],[
+			found=`expr $found + 1`
 			dnl Remember the location we found the header
 			dnl even if its a system directory.
 			have=AS_TR_CPP(HAVE_$f)
@@ -206,25 +210,29 @@ dnl	eval extra_CPPFLAGS="\${CPPFLAGS_$1}"
 		],[${with_base:+$with_base/include} $6])
 	done
 
-	for f in $3; do
-		SNERT_CHECK_PACKAGE_LIB([$f],[
-			have=AS_TR_CPP(HAVE_$f)
-			AC_DEFINE_UNQUOTED($have,["$dir_val"])
-			SNERT_IF_SYSTEM_DIR([$dir_val],[
-				lib=`basename $f | sed -e's/^lib//'`
-				SNERT_JOIN_UNIQ([LIBS_$1],["-l$lib"],[tail])
-			],[
-				SNERT_JOIN_UNIQ([LDFLAGS_$1],["-L$dir_val"])
-				AS_IF([expr "$f" : '.*\.a$' >/dev/null],[
-					dnl Explicit static library.
-					SNERT_JOIN_UNIQ([LIBS_$1],["$dir_val/$f"],[tail])
-				],[
+	dnl If we don't have all the headers, skip checking for the libraries.
+	dnl Consider the case where we have libssl et al., but not the headers.
+	AS_IF([test $headers -eq $found], [
+		for f in $3; do
+			SNERT_CHECK_PACKAGE_LIB([$f],[
+				have=AS_TR_CPP(HAVE_$f)
+				AC_DEFINE_UNQUOTED($have,["$dir_val"])
+				SNERT_IF_SYSTEM_DIR([$dir_val],[
 					lib=`basename $f | sed -e's/^lib//'`
 					SNERT_JOIN_UNIQ([LIBS_$1],["-l$lib"],[tail])
+				],[
+					SNERT_JOIN_UNIQ([LDFLAGS_$1],["-L$dir_val"])
+					AS_IF([expr "$f" : '.*\.a$' >/dev/null],[
+						dnl Explicit static library.
+						SNERT_JOIN_UNIQ([LIBS_$1],["$dir_val/$f"],[tail])
+					],[
+						lib=`basename $f | sed -e's/^lib//'`
+						SNERT_JOIN_UNIQ([LIBS_$1],["-l$lib"],[tail])
+					])
 				])
-			])
-		],[],[${with_base:+$with_base/lib} $7])
-	done
+			],[],[${with_base:+$with_base/lib} $7])
+		done
+	])
 
 	define_and_subst=`AS_ECHO([$9])`
 	AS_CASE([$define_and_subst],
@@ -333,11 +341,15 @@ AC_DEFUN([SNERT_CC_INFO],[
 		GCC_MINOR=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC_MINOR__ \(.*\)/\1/p'`
 		GCC_PATCH=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC_PATCHLEVEL__ \(.*\)/\1/p'`
 		dnl Nothing wrong using a char for a subscript.
-		AS_IF([test $GCC_MAJOR -ge 3],[CFLAGS="-Wno-char-subscripts $CFLAGS"])
-		dnl Option to ignore extra support functions.
-		AS_IF([test $GCC_MAJOR -ge 4 -a $GCC_MINOR -ge 3 ],[CFLAGS="-Wno-unused-function${CFLAGS:+ $CFLAGS}"])
-		dnl Option to silience Valgrind and ProtoThread macro warnings.
-		AS_IF([test $GCC_MAJOR -ge 4 -a $GCC_MINOR -ge 6 ],[CFLAGS="-Wno-unused-but-set-variable${CFLAGS:+ $CFLAGS}"])
+		AS_IF([test $GCC_MAJOR -ge 3],[CFLAGS="-Wno-char-subscripts${CFLAGS:+ $CFLAGS}"])
+dnl This list keeps getting bigger with each version of gcc.  Turn them all off.
+dnl		dnl Option to ignore extra support functions.
+dnl		AS_IF([test $GCC_MAJOR -gt 4 -o \( $GCC_MAJOR -eq 4 -a $GCC_MINOR -ge 3 \) ],[CFLAGS="-Wno-unused-function${CFLAGS:+ $CFLAGS}"])
+dnl		dnl Option to silience Valgrind and ProtoThread macro warnings.
+dnl		AS_IF([test $GCC_MAJOR -gt 4 -o \( $GCC_MAJOR -eq 4 -a $GCC_MINOR -ge 6 \) ],[CFLAGS="-Wno-unused-but-set-variable${CFLAGS:+ $CFLAGS}"])
+dnl		dnl Option to silience warnings for const I might need.
+dnl		AS_IF([test $GCC_MAJOR -gt 6 -o \( $GCC_MAJOR -eq 6 -a $GCC_MINOR -ge 2 \) ],[CFLAGS="-Wno-unused-const-variable${CFLAGS:+ $CFLAGS}"])
+		AS_IF([test $GCC_MAJOR -gt 3],[CFLAGS="-Wno-unused${CFLAGS:+ $CFLAGS}"])
 		CFLAGS="-Wall $CFLAGS"
 	])
 	AS_IF([test ${platform:-UNKNOWN} = 'CYGWIN'],[

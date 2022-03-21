@@ -4975,15 +4975,11 @@ then :
 		GCC_PATCH=`$CC -dM -E -xc /dev/null | sed -n -e 's/.*__GNUC_PATCHLEVEL__ \(.*\)/\1/p'`
 				if test $GCC_MAJOR -ge 3
 then :
-  CFLAGS="-Wno-char-subscripts $CFLAGS"
+  CFLAGS="-Wno-char-subscripts${CFLAGS:+ $CFLAGS}"
 fi
-				if test $GCC_MAJOR -ge 4 -a $GCC_MINOR -ge 3
+		if test $GCC_MAJOR -gt 3
 then :
-  CFLAGS="-Wno-unused-function${CFLAGS:+ $CFLAGS}"
-fi
-				if test $GCC_MAJOR -ge 4 -a $GCC_MINOR -ge 6
-then :
-  CFLAGS="-Wno-unused-but-set-variable${CFLAGS:+ $CFLAGS}"
+  CFLAGS="-Wno-unused${CFLAGS:+ $CFLAGS}"
 fi
 		CFLAGS="-Wall $CFLAGS"
 
@@ -8790,7 +8786,10 @@ then :
 fi
 
 
+	found=0
+	headers=0
 	for f in 		pthread.h; do
+		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
 
@@ -8836,6 +8835,7 @@ fi
 
 else $as_nop
 
+			found=`expr $found + 1`
 									have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
 																		printf "%s\n" "#define $have 1" >>confdefs.h
 
@@ -8922,7 +8922,10 @@ fi
 
 	done
 
-	for f in libpthread; do
+			if test $headers -eq $found
+then :
+
+		for f in libpthread; do
 
 
 	as_snert_dir=`printf "%s\n" "snert_find_file_$f" | $as_tr_sh`
@@ -8959,14 +8962,14 @@ then :
 
 else $as_nop
 
-			have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
-			printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
+				have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
+				printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
 
 
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_PTHREAD`
 	if test -n ""-l$lib""
@@ -8996,7 +8999,7 @@ fi
 fi
 	eval LIBS_PTHREAD="\"$list\""
 
-			 ;; #(
+				 ;; #(
   *) :
 
 
@@ -9028,7 +9031,7 @@ fi
 fi
 	eval LDFLAGS_PTHREAD="\"$list\""
 
-				if expr "$f" : '.*\.a$' >/dev/null
+					if expr "$f" : '.*\.a$' >/dev/null
 then :
 
 
@@ -9063,7 +9066,7 @@ fi
 
 else $as_nop
 
-					lib=`basename $f | sed -e's/^lib//'`
+						lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_PTHREAD`
 	if test -n ""-l$lib""
@@ -9095,7 +9098,7 @@ fi
 
 
 fi
-			 ;;
+				 ;;
 esac
 
 
@@ -9103,7 +9106,9 @@ fi
 
 
 
-	done
+		done
+
+fi
 
 	define_and_subst=`printf "%s\n" no 	`
 	case $define_and_subst in #(
@@ -10291,7 +10296,10 @@ then :
 fi
 
 
+	found=0
+	headers=0
 	for f in 		sched.h; do
+		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
 
@@ -10337,6 +10345,7 @@ fi
 
 else $as_nop
 
+			found=`expr $found + 1`
 									have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
 																		printf "%s\n" "#define $have 1" >>confdefs.h
 
@@ -10423,7 +10432,10 @@ fi
 
 	done
 
-	for f in librt; do
+			if test $headers -eq $found
+then :
+
+		for f in librt; do
 
 
 	as_snert_dir=`printf "%s\n" "snert_find_file_$f" | $as_tr_sh`
@@ -10460,14 +10472,14 @@ then :
 
 else $as_nop
 
-			have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
-			printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
+				have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
+				printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
 
 
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SCHED`
 	if test -n ""-l$lib""
@@ -10497,7 +10509,7 @@ fi
 fi
 	eval LIBS_SCHED="\"$list\""
 
-			 ;; #(
+				 ;; #(
   *) :
 
 
@@ -10529,7 +10541,7 @@ fi
 fi
 	eval LDFLAGS_SCHED="\"$list\""
 
-				if expr "$f" : '.*\.a$' >/dev/null
+					if expr "$f" : '.*\.a$' >/dev/null
 then :
 
 
@@ -10564,7 +10576,7 @@ fi
 
 else $as_nop
 
-					lib=`basename $f | sed -e's/^lib//'`
+						lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SCHED`
 	if test -n ""-l$lib""
@@ -10596,7 +10608,7 @@ fi
 
 
 fi
-			 ;;
+				 ;;
 esac
 
 
@@ -10604,7 +10616,9 @@ fi
 
 
 
-	done
+		done
+
+fi
 
 	define_and_subst=`printf "%s\n" `
 	case $define_and_subst in #(
@@ -12345,7 +12359,10 @@ then :
 fi
 
 
+	found=0
+	headers=0
 	for f in 		openssl/ssl.h openssl/bio.h openssl/err.h openssl/crypto.h; do
+		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
 
@@ -12391,6 +12408,7 @@ fi
 
 else $as_nop
 
+			found=`expr $found + 1`
 									have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
 																		printf "%s\n" "#define $have 1" >>confdefs.h
 
@@ -12477,7 +12495,10 @@ fi
 
 	done
 
-	for f in 		libssl libcrypto; do
+			if test $headers -eq $found
+then :
+
+		for f in 		libssl libcrypto; do
 
 
 	as_snert_dir=`printf "%s\n" "snert_find_file_$f" | $as_tr_sh`
@@ -12514,14 +12535,14 @@ then :
 
 else $as_nop
 
-			have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
-			printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
+				have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
+				printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
 
 
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SSL`
 	if test -n ""-l$lib""
@@ -12551,7 +12572,7 @@ fi
 fi
 	eval LIBS_SSL="\"$list\""
 
-			 ;; #(
+				 ;; #(
   *) :
 
 
@@ -12583,7 +12604,7 @@ fi
 fi
 	eval LDFLAGS_SSL="\"$list\""
 
-				if expr "$f" : '.*\.a$' >/dev/null
+					if expr "$f" : '.*\.a$' >/dev/null
 then :
 
 
@@ -12618,7 +12639,7 @@ fi
 
 else $as_nop
 
-					lib=`basename $f | sed -e's/^lib//'`
+						lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SSL`
 	if test -n ""-l$lib""
@@ -12650,7 +12671,7 @@ fi
 
 
 fi
-			 ;;
+				 ;;
 esac
 
 
@@ -12658,7 +12679,9 @@ fi
 
 
 
-	done
+		done
+
+fi
 
 	define_and_subst=`printf "%s\n" `
 	case $define_and_subst in #(
@@ -13031,7 +13054,10 @@ then :
 fi
 
 
+	found=0
+	headers=0
 	for f in sqlite3.h; do
+		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
 
@@ -13077,6 +13103,7 @@ fi
 
 else $as_nop
 
+			found=`expr $found + 1`
 									have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
 																		printf "%s\n" "#define $have 1" >>confdefs.h
 
@@ -13163,7 +13190,10 @@ fi
 
 	done
 
-	for f in libsqlite3; do
+			if test $headers -eq $found
+then :
+
+		for f in libsqlite3; do
 
 
 	as_snert_dir=`printf "%s\n" "snert_find_file_$f" | $as_tr_sh`
@@ -13200,14 +13230,14 @@ then :
 
 else $as_nop
 
-			have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
-			printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
+				have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
+				printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
 
 
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SQLITE3`
 	if test -n ""-l$lib""
@@ -13237,7 +13267,7 @@ fi
 fi
 	eval LIBS_SQLITE3="\"$list\""
 
-			 ;; #(
+				 ;; #(
   *) :
 
 
@@ -13269,7 +13299,7 @@ fi
 fi
 	eval LDFLAGS_SQLITE3="\"$list\""
 
-				if expr "$f" : '.*\.a$' >/dev/null
+					if expr "$f" : '.*\.a$' >/dev/null
 then :
 
 
@@ -13304,7 +13334,7 @@ fi
 
 else $as_nop
 
-					lib=`basename $f | sed -e's/^lib//'`
+						lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SQLITE3`
 	if test -n ""-l$lib""
@@ -13336,7 +13366,7 @@ fi
 
 
 fi
-			 ;;
+				 ;;
 esac
 
 
@@ -13344,7 +13374,9 @@ fi
 
 
 
-	done
+		done
+
+fi
 
 	define_and_subst=`printf "%s\n" `
 	case $define_and_subst in #(
@@ -13575,7 +13607,10 @@ then :
 fi
 
 
+	found=0
+	headers=0
 	for f in 		ev.h ev/ev.h; do
+		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
 
@@ -13621,6 +13656,7 @@ fi
 
 else $as_nop
 
+			found=`expr $found + 1`
 									have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
 																		printf "%s\n" "#define $have 1" >>confdefs.h
 
@@ -13707,7 +13743,10 @@ fi
 
 	done
 
-	for f in libev; do
+			if test $headers -eq $found
+then :
+
+		for f in libev; do
 
 
 	as_snert_dir=`printf "%s\n" "snert_find_file_$f" | $as_tr_sh`
@@ -13744,14 +13783,14 @@ then :
 
 else $as_nop
 
-			have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
-			printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
+				have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
+				printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
 
 
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_LIBEV`
 	if test -n ""-l$lib""
@@ -13781,7 +13820,7 @@ fi
 fi
 	eval LIBS_LIBEV="\"$list\""
 
-			 ;; #(
+				 ;; #(
   *) :
 
 
@@ -13813,7 +13852,7 @@ fi
 fi
 	eval LDFLAGS_LIBEV="\"$list\""
 
-				if expr "$f" : '.*\.a$' >/dev/null
+					if expr "$f" : '.*\.a$' >/dev/null
 then :
 
 
@@ -13848,7 +13887,7 @@ fi
 
 else $as_nop
 
-					lib=`basename $f | sed -e's/^lib//'`
+						lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_LIBEV`
 	if test -n ""-l$lib""
@@ -13880,7 +13919,7 @@ fi
 
 
 fi
-			 ;;
+				 ;;
 esac
 
 
@@ -13888,7 +13927,9 @@ fi
 
 
 
-	done
+		done
+
+fi
 
 	define_and_subst=`printf "%s\n" `
 	case $define_and_subst in #(
@@ -14026,7 +14067,10 @@ then :
 fi
 
 
+	found=0
+	headers=0
 	for f in 		lua.h; do
+		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
 
@@ -14072,6 +14116,7 @@ fi
 
 else $as_nop
 
+			found=`expr $found + 1`
 									have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
 																		printf "%s\n" "#define $have 1" >>confdefs.h
 
@@ -14158,7 +14203,10 @@ fi
 
 	done
 
-	for f in liblua; do
+			if test $headers -eq $found
+then :
+
+		for f in liblua; do
 
 
 	as_snert_dir=`printf "%s\n" "snert_find_file_$f" | $as_tr_sh`
@@ -14195,14 +14243,14 @@ then :
 
 else $as_nop
 
-			have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
-			printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
+				have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
+				printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
 
 
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_LUA`
 	if test -n ""-l$lib""
@@ -14232,7 +14280,7 @@ fi
 fi
 	eval LIBS_LUA="\"$list\""
 
-			 ;; #(
+				 ;; #(
   *) :
 
 
@@ -14264,7 +14312,7 @@ fi
 fi
 	eval LDFLAGS_LUA="\"$list\""
 
-				if expr "$f" : '.*\.a$' >/dev/null
+					if expr "$f" : '.*\.a$' >/dev/null
 then :
 
 
@@ -14299,7 +14347,7 @@ fi
 
 else $as_nop
 
-					lib=`basename $f | sed -e's/^lib//'`
+						lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_LUA`
 	if test -n ""-l$lib""
@@ -14331,7 +14379,7 @@ fi
 
 
 fi
-			 ;;
+				 ;;
 esac
 
 
@@ -14339,7 +14387,9 @@ fi
 
 
 
-	done
+		done
+
+fi
 
 	define_and_subst=`printf "%s\n" `
 	case $define_and_subst in #(
@@ -14470,7 +14520,10 @@ then :
 fi
 
 
+	found=0
+	headers=0
 	for f in 		sasl/sasl.h sasl/saslutil.h; do
+		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
 
@@ -14516,6 +14569,7 @@ fi
 
 else $as_nop
 
+			found=`expr $found + 1`
 									have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
 																		printf "%s\n" "#define $have 1" >>confdefs.h
 
@@ -14602,7 +14656,10 @@ fi
 
 	done
 
-	for f in libsasl2; do
+			if test $headers -eq $found
+then :
+
+		for f in libsasl2; do
 
 
 	as_snert_dir=`printf "%s\n" "snert_find_file_$f" | $as_tr_sh`
@@ -14639,14 +14696,14 @@ then :
 
 else $as_nop
 
-			have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
-			printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
+				have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
+				printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
 
 
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SASL2`
 	if test -n ""-l$lib""
@@ -14676,7 +14733,7 @@ fi
 fi
 	eval LIBS_SASL2="\"$list\""
 
-			 ;; #(
+				 ;; #(
   *) :
 
 
@@ -14708,7 +14765,7 @@ fi
 fi
 	eval LDFLAGS_SASL2="\"$list\""
 
-				if expr "$f" : '.*\.a$' >/dev/null
+					if expr "$f" : '.*\.a$' >/dev/null
 then :
 
 
@@ -14743,7 +14800,7 @@ fi
 
 else $as_nop
 
-					lib=`basename $f | sed -e's/^lib//'`
+						lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_SASL2`
 	if test -n ""-l$lib""
@@ -14775,7 +14832,7 @@ fi
 
 
 fi
-			 ;;
+				 ;;
 esac
 
 
@@ -14783,7 +14840,9 @@ fi
 
 
 
-	done
+		done
+
+fi
 
 	define_and_subst=`printf "%s\n" `
 	case $define_and_subst in #(
@@ -17742,7 +17801,10 @@ then :
 fi
 
 
+	found=0
+	headers=0
 	for f in 		libmilter/mfapi.h; do
+		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
 
@@ -17788,6 +17850,7 @@ fi
 
 else $as_nop
 
+			found=`expr $found + 1`
 									have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
 																		printf "%s\n" "#define $have 1" >>confdefs.h
 
@@ -17874,7 +17937,10 @@ fi
 
 	done
 
-	for f in libmilter; do
+			if test $headers -eq $found
+then :
+
+		for f in libmilter; do
 
 
 	as_snert_dir=`printf "%s\n" "snert_find_file_$f" | $as_tr_sh`
@@ -17911,14 +17977,14 @@ then :
 
 else $as_nop
 
-			have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
-			printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
+				have=`printf "%s\n" "HAVE_$f" | $as_tr_cpp`
+				printf "%s\n" "#define $have \"$dir_val\"" >>confdefs.h
 
 
 	case $dir_val in #(
   /usr/include|/usr/lib64|/usr/lib/x86_64-linux-gnu|/usr/lib|/lib64|/lib/x86_64-linux-gnu|/lib) :
 
-				lib=`basename $f | sed -e's/^lib//'`
+					lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_MILTER`
 	if test -n ""-l$lib""
@@ -17948,7 +18014,7 @@ fi
 fi
 	eval LIBS_MILTER="\"$list\""
 
-			 ;; #(
+				 ;; #(
   *) :
 
 
@@ -17980,7 +18046,7 @@ fi
 fi
 	eval LDFLAGS_MILTER="\"$list\""
 
-				if expr "$f" : '.*\.a$' >/dev/null
+					if expr "$f" : '.*\.a$' >/dev/null
 then :
 
 
@@ -18015,7 +18081,7 @@ fi
 
 else $as_nop
 
-					lib=`basename $f | sed -e's/^lib//'`
+						lib=`basename $f | sed -e's/^lib//'`
 
 	list=`eval echo \$LIBS_MILTER`
 	if test -n ""-l$lib""
@@ -18047,7 +18113,7 @@ fi
 
 
 fi
-			 ;;
+				 ;;
 esac
 
 
@@ -18055,7 +18121,9 @@ fi
 
 
 
-	done
+		done
+
+fi
 
 	define_and_subst=`printf "%s\n" `
 	case $define_and_subst in #(
