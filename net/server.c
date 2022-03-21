@@ -736,7 +736,7 @@ serverWorkerFree(void *_worker)
 			assert(0 < worker->id);
 		}
 
-		MEMSET(worker, 0, sizeof (worker));
+		MEMSET(worker, 0, sizeof (*worker));
 		free(worker);
 		PTHREAD_RESTORE_CANCEL();
 	}
