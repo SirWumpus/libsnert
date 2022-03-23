@@ -178,7 +178,7 @@ echo_server(SOCKET fd, SocketAddress *addr)
 
 			syslog(LOG_INFO, "starting TLS...");
 
-			if (socket3_start_tls(fd, 1, socket_timeout)) {
+			if (socket3_start_tls(fd, SOCKET3_SERVER_TLS, socket_timeout)) {
 				syslog(LOG_ERR, log_io, __F_L__, strerror(errno), errno);
 				return -1;
 			}

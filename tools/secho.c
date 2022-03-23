@@ -82,6 +82,7 @@ typedef int (*is_eol_fn)(const unsigned char *, long);
 
 static int debug;
 static int running;
+static int read_first;
 static is_eol_fn echo_eol;
 static long echo_port = ECHO_PORT;
 static char *echo_host = ECHO_HOST;
@@ -99,17 +100,18 @@ static const char log_io[] = "socket error %s(%d): %s (%d)";
 static const char log_internal[] = "%s(%d): %s (%d)";
 #define __F_L__			   __FILE__, __LINE__
 
-static char options[] = "vc:C:d:k:K:h:p:t:";
+static char options[] = "rvc:C:d:k:K:h:p:t:";
 static char usage[] =
-"usage: " _NAME " [-v][-c ca_pem][-C ca_dir][-d dh_pem][-k key_crt_pem]\n"
-"             [-K key_pass][-h host[:port]][-p protocol][-t seconds]\n"
+"usage: " _NAME " [-vr][-c ca_pem][-C ca_dir][-d dh_pem][-k key_crt_pem]\n"
+"             [-K key_pass][-h host][-p port][-t seconds]\n"
 "\n"
 "-c ca_pem\tCertificate Authority root certificate chain file\n"
-"-C dir\t\tCertificate Authority root certificate directory\n"
-"-h host[:port]\thost and optional port to contact; default " ECHO_HOST "\n"
+"-C ca_dir\t\tCertificate Authority root certificate directory\n"
+"-h host\thost and optional port to contact; default " ECHO_HOST "\n"
 "-k key_crt_pem\tprivate key and certificate chain file\n"
 "-K key_pass\tpassword for private key; default no password\n"
-"-p protocol\tapplication protocol/port; default " QUOTE(ECHO_PORT) "\n"
+"-p port\tport to connect to; default " QUOTE(ECHO_PORT) "\n"
+"-r\t\tread from server first\n"
 "-t seconds\tsocket timeout in seconds; default " QUOTE(SOCKET_TIMEOUT) "\n"
 "-v\t\tverbose debug messages to standard error\n"
 "\n"
@@ -244,6 +246,8 @@ echo_client(SOCKET fd)
 	long length;
 	int wait_for_dot = 0;
 
+	*line = '\0';
+
 	switch (echo_port) {
 	case POP_PORT:
 		echo_eol = echo_pop_eol;
@@ -265,7 +269,7 @@ echo_client(SOCKET fd)
 	case SMTPS_PORT:
 	case HTTPS_PORT:
 		syslog(LOG_INFO, "starting TLS...");
-		if (socket3_start_tls(fd, 0, socket_timeout)) {
+		if (socket3_start_tls(fd, SOCKET3_CLIENT_TLS, socket_timeout)) {
 			syslog(LOG_ERR, log_io, __F_L__, strerror(errno), errno);
 			return -1;
 		}
@@ -277,6 +281,10 @@ echo_client(SOCKET fd)
 	case POP_PORT:
 	case IMAP_PORT:
 	case SMTP_PORT:
+		read_first = 1;
+	}
+
+	if (read_first) {
 		running = 1;
 		goto welcome_banner;
 	}
@@ -295,31 +303,29 @@ echo_client(SOCKET fd)
 				return -1;
 			}
 		} while (wait_for_dot);
-welcome_banner:
-		if (echo_read(fd) <= 0) {
-			syslog(LOG_ERR, "read error: %s (%d)", strerror(errno), errno);
-			break;
-		}
-
-		if (0 < TextInsensitiveStartsWith(line, "QUIT")
-		||  TextMatch(line, "*LOGOUT*", -1, 1))
-			break;
-		else if (0 < TextInsensitiveStartsWith(line, "DATA"))
-			wait_for_dot = 1;
-		else if (0 < TextInsensitiveStartsWith(line, "STLS")
-		     ||  TextMatch(line, "*STARTTLS*", -1, 1)) {
+		if (TextMatch(line, "*STARTTLS*", -1, 1) || 0 < TextInsensitiveStartsWith(line, "STLS")) {
 			if (socket3_is_tls(fd)) {
 				syslog(LOG_WARNING, "TLS already started");
 				continue;
 			}
 
 			syslog(LOG_INFO, "starting TLS...");
-			if (socket3_start_tls(fd, 0, socket_timeout)) {
+			if (socket3_start_tls(fd, SOCKET3_CLIENT_TLS, socket_timeout)) {
 				syslog(LOG_ERR, log_io, __F_L__, strerror(errno), errno);
 				return -1;
 			}
 			syslog(LOG_INFO, "TLS started");
 		}
+welcome_banner:
+		if (echo_read(fd) <= 0) {
+			syslog(LOG_ERR, "read error: %s (%d)", strerror(errno), errno);
+			break;
+		}
+
+		if (0 < TextInsensitiveStartsWith(line, "QUIT") || TextMatch(line, "*LOGOUT*", -1, 1))
+			break;
+		else if (0 < TextInsensitiveStartsWith(line, "DATA"))
+			wait_for_dot = 1;
 	}
 
 	return 0;
@@ -352,6 +358,9 @@ char **argv;
 			break;
 		case 'p':
 			echo_port = strtol(optarg, NULL, 10);
+			break;
+		case'r':
+			read_first = 1;
 			break;
 		case 't':
 			socket_timeout = strtol(optarg, NULL, 10);
