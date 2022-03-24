@@ -938,6 +938,7 @@ typedef int socklen_t;
 #undef CPPFLAGS_SSL
 #undef LDFLAGS_SSL
 #undef LIBS_SSL
+#undef ETC_SSL
 
 /*
  * SASL2

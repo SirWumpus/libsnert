@@ -40,7 +40,7 @@ extern int h_error;
 #include <com/snert/lib/io/socketAddress.h>
 #include <com/snert/lib/net/network.h>
 
-#if defined(__WIN32__) 
+#if defined(__WIN32__)
 # if defined(__VISUALC__)
 #  define _WINSOCK2API_
 # endif
@@ -158,23 +158,15 @@ extern int h_error;
 # error " No suitable IO Event API"
 #endif
 
-#ifndef SSL_DIR
-# if defined(__OpenBSD__)
-#  define SSL_DIR		"/etc/ssl"
-# elif defined(__NetBSD__)
-#  define SSL_DIR		"/etc/openssl"
-# endif
-#endif
-
-#ifdef SSL_DIR
+#ifdef ETC_SSL
 # ifndef CERT_DIR
-#  define CERT_DIR		SSL_DIR "/certs"
+#  define CERT_DIR		ETC_SSL "/certs"
 # endif
 # ifndef CA_CHAIN
-#  define CA_CHAIN		SSL_DIR "/cert.pem"
+#  define CA_CHAIN		ETC_SSL "/cert.pem"
 # endif
 # ifndef DH_PEM
-#  define DH_PEM		SSL_DIR "/dh.pem"
+#  define DH_PEM		ETC_SSL "/dh.pem"
 # endif
 #endif
 

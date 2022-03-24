@@ -127,6 +127,28 @@ dnl	AS_IF([test "$dir_val" = 'no'],AC_MSG_RESULT(no),AC_MSG_RESULT(yes))
 ])
 
 dnl
+dnl SNERT_FIND_DIR(subdir, directories, if-found, not-found)
+dnl
+AC_DEFUN([SNERT_FIND_DIR],[
+	AS_VAR_PUSHDEF([snert_dir], [snert_find_file_$1])
+	AS_VAR_SET([snert_dir],'no')
+	AC_MSG_CHECKING([for location of $1])
+
+	for d in $2; do
+		AS_IF([test -d "$d/$1"],[
+			AS_VAR_SET([snert_dir],[$d])
+			break
+		])
+	done
+
+	AS_VAR_COPY([dir_val],[snert_dir])
+	AC_MSG_RESULT($dir_val)
+	AS_VAR_IF([snert_dir],[no],[$4],[$3])
+	AS_VAR_POPDEF([snert_dir])
+])
+
+
+dnl
 dnl SNERT_CHECK_PACKAGE_HEADER(header, if-found, not-found[, extra_dirs])
 dnl
 AC_DEFUN([SNERT_CHECK_PACKAGE_HEADER],[
@@ -1870,6 +1892,10 @@ AC_DEFUN([SNERT_OPENSSL],[
 		[$with_openssl],[$with_openssl_inc],[$with_openssl_lib] dnl
 	)
 	SNERT_CHECK_DEFINE(OpenSSL_add_all_algorithms, openssl/evp.h)
+	SNERT_FIND_DIR([certs],[/etc/ssl /etc/openssl], [
+		SNERT_DEFINE([ETC_SSL],[$dir_val])
+		AC_SUBST(ETC_SSL,[$dir_val])
+	],[])
 dnl 	AC_SUBST(LIBS_SSL)
 dnl 	AC_SUBST(CPPFLAGS_SSL)
 dnl 	AC_SUBST(LDFLAGS_SSL)
@@ -1886,6 +1912,7 @@ dnl 	AC_SUBST(LDFLAGS_SSL)
 #undef CPPFLAGS_SSL
 #undef LDFLAGS_SSL
 #undef LIBS_SSL
+#undef ETC_SSL
 	])
 ])
 
