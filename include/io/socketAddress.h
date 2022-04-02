@@ -34,6 +34,8 @@ extern "C" {
 # include <sys/un.h>
 #endif
 
+#include <com/snert/lib/net/network.h>
+
 typedef union {
 	struct sockaddr sa;
 	struct sockaddr_in in;

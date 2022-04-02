@@ -30,6 +30,10 @@ is no set schedule for releases.
    	part. Requested by AlexB.
 
 
+--1.76.1
+
+   !	socketAddress.h needs to include network.h for some #define.
+
 --1.76.0
 
    *	Upgraded SQLite to 3.38.1.  Note this might be the last update to

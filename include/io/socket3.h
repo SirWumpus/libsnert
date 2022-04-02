@@ -38,7 +38,6 @@ extern int h_error;
 #endif
 
 #include <com/snert/lib/io/socketAddress.h>
-#include <com/snert/lib/net/network.h>
 
 #if defined(__WIN32__)
 # if defined(__VISUALC__)
