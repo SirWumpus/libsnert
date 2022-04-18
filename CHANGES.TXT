@@ -32,13 +32,25 @@ is no set schedule for releases.
 
 --1.76.1
 
+   *	Upgraded SQLite to 3.38.2.  Note this might be the last update to
+	include it.  It was needed when SQLite did not default to a threaded
+	build for BarricadeMX and milters.
+
+   !	Update TLDs.
+
+   !	Add -r option to secho test tool for servers that send a welcome
+	banner, like SMTP.
+
+   !	Check for location of OpenSSL configuration directory.
+
+   !	Fix jspr when the last label is an index into an array and the
+	index is beyond the end of the array, it should return nothing.
+
    !	socketAddress.h needs to include network.h for some #define.
 
 --1.76.0
 
-   *	Upgraded SQLite to 3.38.1.  Note this might be the last update to
-   	include it.  It was needed when SQLite did not default to a threaded
-   	build for milters and BarricadeMX.
+   *	Upgraded SQLite to 3.38.1.
 
    !	Fix show -f behaviour.
 

@@ -1,4 +1,4 @@
-org/sqlite/sqlite-autoconf-3380100.tar.gz
+org/sqlite/sqlite-autoconf-3380200.tar.gz
 com/snert/lib
 com/snert/include/com/snert/lib
 com/snert/include/org/valgrind
@@ -8,8 +8,8 @@ com/snert/src/lib/CHANGES.TXT
 com/snert/src/lib/LICENSE.TXT
 com/snert/src/lib/LibSnert.c
 com/snert/src/lib/MANIFEST.TXT
-com/snert/src/lib/README.TXT
-com/snert/src/lib/TOOLS.TXT
+com/snert/src/lib/README.md
+com/snert/src/lib/TOOLS.md
 com/snert/src/lib/VERSION.TXT
 com/snert/src/lib/acsite.m4
 com/snert/src/lib/configure
