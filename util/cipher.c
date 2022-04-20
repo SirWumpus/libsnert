@@ -285,12 +285,13 @@ cipher_chain_add(const char *seed_number, char *buffer, size_t size)
  *      Examples assuming ASCII sort order:
  *
  *          B A B Y L O N 5             input
- *          2 1 3 7 4 6 5 0             character order
- *          7 1 0 2 4 6 5 3             column indices
+ *          5 A B B L O N Y             sorted
+ *          7 1 0 2 4 6 5 3             input offset
+ *
  *
  *          H E L L O W O R L D         input
- *          2 1 3 4 6 9 7 8 5 0         character order
- *          9 1 0 2 3 8 4 6 7 5         column indices
+ *          D E H L L L O O R W         sorted
+ *          9 1 0 2 3 8 4 6 7 5         input offset
  */
 void
 cipher_index_order(const char *in, int out[256])
