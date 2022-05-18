@@ -5,7 +5,7 @@ com/snert/include/org/valgrind
 com/snert/src/lib/.gitignore
 com/snert/src/lib/.gitattributes
 com/snert/src/lib/CHANGES.TXT
-com/snert/src/lib/LICENSE.TXT
+com/snert/src/lib/LICENSE.md
 com/snert/src/lib/LibSnert.c
 com/snert/src/lib/MANIFEST.TXT
 com/snert/src/lib/README.md
