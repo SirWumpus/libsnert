@@ -362,6 +362,9 @@ socket3_set_linger(SOCKET fd, int seconds)
  *
  * @return
  *	Zero for success, otherwise SOCKET_ERROR on error and errno set.
+ *
+ * @see
+ *	https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ/14388707
  */
 int
 socket3_set_reuse(SOCKET fd, int flag)
