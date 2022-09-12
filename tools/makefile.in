@@ -180,7 +180,7 @@ show$E : show.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)show$E ${srcdir}/show.c $(LIBSNERT) ${LIBS_PREFIX}
 
 climits$E : climits.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)climits$E ${srcdir}/climits.c $(LIBSNERT) ${LIBS_PREFIX}
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)climits$E ${srcdir}/climits.c ${LIBS_PREFIX}
 
 cksum$E : cksum.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)cksum$E ${srcdir}/cksum.c $(LIBSNERT) ${LIBS_PREFIX}
