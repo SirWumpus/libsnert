@@ -26,10 +26,8 @@ static char _int[] = "#define %s\t%d\n";
 static char _uint[] = "#define %s\t%u\n";
 static char _long[] = "#define %s\t%ld\n";
 static char _ulong[] = "#define %s\t%lu\n";
-#ifdef NOT_USED
 static char _longlong[] = "#define %s\t%lld\n";
 static char _ulonglong[] = "#define %s\t%llu\n";
-#endif
 
 static int bits _((t_limits *));
 static int char_is_unsigned _((t_limits *));
@@ -112,6 +110,10 @@ t_limits *ptr;
 		s = (short) (1 << (sizeof (short) * nbits -1));
 		printf(_int, ptr->symbol, (int) s);
 		break;
+	case sizeof (int):
+		l = (int) (1L << (sizeof (int) * nbits -1));
+		printf(_int, ptr->symbol, l);
+		break;
 	case sizeof (long):
 		l = (long) (1L << (sizeof (long) * nbits -1));
 		printf(_long, ptr->symbol, l);
@@ -153,6 +155,10 @@ t_limits *ptr;
 		s = (unsigned short) ~((short) 1 << (sizeof (short) * nbits -1));
 		printf(_int, ptr->symbol, (int) s);
 		break;
+	case sizeof (int):
+		l = (unsigned int) ~((int) 1 << (sizeof (int) * nbits -1));
+		printf(_int, ptr->symbol, l);
+		break;
 	case sizeof (long):
 		l = (unsigned long) ~((long) 1 << (sizeof (long) * nbits -1));
 		printf(_long, ptr->symbol, l);
@@ -167,8 +173,10 @@ absolute(ptr)
 t_limits *ptr;
 {
 	unsigned char c;
-	unsigned long l;
 	unsigned short s;
+	unsigned int i;
+	unsigned long l;
+	unsigned long long ll;
 
 	switch (ptr->size) {
 	case sizeof (char):
@@ -179,10 +187,20 @@ t_limits *ptr;
 		s = ~(unsigned short) 0;
 		printf(_uint, ptr->symbol, (unsigned) s);
 		break;
+	case sizeof (int):
+		i = ~(unsigned int) 0;
+		printf(_uint, ptr->symbol, (unsigned) i);
+		break;
 	case sizeof (long):
 		l = ~(unsigned long) 0;
 		printf(_ulong, ptr->symbol, l);
 		break;
+#if ULONG_MAX != ULLONG_MAX
+	case sizeof (long long):
+		ll = ~(unsigned long long) 0;
+		printf(_ulonglong, ptr->symbol, ll);
+		break;
+#endif
 	}
 
 	return 1;
@@ -230,7 +248,7 @@ t_limits limits[] = {
 	{ "MAX_USHORT", sizeof (unsigned short), absolute },
 	{ "MAX_INT\t", sizeof (int), maximum },
 	{ "MIN_INT\t", sizeof (int), minimum },
-	{ "MAX_UINT", sizeof (unsigned), absolute },
+	{ "MAX_UINT", sizeof (unsigned int), absolute },
 	{ "MAX_LONG", sizeof (long), maximum },
 	{ "MIN_LONG", sizeof (long), minimum },
 	{ "MAX_ULONG", sizeof (unsigned long), absolute },
