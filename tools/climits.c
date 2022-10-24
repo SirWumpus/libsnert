@@ -259,6 +259,9 @@ t_limits limits[] = {
 	{ "SIZEOF_INTPTR_T", sizeof (intptr_t), sizeof_type },
 	{ "SIZEOF_LONG", sizeof (long), sizeof_type },
 	{ "SIZEOF_LONG_LONG", sizeof (long long), sizeof_type },
+	{ "SIZEOF_FLOAT", sizeof (float), sizeof_type },
+	{ "SIZEOF_DOUBLE", sizeof (double), sizeof_type },
+	{ "SIZEOF_LONG_DOUBLE", sizeof (long double), sizeof_type },
 	{ (char *) 0, 0, 0 }
 };
 
