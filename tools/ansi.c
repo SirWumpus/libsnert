@@ -1,7 +1,7 @@
 /*
  * ansi.c
  *
- * Copyright 2003, 2013 by Anthony Howe.  All rights reserved.
+ * Copyright 2003, 2022 by Anthony Howe.  All rights reserved.
  */
 
 #include <stdio.h>
@@ -85,6 +85,8 @@ char usage[] =
 
 "\n"
 "\033[4mANSI miscellaneous:\033[0m\n"
+"cursor-off\thide cursor\n"
+"cursor-on\tshow cursor\n"
 "log start\tstart sending text to printer\n"
 "log stop\tstop sending text to printer\n"
 "print screen\tprint the screen\n"
@@ -103,7 +105,7 @@ char usage[] =
 "backslash (\\) are treated as a literal word. Some ANSI terminal\n"
 "emulators do not support all possible escape sequences.\n"
 "\n"
-"\033[1mansi/1.1 Copyright 2003, 2013 by Anthony Howe. All rights reserved.\033[0m\n"
+"\033[1mansi/1.2 Copyright 2003, 2022 by Anthony Howe. All rights reserved.\033[0m\n"
 ;
 
 int
@@ -150,8 +152,8 @@ char *single[][2] = {
 	{ "\033[0m", 	"normal" },
 	{ "\033[1m", 	"bold" },
 	{ "\033[1m", 	"bright" },
-	{ "\033[2m", 	"dim" },	
-	{ "\033[3m", 	"standout" },	
+	{ "\033[2m", 	"dim" },
+	{ "\033[3m", 	"standout" },
 	{ "\033[4m", 	"underline" },
 	{ "\033[5m", 	"blink" },
 	{ "\033[7m", 	"reverse" },
@@ -182,6 +184,9 @@ char *single[][2] = {
 	{ "\033[46m", 	"CYAN" },
 	{ "\033[47m", 	"WHITE" },
 
+	{ "\033[?25l", 	"cursor-off" },
+	{ "\033[?25h", 	"cursor-on" },
+
 	{ 0, 0 }
 };
 
@@ -204,10 +209,10 @@ main(int argc, char **argv)
 	}
 
 	last_literal_word = -1;
-	
+
 	atexit(atExit);
 	system("stty cbreak");
-	
+
 	for (i = 1; i < argc; i++) {
 		word = argv[i];
 
@@ -370,11 +375,11 @@ main(int argc, char **argv)
 			continue;
 		} else if (strcmp(word, "where") == 0) {
 			int row, col;
-			
+
 			printf("\033[6n");
 			scanf("\033[%d;%dR", &row, &col);
 			printf("(%d, %d)", row, col);
-			fflush(stdout);			
+			fflush(stdout);
 			continue;
 		} else if (strcmp(word, "-?") == 0 || strcmp(word, "--help") == 0 || strcmp(word, "help") == 0) {
 			fprintf(stderr, usage);
