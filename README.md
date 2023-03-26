@@ -15,11 +15,15 @@ The primary development environment is currently `NetBSD` and the library is not
 Configuration & Build
 ---------------------
 
-        $ tar -zxf libsnert-1.76.0.tar.gz
-        $ cd com/snert/src/lib
-        $ ./configure --help
-        $ ./configure [options]
-        $ make
+        mkdir -p com/snert/src
+        cd com/snert/src
+        git clone https://github.com/SirWumpus/libsnert.git lib
+        cd lib
+        ./configure --help
+        ./configure [options]
+        make links              # Need only happen once.
+        make
+
 
 NOTE: LibSnert did support Windows native builds using Cygwin / MingW, but that has not been maintained in a long time and would require some work to restore.  LibSnert has yet to be built against the Windows Linux subsystem.
 
