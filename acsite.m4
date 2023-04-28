@@ -417,6 +417,8 @@ dnl 		])
 	AC_CHECK_SIZEOF(long)
 	AC_CHECK_SIZEOF(size_t)
 	AC_CHECK_SIZEOF(off_t)
+	AC_CHECK_SIZEOF(double)
+	AC_CHECK_SIZEOF(long double)
 	AC_CHECK_SIZEOF(long long int)
 
 	SNERT_SNERT
@@ -1572,7 +1574,10 @@ AC_DEFUN(SNERT_TERMIOS,[
 	echo "Check for termios..."
 	echo
 	AC_CHECK_HEADERS([termios.h],[
-		AC_CHECK_FUNCS(tcgetattr tcsetattr ctermid)
+		AC_CHECK_FUNCS(tcgetattr tcsetattr tcgetwinsize tcsetwinsize ctermid)
+	])
+	AC_CHECK_TYPES([struct winsize],[],[],[
+#include <termios.h>
 	])
 ])
 
@@ -1584,8 +1589,8 @@ AS_IF([test "$enable_win32" = 'yes'],[
 	AS_ECHO
 	AS_ECHO("Checking for PTHERAD...")
 	AS_ECHO
-	AS_ECHO("POSIX thread support... limited Windows native")	
-	AC_CACHE_VAL(ac_cv_func_pthread_create,[ac_cv_func_pthread_create='limited'])	
+	AS_ECHO("POSIX thread support... limited Windows native")
+	AC_CACHE_VAL(ac_cv_func_pthread_create,[ac_cv_func_pthread_create='limited'])
 ],[
 	AS_CASE([$platform],
 	[FreeBSD|OpenBSD|NetBSD],[
@@ -1594,7 +1599,7 @@ AS_IF([test "$enable_win32" = 'yes'],[
 		SNERT_JOIN_UNIQ([CPPFLAGS_PTHREAD],[-pthread])
 		SNERT_JOIN_UNIQ([LDFLAGS_PTHREAD],[-pthread])
 	])
-	
+
 	SNERT_CHECK_PACKAGE([PTHREAD], dnl
 		[pthread.h],[libpthread],[dnl
 		pthread_create pthread_cancel pthread_equal pthread_exit pthread_join dnl
@@ -1667,15 +1672,15 @@ AS_IF([test "$enable_win32" = 'yes'],[
 
 	LIBS="$saved_LIBS"
 	LDFLAGS="$saved_LDFLAGS"
-	CPPFLAGS="$saved_CPPFLAGS"	
-	CFLAGS="$saved_CFLAGS"	
+	CPPFLAGS="$saved_CPPFLAGS"
+	CFLAGS="$saved_CFLAGS"
 
 	dnl The BSDs use -pthread instead of -lpthread.
 	AS_CASE([$platform],
 	[FreeBSD|OpenBSD|NetBSD],[
 		AS_UNSET([LIBS_PTHREAD])
 	])
-	
+
 	SNERT_DEFINE([LIBS_PTHREAD])
 	SNERT_DEFINE([LDFLAGS_PTHREAD])
 	SNERT_DEFINE([CPPFLAGS_PTHREAD])
