@@ -111,7 +111,7 @@ extern int socketAddressSetPort(SocketAddress *addr, unsigned port);
  * @retrun
  *	Return 0 on success; otherwise -1 if the addres is not IPv4 or IPv6.
  */
-extern int socketAddressGetIPv6(SocketAddress *addr, int flags, unsigned char *ipv6);
+extern int socketAddressGetIPv6(SocketAddress *addr, int flags, unsigned char ipv6[IPV6_BYTE_SIZE]);
 
 /**
  * @param addr

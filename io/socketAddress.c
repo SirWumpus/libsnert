@@ -522,8 +522,8 @@ socketAddressEqual(SocketAddress *a, SocketAddress *b)
 		return 0;
 
 #ifdef HAVE_STRUCT_SOCKADDR_IN6
+	SocketAddress a_in4;
 	if (a->sa.sa_family == AF_INET6 && IN6_IS_ADDR_V4MAPPED(&a->in6.sin6_addr)) {
-		SocketAddress a_in4;
 
 		memcpy(&a_in4.in.sin_addr.s_addr, &a->in6.sin6_addr.s6_addr[IPV6_OFFSET_IPV4], IPV4_BYTE_SIZE);
 		a_in4.in.sin_port = a->in6.sin6_port;
@@ -531,8 +531,8 @@ socketAddressEqual(SocketAddress *a, SocketAddress *b)
 		a = &a_in4;
 	}
 
+	SocketAddress b_in4;
 	if (b->sa.sa_family == AF_INET6 && IN6_IS_ADDR_V4MAPPED(&b->in6.sin6_addr)) {
-		SocketAddress b_in4;
 
 		memcpy(&b_in4.in.sin_addr.s_addr, &b->in6.sin6_addr.s6_addr[IPV6_OFFSET_IPV4], IPV4_BYTE_SIZE);
 		b_in4.in.sin_port = b->in6.sin6_port;

@@ -744,8 +744,8 @@ TextInitEmptyString(Text self)
 void
 TextInitFromString(Text self, const char *string)
 {
+	TextInitEmptyString(self);
 	if (string != NULL) {
-		TextInitEmptyString(self);
 		self->_length = (long) strlen(string);
 		/*@-mustfreeonly -temptrans@*/
 		self->_string = (char *) string;

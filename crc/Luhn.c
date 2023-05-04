@@ -171,7 +171,7 @@ LuhnGenerate(const char *s)
 	if ((copy = malloc(length + 2)) == NULL)
 		return -1;
 
-	strncpy(copy, s, length);
+	(void) memcpy(copy, s, length);
 	copy[length+1] = '\0';
 	copy[length] = '0';
 
