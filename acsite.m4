@@ -1118,10 +1118,10 @@ dnl # endif
 dnl #endif
 
 	AC_CHECK_HEADERS([unistd.h fcntl.h sys/stat.h utime.h])
-	AC_CHECK_FUNCS([
-		chdir getcwd mkdir rmdir closedir opendir readdir
-		chmod chown chroot fchmod stat fstat link rename symlink unlink umask utime
-		close creat dup dup2 ftruncate chsize truncate lseek open pipe read write
+	AC_CHECK_FUNCS([ \
+		chdir getcwd mkdir rmdir closedir opendir readdir \
+		chmod chown chroot fchmod stat fstat link rename symlink unlink umask utime \
+		close creat dup dup2 ftruncate chsize truncate lseek open pipe read write \
 		isatty getdtablesize fmemopen open_memstream open_wmemstream
 	])
 	AC_FUNC_CHOWN
@@ -1447,7 +1447,20 @@ dnl	saved_libs=$LIBS
 	])
 
 	AC_STRUCT_TM
+	AC_CHECK_MEMBERS([struct tm.tm_gmtoff],[],[],[
+#ifdef TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# ifdef HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+	])
 	AC_STRUCT_TIMEZONE
+	AC_CHECK_FUNCS(timegm)
 
 dnl	LIBS=$saved_libs
 ])
@@ -1574,24 +1587,24 @@ AS_IF([test "$enable_win32" = 'yes'],[
 	])
 
 	SNERT_CHECK_PACKAGE([PTHREAD],
-		[pthread.h],[libpthread],[
-		pthread_create pthread_cancel pthread_equal pthread_exit pthread_join
-		pthread_kill pthread_self pthread_detach pthread_yield pthread_sigmask sigwait
-		pthread_attr_init pthread_attr_destroy pthread_attr_getdetachstate
-		pthread_attr_setdetachstate pthread_attr_getstackaddr pthread_attr_setstackaddr
-		pthread_attr_getstacksize pthread_attr_setstacksize pthread_attr_getscope
-		pthread_attr_setscope pthread_mutex_init pthread_mutex_destroy pthread_mutex_lock
-		pthread_mutex_trylock pthread_mutex_unlock pthread_mutexattr_init
-		pthread_mutexattr_destroy pthread_mutexattr_setprioceiling
-		pthread_mutexattr_getprioceiling pthread_mutexattr_setprotocol
-		pthread_mutexattr_getprotocol pthread_mutexattr_settype pthread_mutexattr_gettype
-		pthread_cond_broadcast pthread_cond_destroy pthread_cond_init pthread_cond_signal
-		pthread_cond_timedwait pthread_cond_wait pthread_spin_init pthread_spin_destroy
-		pthread_spin_lock pthread_spin_trylock pthread_spin_unlock pthread_rwlock_init
-		pthread_rwlock_destroy pthread_rwlock_unlock pthread_rwlock_rdlock
-		pthread_rwlock_wrlock pthread_rwlock_tryrdlock pthread_rwlock_trywrlock
-		pthread_lock_global_np pthread_unlock_global_np pthread_key_create
-		pthread_key_delete pthread_getspecific pthread_setspecific pthread_once
+		[pthread.h],[libpthread],[ \
+		pthread_create pthread_cancel pthread_equal pthread_exit pthread_join \
+		pthread_kill pthread_self pthread_detach pthread_yield pthread_sigmask sigwait \
+		pthread_attr_init pthread_attr_destroy pthread_attr_getdetachstate \
+		pthread_attr_setdetachstate pthread_attr_getstackaddr pthread_attr_setstackaddr \
+		pthread_attr_getstacksize pthread_attr_setstacksize pthread_attr_getscope \
+		pthread_attr_setscope pthread_mutex_init pthread_mutex_destroy pthread_mutex_lock \
+		pthread_mutex_trylock pthread_mutex_unlock pthread_mutexattr_init \
+		pthread_mutexattr_destroy pthread_mutexattr_setprioceiling \
+		pthread_mutexattr_getprioceiling pthread_mutexattr_setprotocol \
+		pthread_mutexattr_getprotocol pthread_mutexattr_settype pthread_mutexattr_gettype \
+		pthread_cond_broadcast pthread_cond_destroy pthread_cond_init pthread_cond_signal \
+		pthread_cond_timedwait pthread_cond_wait pthread_spin_init pthread_spin_destroy \
+		pthread_spin_lock pthread_spin_trylock pthread_spin_unlock pthread_rwlock_init \
+		pthread_rwlock_destroy pthread_rwlock_unlock pthread_rwlock_rdlock \
+		pthread_rwlock_wrlock pthread_rwlock_tryrdlock pthread_rwlock_trywrlock \
+		pthread_lock_global_np pthread_unlock_global_np pthread_key_create \
+		pthread_key_delete pthread_getspecific pthread_setspecific pthread_once \
 		pthread_atfork
 		],
 		[$with_pthread],[$with_pthread_inc],[$with_pthread_lib],[],[no] )
@@ -1750,9 +1763,9 @@ AS_IF([test "$enable_win32" = 'yes'],[
 
 AC_DEFUN(SNERT_SCHED,[
 	SNERT_CHECK_PACKAGE([SCHED],
-		[sched.h],[librt],[
-		sched_getparam sched_get_priority_max sched_get_priority_min
-		sched_rr_get_interval sched_getscheduler sched_setparam
+		[sched.h],[librt],[ \
+		sched_getparam sched_get_priority_max sched_get_priority_min \
+		sched_rr_get_interval sched_getscheduler sched_setparam \
 		sched_setscheduler sched_yield
 		],[$with_sched],[$with_sched_inc],[$with_sched_lib] )
 	AH_VERBATIM(LIBS_SCHED,[
@@ -1832,13 +1845,13 @@ AC_DEFUN(SNERT_LIBMILTER,[
 		SNERT_JOIN_UNIQ([CFLAGS_MILTER],[$CFLAGS_PTHREAD])
 	])
 	SNERT_CHECK_PACKAGE([MILTER],
-		[libmilter/mfapi.h],[libmilter],[
-		smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom
-		smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval
-		smfi_insheader smfi_main smfi_opensocket smfi_progress
-		smfi_quarantine smfi_register smfi_replacebody smfi_setbacklog
-		smfi_setconn smfi_setdbg smfi_setmaxdatasize smfi_setmlreply
-		smfi_setpriv smfi_setreply smfi_setsymlist smfi_settimeout
+		[libmilter/mfapi.h],[libmilter],[ \
+		smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom \
+		smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval \
+		smfi_insheader smfi_main smfi_opensocket smfi_progress \
+		smfi_quarantine smfi_register smfi_replacebody smfi_setbacklog \
+		smfi_setconn smfi_setdbg smfi_setmaxdatasize smfi_setmlreply \
+		smfi_setpriv smfi_setreply smfi_setsymlist smfi_settimeout \
 		smfi_stop smfi_version
 		],
 		[$with_milter],[$with_milter_inc],[$with_milter_lib] )
