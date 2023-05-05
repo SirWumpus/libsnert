@@ -1178,16 +1178,10 @@ AC_DEFUN(SNERT_PROCESS,[
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
 #endif
-#ifdef TIME_WITH_SYS_TIME
+#ifdef HAVE_SYS_TIME_H
 # include <sys/time.h>
-# include <time.h>
-#else
-# ifdef HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
 #endif
+#include <time.h>
 #include <sys/resource.h>
 		])
 		AC_CHECK_FUNCS([getrlimit setrlimit])
@@ -1431,33 +1425,18 @@ dnl	saved_libs=$LIBS
 	AC_LIBOBJ(mktime)
 	AC_FUNC_STRFTIME
 	AC_CHECK_TYPES([struct timespec, struct timeval],[],[],[
-#ifdef HAVE_SYS_TYPES_H
-# include <sys/types.h>
-#endif
-#ifdef TIME_WITH_SYS_TIME
+#ifdef HAVE_SYS_TIME_H
 # include <sys/time.h>
-# include <time.h>
-#else
-# ifdef HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
 #endif
+#include <time.h>
 	])
 
 	AC_STRUCT_TM
 	AC_CHECK_MEMBERS([struct tm.tm_gmtoff],[],[],[
-#ifdef TIME_WITH_SYS_TIME
+#ifdef HAVE_SYS_TIME_H
 # include <sys/time.h>
-# include <time.h>
-#else
-# ifdef HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
 #endif
+#include <time.h>
 	])
 	AC_STRUCT_TIMEZONE
 	AC_CHECK_FUNCS(timegm)

@@ -6845,19 +6845,10 @@ fi
 
 done
 	ac_fn_c_check_type "$LINENO" "struct timespec" "ac_cv_type_struct_timespec" "
-#ifdef HAVE_SYS_TYPES_H
-# include <sys/types.h>
-#endif
-#ifdef TIME_WITH_SYS_TIME
+#ifdef HAVE_SYS_TIME_H
 # include <sys/time.h>
-# include <time.h>
-#else
-# ifdef HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
 #endif
+#include <time.h>
 
 "
 if test "x$ac_cv_type_struct_timespec" = xyes
@@ -6868,19 +6859,10 @@ printf "%s\n" "#define HAVE_STRUCT_TIMESPEC 1" >>confdefs.h
 
 fi
 ac_fn_c_check_type "$LINENO" "struct timeval" "ac_cv_type_struct_timeval" "
-#ifdef HAVE_SYS_TYPES_H
-# include <sys/types.h>
-#endif
-#ifdef TIME_WITH_SYS_TIME
+#ifdef HAVE_SYS_TIME_H
 # include <sys/time.h>
-# include <time.h>
-#else
-# ifdef HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
 #endif
+#include <time.h>
 
 "
 if test "x$ac_cv_type_struct_timeval" = xyes
@@ -6930,16 +6912,10 @@ printf "%s\n" "#define TM_IN_SYS_TIME 1" >>confdefs.h
 fi
 
 	ac_fn_c_check_member "$LINENO" "struct tm" "tm_gmtoff" "ac_cv_member_struct_tm_tm_gmtoff" "
-#ifdef TIME_WITH_SYS_TIME
+#ifdef HAVE_SYS_TIME_H
 # include <sys/time.h>
-# include <time.h>
-#else
-# ifdef HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
 #endif
+#include <time.h>
 
 "
 if test "x$ac_cv_member_struct_tm_tm_gmtoff" = xyes
@@ -7270,16 +7246,10 @@ printf "%s\n" "#define HAVE_SYS_RESOURCE_H /**/" >>confdefs.h
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
 #endif
-#ifdef TIME_WITH_SYS_TIME
+#ifdef HAVE_SYS_TIME_H
 # include <sys/time.h>
-# include <time.h>
-#else
-# ifdef HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
 #endif
+#include <time.h>
 #include <sys/resource.h>
 
 "
@@ -7294,16 +7264,10 @@ ac_fn_c_check_type "$LINENO" "rlim_t" "ac_cv_type_rlim_t" "
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>
 #endif
-#ifdef TIME_WITH_SYS_TIME
+#ifdef HAVE_SYS_TIME_H
 # include <sys/time.h>
-# include <time.h>
-#else
-# ifdef HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
 #endif
+#include <time.h>
 #include <sys/resource.h>
 
 "
