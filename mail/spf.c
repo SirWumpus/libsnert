@@ -1009,9 +1009,14 @@ LIBSNERT_COPYRIGHT "\n"
 
 static const char test_ipv4[] = "192.0.2.3";
 static const char test_ipv6[] = "2001:DB8::CB01";
-static const char test_helo[] = "pop.snert.net";
+static const char test_helo[] = "mx.snert.org";
 static const char test_ptr[] = "mx.example.org";
 static const char test_mail[] = "strong-bad@email.example.com";
+
+/* This has to be updated if/when snert domains move. */
+static const char test_active_ip[] = "199.48.128.150";
+static const char test_active_mx[] = "mx.snert.org";
+
 
 static int
 testMacro(const char *ip, ParsePath *mail, const char *spec, const char *expect)
@@ -1027,9 +1032,13 @@ testMacro(const char *ip, ParsePath *mail, const char *spec, const char *expect)
 	ctx.ptr_count = ctx.mechanism_count = 0;
 	ctx.temp_error = 0;
 
+	if (parseIPv6(ip, ctx.ipv6) == 0) {
+		return SPF_PERM_ERROR;
+	}
+
 	target = spfMacro(&ctx, mail->domain.string, spec);
 	rc = TextInsensitiveCompare(expect, target) == 0;
-	printf("%s <%s> %s -> %s %s\n", ip, mail->address.string, spec, target, rc ? "PASS" : "FAIL");
+	printf("%s %s <%s> %s -> %s\n", rc ? "-OK-" : "FAIL", ip, mail->address.string, spec, target);
 	free(target);
 
 	return rc;
@@ -1058,6 +1067,7 @@ testMacros(void)
 	testMacro(test_ipv4, path, "%{lr-}",	"bad.strong");
 	testMacro(test_ipv4, path, "%{l1r-}",	"strong");
 
+	testMacro(test_ipv4, path, "%{i}._ip.%{d2}",	 		"192.0.2.3._ip.example.com");
 	testMacro(test_ipv4, path, "%{ir}.%{v}._spf.%{d2}",	 	"3.2.0.192.in-addr._spf.example.com");
 	testMacro(test_ipv4, path, "%{lr-}.lp._spf.%{d2}", 		"bad.strong.lp._spf.example.com");
 	testMacro(test_ipv4, path, "%{lr-}.lp.%{ir}.%{v}._spf.%{d2}",	"bad.strong.lp.3.2.0.192.in-addr._spf.example.com");
@@ -1065,10 +1075,10 @@ testMacros(void)
 	testMacro(test_ipv4, path, "%{d2}.trusted-domains.example.net", "example.com.trusted-domains.example.net");
 	testMacro(test_ipv6, path, "%{ir}.%{v}._spf.%{d2}", 		"1.0.B.C.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.B.D.0.1.0.0.2.ip6._spf.example.com");
 
+	testMacro(test_active_ip, path, "%{p}",		"mx.snert.org");
+	testMacro(test_active_ip, path, "%{pr}",	"org.snert.mx");
+	testMacro(test_active_ip, path, "%{p2r}",	"snert.mx");
 	testMacro("192.168.0.1", path, "%{p}",		"unknown");
-	testMacro("82.97.10.34", path, "%{p}",		"mx.snert.net");
-	testMacro("82.97.10.34", path, "%{pr}",		"net.snert.mx");
-	testMacro("82.97.10.34", path, "%{p2r}",	"snert.mx");
 
 	free(path);
 
