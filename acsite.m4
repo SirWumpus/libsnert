@@ -310,10 +310,12 @@ AC_DEFUN(SNERT_OPTION_ENABLE_DEBUG,[
 	CPPFLAGS="${CPPFLAGS}"
 	CFLAGS="${CFLAGS}"
 
-	AC_ARG_ENABLE(debug,[AC_HELP_STRING([--enable-debug],[enable compiler debug option])],[
-		:
+	AC_ARG_ENABLE(debug,[AS_HELP_STRING([--enable-debug],[enable compiler debug option])])
+	AS_IF([test ${enable_debug:-no} = 'yes'],[
+		CFLAGS="-g -O0${CFLAGS:+ $CFLAGS}"
 	],[
 		AC_DEFINE(NDEBUG,[1],[Disable debug code])
+		enable_debug='no'
 	])
 ])
 
@@ -321,7 +323,7 @@ dnl
 dnl SNERT_OPTION_ENABLE_TRACK
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_TRACK,[
-	AC_ARG_ENABLE(track,[AC_HELP_STRING([--enable-track],[enable memory leak tracking])],[
+	AC_ARG_ENABLE(track,[AS_HELP_STRING([--enable-track],[enable memory leak tracking])],[
 		dnl We define this through -D instead of config.h.
 		CFLAGS="-DTRACK${CFLAGS:+ $CFLAGS}"
 	])
@@ -387,11 +389,6 @@ dnl 			dnl -lws2_32	WinSock2 library
 dnl 			CFLAGS="-mno-cygwin ${CFLAGS}"
 dnl 			LIBS="-lws2_32 ${LIBS}"
 dnl 		])
-	])
-	AS_IF([test ${enable_debug:-no} = 'no'],[
-		CFLAGS="-O2${CFLAGS:+ $CFLAGS}"
-	],[
-		CFLAGS="-O0 -g${CFLAGS:+ $CFLAGS}"
 	])
 
 	dnl Tradional cc options.
@@ -485,7 +482,7 @@ int main()
 
 AC_DEFUN(SNERT_OPTION_DB_185,[
 	AC_ARG_ENABLE(db-185
-		[AC_HELP_STRING([[--enable-db-185 ]],[link with DB 1.85])]
+		[AS_HELP_STRING([[--enable-db-185 ]],[link with DB 1.85])]
 	)
 ])
 
@@ -795,7 +792,7 @@ AC_DEFUN(SNERT_LIBSNERT,[
 
 AC_DEFUN(SNERT_OPTION_ENABLE_32BIT,[
 	AC_ARG_ENABLE(32bit,
-		[AC_HELP_STRING([--enable-32bit ],[enable compile & link options for 32-bit])],
+		[AS_HELP_STRING([--enable-32bit ],[enable compile & link options for 32-bit])],
 		[
 			CFLAGS="-m32${CFLAGS:+ $CFLAGS}"
 			LDFLAGS="-m32${LDFLAGS:+ $LDFLAGS}"
@@ -805,7 +802,7 @@ AC_DEFUN(SNERT_OPTION_ENABLE_32BIT,[
 
 AC_DEFUN(SNERT_OPTION_ENABLE_64BIT,[
 	AC_ARG_ENABLE(64bit,
-		[AC_HELP_STRING([--enable-64bit ],[enable compile & link options for 64-bit])],
+		[AS_HELP_STRING([--enable-64bit ],[enable compile & link options for 64-bit])],
 		[
 			CFLAGS="-m64${CFLAGS:+ $CFLAGS}"
 			LDFLAGS="-m64${LDFLAGS:+ $LDFLAGS}"
@@ -830,7 +827,7 @@ dnl SNERT_OPTION_ENABLE_WIN32
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_MINGW,[
 	AC_ARG_ENABLE(mingw,
-		[AC_HELP_STRING([--enable-mingw ],[generate native Windows application using mingw])],
+		[AS_HELP_STRING([--enable-mingw ],[generate native Windows application using mingw])],
 		[
 			enable_win32='yes'
 			AC_SUBST(ENABLE_MINGW, 'yes')
@@ -845,7 +842,7 @@ dnl SNERT_OPTION_WITH_WINDOWS_SDK
 dnl
 AC_DEFUN(SNERT_OPTION_WITH_WINDOWS_SDK,[
 	AC_ARG_WITH(windows-sdk,
-		[AC_HELP_STRING([--with-windows-sdk=dir ],[Windows Platform SDK base directory])],
+		[AS_HELP_STRING([--with-windows-sdk=dir ],[Windows Platform SDK base directory])],
 		[
 			enable_win32='yes'
 			AC_SUBST(WITH_WINDOWS_SDK, $with_windows_sdk)
@@ -861,7 +858,7 @@ dnl SNERT_OPTION_ENABLE_BCC32
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_BCC32,[
 	AC_ARG_ENABLE(bcc32,
-		[AC_HELP_STRING([--enable-bcc32 ],[generate native Windows application using Borland C++ 5.5])],
+		[AS_HELP_STRING([--enable-bcc32 ],[generate native Windows application using Borland C++ 5.5])],
 		[
 			enable_bcc32='yes'
 			CC=bcc32
@@ -874,7 +871,7 @@ dnl SNERT_OPTION_ENABLE_RUN_USER(default_user_name)
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_RUN_USER,[
 	AC_ARG_ENABLE(run-user,
-		[AC_HELP_STRING([--enable-run-user=user ],[specifiy the process user name, default is "$1"])],
+		[AS_HELP_STRING([--enable-run-user=user ],[specifiy the process user name, default is "$1"])],
 		[enable_run_user="$enableval"], [enable_run_user=$1]
 	)
 	AC_DEFINE_UNQUOTED(RUN_AS_USER, ["$enable_run_user"])
@@ -886,7 +883,7 @@ dnl SNERT_OPTION_ENABLE_RUN_GROUP(default_group_name)
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_RUN_GROUP,[
 	AC_ARG_ENABLE(run-group,
-		[AC_HELP_STRING([--enable-run-group=group ],[specifiy the process group name, default is "$1"])],
+		[AS_HELP_STRING([--enable-run-group=group ],[specifiy the process group name, default is "$1"])],
 		[enable_run_group="$enableval"], [enable_run_group=$1]
 	)
 	AC_DEFINE_UNQUOTED(RUN_AS_GROUP, ["$enable_run_group"])
@@ -898,7 +895,7 @@ dnl SNERT_OPTION_ENABLE_CACHE_TYPE(default_cache_type)
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_CACHE_TYPE,[
 	AC_ARG_ENABLE(cache-type,
-		[AC_HELP_STRING([--enable-cache-type=type ],[specifiy the cache type: bdb, flatfile, hash])],
+		[AS_HELP_STRING([--enable-cache-type=type ],[specifiy the cache type: bdb, flatfile, hash])],
 		[
 			# Force a specific type.
 			case "$enableval" in
@@ -921,7 +918,7 @@ dnl SNERT_OPTION_ENABLE_CACHE_FILE
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_CACHE_FILE,[
 	AC_ARG_ENABLE(cache-file,
-		[AC_HELP_STRING([--enable-cache-file=filepath ],[specifiy the cache file])],
+		[AS_HELP_STRING([--enable-cache-file=filepath ],[specifiy the cache file])],
 		[
 			enable_cache_file="$enableval"
 		], [
@@ -949,7 +946,7 @@ dnl SNERT_OPTION_ENABLE_PID(default)
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_PID,[
 	AC_ARG_ENABLE(pid,
-		[AC_HELP_STRING([--enable-pid=filepath ],[specifiy an alternative pid file path])],
+		[AS_HELP_STRING([--enable-pid=filepath ],[specifiy an alternative pid file path])],
 		[
 		],[
 			dnl Almost all unix machines agree on this location.
@@ -971,7 +968,7 @@ dnl SNERT_OPTION_ENABLE_SOCKET(default)
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_SOCKET,[
 	AC_ARG_ENABLE(socket,
-		[AC_HELP_STRING([--enable-socket=filepath ],[specifiy an alternative Unix domain socket])],
+		[AS_HELP_STRING([--enable-socket=filepath ],[specifiy an alternative Unix domain socket])],
 		[
 		],[
 			dnl Almost all unix machines agree on this location.
@@ -996,7 +993,7 @@ dnl SNERT_OPTION_ENABLE_POPAUTH
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_POPAUTH,[
 	AC_ARG_ENABLE(popauth,
-		[AC_HELP_STRING([--enable-popauth ],[enable POP-before-SMTP macro checking in smf API])],
+		[AS_HELP_STRING([--enable-popauth ],[enable POP-before-SMTP macro checking in smf API])],
 		[AC_DEFINE(HAVE_POP_BEFORE_SMTP,[],[Enable POP-before-SMTP])]
 	)
 ])
@@ -1006,7 +1003,7 @@ dnl SNERT_OPTION_ENABLE_STARTUP_DIR
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_STARTUP_DIR,[
 	AC_ARG_ENABLE(startup-dir,
-		[AC_HELP_STRING([--enable-startup-dir=dir ],[specifiy the startup script directory location])],
+		[AS_HELP_STRING([--enable-startup-dir=dir ],[specifiy the startup script directory location])],
 		[
 			STARTUP_DIR="$enableval"
 			STARTUP_EXT='.sh'
@@ -1038,7 +1035,7 @@ dnl SNERT_OPTION_WITH_SENDMAIL
 dnl
 AC_DEFUN(SNERT_OPTION_WITH_SENDMAIL,[
 	AC_ARG_WITH(sendmail,
-		[AC_HELP_STRING([--with-sendmail=dir ],[directory where sendmail.cf lives, default /etc/mail])],
+		[AS_HELP_STRING([--with-sendmail=dir ],[directory where sendmail.cf lives, default /etc/mail])],
 		[with_sendmail="$withval"], [with_sendmail='/etc/mail']
 	)
 	AC_SUBST(with_sendmail)
@@ -1049,7 +1046,7 @@ dnl SNERT_OPTION_ENABLE_FORK
 dnl
 AC_DEFUN(SNERT_OPTION_ENABLE_FORK,[
 	AC_ARG_ENABLE(
-		fork, [AC_HELP_STRING([--enable-fork],[use process fork model instead of threads])],
+		fork, [AS_HELP_STRING([--enable-fork],[use process fork model instead of threads])],
 		[
 			AC_DEFINE(ENABLE_FORK,[],[use process fork model instead of threads])
 		]
@@ -1058,7 +1055,7 @@ AC_DEFUN(SNERT_OPTION_ENABLE_FORK,[
 ])
 
 AC_DEFUN(SNERT_OPTION_ENABLE_FCNTL_LOCKS,[
-	AC_ARG_ENABLE(fcntl-locks,[AC_HELP_STRING([--enable-fcntl-locks],[use fcntl() file locking instead of flock()])],[
+	AC_ARG_ENABLE(fcntl-locks,[AS_HELP_STRING([--enable-fcntl-locks],[use fcntl() file locking instead of flock()])],[
 		AC_DEFINE(ENABLE_ALT_FLOCK,[1],[Enable alternative flock using fcntl.])
 	],[
 		dnl Option not specified, choose default based on OS.
@@ -1121,11 +1118,11 @@ dnl # endif
 dnl #endif
 
 	AC_CHECK_HEADERS([unistd.h fcntl.h sys/stat.h utime.h])
-	AC_CHECK_FUNCS([ dnl
-		chdir getcwd mkdir rmdir closedir opendir readdir dnl
-		chmod chown chroot fchmod stat fstat link rename symlink unlink umask utime dnl
-		close creat dup dup2 ftruncate chsize truncate lseek open pipe read write dnl
-		isatty getdtablesize fmemopen open_memstream open_wmemstream dnl
+	AC_CHECK_FUNCS([
+		chdir getcwd mkdir rmdir closedir opendir readdir
+		chmod chown chroot fchmod stat fstat link rename symlink unlink umask utime
+		close creat dup dup2 ftruncate chsize truncate lseek open pipe read write
+		isatty getdtablesize fmemopen open_memstream open_wmemstream
 	])
 	AC_FUNC_CHOWN
 ])
@@ -1416,32 +1413,22 @@ AC_DEFUN(SNERT_ANSI_TIME,[
 
 dnl	saved_libs=$LIBS
 
+	case "${platform}" in
+	Linux|SunOS|Solaris)
+		SNERT_CHECK_LIB(rt, clock_gettime)
+		if test "$ac_cv_lib_rt_clock_gettime" != 'no'; then
+			AC_SUBST(HAVE_LIB_RT, '-lrt')
+		fi
+		;;
+	esac
+
 	AC_CHECK_HEADERS(time.h sys/time.h)
-	AC_HEADER_TIME
-dnl autoconf says the following should be included:
-dnl
-dnl #ifdef TIME_WITH_SYS_TIME
-dnl # include <sys/time.h>
-dnl # include <time.h>
-dnl #else
-dnl # ifdef HAVE_SYS_TIME_H
-dnl #  include <sys/time.h>
-dnl # else
-dnl #  include <time.h>
-dnl # endif
-dnl #endif
-	AC_SEARCH_LIBS([clock_gettime],[rt])
-	AS_IF([expr "$ac_cv_search_clock_gettime" : '-l' >/dev/null],[
-		LIBS_RT="$ac_cv_search_clock_gettime"
-		AC_DEFINE_UNQUOTED(LIBS_RT,"$LIBS_RT",[Realtime library])
-		AC_SUBST(LIBS_RT)
-	])
-	AC_CHECK_FUNCS([ dnl
-		clock difftime mktime time asctime ctime gmtime localtime tzset sleep usleep nanosleep dnl
-		asctime_r ctime_r gmtime_r localtime_r clock_gettime gettimeofday dnl
-		alarm getitimer setitimer dnl
-	])
+	AC_CHECK_FUNCS(clock difftime mktime time asctime ctime gmtime localtime tzset sleep usleep nanosleep)
+	AC_CHECK_FUNCS(asctime_r ctime_r gmtime_r localtime_r clock_gettime gettimeofday)
+	AC_CHECK_FUNCS(alarm getitimer setitimer)
 	dnl These are typically macros:  timerclear timerisset timercmp timersub timeradd
+	AC_FUNC_MKTIME
+	AC_LIBOBJ(mktime)
 	AC_FUNC_STRFTIME
 	AC_CHECK_TYPES([struct timespec, struct timeval],[],[],[
 #ifdef HAVE_SYS_TYPES_H
@@ -1460,20 +1447,7 @@ dnl #endif
 	])
 
 	AC_STRUCT_TM
-	AC_CHECK_MEMBERS([struct tm.tm_gmtoff],[],[],[
-#ifdef TIME_WITH_SYS_TIME
-# include <sys/time.h>
-# include <time.h>
-#else
-# ifdef HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
-#endif
-	])
 	AC_STRUCT_TIMEZONE
-	AC_CHECK_FUNCS(timegm)
 
 dnl	LIBS=$saved_libs
 ])
@@ -1523,11 +1497,10 @@ AC_DEFUN(SNERT_PCRE,[
 	AS_UNSET(ac_cv_func_regexec)
 	AS_UNSET(ac_cv_func_regerror)
 	AS_UNSET(ac_cv_func_regfree)
-	SNERT_CHECK_PACKAGE([PCRE], dnl
-		[pcre.h pcreposix.h],[libpcre libpcreposix], dnl
-		[pcre_compile pcre_exec pcre_free regcomp regexec regerror regfree] dnl
-		[$with_pcre],[$with_pcre_inc],[$with_pcre_lib] dnl
-	)
+	SNERT_CHECK_PACKAGE([PCRE],
+		[pcre.h pcreposix.h],[libpcre libpcreposix],
+		[pcre_compile pcre_exec pcre_free regcomp regexec regerror regfree],
+		[$with_pcre],[$with_pcre_inc],[$with_pcre_lib] )
 dnl 	AC_SUBST(LIBS_PCRE)
 dnl 	AC_SUBST(CPPFLAGS_PCRE)
 dnl 	AC_SUBST(LDFLAGS_PCRE)
@@ -1582,7 +1555,7 @@ AC_DEFUN(SNERT_TERMIOS,[
 ])
 
 AC_DEFUN(SNERT_OPTION_WITH_PTHREAD,[
-	AC_ARG_WITH(pthread,[AC_HELP_STRING([--with-pthread],[POSIX threads optional base directory])])
+	AC_ARG_WITH(pthread,[AS_HELP_STRING([--with-pthread],[POSIX threads optional base directory])])
 ])
 AC_DEFUN(SNERT_PTHREAD,[
 AS_IF([test "$enable_win32" = 'yes'],[
@@ -1600,29 +1573,28 @@ AS_IF([test "$enable_win32" = 'yes'],[
 		SNERT_JOIN_UNIQ([LDFLAGS_PTHREAD],[-pthread])
 	])
 
-	SNERT_CHECK_PACKAGE([PTHREAD], dnl
-		[pthread.h],[libpthread],[dnl
-		pthread_create pthread_cancel pthread_equal pthread_exit pthread_join dnl
-		pthread_kill pthread_self pthread_detach pthread_yield pthread_sigmask sigwait dnl
-		pthread_attr_init pthread_attr_destroy pthread_attr_getdetachstate dnl
-		pthread_attr_setdetachstate pthread_attr_getstackaddr pthread_attr_setstackaddr dnl
-		pthread_attr_getstacksize pthread_attr_setstacksize pthread_attr_getscope dnl
-		pthread_attr_setscope pthread_mutex_init pthread_mutex_destroy pthread_mutex_lock dnl
-		pthread_mutex_trylock pthread_mutex_unlock pthread_mutexattr_init dnl
-		pthread_mutexattr_destroy pthread_mutexattr_setprioceiling dnl
-		pthread_mutexattr_getprioceiling pthread_mutexattr_setprotocol dnl
-		pthread_mutexattr_getprotocol pthread_mutexattr_settype pthread_mutexattr_gettype dnl
-		pthread_cond_broadcast pthread_cond_destroy pthread_cond_init pthread_cond_signal dnl
-		pthread_cond_timedwait pthread_cond_wait pthread_spin_init pthread_spin_destroy dnl
-		pthread_spin_lock pthread_spin_trylock pthread_spin_unlock pthread_rwlock_init dnl
-		pthread_rwlock_destroy pthread_rwlock_unlock pthread_rwlock_rdlock dnl
-		pthread_rwlock_wrlock pthread_rwlock_tryrdlock pthread_rwlock_trywrlock dnl
-		pthread_lock_global_np pthread_unlock_global_np pthread_key_create dnl
-		pthread_key_delete pthread_getspecific pthread_setspecific pthread_once dnl
-		pthread_atfork dnl
-		],dnl
-		[$with_pthread],[$with_pthread_inc],[$with_pthread_lib],[],[no] dnl
-	)
+	SNERT_CHECK_PACKAGE([PTHREAD],
+		[pthread.h],[libpthread],[
+		pthread_create pthread_cancel pthread_equal pthread_exit pthread_join
+		pthread_kill pthread_self pthread_detach pthread_yield pthread_sigmask sigwait
+		pthread_attr_init pthread_attr_destroy pthread_attr_getdetachstate
+		pthread_attr_setdetachstate pthread_attr_getstackaddr pthread_attr_setstackaddr
+		pthread_attr_getstacksize pthread_attr_setstacksize pthread_attr_getscope
+		pthread_attr_setscope pthread_mutex_init pthread_mutex_destroy pthread_mutex_lock
+		pthread_mutex_trylock pthread_mutex_unlock pthread_mutexattr_init
+		pthread_mutexattr_destroy pthread_mutexattr_setprioceiling
+		pthread_mutexattr_getprioceiling pthread_mutexattr_setprotocol
+		pthread_mutexattr_getprotocol pthread_mutexattr_settype pthread_mutexattr_gettype
+		pthread_cond_broadcast pthread_cond_destroy pthread_cond_init pthread_cond_signal
+		pthread_cond_timedwait pthread_cond_wait pthread_spin_init pthread_spin_destroy
+		pthread_spin_lock pthread_spin_trylock pthread_spin_unlock pthread_rwlock_init
+		pthread_rwlock_destroy pthread_rwlock_unlock pthread_rwlock_rdlock
+		pthread_rwlock_wrlock pthread_rwlock_tryrdlock pthread_rwlock_trywrlock
+		pthread_lock_global_np pthread_unlock_global_np pthread_key_create
+		pthread_key_delete pthread_getspecific pthread_setspecific pthread_once
+		pthread_atfork
+		],
+		[$with_pthread],[$with_pthread_inc],[$with_pthread_lib],[],[no] )
 
 	saved_LIBS="$LIBS"
 	saved_LDFLAGS="$LDFLAGS"
@@ -1777,14 +1749,13 @@ AS_IF([test "$enable_win32" = 'yes'],[
 ])
 
 AC_DEFUN(SNERT_SCHED,[
-	SNERT_CHECK_PACKAGE([SCHED], dnl
-		[sched.h],[librt],dnl
-		[sched_getparam sched_get_priority_max sched_get_priority_min dnl
-		sched_rr_get_interval sched_getscheduler sched_setparam dnl
-		sched_setscheduler sched_yield], dnl
-		[$with_sched],[$with_sched_inc],[$with_sched_lib] dnl
-	)
-	AH_VERBATIM(LIBS_LUA,[
+	SNERT_CHECK_PACKAGE([SCHED],
+		[sched.h],[librt],[
+		sched_getparam sched_get_priority_max sched_get_priority_min
+		sched_rr_get_interval sched_getscheduler sched_setparam
+		sched_setscheduler sched_yield
+		],[$with_sched],[$with_sched_inc],[$with_sched_lib] )
+	AH_VERBATIM(LIBS_SCHED,[
 #undef HAVE_SCHED_H
 #undef HAVE_SCHED_GETPARAM
 #undef HAVE_SCHED_GET_PRIORITY_MAX
@@ -1801,9 +1772,9 @@ AC_DEFUN(SNERT_SCHED,[
 ])
 
 AC_DEFUN(SNERT_OPTION_WITH_LIBEV,[
-	AC_ARG_WITH(libev,[AC_HELP_STRING([--with-libev],[use libev in place of Snert Event API, optional base directory])])
-dnl	AC_ARG_WITH(libev-inc,[AC_HELP_STRING([--with-libev-inc],[specific libev include directory])])
-dnl	AC_ARG_WITH(libev-lib,[AC_HELP_STRING([--with-libev-lib],[specific libev library directory])])
+	AC_ARG_WITH(libev,[AS_HELP_STRING([--with-libev],[use libev in place of Snert Event API, optional base directory])])
+dnl	AC_ARG_WITH(libev-inc,[AS_HELP_STRING([--with-libev-inc],[specific libev include directory])])
+dnl	AC_ARG_WITH(libev-lib,[AS_HELP_STRING([--with-libev-lib],[specific libev library directory])])
 ])
 AC_DEFUN(SNERT_LIBEV,[
 	AS_CASE([$platform],
@@ -1811,10 +1782,9 @@ AC_DEFUN(SNERT_LIBEV,[
 		with_libev_inc='/usr/pkg/include/ev'
 		with_libev_lib='/usr/pkg/lib/ev'
 	])
-	SNERT_CHECK_PACKAGE([LIBEV], dnl
-		[ev.h ev/ev.h],[libev],[ev_run], dnl
-		[$with_libev],[$with_libev_inc],[$with_libev_lib] dnl
-	)
+	SNERT_CHECK_PACKAGE([LIBEV],
+		[ev.h ev/ev.h],[libev],[ev_run],
+		[$with_libev],[$with_libev_inc],[$with_libev_lib] )
 	dnl Not default and not explicitly disabled, ie. explicitly set.
 	AS_IF([test X"$with_libev" != X -a "$with_libev" != 'no'],[
 		AC_DEFINE_UNQUOTED(USE_LIBEV)
@@ -1836,10 +1806,9 @@ dnl	AC_ARG_WITH(lua-lib, [[  --with-lua-lib=DIR     specific Lua library directo
 ])
 AC_DEFUN(SNERT_LUA,[
 	LIBS_LUA="-lm"
-	SNERT_CHECK_PACKAGE([LUA], dnl
-		[lua.h],[liblua],[luaL_newstate], dnl
-		[$with_lua],[$with_lua_inc],[$with_lua_lib] dnl
-	)
+	SNERT_CHECK_PACKAGE([LUA],
+		[lua.h],[liblua],[luaL_newstate],
+		[$with_lua],[$with_lua_inc],[$with_lua_lib] )
 	AH_VERBATIM(LIBS_LUA,[
 #undef HAVE_LUA_H
 #undef HAVE_LUAL_NEWSTATE
@@ -1862,18 +1831,17 @@ AC_DEFUN(SNERT_LIBMILTER,[
 		SNERT_JOIN_UNIQ([CPPFLAGS_MILTER],[$CPPFLAGS_PTHREAD])
 		SNERT_JOIN_UNIQ([CFLAGS_MILTER],[$CFLAGS_PTHREAD])
 	])
-	SNERT_CHECK_PACKAGE([MILTER], dnl
-		[libmilter/mfapi.h],[libmilter],[ dnl
-		smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom dnl
-		smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval dnl
-		smfi_insheader smfi_main smfi_opensocket smfi_progress dnl
-		smfi_quarantine smfi_register smfi_replacebody smfi_setbacklog dnl
-		smfi_setconn smfi_setdbg smfi_setmaxdatasize smfi_setmlreply dnl
-		smfi_setpriv smfi_setreply smfi_setsymlist smfi_settimeout dnl
-		smfi_stop smfi_version dnl
-		], dnl
-		[$with_milter],[$with_milter_inc],[$with_milter_lib] dnl
-	)
+	SNERT_CHECK_PACKAGE([MILTER],
+		[libmilter/mfapi.h],[libmilter],[
+		smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom
+		smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval
+		smfi_insheader smfi_main smfi_opensocket smfi_progress
+		smfi_quarantine smfi_register smfi_replacebody smfi_setbacklog
+		smfi_setconn smfi_setdbg smfi_setmaxdatasize smfi_setmlreply
+		smfi_setpriv smfi_setreply smfi_setsymlist smfi_settimeout
+		smfi_stop smfi_version
+		],
+		[$with_milter],[$with_milter_inc],[$with_milter_lib] )
 
 	AH_VERBATIM(LIBS_MILTER,[
 #undef HAVE_LIBMILTER_MFAPI_H
@@ -1891,11 +1859,10 @@ dnl	AC_ARG_WITH([openssl-lib],[AS_HELP_STRING([--with-openssl-lib=DIR],[specific
 ])
 AC_DEFUN([SNERT_OPENSSL],[
 	AC_REQUIRE([SNERT_NETWORK])
-	SNERT_CHECK_PACKAGE([SSL], dnl
-		[openssl/ssl.h openssl/bio.h openssl/err.h openssl/crypto.h], dnl
-		[libssl libcrypto],[SSL_library_init EVP_cleanup] dnl
-		[$with_openssl],[$with_openssl_inc],[$with_openssl_lib] dnl
-	)
+	SNERT_CHECK_PACKAGE([SSL],
+		[openssl/ssl.h openssl/bio.h openssl/err.h openssl/crypto.h],
+		[libssl libcrypto],[SSL_library_init EVP_cleanup],
+		[$with_openssl],[$with_openssl_inc],[$with_openssl_lib] )
 	SNERT_CHECK_DEFINE(OpenSSL_add_all_algorithms, openssl/evp.h)
 	SNERT_FIND_DIR([certs],[/etc/ssl /etc/openssl], [
 		SNERT_DEFINE([ETC_SSL],[$dir_val])
@@ -1928,10 +1895,9 @@ dnl	AC_ARG_WITH([sasl2-lib],[AS_HELP_STRING([--with-sasl2-lib=DIR],[specific SAS
 ])
 AC_DEFUN([SNERT_SASL2],[
 	AC_REQUIRE([SNERT_NETWORK])
-	SNERT_CHECK_PACKAGE([SASL2], dnl
-		[sasl/sasl.h sasl/saslutil.h],[libsasl2],[prop_get sasl_checkapop], dnl
-		[$with_sasl2],[$with_sasl2_inc],[$with_sasl2_lib] dnl
-	)
+	SNERT_CHECK_PACKAGE([SASL2],
+		[sasl/sasl.h sasl/saslutil.h],[libsasl2],[prop_get sasl_checkapop],
+		[$with_sasl2],[$with_sasl2_inc],[$with_sasl2_lib] )
 dnl 	AC_SUBST(LIBS_SASL2)
 dnl 	AC_SUBST(CPPFLAGS_SASL2)
 dnl 	AC_SUBST(LDFLAGS_SASL2)
@@ -1960,9 +1926,8 @@ AC_DEFUN(SNERT_SQLITE3,[
 		SNERT_JOIN_UNIQ([CPPFLAGS_SQLITE3],[$CPPFLAGS_PTHREAD])
 		SNERT_JOIN_UNIQ([CFLAGS_SQLITE3],[$CFLAGS_PTHREAD])
 	])
-	SNERT_CHECK_PACKAGE([SQLITE3],[sqlite3.h],[libsqlite3],[sqlite3_open], dnl
-		[$with_sqlite3],[$with_sqlite3_inc],[$with_sqlite3_lib] dnl
-	)
+	SNERT_CHECK_PACKAGE([SQLITE3],[sqlite3.h],[libsqlite3],[sqlite3_open],
+		[$with_sqlite3],[$with_sqlite3_inc],[$with_sqlite3_lib] )
 
 	save_CPPFLAGS="$CPPFLAGS"
 	CPPFLAGS="$CPPFLAGS_SQLITE3 $CPPFLAGS"
@@ -1990,9 +1955,8 @@ dnl	AC_ARG_WITH([mysql-inc],[AS_HELP_STRING([--with-mysql-inc=DIR],[specific MyS
 dnl	AC_ARG_WITH([mysql-lib],[AS_HELP_STRING([--with-mysql-lib=DIR],[specific MySQL library directory])])
 ])
 AC_DEFUN(SNERT_MYSQL,[
-	SNERT_CHECK_PACKAGE([MYSQL],[mysql.h mysql/mysql.h],[libmysqlclient mysql/libmysqlclient ],[mysql_select_db], dnl
-		[$with_mysql],[$with_mysql_inc],[$with_mysql_lib],[],[no]dnl
-	)
+	SNERT_CHECK_PACKAGE([MYSQL],[mysql.h mysql/mysql.h],[libmysqlclient mysql/libmysqlclient ],[mysql_select_db],
+		[$with_mysql],[$with_mysql_inc],[$with_mysql_lib],[],[no] )
 
 	AC_PATH_PROG([MYSQL_CONFIG],[mysql_config],[false])
 	AS_IF([test "$MYSQL_CONFIG" = 'false'],[
@@ -2033,9 +1997,8 @@ dnl	AC_ARG_WITH([pgsql-inc],[AS_HELP_STRING([--with-pgsql-inc=DIR],[specific Pos
 dnl	AC_ARG_WITH([pgsql-lib],[AS_HELP_STRING([--with-pgsql-lib=DIR],[specific PostgreSQL library directory])])
 ])
 AC_DEFUN(SNERT_PGSQL,[
-	SNERT_CHECK_PACKAGE([PGSQL],[libpq-fe.h],[libpq],[PQconnectdb],dnl
-		[$with_pgsql],[$with_pgsql_inc],[$with_pgsql_lib]dnl
-	)
+	SNERT_CHECK_PACKAGE([PGSQL],[libpq-fe.h],[libpq],[PQconnectdb],
+		[$with_pgsql],[$with_pgsql_inc],[$with_pgsql_lib] )
 dnl 	AC_SUBST(LIBS_PGSQL)
 dnl 	AC_SUBST(CPPFLAGS_PGSQL)
 dnl 	AC_SUBST(LDFLAGS_PGSQL)

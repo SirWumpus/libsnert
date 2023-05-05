@@ -12,7 +12,7 @@
 # This configure script is free software; the Free Software Foundation
 # gives unlimited permission to copy, distribute and modify it.
 #
-# Copyright 1996, 2022 by Anthony Howe. All rights reserved.
+# Copyright 1996, 2023 by Anthony Howe. All rights reserved.
 ## -------------------- ##
 ## M4sh Initialization. ##
 ## -------------------- ##
@@ -655,7 +655,6 @@ ac_func_c_list=
 ac_subst_vars='LTLIBOBJS
 SHARED_MEMORY_API
 SERIALIZATION_API
-LIBOBJS
 HAVE_LIB_MILTER
 CFLAGS_MILTER
 LIBS_MILTER
@@ -717,7 +716,8 @@ build
 EGREP
 GREP
 CPP
-LIBS_RT
+LIBOBJS
+HAVE_LIB_RT
 ldd_tool
 TAR_I
 SET_MAKE
@@ -1576,7 +1576,7 @@ Copyright (C) 2021 Free Software Foundation, Inc.
 This configure script is free software; the Free Software Foundation
 gives unlimited permission to copy, distribute and modify it.
 
-Copyright 1996, 2022 by Anthony Howe. All rights reserved.
+Copyright 1996, 2023 by Anthony Howe. All rights reserved.
 _ACEOF
   exit
 fi
@@ -2819,6 +2819,7 @@ as_fn_append ac_header_c_list " unistd.h unistd_h HAVE_UNISTD_H"
 as_fn_append ac_header_c_list " wchar.h wchar_h HAVE_WCHAR_H"
 as_fn_append ac_header_c_list " minix/config.h minix_config_h HAVE_MINIX_CONFIG_H"
 as_fn_append ac_header_c_list " sys/time.h sys_time_h HAVE_SYS_TIME_H"
+as_fn_append ac_func_c_list " alarm HAVE_ALARM"
 as_fn_append ac_func_c_list " vprintf HAVE_VPRINTF"
 as_fn_append ac_header_c_list " sys/param.h sys_param_h HAVE_SYS_PARAM_H"
 as_fn_append ac_func_c_list " getpagesize HAVE_GETPAGESIZE"
@@ -3009,7 +3010,7 @@ fi
 
 
 
-	package_copyright='Copyright 1996, 2022 by Anthony Howe. All rights reserved.'
+	package_copyright='Copyright 1996, 2023 by Anthony Howe. All rights reserved.'
 
 
 	package_version=`cat $srcdir/VERSION.TXT`
@@ -3404,16 +3405,21 @@ fi
 if test ${enable_debug+y}
 then :
   enableval=$enable_debug;
-		:
+fi
+
+	if test ${enable_debug:-no} = 'yes'
+then :
+
+		CFLAGS="-g -O0${CFLAGS:+ $CFLAGS}"
 
 else $as_nop
 
 
 printf "%s\n" "#define NDEBUG 1" >>confdefs.h
 
+		enable_debug='no'
 
 fi
-
 
 
 # Check whether --enable-debug-mutex was given.
@@ -4997,16 +5003,6 @@ fi
 
 
 fi
-	if test ${enable_debug:-no} = 'no'
-then :
-
-		CFLAGS="-O2${CFLAGS:+ $CFLAGS}"
-
-else $as_nop
-
-		CFLAGS="-O0 -g${CFLAGS:+ $CFLAGS}"
-
-fi
 
 			CC_E='-o'
 	CC_E_NAME='-o '
@@ -5304,6 +5300,72 @@ printf "%s\n" "$ac_cv_sizeof_off_t" >&6; }
 
 
 printf "%s\n" "#define SIZEOF_OFF_T $ac_cv_sizeof_off_t" >>confdefs.h
+
+
+	# The cast to long int works around a bug in the HP C Compiler
+# version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+# declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+# This bug is HP SR number 8606223364.
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking size of double" >&5
+printf %s "checking size of double... " >&6; }
+if test ${ac_cv_sizeof_double+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (double))" "ac_cv_sizeof_double"        "$ac_includes_default"
+then :
+
+else $as_nop
+  if test "$ac_cv_type_double" = yes; then
+     { { printf "%s\n" "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+printf "%s\n" "$as_me: error: in \`$ac_pwd':" >&2;}
+as_fn_error 77 "cannot compute sizeof (double)
+See \`config.log' for more details" "$LINENO" 5; }
+   else
+     ac_cv_sizeof_double=0
+   fi
+fi
+
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_sizeof_double" >&5
+printf "%s\n" "$ac_cv_sizeof_double" >&6; }
+
+
+
+printf "%s\n" "#define SIZEOF_DOUBLE $ac_cv_sizeof_double" >>confdefs.h
+
+
+	# The cast to long int works around a bug in the HP C Compiler
+# version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+# declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+# This bug is HP SR number 8606223364.
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking size of long double" >&5
+printf %s "checking size of long double... " >&6; }
+if test ${ac_cv_sizeof_long_double+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (long double))" "ac_cv_sizeof_long_double"        "$ac_includes_default"
+then :
+
+else $as_nop
+  if test "$ac_cv_type_long_double" = yes; then
+     { { printf "%s\n" "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+printf "%s\n" "$as_me: error: in \`$ac_pwd':" >&2;}
+as_fn_error 77 "cannot compute sizeof (long double)
+See \`config.log' for more details" "$LINENO" 5; }
+   else
+     ac_cv_sizeof_long_double=0
+   fi
+fi
+
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_sizeof_long_double" >&5
+printf "%s\n" "$ac_cv_sizeof_long_double" >&6; }
+
+
+
+printf "%s\n" "#define SIZEOF_LONG_DOUBLE $ac_cv_sizeof_long_double" >>confdefs.h
 
 
 	# The cast to long int works around a bug in the HP C Compiler
@@ -6195,6 +6257,19 @@ then :
 fi
 
 
+ac_func=
+for ac_item in $ac_func_c_list
+do
+  if test $ac_func; then
+    ac_fn_c_check_func "$LINENO" $ac_func ac_cv_func_$ac_func
+    if eval test \"x\$ac_cv_func_$ac_func\" = xyes; then
+      echo "#define $ac_item 1" >> confdefs.h
+    fi
+    ac_func=
+  else
+    ac_func=$ac_item
+  fi
+done
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for $CC options needed to detect all undeclared functions" >&5
 printf %s "checking for $CC options needed to detect all undeclared functions... " >&6; }
 if test ${ac_cv_c_undeclared_builtin_options+y}
@@ -6281,35 +6356,24 @@ esac
 	printf "%s\n"
 
 
-	ac_fn_c_check_header_compile "$LINENO" "time.h" "ac_cv_header_time_h" "$ac_includes_default"
-if test "x$ac_cv_header_time_h" = xyes
+	case "${platform}" in
+	Linux|SunOS|Solaris)
+
+	if echo "$LIBS" | grep -- "-lrt" >/dev/null
 then :
-  printf "%s\n" "#define HAVE_TIME_H 1" >>confdefs.h
 
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/time.h" "ac_cv_header_sys_time_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_time_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_TIME_H 1" >>confdefs.h
+		echo "checking for clock_gettime in rt... (cached) yes"
 
-fi
+else $as_nop
 
-
-# Obsolete code to be removed.
-if test $ac_cv_header_sys_time_h = yes; then
-
-printf "%s\n" "#define TIME_WITH_SYS_TIME 1" >>confdefs.h
-
-fi
-# End of obsolete code.
-
-	{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for library containing clock_gettime" >&5
-printf %s "checking for library containing clock_gettime... " >&6; }
-if test ${ac_cv_search_clock_gettime+y}
+								{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for clock_gettime in -lrt" >&5
+printf %s "checking for clock_gettime in -lrt... " >&6; }
+if test ${ac_cv_lib_rt_clock_gettime+y}
 then :
   printf %s "(cached) " >&6
 else $as_nop
-  ac_func_search_save_LIBS=$LIBS
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lrt  $LIBS"
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -6325,53 +6389,49 @@ return clock_gettime ();
   return 0;
 }
 _ACEOF
-for ac_lib in '' rt
-do
-  if test -z "$ac_lib"; then
-    ac_res="none required"
-  else
-    ac_res=-l$ac_lib
-    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
-  fi
-  if ac_fn_c_try_link "$LINENO"
+if ac_fn_c_try_link "$LINENO"
 then :
-  ac_cv_search_clock_gettime=$ac_res
+  ac_cv_lib_rt_clock_gettime=yes
+else $as_nop
+  ac_cv_lib_rt_clock_gettime=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext
-  if test ${ac_cv_search_clock_gettime+y}
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_rt_clock_gettime" >&5
+printf "%s\n" "$ac_cv_lib_rt_clock_gettime" >&6; }
+if test "x$ac_cv_lib_rt_clock_gettime" = xyes
 then :
-  break
+  printf "%s\n" "#define HAVE_LIBRT 1" >>confdefs.h
+
+  LIBS="-lrt $LIBS"
+
 fi
-done
-if test ${ac_cv_search_clock_gettime+y}
+
+
+fi
+
+		if test "$ac_cv_lib_rt_clock_gettime" != 'no'; then
+			HAVE_LIB_RT='-lrt'
+
+		fi
+		;;
+	esac
+
+	ac_fn_c_check_header_compile "$LINENO" "time.h" "ac_cv_header_time_h" "$ac_includes_default"
+if test "x$ac_cv_header_time_h" = xyes
 then :
+  printf "%s\n" "#define HAVE_TIME_H 1" >>confdefs.h
 
-else $as_nop
-  ac_cv_search_clock_gettime=no
 fi
-rm conftest.$ac_ext
-LIBS=$ac_func_search_save_LIBS
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_clock_gettime" >&5
-printf "%s\n" "$ac_cv_search_clock_gettime" >&6; }
-ac_res=$ac_cv_search_clock_gettime
-if test "$ac_res" != no
+ac_fn_c_check_header_compile "$LINENO" "sys/time.h" "ac_cv_header_sys_time_h" "$ac_includes_default"
+if test "x$ac_cv_header_sys_time_h" = xyes
 then :
-  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
+  printf "%s\n" "#define HAVE_SYS_TIME_H 1" >>confdefs.h
 
 fi
 
-	if expr "$ac_cv_search_clock_gettime" : '-l' >/dev/null
-then :
-
-		LIBS_RT="$ac_cv_search_clock_gettime"
-
-printf "%s\n" "#define LIBS_RT \"$LIBS_RT\"" >>confdefs.h
-
-
-
-fi
 	ac_fn_c_check_func "$LINENO" "clock" "ac_cv_func_clock"
 if test "x$ac_cv_func_clock" = xyes
 then :
@@ -6444,7 +6504,8 @@ then :
   printf "%s\n" "#define HAVE_NANOSLEEP 1" >>confdefs.h
 
 fi
-ac_fn_c_check_func "$LINENO" "asctime_r" "ac_cv_func_asctime_r"
+
+	ac_fn_c_check_func "$LINENO" "asctime_r" "ac_cv_func_asctime_r"
 if test "x$ac_cv_func_asctime_r" = xyes
 then :
   printf "%s\n" "#define HAVE_ASCTIME_R 1" >>confdefs.h
@@ -6480,7 +6541,8 @@ then :
   printf "%s\n" "#define HAVE_GETTIMEOFDAY 1" >>confdefs.h
 
 fi
-ac_fn_c_check_func "$LINENO" "alarm" "ac_cv_func_alarm"
+
+	ac_fn_c_check_func "$LINENO" "alarm" "ac_cv_func_alarm"
 if test "x$ac_cv_func_alarm" = xyes
 then :
   printf "%s\n" "#define HAVE_ALARM 1" >>confdefs.h
@@ -6498,6 +6560,234 @@ then :
   printf "%s\n" "#define HAVE_SETITIMER 1" >>confdefs.h
 
 fi
+
+
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for working mktime" >&5
+printf %s "checking for working mktime... " >&6; }
+if test ${ac_cv_func_working_mktime+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  if test "$cross_compiling" = yes
+then :
+  ac_cv_func_working_mktime=no
+else $as_nop
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+/* Test program from Paul Eggert and Tony Leneis.  */
+#include <time.h>
+#ifdef HAVE_SYS_TIME_H
+# include <sys/time.h>
+#endif
+
+#include <limits.h>
+#include <stdlib.h>
+
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
+
+#ifndef HAVE_ALARM
+# define alarm(X) /* empty */
+#endif
+
+/* Work around redefinition to rpl_putenv by other config tests.  */
+#undef putenv
+
+static time_t time_t_max;
+static time_t time_t_min;
+
+/* Values we'll use to set the TZ environment variable.  */
+static const char *tz_strings[] = {
+  (const char *) 0, "TZ=GMT0", "TZ=JST-9",
+  "TZ=EST+3EDT+2,M10.1.0/00:00:00,M2.3.0/00:00:00"
+};
+#define N_STRINGS (sizeof (tz_strings) / sizeof (tz_strings[0]))
+
+/* Return 0 if mktime fails to convert a date in the spring-forward gap.
+   Based on a problem report from Andreas Jaeger.  */
+static int
+spring_forward_gap ()
+{
+  /* glibc (up to about 1998-10-07) failed this test. */
+  struct tm tm;
+
+  /* Use the portable POSIX.1 specification "TZ=PST8PDT,M4.1.0,M10.5.0"
+     instead of "TZ=America/Vancouver" in order to detect the bug even
+     on systems that don't support the Olson extension, or don't have the
+     full zoneinfo tables installed.  */
+  putenv ((char*) "TZ=PST8PDT,M4.1.0,M10.5.0");
+
+  tm.tm_year = 98;
+  tm.tm_mon = 3;
+  tm.tm_mday = 5;
+  tm.tm_hour = 2;
+  tm.tm_min = 0;
+  tm.tm_sec = 0;
+  tm.tm_isdst = -1;
+  return mktime (&tm) != (time_t) -1;
+}
+
+static int
+mktime_test1 (time_t now)
+{
+  struct tm *lt;
+  return ! (lt = localtime (&now)) || mktime (lt) == now;
+}
+
+static int
+mktime_test (time_t now)
+{
+  return (mktime_test1 (now)
+	  && mktime_test1 ((time_t) (time_t_max - now))
+	  && mktime_test1 ((time_t) (time_t_min + now)));
+}
+
+static int
+irix_6_4_bug ()
+{
+  /* Based on code from Ariel Faigon.  */
+  struct tm tm;
+  tm.tm_year = 96;
+  tm.tm_mon = 3;
+  tm.tm_mday = 0;
+  tm.tm_hour = 0;
+  tm.tm_min = 0;
+  tm.tm_sec = 0;
+  tm.tm_isdst = -1;
+  mktime (&tm);
+  return tm.tm_mon == 2 && tm.tm_mday == 31;
+}
+
+static int
+bigtime_test (int j)
+{
+  struct tm tm;
+  time_t now;
+  tm.tm_year = tm.tm_mon = tm.tm_mday = tm.tm_hour = tm.tm_min = tm.tm_sec = j;
+  now = mktime (&tm);
+  if (now != (time_t) -1)
+    {
+      struct tm *lt = localtime (&now);
+      if (! (lt
+	     && lt->tm_year == tm.tm_year
+	     && lt->tm_mon == tm.tm_mon
+	     && lt->tm_mday == tm.tm_mday
+	     && lt->tm_hour == tm.tm_hour
+	     && lt->tm_min == tm.tm_min
+	     && lt->tm_sec == tm.tm_sec
+	     && lt->tm_yday == tm.tm_yday
+	     && lt->tm_wday == tm.tm_wday
+	     && ((lt->tm_isdst < 0 ? -1 : 0 < lt->tm_isdst)
+		  == (tm.tm_isdst < 0 ? -1 : 0 < tm.tm_isdst))))
+	return 0;
+    }
+  return 1;
+}
+
+static int
+year_2050_test ()
+{
+  /* The correct answer for 2050-02-01 00:00:00 in Pacific time,
+     ignoring leap seconds.  */
+  unsigned long int answer = 2527315200UL;
+
+  struct tm tm;
+  time_t t;
+  tm.tm_year = 2050 - 1900;
+  tm.tm_mon = 2 - 1;
+  tm.tm_mday = 1;
+  tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
+  tm.tm_isdst = -1;
+
+  /* Use the portable POSIX.1 specification "TZ=PST8PDT,M4.1.0,M10.5.0"
+     instead of "TZ=America/Vancouver" in order to detect the bug even
+     on systems that don't support the Olson extension, or don't have the
+     full zoneinfo tables installed.  */
+  putenv ((char*) "TZ=PST8PDT,M4.1.0,M10.5.0");
+
+  t = mktime (&tm);
+
+  /* Check that the result is either a failure, or close enough
+     to the correct answer that we can assume the discrepancy is
+     due to leap seconds.  */
+  return (t == (time_t) -1
+	  || (0 < t && answer - 120 <= t && t <= answer + 120));
+}
+
+int
+main (void)
+{
+  time_t t, delta;
+  int i, j;
+
+  /* This test makes some buggy mktime implementations loop.
+     Give up after 60 seconds; a mktime slower than that
+     isn't worth using anyway.  */
+  alarm (60);
+
+  for (;;)
+    {
+      t = (time_t_max << 1) + 1;
+      if (t <= time_t_max)
+	break;
+      time_t_max = t;
+    }
+  time_t_min = - ((time_t) ~ (time_t) 0 == (time_t) -1) - time_t_max;
+
+  delta = time_t_max / 997; /* a suitable prime number */
+  for (i = 0; i < N_STRINGS; i++)
+    {
+      if (tz_strings[i])
+	putenv ((char*) tz_strings[i]);
+
+      for (t = 0; t <= time_t_max - delta; t += delta)
+	if (! mktime_test (t))
+	  return 1;
+      if (! (mktime_test ((time_t) 1)
+	     && mktime_test ((time_t) (60 * 60))
+	     && mktime_test ((time_t) (60 * 60 * 24))))
+	return 1;
+
+      for (j = 1; ; j <<= 1)
+	if (! bigtime_test (j))
+	  return 1;
+	else if (INT_MAX / 2 < j)
+	  break;
+      if (! bigtime_test (INT_MAX))
+	return 1;
+    }
+  return ! (irix_6_4_bug () && spring_forward_gap () && year_2050_test ());
+}
+_ACEOF
+if ac_fn_c_try_run "$LINENO"
+then :
+  ac_cv_func_working_mktime=yes
+else $as_nop
+  ac_cv_func_working_mktime=no
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+  conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_func_working_mktime" >&5
+printf "%s\n" "$ac_cv_func_working_mktime" >&6; }
+if test $ac_cv_func_working_mktime = no; then
+  case " $LIBOBJS " in
+  *" mktime.$ac_objext "* ) ;;
+  *) LIBOBJS="$LIBOBJS mktime.$ac_objext"
+ ;;
+esac
+
+fi
+
+	case " $LIBOBJS " in
+  *" mktime.$ac_objext "* ) ;;
+  *) LIBOBJS="$LIBOBJS mktime.$ac_objext"
+ ;;
+esac
 
 
   for ac_func in strftime
@@ -6639,27 +6929,6 @@ printf "%s\n" "#define TM_IN_SYS_TIME 1" >>confdefs.h
 
 fi
 
-	ac_fn_c_check_member "$LINENO" "struct tm" "tm_gmtoff" "ac_cv_member_struct_tm_tm_gmtoff" "
-#ifdef TIME_WITH_SYS_TIME
-# include <sys/time.h>
-# include <time.h>
-#else
-# ifdef HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
-#endif
-
-"
-if test "x$ac_cv_member_struct_tm_tm_gmtoff" = xyes
-then :
-
-printf "%s\n" "#define HAVE_STRUCT_TM_TM_GMTOFF 1" >>confdefs.h
-
-
-fi
-
 	ac_fn_c_check_member "$LINENO" "struct tm" "tm_zone" "ac_cv_member_struct_tm_tm_zone" "#include <sys/types.h>
 #include <$ac_cv_struct_tm>
 
@@ -6724,13 +6993,6 @@ printf "%s\n" "$ac_cv_var_tzname" >&6; }
 printf "%s\n" "#define HAVE_TZNAME 1" >>confdefs.h
 
   fi
-fi
-
-	ac_fn_c_check_func "$LINENO" "timegm" "ac_cv_func_timegm"
-if test "x$ac_cv_func_timegm" = xyes
-then :
-  printf "%s\n" "#define HAVE_TIMEGM 1" >>confdefs.h
-
 fi
 
 
@@ -8643,6 +8905,18 @@ then :
   printf "%s\n" "#define HAVE_TCSETATTR 1" >>confdefs.h
 
 fi
+ac_fn_c_check_func "$LINENO" "tcgetwinsize" "ac_cv_func_tcgetwinsize"
+if test "x$ac_cv_func_tcgetwinsize" = xyes
+then :
+  printf "%s\n" "#define HAVE_TCGETWINSIZE 1" >>confdefs.h
+
+fi
+ac_fn_c_check_func "$LINENO" "tcsetwinsize" "ac_cv_func_tcsetwinsize"
+if test "x$ac_cv_func_tcsetwinsize" = xyes
+then :
+  printf "%s\n" "#define HAVE_TCSETWINSIZE 1" >>confdefs.h
+
+fi
 ac_fn_c_check_func "$LINENO" "ctermid" "ac_cv_func_ctermid"
 if test "x$ac_cv_func_ctermid" = xyes
 then :
@@ -8654,6 +8928,18 @@ fi
 fi
 
 done
+	ac_fn_c_check_type "$LINENO" "struct winsize" "ac_cv_type_struct_winsize" "
+#include <termios.h>
+
+"
+if test "x$ac_cv_type_struct_winsize" = xyes
+then :
+
+printf "%s\n" "#define HAVE_STRUCT_WINSIZE 1" >>confdefs.h
+
+
+fi
+
 
 
 if test "$enable_win32" = 'yes'
@@ -8774,7 +9060,7 @@ esac
 	printf "%s\n"
 
 
-					with_base=`printf "%s\n" 		$with_pthread`
+					with_base=`printf "%s\n" $with_pthread`
 
 if test "$with_base" != 'no'
 then :
@@ -8789,7 +9075,7 @@ fi
 
 	found=0
 	headers=0
-	for f in 		pthread.h; do
+	for f in pthread.h; do
 		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
@@ -9111,7 +9397,7 @@ fi
 
 fi
 
-	define_and_subst=`printf "%s\n" no 	`
+	define_and_subst=`printf "%s\n" no `
 	case $define_and_subst in #(
   false|no|0) :
 
@@ -9185,7 +9471,26 @@ fi
 	 ;;
 esac
 
-	if test -n "		pthread_create pthread_cancel pthread_equal pthread_exit pthread_join 		pthread_kill pthread_self pthread_detach pthread_yield pthread_sigmask sigwait 		pthread_attr_init pthread_attr_destroy pthread_attr_getdetachstate 		pthread_attr_setdetachstate pthread_attr_getstackaddr pthread_attr_setstackaddr 		pthread_attr_getstacksize pthread_attr_setstacksize pthread_attr_getscope 		pthread_attr_setscope pthread_mutex_init pthread_mutex_destroy pthread_mutex_lock 		pthread_mutex_trylock pthread_mutex_unlock pthread_mutexattr_init 		pthread_mutexattr_destroy pthread_mutexattr_setprioceiling 		pthread_mutexattr_getprioceiling pthread_mutexattr_setprotocol 		pthread_mutexattr_getprotocol pthread_mutexattr_settype pthread_mutexattr_gettype 		pthread_cond_broadcast pthread_cond_destroy pthread_cond_init pthread_cond_signal 		pthread_cond_timedwait pthread_cond_wait pthread_spin_init pthread_spin_destroy 		pthread_spin_lock pthread_spin_trylock pthread_spin_unlock pthread_rwlock_init 		pthread_rwlock_destroy pthread_rwlock_unlock pthread_rwlock_rdlock 		pthread_rwlock_wrlock pthread_rwlock_tryrdlock pthread_rwlock_trywrlock 		pthread_lock_global_np pthread_unlock_global_np pthread_key_create 		pthread_key_delete pthread_getspecific pthread_setspecific pthread_once 		pthread_atfork 		"
+	if test -n "
+		pthread_create pthread_cancel pthread_equal pthread_exit pthread_join
+		pthread_kill pthread_self pthread_detach pthread_yield pthread_sigmask sigwait
+		pthread_attr_init pthread_attr_destroy pthread_attr_getdetachstate
+		pthread_attr_setdetachstate pthread_attr_getstackaddr pthread_attr_setstackaddr
+		pthread_attr_getstacksize pthread_attr_setstacksize pthread_attr_getscope
+		pthread_attr_setscope pthread_mutex_init pthread_mutex_destroy pthread_mutex_lock
+		pthread_mutex_trylock pthread_mutex_unlock pthread_mutexattr_init
+		pthread_mutexattr_destroy pthread_mutexattr_setprioceiling
+		pthread_mutexattr_getprioceiling pthread_mutexattr_setprotocol
+		pthread_mutexattr_getprotocol pthread_mutexattr_settype pthread_mutexattr_gettype
+		pthread_cond_broadcast pthread_cond_destroy pthread_cond_init pthread_cond_signal
+		pthread_cond_timedwait pthread_cond_wait pthread_spin_init pthread_spin_destroy
+		pthread_spin_lock pthread_spin_trylock pthread_spin_unlock pthread_rwlock_init
+		pthread_rwlock_destroy pthread_rwlock_unlock pthread_rwlock_rdlock
+		pthread_rwlock_wrlock pthread_rwlock_tryrdlock pthread_rwlock_trywrlock
+		pthread_lock_global_np pthread_unlock_global_np pthread_key_create
+		pthread_key_delete pthread_getspecific pthread_setspecific pthread_once
+		pthread_atfork
+		"
 then :
 
 		save_LIBS="$LIBS"
@@ -10284,7 +10589,7 @@ fi
 	printf "%s\n"
 
 
-					with_base=`printf "%s\n" 		$with_sched`
+					with_base=`printf "%s\n" $with_sched`
 
 if test "$with_base" != 'no'
 then :
@@ -10299,7 +10604,7 @@ fi
 
 	found=0
 	headers=0
-	for f in 		sched.h; do
+	for f in sched.h; do
 		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
@@ -10455,7 +10760,7 @@ else $as_nop
 										pattern="$f.*"
 
 fi
-	for d in ${with_base:+$with_base/lib} $with_sched_lib 	 /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
+	for d in ${with_base:+$with_base/lib} $with_sched_lib  /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
 		if ls -1 $d/$pattern >/dev/null 2>&1
 then :
 
@@ -10695,7 +11000,11 @@ fi
 	 ;;
 esac
 
-	if test -n "		sched_getparam sched_get_priority_max sched_get_priority_min 		sched_rr_get_interval sched_getscheduler sched_setparam 		sched_setscheduler sched_yield"
+	if test -n "
+		sched_getparam sched_get_priority_max sched_get_priority_min
+		sched_rr_get_interval sched_getscheduler sched_setparam
+		sched_setscheduler sched_yield
+		"
 then :
 
 		save_LIBS="$LIBS"
@@ -12347,7 +12656,7 @@ fi
 	printf "%s\n"
 
 
-					with_base=`printf "%s\n" $with_openssl_inc`
+					with_base=`printf "%s\n" $with_openssl`
 
 if test "$with_base" != 'no'
 then :
@@ -12362,7 +12671,7 @@ fi
 
 	found=0
 	headers=0
-	for f in 		openssl/ssl.h openssl/bio.h openssl/err.h openssl/crypto.h; do
+	for f in openssl/ssl.h openssl/bio.h openssl/err.h openssl/crypto.h; do
 		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
@@ -12383,7 +12692,7 @@ else $as_nop
 										pattern="$f.*"
 
 fi
-	for d in ${with_base:+$with_base/include} $with_openssl_lib 	 /usr/pkg/include /usr/local/include /usr/include; do
+	for d in ${with_base:+$with_base/include} $with_openssl_inc /usr/pkg/include /usr/local/include /usr/include; do
 		if ls -1 $d/$pattern >/dev/null 2>&1
 then :
 
@@ -12499,7 +12808,7 @@ fi
 			if test $headers -eq $found
 then :
 
-		for f in 		libssl libcrypto; do
+		for f in libssl libcrypto; do
 
 
 	as_snert_dir=`printf "%s\n" "snert_find_file_$f" | $as_tr_sh`
@@ -12518,7 +12827,7 @@ else $as_nop
 										pattern="$f.*"
 
 fi
-	for d in ${with_base:+$with_base/lib}  /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
+	for d in ${with_base:+$with_base/lib} $with_openssl_lib  /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
 		if ls -1 $d/$pattern >/dev/null 2>&1
 then :
 
@@ -12758,7 +13067,7 @@ fi
 	 ;;
 esac
 
-	if test -n "SSL_library_init EVP_cleanup 		$with_openssl"
+	if test -n "SSL_library_init EVP_cleanup"
 then :
 
 		save_LIBS="$LIBS"
@@ -12769,20 +13078,19 @@ then :
 		eval LDFLAGS=\"\$LDFLAGS_SSL $LDFLAGS\"
 		eval CPPFLAGS=\"\$CPPFLAGS_SSL $CPPFLAGS\"
 
-
-  for ac_func in SSL_library_init EVP_cleanup $with_openssl
-do :
-  as_ac_var=`printf "%s\n" "ac_cv_func_$ac_func" | $as_tr_sh`
-ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
-if eval test \"x\$"$as_ac_var"\" = x"yes"
+		ac_fn_c_check_func "$LINENO" "SSL_library_init" "ac_cv_func_SSL_library_init"
+if test "x$ac_cv_func_SSL_library_init" = xyes
 then :
-  cat >>confdefs.h <<_ACEOF
-#define `printf "%s\n" "HAVE_$ac_func" | $as_tr_cpp` 1
-_ACEOF
+  printf "%s\n" "#define HAVE_SSL_LIBRARY_INIT 1" >>confdefs.h
+
+fi
+ac_fn_c_check_func "$LINENO" "EVP_cleanup" "ac_cv_func_EVP_cleanup"
+if test "x$ac_cv_func_EVP_cleanup" = xyes
+then :
+  printf "%s\n" "#define HAVE_EVP_CLEANUP 1" >>confdefs.h
 
 fi
 
-done
 
 		CPPFLAGS="$save_CPPFLAGS"
 		LDFLAGS="$save_LDFLAGS"
@@ -13083,7 +13391,7 @@ fi
 	printf "%s\n"
 
 
-					with_base=`printf "%s\n" 		$with_sqlite3`
+					with_base=`printf "%s\n" $with_sqlite3`
 
 if test "$with_base" != 'no'
 then :
@@ -13254,7 +13562,7 @@ else $as_nop
 										pattern="$f.*"
 
 fi
-	for d in ${with_base:+$with_base/lib} $with_sqlite3_lib 	 /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
+	for d in ${with_base:+$with_base/lib} $with_sqlite3_lib  /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
 		if ls -1 $d/$pattern >/dev/null 2>&1
 then :
 
@@ -13636,7 +13944,7 @@ esac
 	printf "%s\n"
 
 
-					with_base=`printf "%s\n" 		$with_libev`
+					with_base=`printf "%s\n" $with_libev`
 
 if test "$with_base" != 'no'
 then :
@@ -13651,7 +13959,7 @@ fi
 
 	found=0
 	headers=0
-	for f in 		ev.h ev/ev.h; do
+	for f in ev.h ev/ev.h; do
 		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
@@ -13807,7 +14115,7 @@ else $as_nop
 										pattern="$f.*"
 
 fi
-	for d in ${with_base:+$with_base/lib} $with_libev_lib 	 /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
+	for d in ${with_base:+$with_base/lib} $with_libev_lib  /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
 		if ls -1 $d/$pattern >/dev/null 2>&1
 then :
 
@@ -14096,7 +14404,7 @@ fi
 	printf "%s\n"
 
 
-					with_base=`printf "%s\n" 		$with_lua`
+					with_base=`printf "%s\n" $with_lua`
 
 if test "$with_base" != 'no'
 then :
@@ -14111,7 +14419,7 @@ fi
 
 	found=0
 	headers=0
-	for f in 		lua.h; do
+	for f in lua.h; do
 		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
@@ -14267,7 +14575,7 @@ else $as_nop
 										pattern="$f.*"
 
 fi
-	for d in ${with_base:+$with_base/lib} $with_lua_lib 	 /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
+	for d in ${with_base:+$with_base/lib} $with_lua_lib  /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
 		if ls -1 $d/$pattern >/dev/null 2>&1
 then :
 
@@ -14549,7 +14857,7 @@ fi
 	printf "%s\n"
 
 
-					with_base=`printf "%s\n" 		$with_sasl2`
+					with_base=`printf "%s\n" $with_sasl2`
 
 if test "$with_base" != 'no'
 then :
@@ -14564,7 +14872,7 @@ fi
 
 	found=0
 	headers=0
-	for f in 		sasl/sasl.h sasl/saslutil.h; do
+	for f in sasl/sasl.h sasl/saslutil.h; do
 		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
@@ -14720,7 +15028,7 @@ else $as_nop
 										pattern="$f.*"
 
 fi
-	for d in ${with_base:+$with_base/lib} $with_sasl2_lib 	 /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
+	for d in ${with_base:+$with_base/lib} $with_sasl2_lib  /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
 		if ls -1 $d/$pattern >/dev/null 2>&1
 then :
 
@@ -17511,19 +17819,7 @@ printf "%s\n" "#define STRERROR_R_CHAR_P 1" >>confdefs.h
 fi
 
 
-ac_func=
-for ac_item in $ac_func_c_list
-do
-  if test $ac_func; then
-    ac_fn_c_check_func "$LINENO" $ac_func ac_cv_func_$ac_func
-    if eval test \"x\$ac_cv_func_$ac_func\" = xyes; then
-      echo "#define $ac_item 1" >> confdefs.h
-    fi
-    ac_func=
-  else
-    ac_func=$ac_item
-  fi
-done
+
 
 	echo
 	echo "Check for supplemental string support..."
@@ -17830,7 +18126,7 @@ fi
 	printf "%s\n"
 
 
-					with_base=`printf "%s\n" 		$with_milter`
+					with_base=`printf "%s\n" $with_milter`
 
 if test "$with_base" != 'no'
 then :
@@ -17845,7 +18141,7 @@ fi
 
 	found=0
 	headers=0
-	for f in 		libmilter/mfapi.h; do
+	for f in libmilter/mfapi.h; do
 		headers=`expr $headers + 1`
 		cache_id=`printf "%s\n" "ac_cv_header_$f" | $as_tr_sh`
 
@@ -18001,7 +18297,7 @@ else $as_nop
 										pattern="$f.*"
 
 fi
-	for d in ${with_base:+$with_base/lib} $with_milter_lib 	 /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
+	for d in ${with_base:+$with_base/lib} $with_milter_lib  /usr/pkg/lib /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib /lib64 /lib/x86_64-linux-gnu /lib; do
 		if ls -1 $d/$pattern >/dev/null 2>&1
 then :
 
@@ -18241,7 +18537,15 @@ fi
 	 ;;
 esac
 
-	if test -n " 		smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom 		smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval 		smfi_insheader smfi_main smfi_opensocket smfi_progress 		smfi_quarantine smfi_register smfi_replacebody smfi_setbacklog 		smfi_setconn smfi_setdbg smfi_setmaxdatasize smfi_setmlreply 		smfi_setpriv smfi_setreply smfi_setsymlist smfi_settimeout 		smfi_stop smfi_version 		"
+	if test -n "
+		smfi_addheader smfi_addrcpt smfi_addrcpt_par smfi_chgfrom
+		smfi_chgheader smfi_delrcpt smfi_getpriv smfi_getsymval
+		smfi_insheader smfi_main smfi_opensocket smfi_progress
+		smfi_quarantine smfi_register smfi_replacebody smfi_setbacklog
+		smfi_setconn smfi_setdbg smfi_setmaxdatasize smfi_setmlreply
+		smfi_setpriv smfi_setreply smfi_setsymlist smfi_settimeout
+		smfi_stop smfi_version
+		"
 then :
 
 		save_LIBS="$LIBS"
@@ -18427,9 +18731,9 @@ fi
 
 
 
-echo
-echo 'Miscellanous header & function checks...'
-echo
+printf "%s\n"
+printf "%s\n" 'Miscellanous header & function checks...'
+printf "%s\n"
 
 ac_fn_c_check_header_compile "$LINENO" "sys/mman.h" "ac_cv_header_sys_mman_h" "$ac_includes_default"
 if test "x$ac_cv_header_sys_mman_h" = xyes
@@ -18734,14 +19038,6 @@ printf "%s\n" "#define HAVE_MMAP 1" >>confdefs.h
 
 fi
 rm -f conftest.mmap conftest.txt
-
-if test ${ac_cv_func_setvbuf_reversed+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  ac_cv_func_setvbuf_reversed=no
-fi
-
 
 
 ac_fn_c_check_func "$LINENO" "brk" "ac_cv_func_brk"

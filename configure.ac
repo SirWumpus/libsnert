@@ -18,7 +18,7 @@ AS_IF([test "$prefix" = 'NONE'],[
 ])
 AC_SUBST(prefix_copy)
 
-SNERT_INIT(LIBSNERT, [Copyright 1996, 2022 by Anthony Howe. All rights reserved.])
+SNERT_INIT(LIBSNERT, [Copyright 1996, 2023 by Anthony Howe. All rights reserved.])
 
 AC_DEFINE_UNQUOTED(LIBSNERT_UNAME, [["${platform}"]])
 AH_TEMPLATE(LIBSNERT_UNAME)
@@ -85,7 +85,7 @@ SNERT_OPTION_ENABLE_32BIT
 SNERT_OPTION_ENABLE_64BIT
 
 AC_ARG_ENABLE(access-tagless,
-	[AC_HELP_STRING([--enable-access-tagless],[support for tagless access records (Sendmail, Postfix)])],
+	[AS_HELP_STRING([--enable-access-tagless],[support for tagless access records (Sendmail, Postfix)])],
 	[
 		AC_DEFINE(ENABLE_ACCESS_TAGLESS,[],[Support for tagless access records (Sendmail, Postfix)])
 		AC_SUBST(enable_access_tagless)
@@ -93,14 +93,14 @@ AC_ARG_ENABLE(access-tagless,
 )
 
 AC_ARG_ENABLE(cache-db-185,
-	[AC_HELP_STRING([--enable-cache-db-185],[try cache with Berkeley DB 1.85 (unsupported)])],
+	[AS_HELP_STRING([--enable-cache-db-185],[try cache with Berkeley DB 1.85 (unsupported)])],
 	[AC_DEFINE_UNQUOTED(IGNORE_CORRUPT_CACHE_ISSUE_WITH_DB_185)]
 )
 
 SNERT_OPTION_ENABLE_DEBUG
 
 AC_ARG_ENABLE(debug-mutex,
-	[AC_HELP_STRING([--enable-debug-mutex],[enable lockpick mutex debug functions])],
+	[AS_HELP_STRING([--enable-debug-mutex],[enable lockpick mutex debug functions])],
 	[AC_DEFINE_UNQUOTED(DEBUG_MUTEX, [$enable_debug_mutex], [Enable application mutex debugging; set to 2 to include library hooking.])]
 )
 
@@ -127,7 +127,7 @@ SNERT_BUILD_THREADED_SQLITE3
 SNERT_OPTION_WITH_WINDOWS_SDK
 
 AC_ARG_WITH(mutex,
-	[AC_HELP_STRING([--with-mutex=API],[where API is fcntl, flock, posix, systemv, win32])], [
+	[AS_HELP_STRING([--with-mutex=API],[where API is fcntl, flock, posix, systemv, win32])], [
 		if test "$withval" = "fcntl"; then
 			with_mutex='FCNTL_API'
 		elif test "$withval" = "flock"; then
@@ -147,7 +147,7 @@ AC_ARG_WITH(mutex,
 )
 
 AC_ARG_WITH(shar-mem,
-	[AC_HELP_STRING([--with-shar-mem=API],[where API is malloc, mmap-anon, posix, systemv, squeeze])], [
+	[AS_HELP_STRING([--with-shar-mem=API],[where API is malloc, mmap-anon, posix, systemv, squeeze])], [
 		if test "$withval" = "malloc"; then
 			with_shar_mem='MALLOC_API'
 		elif test "$withval" = "mmap-anon"; then
@@ -242,9 +242,9 @@ SNERT_EXTRA_STRING
 SNERT_REGEX
 SNERT_LIBMILTER
 
-echo
-echo 'Miscellanous header & function checks...'
-echo
+AS_ECHO()
+AS_ECHO('Miscellanous header & function checks...')
+AS_ECHO()
 
 AC_CHECK_HEADERS([sys/mman.h sys/shm.h])
 AC_CHECK_HEADERS([ctime.h grp.h pwd.h sys/file.h])
@@ -258,7 +258,6 @@ AC_FUNC_MALLOC
 AC_LIBOBJ(malloc)
 
 AC_FUNC_MMAP
-AC_FUNC_SETVBUF_REVERSED
 
 AC_CHECK_FUNCS(brk sbrk)
 AC_CHECK_FUNCS(atexit getenv putenv toupper tolower)
@@ -425,6 +424,7 @@ extern "C" {
 #undef LIBSNERT_UNAME
 
 #undef LIBSNERT_CFLAGS
+#undef LIBSNERT_CPPFLAGS
 #undef LIBSNERT_LDFLAGS
 #undef LIBSNERT_LIBS
 #undef LIBSNERT_CONFIGURE
