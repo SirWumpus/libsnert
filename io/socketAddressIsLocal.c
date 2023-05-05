@@ -13,6 +13,7 @@
 #include <com/snert/lib/net/network.h>
 
 #include <errno.h>
+#include <stddef.h>
 #include <sys/types.h>
 
 #ifdef HAVE_IFADDRS_H
