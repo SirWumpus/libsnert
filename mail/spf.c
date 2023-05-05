@@ -1023,6 +1023,9 @@ testMacro(const char *ip, ParsePath *mail, const char *spec, const char *expect)
 	ctx.ip = (char *) ip;
 	ctx.mail = mail;
 	ctx.helo = (char *) test_helo;
+	ctx.result = SPF_PERM_ERROR;
+	ctx.ptr_count = ctx.mechanism_count = 0;
+	ctx.temp_error = 0;
 
 	target = spfMacro(&ctx, mail->domain.string, spec);
 	rc = TextInsensitiveCompare(expect, target) == 0;
