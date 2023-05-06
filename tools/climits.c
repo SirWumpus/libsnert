@@ -54,8 +54,9 @@ t_limits *ptr;
 		byte <<= 1;
 	} while (byte != 0);
 
-	if (ptr != NULL)
-		printf(_int, ptr->symbol, count);
+	if (ptr != NULL) {
+		(void) printf(_int, ptr->symbol, count);
+	}
 
 	return count;
 }
@@ -70,8 +71,9 @@ t_limits *ptr;
 	min = (char) (1 << (nbits - 1));
 	value = 0 < min;
 
-	if (ptr != NULL)
-		printf(_int, ptr->symbol, value);
+	if (ptr != NULL) {
+		(void) printf(_int, ptr->symbol, value);
+	}
 
 	return value;
 }
@@ -82,11 +84,12 @@ t_limits *ptr;
 {
 	char c;
 
-	if (char_is_unsigned(NULL))
+	if (char_is_unsigned(NULL)) {
 		c = 0;
-	else
+	} else {
 		c = (char) (1 << (nbits - 1));
-	printf(_int, ptr->symbol, (int) c);
+	}
+	(void) printf(_int, ptr->symbol, (int) c);
 
 	return 1;
 }
@@ -98,26 +101,26 @@ t_limits *ptr;
 	int c;
 	long l;
 	short s;
+	long long ll;
 
-	switch (ptr->size) {
-	case sizeof (char):
+	if (ptr->size == sizeof (char)) {
 		c = (char) (1 << (nbits - 1));
-		if (0 < c)
+		if (0 < c) {
 			c = 1 - c;
-		printf(_int, ptr->symbol, c);
-		break;
-	case sizeof (short):
+		}
+		(void) printf(_int, ptr->symbol, c);
+	} else if (ptr->size == sizeof (short)) {
 		s = (short) (1 << (sizeof (short) * nbits -1));
-		printf(_int, ptr->symbol, (int) s);
-		break;
-	case sizeof (int):
+		(void) printf(_int, ptr->symbol, (int) s);
+	} else if (ptr->size == sizeof (int)) {
 		l = (int) (1L << (sizeof (int) * nbits -1));
-		printf(_int, ptr->symbol, l);
-		break;
-	case sizeof (long):
+		(void) printf(_int, ptr->symbol, l);
+	} else if (ptr->size == sizeof (long)) {
 		l = (long) (1L << (sizeof (long) * nbits -1));
-		printf(_long, ptr->symbol, l);
-		break;
+		(void) printf(_long, ptr->symbol, l);
+	} else if (ptr->size == sizeof (long long)) {
+		ll = (long long) (1LL << (sizeof (long long) * nbits -1));
+		(void) printf(_longlong, ptr->symbol, ll);
 	}
 
 	return 1;
@@ -129,11 +132,12 @@ t_limits *ptr;
 {
 	char c;
 
-	if (char_is_unsigned(NULL))
+	if (char_is_unsigned(NULL)) {
 		c = ~(char) 0;
-	else
+	} else {
 		c = (char) ~(1 << (nbits - 1));
-	printf(_int, ptr->symbol, (unsigned) c);
+	}
+	(void) printf(_int, ptr->symbol, (unsigned) c);
 
 	return 1;
 }
@@ -145,24 +149,23 @@ t_limits *ptr;
 	int c;
 	long l;
 	short s;
+	long long ll;
 
-	switch (ptr->size) {
-	case sizeof (char):
+	if (ptr->size == sizeof (char)) {
 		c = (unsigned char) ~((char) 1 << (nbits - 1));
-		printf(_int, ptr->symbol, c);
-		break;
-	case sizeof (short):
+		(void) printf(_int, ptr->symbol, c);
+	} else if (ptr->size == sizeof (short)) {
 		s = (unsigned short) ~((short) 1 << (sizeof (short) * nbits -1));
-		printf(_int, ptr->symbol, (int) s);
-		break;
-	case sizeof (int):
+		(void) printf(_int, ptr->symbol, (int) s);
+	} else if (ptr->size == sizeof (int)) {
 		l = (unsigned int) ~((int) 1 << (sizeof (int) * nbits -1));
-		printf(_int, ptr->symbol, l);
-		break;
-	case sizeof (long):
+		(void) printf(_int, ptr->symbol, l);
+	} else if (ptr->size == sizeof (long)) {
 		l = (unsigned long) ~((long) 1 << (sizeof (long) * nbits -1));
-		printf(_long, ptr->symbol, l);
-		break;
+		(void) printf(_long, ptr->symbol, l);
+	} else if (ptr->size == sizeof (long long)) {
+		ll = (unsigned long long) ~((long long) 1 << (sizeof (long long) * nbits -1));
+		(void) printf(_longlong, ptr->symbol, ll);
 	}
 
 	return 1;
@@ -178,29 +181,21 @@ t_limits *ptr;
 	unsigned long l;
 	unsigned long long ll;
 
-	switch (ptr->size) {
-	case sizeof (char):
+	if (ptr->size == sizeof (char)) {
 		c = ~(unsigned char) 0;
-		printf(_uint, ptr->symbol, (unsigned) c);
-		break;
-	case sizeof (short):
+		(void) printf(_uint, ptr->symbol, (unsigned) c);
+	} else if (ptr->size == sizeof (short)) {
 		s = ~(unsigned short) 0;
-		printf(_uint, ptr->symbol, (unsigned) s);
-		break;
-	case sizeof (int):
+		(void) printf(_uint, ptr->symbol, (unsigned) s);
+	} else if (ptr->size == sizeof (int)) {
 		i = ~(unsigned int) 0;
-		printf(_uint, ptr->symbol, (unsigned) i);
-		break;
-	case sizeof (long):
+		(void) printf(_uint, ptr->symbol, (unsigned) i);
+	} else if (ptr->size == sizeof (long)) {
 		l = ~(unsigned long) 0;
-		printf(_ulong, ptr->symbol, l);
-		break;
-#if ULONG_MAX != ULLONG_MAX
-	case sizeof (long long):
+		(void) printf(_ulong, ptr->symbol, l);
+	} else if (ptr->size == sizeof (long long)) {
 		ll = ~(unsigned long long) 0;
-		printf(_ulonglong, ptr->symbol, ll);
-		break;
-#endif
+		(void) printf(_ulonglong, ptr->symbol, ll);
 	}
 
 	return 1;
@@ -210,7 +205,7 @@ static int
 int_is_short(ptr)
 t_limits *ptr;
 {
-	printf(_int, ptr->symbol, sizeof (int) == sizeof (short));
+	(void) printf(_int, ptr->symbol, sizeof (int) == sizeof (short));
 
 	return 1;
 }
@@ -219,7 +214,7 @@ static int
 ones_complement(ptr)
 t_limits *ptr;
 {
-	printf(_int, ptr->symbol, !(-1 & 1));
+	(void) printf(_int, ptr->symbol, !(-1 & 1));
 
 	return !(-1 & 1);
 }
@@ -228,7 +223,7 @@ static int
 sizeof_type(ptr)
 t_limits *ptr;
 {
-	printf(_int, ptr->symbol, ptr->size);
+	(void) printf(_int, ptr->symbol, ptr->size);
 
 	return 1;
 }
@@ -252,6 +247,9 @@ t_limits limits[] = {
 	{ "MAX_LONG", sizeof (long), maximum },
 	{ "MIN_LONG", sizeof (long), minimum },
 	{ "MAX_ULONG", sizeof (unsigned long), absolute },
+	{ "MAX_LLONG", sizeof (long long), maximum },
+	{ "MIN_LLONG", sizeof (long long), minimum },
+	{ "MAX_ULLONG", sizeof (unsigned long long), absolute },
 	{ "SIZEOF_CHAR", sizeof (char), sizeof_type },
 	{ "SIZEOF_SHORT", sizeof (short), sizeof_type },
 	{ "SIZEOF_INT", sizeof (int), sizeof_type },
@@ -274,8 +272,9 @@ char **argv;
 
 	nbits = bits(NULL);
 
-	for (ptr = limits; ptr->symbol != (char *) 0; ++ptr)
+	for (ptr = limits; ptr->symbol != (char *) 0; ++ptr) {
 		(void) (*ptr->func)(ptr);
+	}
 
 	return 0;
 }
