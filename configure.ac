@@ -2,7 +2,7 @@
 # And so it begins...
 #######################################################################
 
-AC_INIT(LibSnert, 1.76, [Anthony Howe <achowe@snert.com>])
+AC_INIT(LibSnert, 1.77, [Anthony Howe <achowe@snert.com>])
 AC_PREREQ(2.69)
 
 dnl
