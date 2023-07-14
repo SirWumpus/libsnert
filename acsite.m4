@@ -1075,7 +1075,7 @@ AC_DEFUN(SNERT_FILE_LOCKS,[
 	AC_CHECK_FUNCS(flock fcntl lockf locking)
 	SNERT_CHECK_DEFINE(O_BINARY, fcntl.h)
 	SNERT_CHECK_DEFINE(LOCK_SH, fcntl.h)
-	AH_VERBATIM(HAVE_LOCK_SH,[
+	AH_VERBATIM(HAVE_MACRO_LOCK_SH,[
 /*
  * Define the flock() constants separately, since some systems
  * have flock(), but fail to define the constants in a header.
@@ -1191,6 +1191,13 @@ AC_DEFUN(SNERT_PROCESS,[
 	AC_CHECK_HEADERS([syslog.h],[
 		# SunOS doesn't define PERROR.
 		SNERT_CHECK_DEFINE(LOG_PERROR, syslog.h)
+		AH_VERBATIM(HAVE_MACRO_LOG_PERROR,[
+/* SunOS doesn't define PERROR. */
+#ifndef HAVE_MACRO_LOG_PERROR
+#define LOG_PERROR 0
+#endif
+		])
+
 	])
 ])
 

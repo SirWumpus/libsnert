@@ -497,9 +497,8 @@ union semun {
 #undef HAVE_GETRLIMIT
 #undef HAVE_SETRLIMIT
 
-#ifndef HAVE_LOG_PERROR
-#define LOG_PERROR 0
-#endif
+#undef HAVE_LOG_PERROR
+#undef HAVE_MACRO_LOG_PERROR
 
 #ifndef HAVE_RLIM_T
 /* My old Linux does not define this type */
@@ -994,6 +993,7 @@ typedef int socklen_t;
  * These values were taken from FreeBSD.
  */
 #undef HAVE_LOCK_SH
+#undef HAVE_MACRO_LOCK_SH
 
 #undef HAVE_FCNTL
 #undef HAVE_FLOCK
