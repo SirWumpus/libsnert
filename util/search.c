@@ -3,7 +3,7 @@
  *
  * Copyright 2015 by Anthony Howe. All rights reserved.
  */
- 
+
 #include <err.h>
 #include <errno.h>
 #include <stdio.h>
@@ -25,7 +25,7 @@ typedef struct {
 	size_t (*bm)[256];
 	size_t (*qs)[256];
 	unsigned max_err;
-} Pattern;	
+} Pattern;
 
 /*
  * Boyer-Moore-Horspool search algorithm.
@@ -44,11 +44,11 @@ int
 horspool_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
 {
 	long i, k, m;
-	
+
 	pp->max_err = max_err;
 	pp->pattern = pattern;
 	pp->length = strlen((char *)pattern);
-	m = pp->length - 1;		
+	m = pp->length - 1;
 
 	if (pp->length <= max_err) {
 		errno = EINVAL;
@@ -60,11 +60,13 @@ horspool_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
 	}
 
 	for (k = 0; k <= max_err; k++) {
-		for (i = 0; i < sizeof (*pp->bm); i++)
+		for (i = 0; i <  (sizeof (*pp->bm) / sizeof (**pp->bm)); i++) {
 			pp->bm[k][i] = pp->length;
-		pp->bm[k][pattern[m - k]] = pp->length - k;		
-		for (i = 0; i < m - k; i++)
+		}
+		pp->bm[k][pattern[m - k]] = pp->length - k;
+		for (i = 0; i < m - k; i++) {
 			pp->bm[k][pattern[i]] = m - k - i;
+		}
 	}
 
 	return 0;
@@ -81,22 +83,22 @@ long
 horspool_search(Pattern *pp, const unsigned char *str, size_t len)
 {
 	long offset = 0;
-	size_t m = pp->length - 1;	
-	
+	size_t m = pp->length - 1;
+
 	while (offset + pp->length <= len) {
 		long i;
 		int err = 0;
 		size_t delta = pp->length - pp->max_err;
-		
-		INFO("off=%ld str=\"%s\"", offset, str+offset);		
 
-		for (i = m; 0 <= i && err <= pp->max_err; i--) {			
+		INFO("off=%ld str=\"%s\"", offset, str+offset);
+
+		for (i = m; 0 <= i && err <= pp->max_err; i--) {
 			INFO(
 				"delta=%lu e=%d T='%c' P='%c' m='%c' d=%lu",
-				delta, err, str[offset + i], pp->pattern[i], 
+				delta, err, str[offset + i], pp->pattern[i],
 				str[offset + m], pp->bm[err][str[offset + m]]
 			);
-			
+
 			if (str[offset + i] != pp->pattern[i]) {
 				delta = min(delta, pp->bm[err][str[offset + m]]);
 				delta = min(delta, pp->bm[err][str[offset + m -1]]);
@@ -126,7 +128,7 @@ int
 sunday_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
 {
 	long i, k;
-	
+
 	pp->max_err = max_err;
 	pp->pattern = pattern;
 	pp->length = strlen((char *)pattern);
@@ -141,10 +143,12 @@ sunday_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
 	}
 
 	for (k = 0; k <= max_err; k++) {
-		for (i = 0; i < sizeof (*pp->qs); i++)
+		for (i = 0; i < (sizeof (*pp->qs) / sizeof (**pp->qs)); i++) {
 			pp->qs[k][i] = pp->length + 1 - k;
-		for (i = 0; i < pp->length - k; i++)
+		}
+		for (i = 0; i < pp->length - k; i++) {
 			pp->qs[k][pattern[i]] = pp->length - i - k;
+		}
 	}
 
 	return 0;
@@ -161,7 +165,7 @@ long
 sunday_search(Pattern *pp, const unsigned char *str, size_t len)
 {
 	long offset = 0;
-	
+
 	/* Note that this can reference the NUL byte when "offset
 	 * + pp->length == len", which is not an index bounds error
 	 * in C, but when ported to other languages like Java or C#
@@ -173,13 +177,13 @@ sunday_search(Pattern *pp, const unsigned char *str, size_t len)
 		int err = 0;
 		size_t delta = pp->length + 1 - pp->max_err;
 
-		INFO("off=%ld str=\"%s\"", offset, str+offset);		
+		INFO("off=%ld str=\"%s\"", offset, str+offset);
 
 		/* Sunday algorithm can scan any order. */
-		for (i = 0; i < pp->length && err <= pp->max_err; i++) {			
+		for (i = 0; i < pp->length && err <= pp->max_err; i++) {
 			INFO(
 				"delta=%lu e=%d T='%c' P='%c' m='%c'",
-				delta, err, str[offset + i], pp->pattern[i], 
+				delta, err, str[offset + i], pp->pattern[i],
 				str[offset + pp->length - err]
 			);
 
@@ -195,7 +199,7 @@ sunday_search(Pattern *pp, const unsigned char *str, size_t len)
 		}
 		offset += delta;
 	}
-	
+
 	INFO("return -1 no match");
 	return -1;
 }
@@ -209,8 +213,8 @@ sunday_search(Pattern *pp, const unsigned char *str, size_t len)
  */
 int
 smith_init(Pattern *pp, const unsigned char *pattern, unsigned max_err)
-{	
-	return horspool_init(pp, pattern, max_err) < 0 
+{
+	return horspool_init(pp, pattern, max_err) < 0
 	|| sunday_init(pp, pattern, max_err) < 0
 	? -1 : 0;
 }
@@ -228,7 +232,7 @@ long
 smith_search(Pattern *pp, const unsigned char *str, size_t len)
 {
 	long offset = 0;
-	
+
 	/* Note that this can reference the NUL byte when "offset
 	 * + pp->length == len", which is not an index bounds error
 	 * in C, but when ported to other languages like Java or C#
@@ -240,13 +244,13 @@ smith_search(Pattern *pp, const unsigned char *str, size_t len)
 		int err = 0;
 		size_t delta = pp->length + 1 - pp->max_err;
 
-		INFO("off=%ld str=\"%s\"", offset, str+offset);		
+		INFO("off=%ld str=\"%s\"", offset, str+offset);
 
 		/* Sunday algorithm can scan any order. */
-		for (i = 0; i < pp->length && err <= pp->max_err; i++) {			
+		for (i = 0; i < pp->length && err <= pp->max_err; i++) {
 			INFO(
 				"delta=%lu e=%d T='%c' P='%c' m='%c'",
-				delta, err, str[offset + i], pp->pattern[i], 
+				delta, err, str[offset + i], pp->pattern[i],
 				str[offset + pp->length - err]
 			);
 
@@ -266,7 +270,7 @@ smith_search(Pattern *pp, const unsigned char *str, size_t len)
 		}
 		offset += delta;
 	}
-	
+
 	INFO("return -1 no match");
 	return -1;
 }
@@ -279,7 +283,7 @@ smith_search(Pattern *pp, const unsigned char *str, size_t len)
 
 #define LINE_SIZE	2048
 
-static const char usage[] = 
+static const char usage[] =
 "usage: search [-bv][-a 0|1|2][-k num] string file ...\n"
 "-a 0|1|2\t0 = horspool, 1 = sunday (*), 2 = smith\n"
 "-b\t\tbracket the first match\n"
@@ -305,21 +309,21 @@ inputline(FILE *fp, unsigned char *buf, size_t size)
 {
 	int ch;
 	size_t len;
-	
+
 	if (size == 0)
 		return 0;
 	size--;
-	
+
 	for (len = 0; len < size; ) {
 		if ((ch = fgetc(fp)) == EOF)
-			break;			
+			break;
 		buf[len++] = ch;
 		if (ch == '\n')
 			break;
 	}
-	
+
 	buf[len] = '\0';
-	
+
 	return len;
 }
 
@@ -334,10 +338,10 @@ main(int argc, char **argv)
 	int brackets, ch, rc, argi;
 	unsigned char line[LINE_SIZE];
 	Search *alg = &srch_alg[1];
-	
+
 	max_err = 0;
 	brackets = 0;
-	
+
 	while ((ch = getopt(argc, argv, "a:bk:v")) != -1) {
 		switch (ch) {
 		case 'a':
@@ -356,7 +360,7 @@ main(int argc, char **argv)
 			optind = argc;
 		}
 	}
-	
+
 	if (argc <= optind + 1) {
 		(void) fputs(usage, stderr);
 		return 2;
@@ -370,7 +374,7 @@ main(int argc, char **argv)
 			(void) fprintf(stderr, "%s: %s (%d)\n", argv[argi], strerror(errno), errno);
 			continue;
 		}
-		
+
 		lineno = 0;
 		while (0 < (line_len = inputline(fp, line, sizeof (line)))) {
 			lineno++;
@@ -379,24 +383,24 @@ main(int argc, char **argv)
 					(void) printf("%s: ", argv[argi]);
 				if (brackets) {
 					(void) printf(
-						"%ld %ld %.*s[%.*s]%s", 
+						"%ld %ld %.*s[%.*s]%s",
 						lineno, offset,
 						(int) offset, line,
 						(int) pat.length, line + offset,
 						line + offset + pat.length
 					);
 				} else {
-					(void) printf("%ld %-2ld %s", lineno, offset, line);					
+					(void) printf("%ld %-2ld %s", lineno, offset, line);
 				}
 				rc = 0;
 			}
 		}
-				
+
 		(void) fclose(fp);
 	}
-	
+
 	alg->fn_fini(&pat);
-			
+
 	return rc;
 }
 
