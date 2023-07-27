@@ -25,33 +25,13 @@ AC_DEFUN([SNERT_JOIN_UNIQ],[
 ])
 
 dnl
-dnl SNERT_CHECK_DEFINE(symbol[, header_file])
-dnl
-dnl Without a header_file, check for a predefined macro.
+dnl SNERT_CHECK_DEFINE(symbol, header_file)
 dnl
 AC_DEFUN([SNERT_CHECK_DEFINE],[
 	AC_LANG_PUSH([C])
 	AC_CACHE_CHECK([for $1 macro],ac_cv_define_$1,[
-		AS_IF([test -z "$2"],[
-			AC_RUN_IFELSE([
-				AC_LANG_SOURCE([[
-int main()
-{
-#ifdef $1
-	return 0;
-#else
-	return 1;
-#endif
-}
-				]])
-			],[
-				ac_cv_define_$1=yes
-			],[
-				ac_cv_define_$1=no
-			])
-		],[
-			AC_RUN_IFELSE([
-				AC_LANG_SOURCE([[
+		AC_RUN_IFELSE([
+			AC_LANG_SOURCE([[
 #include <$2>
 int main()
 {
@@ -61,12 +41,11 @@ int main()
 	return 1;
 #endif
 }
-				]])
-			],[
-				ac_cv_define_$1=yes
-			],[
-				ac_cv_define_$1=no
-			])
+			]])
+		],[
+			ac_cv_define_$1=yes
+		],[
+			ac_cv_define_$1=no
 		])
 	])
 	AC_LANG_POP([C])
@@ -80,7 +59,8 @@ dnl
 dnl SNERT_CHECK_PREDEFINE(symbol)
 dnl
 AC_DEFUN(SNERT_CHECK_PREDEFINE,[
-	SNERT_CHECK_DEFINE($1)
+	dnl Supply a common C header to satisfy SNERT_CHECK_DEFINE 2nd arg.
+	SNERT_CHECK_DEFINE($1,[stdlib.h])
 ])
 
 dnl
@@ -2020,7 +2000,7 @@ AS_IF([test ${with_sqlite3:-default} = 'default'],[
 	AC_MSG_CHECKING([for bundled SQLite3])
 
 	AC_SUBST(LIBSNERT_SQLITE3_DIR, ${srcdir}/../../../../org/sqlite)
-	AS_IF([ test `ls -t1 ${LIBSNERT_SQLITE3_DIR}/sqlite*.gz | wc -l` -gt 0 ],[
+	AS_IF([ test `ls -t1 ${LIBSNERT_SQLITE3_DIR}/sqlite*.gz 2>/dev/null | wc -l` -gt 0 ],[
 		AC_MSG_RESULT([yes])
 
 		libsnertdir=`pwd`
