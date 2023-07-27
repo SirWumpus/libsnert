@@ -786,18 +786,6 @@ AC_DEFUN(SNERT_OPTION_ENABLE_64BIT,[
 		[
 			CFLAGS="-m64${CFLAGS:+ $CFLAGS}"
 			LDFLAGS="-m64${LDFLAGS:+ $LDFLAGS}"
-		],[
-			dnl Option not specified, then choose based on CPU.
-			case `uname -m` in
-			x86_64|amd64)
-				CFLAGS="-m64${CFLAGS:+ $CFLAGS}"
-				LDFLAGS="-m64${LDFLAGS:+ $LDFLAGS}"
-				;;
-			i386)
-				CFLAGS="-m32${CFLAGS:+ $CFLAGS}"
-				LDFLAGS="-m32${LDFLAGS:+ $LDFLAGS}"
-				;;
-			esac
 		]
 	)
 ])
