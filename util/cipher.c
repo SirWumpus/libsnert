@@ -37,7 +37,7 @@ extern cipher_ct cipher_ct106;
  */
 cipher_ct cipher_ct0 = {
 	0,
-	NULL,
+	"",
 	{
 	NULL,
 	NULL
