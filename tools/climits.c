@@ -5,6 +5,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 
 #undef _
@@ -260,6 +261,9 @@ t_limits limits[] = {
 	{ "SIZEOF_FLOAT", sizeof (float), sizeof_type },
 	{ "SIZEOF_DOUBLE", sizeof (double), sizeof_type },
 	{ "SIZEOF_LONG_DOUBLE", sizeof (long double), sizeof_type },
+	{ "SIZEOF_OFF_T", sizeof (off_t), sizeof_type },
+	{ "SIZEOF_SIZE_T", sizeof (size_t), sizeof_type },
+	{ "SIZEOF_PTRDIFF_T", sizeof (ptrdiff_t), sizeof_type },
 	{ (char *) 0, 0, 0 }
 };
 
