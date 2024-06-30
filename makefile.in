@@ -291,7 +291,7 @@ tar: configure
 	@echo
 
 # Create a distribution with ready made makefiles.
-pack: next-id tar
+pack: tar
 
 fixperms:
 	cd ${SNERT_TARDIR}; \
