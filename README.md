@@ -19,6 +19,7 @@ Configuration & Build
         cd com/snert/src
         git clone https://github.com/SirWumpus/libsnert.git lib
         cd lib
+        autoconf -f             # If ./configure is missing or out of date.
         ./configure --help
         ./configure [options]
         make links              # Need only happen once.
