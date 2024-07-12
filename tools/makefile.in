@@ -150,7 +150,7 @@ sechod$E : ${top_builddir}/io/socket3$O ${top_builddir}/io/socket3_tls$O sechod.
 	$(CC) ${CFLAGS_SSL} $(CFLAGS) ${LDFLAGS_SSL} $(LDFLAGS) $(CC_E)sechod$E ${srcdir}/sechod.c $(LIBSNERT) ${LIBS_SSL} $(LIBS) ${NETWORK_LIBS}
 
 ansi$E : ansi.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)ansi$E ${srcdir}/ansi.c
+	$(CC) $(CFLAGS) -Wno-format-security $(LDFLAGS) $(CC_E)ansi$E ${srcdir}/ansi.c
 
 pad$E : pad.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)pad$E ${srcdir}/pad.c

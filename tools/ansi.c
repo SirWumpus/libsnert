@@ -1,14 +1,15 @@
 /*
  * ansi.c
  *
- * Copyright 2003, 2022 by Anthony Howe.  All rights reserved.
+ * Copyright 2003, 2024 by Anthony Howe.  All rights reserved.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 
-char usage[] =
+const char usage[] =
 "\033[1musage: ansi word ...\033[0m\n"
 
 "\n"
@@ -105,27 +106,27 @@ char usage[] =
 "backslash (\\) are treated as a literal word. Some ANSI terminal\n"
 "emulators do not support all possible escape sequences.\n"
 "\n"
-"\033[1mansi/1.2 Copyright 2003, 2022 by Anthony Howe. All rights reserved.\033[0m\n"
+"\033[1mansi/1.2 Copyright 2003, 2024 by Anthony Howe. All rights reserved.\033[0m\n"
 ;
 
 int
-ansi(char *once, char *many, char *value)
+ansi(const char *once, const char *many, const char *value)
 {
 	char *stop;
 	long number;
 
 	if (value == (char *) 0) {
-		printf(once);
+		(void) printf(once);
 		return 0;
 	}
 
 	number = strtol(value, &stop, 10);
 	if (*stop != '\0' || number < 1) {
-		printf(once);
+		(void) printf(once);
 		return 0;
 	}
 
-	printf(many, number);
+	(void) printf(many, number);
 
 	return 1;
 }
@@ -193,7 +194,7 @@ char *single[][2] = {
 void
 atExit()
 {
-	system("stty -cbreak");
+	(void) system("stty -cbreak");
 }
 
 int
@@ -204,14 +205,14 @@ main(int argc, char **argv)
 	int i, last_literal_word;
 
 	if (argc < 2) {
-		fprintf(stderr, usage);
+		(void) fprintf(stderr, usage);
 		return 2;
 	}
 
 	last_literal_word = -1;
 
-	atexit(atExit);
-	system("stty cbreak");
+	(void) atexit(atExit);
+	(void) system("stty cbreak");
 
 	for (i = 1; i < argc; i++) {
 		word = argv[i];
@@ -230,7 +231,7 @@ main(int argc, char **argv)
 			if (*stop != '\0' || b < 1)
 				return 1;
 
-			printf("\033[%ld;%ldH", a, b);
+			(void) printf("\033[%ld;%ldH", a, b);
 			i += 2;
 			continue;
 		} else if (strcmp(word, "up") == 0) {
@@ -258,17 +259,17 @@ main(int argc, char **argv)
 			word = argv[i];
 
 			if (strcmp(word, "down") == 0)
-				printf("\033[J");
+				(void) printf("\033[J");
 			else if (strcmp(word, "up") == 0)
-				printf("\033[1J");
+				(void) printf("\033[1J");
 			else if (strcmp(word, "screen") == 0)
-				printf("\033[2J");
+				(void) printf("\033[2J");
 			else if (strcmp(word, "right") == 0)
-				printf("\033[K");
+				(void) printf("\033[K");
 			else if (strcmp(word, "left") == 0)
-				printf("\033[1K");
+				(void) printf("\033[1K");
 			else if (strcmp(word, "line") == 0)
-				printf("\033[2K");
+				(void) printf("\033[2K");
 			else
 				return 1;
 			continue;
@@ -279,9 +280,9 @@ main(int argc, char **argv)
 			word = argv[i];
 
 			if (strcmp(word, "on") == 0)
-				printf("\033[7h");
+				(void) printf("\033[7h");
 			else if (strcmp(word, "off") == 0)
-				printf("\033[7l");
+				(void) printf("\033[7l");
 			else
 				return 1;
 			continue;
@@ -292,9 +293,9 @@ main(int argc, char **argv)
 			word = argv[i];
 
 			if (strcmp(word, "screen") == 0)
-				printf("\033[i");
+				(void) printf("\033[i");
 			else if (strcmp(word, "line") == 0)
-				printf("\033[1i");
+				(void) printf("\033[1i");
 			else
 				return 1;
 			continue;
@@ -305,9 +306,9 @@ main(int argc, char **argv)
 			word = argv[i];
 
 			if (strcmp(word, "start") == 0)
-				printf("\033[5i");
+				(void) printf("\033[5i");
 			else if (strcmp(word, "stop") == 0)
-				printf("\033[4i");
+				(void) printf("\033[4i");
 			else
 				return 1;
 			continue;
@@ -318,9 +319,9 @@ main(int argc, char **argv)
 			word = argv[i];
 
 			if (strcmp(word, "default") == 0)
-				printf("\033(");
+				(void) printf("\033(");
 			else if (strcmp(word, "other") == 0)
-				printf("\033)");
+				(void) printf("\033)");
 			else
 				return 1;
 			continue;
@@ -331,11 +332,11 @@ main(int argc, char **argv)
 			word = argv[i];
 
 			if (strcmp(word, "on") == 0)
-				printf("\033H");
+				(void) printf("\033H");
 			else if (strcmp(word, "off") == 0)
-				printf("\033[g");
+				(void) printf("\033[g");
 			else if (strcmp(word, "clear") == 0)
-				printf("\033[3g");
+				(void) printf("\033[3g");
 			else if (ansi("\t", "\033[%ldI", word) == 0)
 		    		i--;
 
@@ -350,11 +351,11 @@ main(int argc, char **argv)
 			word = argv[i];
 
 			if (strcmp(word, "down") == 0)
-				printf("\033D");
+				(void) printf("\033D");
 			else if (strcmp(word, "up") == 0)
-				printf("\033U");
+				(void) printf("\033U");
 			else if (strcmp(word, "display") == 0)
-				printf("\033[r");
+				(void) printf("\033[r");
 			else {
 				a = strtol(word, &stop, 10);
 				if (*stop != '\0' || a < 1)
@@ -370,26 +371,26 @@ main(int argc, char **argv)
 				if (b <= a)
 					return 1;
 
-				printf("\033[%ld;%ldr", a, b);
+				(void) printf("\033[%ld;%ldr", a, b);
 			}
 			continue;
 		} else if (strcmp(word, "where") == 0) {
 			int row, col;
 
-			printf("\033[6n");
-			scanf("\033[%d;%dR", &row, &col);
-			printf("(%d, %d)", row, col);
-			fflush(stdout);
+			(void) printf("\033[6n");
+			(void) scanf("\033[%d;%dR", &row, &col);
+			(void) printf("(%d, %d)", row, col);
+			(void) fflush(stdout);
 			continue;
 		} else if (strcmp(word, "-?") == 0 || strcmp(word, "--help") == 0 || strcmp(word, "help") == 0) {
-			fprintf(stderr, usage);
+			(void) fprintf(stderr, usage);
 			return 2;
 		} else {
 			char *(*p)[2];
 
 			for (p = single; (*p)[0] != (char *) 0; p++) {
 				if (strcmp(word, (*p)[1]) == 0) {
-					printf((*p)[0]);
+					(void) printf((*p)[0]);
 					break;
 				}
 			}
@@ -399,12 +400,12 @@ main(int argc, char **argv)
 		}
 
 		if (last_literal_word + 1 == i)
-			fputc(' ', stdout);
+			(void) fputc(' ', stdout);
 		last_literal_word = i;
-		fputs(word, stdout);
+		(void) fputs(word, stdout);
 	}
 
-	fflush(stdout);
+	(void) fflush(stdout);
 
 	return 0;
 }
