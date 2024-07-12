@@ -91,6 +91,7 @@ jobs:
       shell: bash
       run: |
         ./configure
+        pwd
         make links
         make build
 
