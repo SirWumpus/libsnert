@@ -48,12 +48,12 @@ jobs:
       matrix:
         include:
         - language: c-cpp
-          build-mode: autobuild
+          build-mode: manual
         # CodeQL supports the following values keywords for 'language': 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'swift'
         # Use `c-cpp` to analyze code written in C, C++ or both
         # Use 'java-kotlin' to analyze code written in Java, Kotlin or both
         # Use 'javascript-typescript' to analyze code written in JavaScript, TypeScript or both
-        # To learn more about changing the languages that are analyzed or customizing the build mode for your analysis,
+        # To learn more about changing the languages that are analyzed or customizing the build mode for your https://github.com/SirWumpus/libsnert/blob/master/.github/workflows/codeql.ymlanalysis,
         # see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/customizing-your-advanced-setup-for-code-scanning.
         # If you are analyzing a compiled language, you can modify the 'build-mode' for that language to customize how
         # your codebase is analyzed, see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages
@@ -67,10 +67,6 @@ jobs:
       run: sudo apt-get install -y sqlite3 libsqlite3-dev
     - name: install libmilter
       run: sudo apt-get install -y libmilter-dev
-    - name: configure
-      run: ./configure
-    - name: make links
-      run: make links
       
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
@@ -94,12 +90,9 @@ jobs:
     - if: matrix.build-mode == 'manual'
       shell: bash
       run: |
-        echo 'If you are using a "manual" build mode for one or more of the' \
-          'languages you are analyzing, replace this with the commands to build' \
-          'your code, for example:'
-        echo '  make bootstrap'
-        echo '  make release'
-        exit 1
+        ./configure
+        make links
+        make build
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
