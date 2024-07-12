@@ -94,8 +94,8 @@ jobs:
         pwd
         make links
         mkdir -p ../../src
-        cd ../.. && ln -s ../libsnert src/lib && cd -
-        ls -lR ../../include/com/snert/lib ../../lib ../../src/lib
+        cd ../.. && ln -s ../../libsnert src/lib && cd -
+        ls -l ../../include/com/snert/lib ../../lib ../../src/lib
         make build
 
     - name: Perform CodeQL Analysis
