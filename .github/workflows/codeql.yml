@@ -93,7 +93,7 @@ jobs:
         ./configure
         pwd
         make links
-        ls -lR ../..
+        ls -lR ../../include ../../lib
         make build
 
     - name: Perform CodeQL Analysis
