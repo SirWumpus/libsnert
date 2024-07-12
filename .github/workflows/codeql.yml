@@ -94,7 +94,7 @@ jobs:
         pwd
         make links
         mkdir -p ../../src
-        cd ../.. && ln -s libsnert src/lib && cd -
+        cd ../.. && ln -s ../libsnert src/lib && cd -
         ls -lR ../../include ../../lib ../../src
         make build
 
