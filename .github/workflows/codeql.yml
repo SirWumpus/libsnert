@@ -64,7 +64,7 @@ jobs:
     - name: install autoconf
       run: sudo apt-get install -y autoconf
     - name: install sqlite
-      run: sudo apt-get install -y sqlite sqlite-devel
+      run: sudo apt-get install -y sqlite3 sqlite3-devel
     - name: install libmilter
       run: sudo apt-get install -y libmilter libmilter-devel
     - name: make links
