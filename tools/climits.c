@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stddef.h>
 
 #undef _
 #if defined(__STDC__) || defined(__BORLANDC__)
