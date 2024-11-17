@@ -36,10 +36,17 @@ while getopts 'f:u' opt; do
 done
 shift $(($OPTIND - 1))
 
-if [ ! -f "$__file" ]; then
-	echo "0.0.0" >"$__file"
+is_autoconf_file=$( (grep -q AC_INIT "$__file" && echo true) || echo false)
+
+if $is_autoconf_file; then
+	version=$(sed -n -e'/AC_INIT/s/.*, *\([0-9]*\.[0-9]*\.[0-9]*\),.*/\1/p' "$__file")
+else
+	if [ ! -f "$__file" ]; then
+		echo "0.0.0" >"$__file"
+	fi
+	version=$(cat "$__file")
 fi
-version=$(cat "$__file")
+
 if [ $# -le 0 ]; then
 	echo $version
 	exit 0
@@ -76,4 +83,9 @@ case "$1" in
 	usage
 esac
 
-echo "$version" | tee "$__file"
+if $is_autoconf_file; then
+	sed -e"/AC_INIT/s/[0-9]*\.[0-9]*\.[0-9]*,/$version,/" "$__file" >"$__file.new"
+	mv "$__file.new" "$__file"
+else
+	echo "$version" | tee "$__file"
+fi
