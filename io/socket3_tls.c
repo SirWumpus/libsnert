@@ -316,7 +316,10 @@ socket3_set_server_dh(const char *dh_pem)
 	if ((bio = BIO_new_file(dh_pem, "r")) == NULL)
 		return SOCKET_ERROR;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 	dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
+#pragma GCC diagnostic pop
 	BIO_free(bio);
 
 	if (!SSL_CTX_set_tmp_dh(ssl_ctx, dh))
@@ -982,13 +985,13 @@ socket3_end_tls(SOCKET fd)
 	if (ssl != NULL) {
 		socket3_set_userdata(fd, NULL);
 
-		/* See https://www.openssl.org/docs/ssl/SSL_shutdown.html 
+		/* See https://www.openssl.org/docs/ssl/SSL_shutdown.html
 		 * concerning the 2-step nature of SSL_shutdown().
 		 */
 		if (SSL_shutdown(ssl) == 0)
 			(void) SSL_shutdown(ssl);
 
-		/*** Ignore checking for errors from SSL_shutdown(), 
+		/*** Ignore checking for errors from SSL_shutdown(),
 		 *** since we're freeing the SSL context anyway.
 		 ***/
 

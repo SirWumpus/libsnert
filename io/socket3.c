@@ -1066,7 +1066,7 @@ socket3_wait_kqueue(SOCKET fd, long ms, unsigned rw_flags)
 	event.flags = EV_ADD|EV_ENABLE;
 	event.fflags = 0;
 	event.data = 0;
-	event.udata = (intptr_t) NULL;
+	event.udata = NULL;
 
 	TIMER_SET_MS(&ts, ms);
 

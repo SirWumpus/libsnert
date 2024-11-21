@@ -95,7 +95,7 @@ $O$E :
 OBJS := grey$O tlds$O MailSpan$O parsePath$O mime$O siq$O spf$O smdb$O \
 	smtp2$O mfReply$O smf$O
 
-CLI :=	mime$E parsePath$E siq$E smtp2$E spf$E tlds$E dkim-hash$E
+CLI :=	mime$E parsePath$E siq$E smtp2$E spf$E tlds$E
 
 .MAIN : build
 

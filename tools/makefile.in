@@ -96,7 +96,7 @@ MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E \
 UNIX 		= filed zoned mailgroup socketsink$E tee$E
 
 
-PROGRAMS = $(ORIGINAL) ${MEH_TOOLS} $(MYVERSION)
+PROGRAMS = $(ORIGINAL) $(MYVERSION)
 
 .MAIN : build
 
