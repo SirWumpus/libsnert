@@ -167,53 +167,53 @@ timerCreate(TimerTask task, void *data, CLOCK *delay, CLOCK *period, size_t stac
 	Timer *timer;
 	pthread_attr_t *pthread_attr_ptr = NULL;
 
-	if (task == NULL || (delay == NULL && period == NULL))
+	if (task == NULL || (delay == NULL && period == NULL)) {
 		goto error0;
-
-	if ((timer = calloc(1, sizeof (*timer))) == NULL)
+	}
+	if ((timer = calloc(1, sizeof (*timer))) == NULL) {
 		goto error0;
+	}
 
 #if defined(HAVE_PTHREAD_COND_TIMEDWAIT)
-	if (pthread_cond_init(&timer->cv, NULL))
+	if (pthread_cond_init(&timer->cv, NULL)) {
 		goto error1;
-
-	if (pthread_mutex_init(&timer->mutex, NULL))
+	}
+	if (pthread_mutex_init(&timer->mutex, NULL)) {
 		goto error2;
+	}
 #endif
 #if defined(__WIN32__) || defined(__CYGWIN__)
 	timer->cancel_event = CreateEvent(NULL, 0, 0, NULL);
 #endif
 #if defined(HAVE_PTHREAD_ATTR_INIT)
-{
 	pthread_attr_t pthread_attr;
-
 	if (pthread_attr_init(&pthread_attr) == 0) {
 # if defined(HAVE_PTHREAD_ATTR_SETSCOPE)
 		(void) pthread_attr_setscope(&pthread_attr, PTHREAD_SCOPE_SYSTEM);
 # endif
 # if defined(HAVE_PTHREAD_ATTR_SETSTACKSIZE)
-		if (stack_size < PTHREAD_STACK_MIN)
+		if (stack_size < PTHREAD_STACK_MIN) {
 			stack_size = PTHREAD_STACK_MIN;
+		}
 		(void) pthread_attr_setstacksize(&pthread_attr, stack_size);
 # endif
 		pthread_attr_ptr = &pthread_attr;
 	}
-}
 #endif
 	timer->task = task;
 	timer->data = data;
 
-	if (delay != NULL)
+	if (delay != NULL) {
 		timer->delay = *delay;
-	if (period != NULL)
+	}
+	if (period != NULL) {
 		timer->period = *period;
-
-	if (pthread_create(&timer->thread, NULL, timerThread, timer))
+	}
+	if (pthread_create(&timer->thread, pthread_attr_ptr, timerThread, timer)) {
 		goto error3;
-
+	}
 #if defined(HAVE_PTHREAD_ATTR_INIT)
-	if (pthread_attr_ptr != NULL)
-		(void) pthread_attr_destroy(pthread_attr_ptr);
+	(void) pthread_attr_destroy(&pthread_attr);
 #endif
 	return timer;
 error3:
