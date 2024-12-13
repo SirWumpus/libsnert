@@ -120,19 +120,19 @@ isCharURI(int octet)
 	 *** octets in some character encoding, like "big5". RFC 3986
 	 *** section 2 "Characters" appears to allow for this.
 	 ***
-	 *** 	"http://cheng-xia5¡Cinfo/"	0xA143	dot
-	 ***	"http://cheng-xia5¡Dinfo/"	0xA144	dot
-	 ***	"http://cheng-xia5¡Oinfo/"	0xA14F	dot
+	 *** 	"http://cheng-xia5Â¡Cinfo/"	0xA143	dot
+	 ***	"http://cheng-xia5Â¡Dinfo/"	0xA144	dot
+	 ***	"http://cheng-xia5Â¡Oinfo/"	0xA14F	dot
 	 ***/
-	if (isspace(octet) || octet == EOF)
+	if (isspace(octet) || octet == EOF) {
 		return 0;
-
+	}
 	/* uri_excluded is the inverse set of unreserved and
 	 * reserved characters from printable ASCII.
 	 */
-	if (strchr(uri_excluded, octet) != NULL)
+	if (strchr(uri_excluded, octet) != NULL) {
 		return 0;
-
+	}
 	return 1;
 }
 
@@ -146,12 +146,15 @@ spanUriEncode(const char *uri)
 	const char *start;
 
 	for (start = uri; *uri != '\0'; uri += 3) {
-		if (*uri != '%')
+		if (*uri != '%') {
 			break;
-		if (qpHexDigit(uri[1]) < 0)
+		}
+		if (qpHexDigit(uri[1]) < 0) {
 			break;
-		if (qpHexDigit(uri[2]) < 0)
+		}
+		if (qpHexDigit(uri[2]) < 0) {
 			break;
+		}
 	}
 
 	return uri - start;
@@ -167,19 +170,21 @@ spanURI(const unsigned char *uri)
 	int a, b;
 	const unsigned char *start;
 
-	if (uri == NULL)
+	if (uri == NULL) {
 		return 0;
-
+	}
 	for (start = uri; *uri != '\0'; uri++) {
 		/* I include %HH within a URI since you typically
 		 * want to extract a URI before you can decode
 		 * any percent-encoded characters.
 		 */
 		if (*uri == '%') {
-			if ((a = qpHexDigit(uri[1])) < 0 || (b = qpHexDigit(uri[2])) < 0)
+			if ((a = qpHexDigit(uri[1])) < 0 || (b = qpHexDigit(uri[2])) < 0) {
 				break;
-			if (!isCharURI(a * 16 + b))
+			}
+			if (!isCharURI(a * 16 + b)) {
 				break;
+			}
 			uri += 2;
 		} else if (!isCharURI(*uri)) {
 			break;
@@ -204,19 +209,20 @@ spanScheme(const unsigned char *scheme)
 {
 	const unsigned char *start;
 
-	if (scheme == NULL)
+	if (scheme == NULL) {
 		return 0;
-
-	if (!isalnum(*scheme))
+	}
+	if (!isalnum(*scheme)) {
 		return 0;
-
+	}
 	for (start = scheme++; *scheme != '\0'; scheme++) {
 		switch (*scheme) {
 		case '+': case '-': case '.':
 			continue;
 		default:
-			if (isalnum(*scheme))
+			if (isalnum(*scheme)) {
 				continue;
+			}
 		}
 		break;
 	}
@@ -233,16 +239,19 @@ spanQuery(const unsigned char *query)
 	const unsigned char *start;
 
 	for (start = query; *query != '\0'; query++) {
-		if (isalnum(*query))
+		if (isalnum(*query)) {
 			continue;
+		}
 		if (*query == '%' && isxdigit(query[1]) && isxdigit(query[2])) {
 			query += 2;
 			continue;
 		}
-		if (strchr(uri_unreserved, *query) != NULL)
+		if (strchr(uri_unreserved, *query) != NULL) {
 			continue;
-		if (strchr(uri_reserved, *query) == NULL)
+		}
+		if (strchr(uri_reserved, *query) == NULL) {
 			break;
+		}
 	}
 
 	return query - start;
@@ -316,33 +325,37 @@ uriGetSchemePort(URI *uri)
 {
 	struct mapping *t;
 
-	if (uri == NULL)
+	if (uri == NULL) {
 		return -1;
-
+	}
 	if (uri->port != NULL) {
 		/* Make sure the port is a postive number. */
 		long value = strtol(uri->port, NULL, 10);
 		return value <= 0 ? -1 : (int) value;
 	}
-
 	if (uri->scheme == NULL) {
-		if (uri->host == NULL)
+		if (uri->host == NULL) {
 			return -1;
-		if (TextMatch(uri->host, "www.*", -1, 1))
+		}
+		if (TextMatch(uri->host, "www.*", -1, 1)) {
 			return 80;
-		if (TextMatch(uri->host, "pop.*", -1, 1))
+		}
+		if (TextMatch(uri->host, "pop.*", -1, 1)) {
 			return 110;
-		if (TextMatch(uri->host, "imap.*", -1, 1))
+		}
+		if (TextMatch(uri->host, "imap.*", -1, 1)) {
 			return 143;
-		if (TextMatch(uri->host, "smtp.*", -1, 1))
+		}
+		if (TextMatch(uri->host, "smtp.*", -1, 1)) {
 			return 25;
-
+		}
 		return -1;
 	}
 
 	for (t = schemeTable; t->name != NULL; t++) {
-		if (TextInsensitiveCompare(uri->scheme, t->name) == 0)
+		if (TextInsensitiveCompare(uri->scheme, t->name) == 0) {
 			return t->value;
+		}
 	}
 
 	return -1;
@@ -397,15 +410,15 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	struct mapping *t;
 	char *value, *mark, *str;
 
-	if (u == NULL)
+	if (u == NULL) {
 		goto error0;
-
-	if (3 < uriDebug)
+	}
+	if (3 < uriDebug) {
 		syslog(LOG_DEBUG, "uriParse2(\"%.60s...\", %d, %d)", u, length, implicit_domain_min_dots);
-
-	if (length < 0)
+	}
+	if (length < 0) {
 		length = (int) strlen(u);
-
+	}
 	/* Deal with instances of:
 	 *
 	 * 	Visit us at http://some.domain.tld/file.html.
@@ -427,16 +440,18 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	 * root. Removing the trailing dot will not invalidate
 	 * the mail address.
 	 */
-	if (0 < length && u[length-1] == '.')
+	if (0 < length && u[length-1] == '.') {
 		length--;
-	if (length == 0)
+	}
+	if (length == 0) {
 		goto error0;
-
+	}
 	/* Allocate space for the structure, two copies of the URI
 	 * string, and an extra byte used for a '\0'.
 	 */
-	if ((uri = malloc(sizeof (*uri) + length + length + length + 4)) == NULL)
+	if ((uri = malloc(sizeof (*uri) + length + length + length + 4)) == NULL) {
 		goto error0;
+	}
 	memset(uri, 0, sizeof (*uri));
 
 	/* First copy remains unmodified. */
@@ -525,12 +540,12 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		value[span] = '\0';
 	}
 
-	if ((uri->fragment = strchr(value, '#')) != NULL)
+	if ((uri->fragment = strchr(value, '#')) != NULL) {
 		*uri->fragment++ = '\0';
-
-	if ((uri->query = strchr(value, '?')) != NULL)
+	}
+	if ((uri->query = strchr(value, '?')) != NULL) {
 		*uri->query++ = '\0';
-
+	}
 	/* Allow for special case where we have "http:/host/" eg.
 	 *
 	 * 	http:/grandpalacegoldcasino.pl/
@@ -596,12 +611,12 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		*uri->host++ = '\0';
 
 		/* Scan forward until we're sure we have a valid local-part. */
-		for (uri->userInfo = value; uri->userInfo[spanLocalPart((unsigned char *)uri->userInfo)] != '\0'; uri->userInfo++)
+		for (uri->userInfo = value; uri->userInfo[spanLocalPart((unsigned char *)uri->userInfo)] != '\0'; uri->userInfo++) {
 			;
-
-		if (*uri->userInfo == '\0' || (span = alt_spanDomain((unsigned char *)uri->host, 1)) <= 0)
+		}
+		if (*uri->userInfo == '\0' || (span = alt_spanDomain((unsigned char *)uri->host, 1)) <= 0) {
 			goto error1;
-
+		}
 		uri->host[span] = '\0';
 		uri->scheme = "mailto";
 		uri->schemeInfo = uri->uriDecoded;
@@ -611,8 +626,9 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 		 * are permitted.
 		 */
 		for (local_part = uri->userInfo; *local_part != '\0'; local_part++) {
-			if (*local_part == ' ')
+			if (*local_part == ' ') {
 				*local_part = '+';
+			}
 		}
 
 		(void) snprintf(uri->uriDecoded, length+1, "%s%c%s", uri->userInfo, at_sign_delim, uri->host);
@@ -624,10 +640,12 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	else if (uri->scheme == NULL) {
 		if (0 < (span = spanIP((unsigned char *)value))) {
 			uri->scheme = "ip";
-			if (value[span-1] == ']')
+			if (value[span-1] == ']') {
 				value[span-1] = '\0';
-			if (*value == '[')
+			}
+			if (*value == '[') {
 				value++;
+			}
 			uri->host = value;
 		} else if (0 < (span = alt_spanDomain((unsigned char *)value, implicit_domain_min_dots))) {
 			if (value[span] == '/') {
@@ -673,8 +691,9 @@ uriParse2(const char *u, int length, int implicit_domain_min_dots)
 	 * while schemes that expect to be non-empty have a port
 	 * and need a host.
 	 */
-	&& ((port = uriGetSchemePort(uri)) == 0 || (0 < port && uri->host != NULL)))
+	&& ((port = uriGetSchemePort(uri)) == 0 || (0 < port && uri->host != NULL))) {
 		return uri;
+	}
 error1:
 	free(uri);
 error0:
@@ -727,10 +746,9 @@ char *
 uriDecode(const char *s)
 {
 	char *decoded;
-
-	if ((decoded = strdup(s)) != NULL)
+	if ((decoded = strdup(s)) != NULL) {
 		uriDecodeSelf(decoded);
-
+	}
 	return decoded;
 }
 
@@ -746,21 +764,22 @@ uri_http_list(const char *list, const char *delim, Vector visited, char *buffer,
 	const char *error;
 	URI *uri, *origin;
 
-	if (list == NULL)
+	if (list == NULL) {
 		return NULL;
-
+	}
 	origin = NULL;
 	args = TextSplit(list, delim, 0);
 
 	for (i = 0; i < VectorLength(args); i++) {
-		if ((arg = VectorGet(args, i)) == NULL)
+		if ((arg = VectorGet(args, i)) == NULL) {
 			continue;
-
+		}
 		/* Skip leading symbol name and equals sign. */
 		for (ptr = arg; *ptr != '\0'; ptr++) {
 			if (!isalnum(*ptr) && *ptr != '_') {
-				if (*ptr == '=')
+				if (*ptr == '=') {
 					arg = ptr+1;
+				}
 				break;
 			}
 		}
@@ -768,8 +787,9 @@ uri_http_list(const char *list, const char *delim, Vector visited, char *buffer,
 		if ((uri = uriParse2(arg, -1, 1)) != NULL) {
 			error = uri_http_origin(uri->uri, visited, buffer, size, &origin);
 			free(uri);
-			if (error == NULL)
+			if (error == NULL) {
 				break;
+			}
 		}
 	}
 
@@ -783,16 +803,16 @@ uri_http_query(URI *uri, Vector visited, char *buffer, size_t size)
 {
 	URI *origin;
 
-	if (uri == NULL)
+	if (uri == NULL) {
 		return NULL;
-
-	if (uri->query == NULL)
+	}
+	if (uri->query == NULL) {
 		origin = uri_http_list(uri->path, "&", visited, buffer, size);
-	else if ((origin = uri_http_list(uri->query, "&", visited, buffer, size)) == NULL)
+	} else if ((origin = uri_http_list(uri->query, "&", visited, buffer, size)) == NULL) {
 		origin = uri_http_list(uri->query, "/", visited, buffer, size);
-	if (origin == NULL)
+	} if (origin == NULL) {
 		origin = uri_http_list(uri->path, "/", visited, buffer, size);
-
+	}
 	return origin;
 }
 
@@ -813,8 +833,9 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 		for (visited_url = (char **) VectorBase(visited); *visited_url != NULL; visited_url++) {
 			if (TextInsensitiveCompare(url, *visited_url) == 0) {
 				error = uriErrorLoop;
-				if (0 < uriDebug)
+				if (0 < uriDebug) {
 					syslog(LOG_DEBUG, "%s: %s", error, url);
+				}
 				goto error2;
 			}
 		}
@@ -833,15 +854,17 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 		 */
 		if ((uri = uriParse2(url, -1, 1)) == NULL) {
 			error = uriErrorParse;
-			if (0 < uriDebug)
+			if (0 < uriDebug) {
 				syslog(LOG_DEBUG, "%s: %s", error, url);
+			}
 			goto error2;
 		}
 
 		if ((port = uriGetSchemePort(uri)) == -1) {
 			error = uriErrorPort;
-			if (0 < uriDebug)
+			if (0 < uriDebug) {
 				syslog(LOG_DEBUG, "%s: %s", error, uri->uriDecoded);
+			}
 			goto error2;
 		}
 
@@ -856,25 +879,28 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 		 */
 		if (port == 443 || (port != 80 && uri->port == NULL)) {
 			error = uriErrorNotHttp;
-			if (0 < uriDebug)
+			if (0 < uriDebug) {
 				syslog(LOG_DEBUG, "%s: %s", error, uri->uriDecoded);
+			}
 			goto error2;
 		}
 
 #ifdef URI_HTTP_ORIGIN_QUERY_FIRST
 		/* Check URI query string first if any. */
-		if ((*origin = uri_http_query(uri, visited, buffer, size)) != NULL)
+		if ((*origin = uri_http_query(uri, visited, buffer, size)) != NULL) {
 			break;
+		}
 #endif
-		if (0 < uriDebug)
+		if (0 < uriDebug) {
 			syslog(LOG_DEBUG, "connect %s:%d", uri->host, port);
-
+		}
 		socketClose(socket);
 
 		if (socketOpenClient(uri->host, port, socket_timeout, NULL, &socket) == SOCKET_ERROR) {
 			error = uriErrorConnect;
-			if (0 < uriDebug)
+			if (0 < uriDebug) {
 				syslog(LOG_DEBUG, "%s: %s:%d", error, uri->host, port);
+			}
 			goto error2;
 		}
 
@@ -901,49 +927,52 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 		 * to the same host, but a different path that eventually
 		 * resulted in a 200 status.
 		 */
-		if (port != 80)
+		if (port != 80) {
 			n += snprintf(buffer+n, size-n, ":%d", port);
-
+		}
 		n += snprintf(buffer+n, size-n, "\r\n\r\n");
 
-		if (0 < uriDebug)
+		if (0 < uriDebug) {
 			syslog(LOG_DEBUG, "> %d:%s", n, buffer);
-
+		}
 		if (socketWrite(socket, (unsigned char *) buffer, n) != n) {
 			error = uriErrorWrite;
-			if (0 < uriDebug)
+			if (0 < uriDebug) {
 				syslog(LOG_DEBUG, "%s: %s:%d", error, uri->host, port);
+			}
 			goto error2;
 		}
-
 		if ((n = (int) socketReadLine(socket, buffer, size)) < 0) {
 			error = uriErrorRead;
-			if (0 < uriDebug)
+			if (0 < uriDebug) {
 				syslog(LOG_DEBUG, "%s (%d): %s:%d", error, n, uri->host, port);
+			}
 			goto error2;
 		}
-
-		if (0 < uriDebug)
+		if (0 < uriDebug) {
 			syslog(LOG_DEBUG, "< %d:%s", n, buffer);
-
+		}
 		if (sscanf(buffer, "HTTP/%*s %d", &uri->status) != 1) {
 			error = uriErrorHttpResponse;
-			if (0 < uriDebug)
+			if (0 < uriDebug) {
 				syslog(LOG_DEBUG, "%s: %s", error, buffer);
+			}
 			goto error2;
 		}
 
 		if (400 <= uri->status) {
 			error = uriErrorNoOrigin;
-			if (0 < uriDebug)
+			if (0 < uriDebug) {
 				syslog(LOG_DEBUG, "%s: %s", error, uri->uriDecoded);
+			}
 			goto error2;
 		}
 
 		/* Have we found the origin server? */
 		if (200 <= uri->status && uri->status < 300) {
-			if (0 < uriDebug)
+			if (0 < uriDebug) {
 				syslog(LOG_DEBUG, "found HTTP origin %s:%d", uri->host, uriGetSchemePort(uri));
+			}
 			*origin = uri;
 			goto origin_found;
 		}
@@ -954,8 +983,9 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 		 */
 
 		while (0 < (n = socketReadLine(socket, buffer, size))) {
-			if (0 < uriDebug)
+			if (0 < uriDebug) {
 				syslog(LOG_DEBUG, "< %d:%s", n, buffer);
+			}
 			if (0 < TextInsensitiveStartsWith(buffer, "Location:")) {
 				url = buffer + sizeof("Location:")-1;
 				url += strspn(url, " \t");
@@ -999,14 +1029,16 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 
 		if (n <= 0) {
 			error = uriErrorNoLocation;
-			if (0 < uriDebug)
+			if (0 < uriDebug) {
 				syslog(LOG_DEBUG, "%s: %s:%d", error, uri->host, port);
+			}
 			goto error2;
 		}
 #ifndef URI_HTTP_ORIGIN_QUERY_FIRST
 		/* Check URI query string first if any. */
-		if ((*origin = uri_http_query(uri, visited, buffer, size)) != NULL)
+		if ((*origin = uri_http_query(uri, visited, buffer, size)) != NULL) {
 			break;
+		}
 #endif
 	}
 error2:
@@ -1114,9 +1146,9 @@ uri_mime_body_start(Mime *m, void *_data)
 	 * then the message / mime part defaults to text/plain
 	 * RFC 2045 section 5.2.
 	 */
-	if (!m->state.has_content_type)
+	if (!m->state.has_content_type) {
 		hold->is_text_part = 1;
-
+	}
 	hold->is_body = 1;
 	hold->length = 0;
 }
@@ -1141,22 +1173,22 @@ uri_mime_decoded_octet(Mime *m, int ch, void *_data)
 	 * implicit URI rules, decoding binary attachments like
 	 * images can result in false positives.
 	 */
-	if (!hold->headers_and_body && hold->is_body && !hold->is_text_part)
+	if (!hold->headers_and_body && hold->is_body && !hold->is_text_part) {
 		return;
-
+	}
         /* Ignore CR as it does not help us with parsing.
          * Assume LF will follow.
          */
-        if (ch == '\r')
+        if (ch == '\r') {
                 return;
-
+	}
         /* If the hold buffer is full, just dump it. The
          * buffer is larger that any _normal_ URL should
          * be and its assumed it would fail to parse.
          */
-	if (sizeof (hold->buffer) <= hold->length)
+	if (sizeof (hold->buffer) <= hold->length) {
 		hold->length = 0;
-
+	}
 	/* Accumulate URI characters in the hold buffer. */
 	if (isCharURI(ch)) {
 		/* Look for HTML numerical entities &#NNN; or &#xHHHH; */
@@ -1218,8 +1250,9 @@ delimiter:
 		 * there in.
 		 */
 		for (value = 0; hold->buffer[value] != '\0'; value++) {
-			if (!isalnum(hold->buffer[value]))
+			if (!isalnum(hold->buffer[value])) {
 				break;
+			}
 		}
 		value = hold->buffer[value] == '=' ? value+1 : 0;
 
@@ -1229,11 +1262,12 @@ delimiter:
 		 * strip them off. RFC 3986 has them as reserved. Note too that
 		 * parens and single quotes might be imbalanced.
 		 */
-		if (hold->buffer[value] == '(' || hold->buffer[value] == '\'')
+		if (hold->buffer[value] == '(' || hold->buffer[value] == '\'') {
 			value++;
-		if (hold->buffer[hold->length-1] == ')' || hold->buffer[hold->length-1] == '\'')
+		}
+		if (hold->buffer[hold->length-1] == ')' || hold->buffer[hold->length-1] == '\'') {
 			hold->length--;
-
+		}
 		/* RFC 3986 and 1035 does not allow underscore in a URI scheme
 		 * nor in a domain/host name. This relaxed by 2181; used by
 		 * 4408 (SPF) and 6376 (DKIM).
@@ -1242,16 +1276,18 @@ delimiter:
 			hold->length--;
 			hold->buffer[hold->length] = '\0';
 		}
-		while (hold->buffer[value] == '_')
+		while (hold->buffer[value] == '_') {
 			value++;
-
+		}
 		uri = uriParse2(hold->buffer+value, hold->length-value, IMPLICIT_DOMAIN_MIN_DOTS);
 
 		if (uri != NULL) {
-			if (2 < uriDebug)
+			if (2 < uriDebug) {
 				syslog(LOG_DEBUG, "found URL \"%s\"", uri->uri);
-			if (hold->uri_found_cb != NULL)
+			}
+			if (hold->uri_found_cb != NULL) {
 				(*hold->uri_found_cb)(uri, hold->data);
+			}
 			free(uri);
 		}
 
@@ -1266,20 +1302,22 @@ uri_mime_header(Mime *m, void *_data)
 
 	if (hold->headers_and_body) {
 		unsigned char *s;
-		for (s = m->source.buffer; *s != '\0'; s++)
+		for (s = m->source.buffer; *s != '\0'; s++) {
 			uri_mime_decoded_octet(m, *s, _data);
+		}
 		uri_mime_decoded_octet(m, '\r', _data);
 		uri_mime_decoded_octet(m, '\n', _data);
 	}
 
-	if (2 < uriDebug)
+	if (2 < uriDebug) {
 		syslog(LOG_DEBUG, "header [%s]", m->source.buffer);
-
+	}
 	if (TextMatch((char *) m->source.buffer, "Content-Type:*text/*", m->source.length, 1)
 	||  TextMatch((char *) m->source.buffer, "Content-Type:*multipart/*", m->source.length, 1)
 	||  TextMatch((char *) m->source.buffer, "Content-Type:*application/*;*name=*.txt*", m->source.length, 1)
-	||  TextMatch((char *) m->source.buffer, "Content-Type:*application/*;*name=*.htm*", m->source.length, 1))
+	||  TextMatch((char *) m->source.buffer, "Content-Type:*application/*;*name=*.htm*", m->source.length, 1)) {
 		hold->is_text_part = 1;
+	}
 }
 
 /**
@@ -1663,43 +1701,44 @@ test_uri(URI *uri, UriWorker *uw)
 	hits = uw->source.hits;
 
 	for (seen = (const char **) VectorBase(uw->uri_names_seen); *seen != NULL; seen++) {
-		if (TextInsensitiveCompare(uri->host, *seen) == 0)
+		if (TextInsensitiveCompare(uri->host, *seen) == 0) {
 			return;
+		}
 	}
 
 	uw->source.found++;
 
-	if (VectorAdd(uw->uri_names_seen, copy = strdup(uri->host)))
+	if (VectorAdd(uw->uri_names_seen, copy = strdup(uri->host))) {
 		free(copy);
-
+	}
 	if (uw->source.hits < uw->max_hits
-	&& (list_name = dnsListQueryName(d_bl_list, uw->pdq, NULL, uri->host)) != NULL)
+	&& (list_name = dnsListQueryName(d_bl_list, uw->pdq, NULL, uri->host)) != NULL) {
 		write_result(uri, uw, list_name, "%s domain blacklisted %s\r\n", uri->host, list_name);
-
+	}
 	if (uw->source.hits < uw->max_hits
-	&& (list_name = dnsListQueryDomain(uri_bl_list, uw->pdq, NULL, check_subdomains, uri->host)) != NULL)
+	&& (list_name = dnsListQueryDomain(uri_bl_list, uw->pdq, NULL, check_subdomains, uri->host)) != NULL) {
 		write_result(uri, uw, list_name, "%s domain blacklisted %s\r\n", uri->host, list_name);
-
+	}
 	if (uw->source.hits < uw->max_hits
-	&& (list_name = dnsListQueryNs(uri_ns_bl_list, uri_ns_a_bl_list, uw->pdq, NULL, uri->host)) != NULL)
+	&& (list_name = dnsListQueryNs(uri_ns_bl_list, uri_ns_a_bl_list, uw->pdq, NULL, uri->host)) != NULL) {
 		write_result(uri, uw, list_name, "%s NS blacklisted %s\r\n", uri->host, list_name);
-
+	}
 	if (uw->source.hits < uw->max_hits
-	&& (list_name = dnsListQueryIP(uri_a_bl_list, uw->pdq, NULL, uri->host)) != NULL)
+	&& (list_name = dnsListQueryIP(uri_a_bl_list, uw->pdq, NULL, uri->host)) != NULL) {
 		write_result(uri, uw, list_name, "%s IP blacklisted %s\r\n", uri->host, list_name);
-
+	}
 	if (uriGetSchemePort(uri) == SMTP_PORT && uw->source.hits < uw->max_hits
-	&& (list_name = dnsListQueryMail(mail_bl_list, uw->pdq, mail_bl_domains, uw->mail_names_seen, uri->uriDecoded)) != NULL)
+	&& (list_name = dnsListQueryMail(mail_bl_list, uw->pdq, mail_bl_domains, uw->mail_names_seen, uri->uriDecoded)) != NULL) {
 		write_result(uri, uw, list_name, "%s mail blacklisted %s\r\n", uri->uriDecoded, list_name);
-
+	}
 	if (check_soa && (code = pdqTestSOA(uw->pdq, PDQ_CLASS_IN, uri->host, NULL)) != PDQ_SOA_OK) {
 		fprintf(uw->out, "%s %u: ", uw->source.name, uw->source.line);
 		fprintf(uw->out, "%s bad SOA %s (%d)\r\n", uri->host, pdqSoaName(code), code);
 		exit_code = EXIT_FAILURE;
 	}
-
-	if (hits == uw->source.hits)
+	if (hits == uw->source.hits) {
 		write_result(uri, uw, NULL, NULL);
+	}
 }
 
 void
@@ -1709,17 +1748,18 @@ process(URI *uri, UriWorker *uw)
 	const char *error;
 	URI *origin = NULL;
 
-	if (uri == NULL)
+	if (uri == NULL) {
 		return;
-
+	}
 	if (uri_ports != NULL) {
 		for (p = uri_ports; 0 <= *p; p++) {
-			if (uriGetSchemePort(uri) == *p)
+			if (uriGetSchemePort(uri) == *p) {
 				break;
+			}
 		}
-
-		if (*p < 0)
+		if (*p < 0) {
 			return;
+		}
 	}
 
 	if (uw->print_uri_parse) {
@@ -1735,22 +1775,24 @@ process(URI *uri, UriWorker *uw)
 		fprintf(uw->out, "\tquery=%s\r\n", TextEmpty(uri->query));
 		fprintf(uw->out, "\tfragment=%s\r\n", TextEmpty(uri->fragment));
 	} else if (uri_ports != NULL) {
-		if (debug)
+		if (debug) {
 			fprintf(uw->out, "%u: ", uw->source.line);
+		}
 		fputs(uri->uriDecoded, uw->out);
 		fputc('\n', uw->out);
 	}
 
-	if (uri->host != NULL)
+	if (uri->host != NULL) {
 		test_uri(uri, uw);
-
+	}
 	if (check_link && uri->host != NULL) {
 		error = uriHttpOrigin(uri->uriDecoded, &origin);
 		fprintf(uw->out, "%s %u: ", uw->source.name, uw->source.line);
 		fprintf(uw->out, "\t%s -> ", uri->uriDecoded);
 		fprintf(uw->out, "%s\r\n", error == NULL ? origin->uri : error);
-		if (error == uriErrorLoop)
+		if (error == uriErrorLoop) {
 			exit_code = EXIT_FAILURE;
+		}
 	}
 
 	if (origin != NULL && origin->host != NULL && strcmp(uri->host, origin->host) != 0) {
@@ -1767,20 +1809,21 @@ process_list(const char *list, const char *delim, UriWorker *uw)
 	Vector args;
 	char *arg, *ptr;
 
-	if (list == NULL)
+	if (list == NULL) {
 		return;
-
+	}
 	args = TextSplit(list, delim, 0);
 
 	for (i = 0; i < VectorLength(args); i++) {
-		if ((arg = VectorGet(args, i)) == NULL)
+		if ((arg = VectorGet(args, i)) == NULL) {
 			continue;
-
+		}
 		/* Skip leading symbol name and equals sign. */
 		for (ptr = arg; *ptr != '\0'; ptr++) {
 			if (!isalnum(*ptr) && *ptr != '_') {
-				if (*ptr == '=')
+				if (*ptr == '=') {
 					arg = ptr+1;
+				}
 				break;
 			}
 		}
@@ -1809,8 +1852,9 @@ void
 process_uri(URI *uri, void *data)
 {
 	process(uri, data);
-	if (check_query)
+	if (check_query) {
 		process_query(uri, data);
+	}
 }
 
 int
@@ -1822,8 +1866,9 @@ iterate_file(void *fp)
 int
 iterate_string(void *s)
 {
-	if (**(char **)s == '\0')
+	if (**(char **)s == '\0') {
 		return EOF;
+	}
 	return *(*(char **)s)++;
 }
 
@@ -1835,10 +1880,12 @@ iterate_chunk(void *_uc)
 	if (uc->data.length <= uc->data.offset) {
 		BufSetLength(&uc->data, 0);
 		BufSetOffset(&uc->data, 0);
-		if (cgiReadChunk(uc->client, &uc->data))
+		if (cgiReadChunk(uc->client, &uc->data)) {
 			return EOF;
-		if (uc->data.length == 0)
+		}
+		if (uc->data.length == 0) {
 			return EOF;
+		}
 	}
 
 	return uc->data.bytes[uc->data.offset++];
@@ -1851,9 +1898,9 @@ process_loop(UriWorker *uw, int (*iterate)(void *), void *data)
 	Mime *mime;
 	UriMime *hold;
 
-	if ((mime = mimeCreate()) == NULL)
+	if ((mime = mimeCreate()) == NULL) {
 		return;
-
+	}
 	uw->source.line = 1;
 	uw->source.hits = 0;
 	uw->source.found = 0;
@@ -1862,15 +1909,17 @@ process_loop(UriWorker *uw, int (*iterate)(void *), void *data)
 		mimeHeadersFirst(mime, uw->cgi_mode || !uw->headers_and_body);
 		mimeHooksAdd(mime, (MimeHooks *)hold);
 
-		if (debug)
+		if (debug) {
 			syslog(LOG_DEBUG, "file=%s line=%u", uw->source.name, uw->source.line);
+		}
 		do {
 			ch = (*iterate)(data);
 			(void) mimeNextCh(mime, ch);
 			if (ch == '\n') {
 				uw->source.line++;
-				if (debug)
+				if (debug) {
 					syslog(LOG_DEBUG, "file=%s line=%u", uw->source.name, uw->source.line);
+				}
 			}
 		} while (ch != EOF);
 
@@ -1879,8 +1928,9 @@ process_loop(UriWorker *uw, int (*iterate)(void *), void *data)
 
 	mimeFree(mime);
 
-	if (uw->cgi_mode)
+	if (uw->cgi_mode) {
 		cgiMapAdd(&uw->cgi.reply_headers, "Blacklist-Hits", "%u", uw->source.hits);
+	}
 }
 
 void
@@ -1889,13 +1939,13 @@ process_file(UriWorker *uw)
 	FILE *fp;
 
 	/* Check for standard input. */
-	if (uw->source.name[0] == '-' && uw->source.name[1] == '\0')
+	if (uw->source.name[0] == '-' && uw->source.name[1] == '\0') {
 		fp = stdin;
-
+	}
 	/* Otherwise open the file. */
-	else if ((fp = fopen(uw->source.name, "rb")) == NULL)
+	else if ((fp = fopen(uw->source.name, "rb")) == NULL) {
 		return;
-
+	}
 	process_loop(uw, iterate_file, fp);
 	fclose(fp);
 }
@@ -1904,8 +1954,9 @@ void
 process_string(UriWorker *uw)
 {
 	unsigned char *s = BufBytes(uw->cgi._RAW) + BufOffset(uw->cgi._RAW);
-	if (0 < debug)
+	if (0 < debug) {
 		syslog(LOG_DEBUG, "%s: %s", __func__, s);
+	}
 	process_loop(uw, iterate_string, (void *)&s);
 }
 
@@ -2136,9 +2187,9 @@ main(int argc, char **argv)
 		struct stat sb;
 
 		uw.cgi_mode = 1;
-		if (cgiInit(&uw.cgi))
+		if (cgiInit(&uw.cgi)) {
 			exit(EX_SOFTWARE);
-
+		}
 		/* Check DOCUMENT_ROOT for .cf file. */
 		sb.st_size = 0;
 		if (stat(CF_FILE, &sb) && uw.cgi.script_filename != NULL) {
@@ -2159,13 +2210,15 @@ main(int argc, char **argv)
 		}
 
 		/* Parse an option file followed by the header options. */
-		if (0 < sb.st_size)
+		if (0 < sb.st_size) {
 			(void) optionFile(CF_FILE, opt_table, NULL);
+		}
 		(void) optionArrayL(argc, argv, opt_table, NULL);
 		cgiSetOptions(&uw.cgi, uw.cgi._HTTP, opt_table);
 
-		if (0 <= cgiMapFind(uw.cgi._GET, "q"))
+		if (0 <= cgiMapFind(uw.cgi._GET, "q")) {
 			check_query = 1;
+		}
 	}
 
 	if (opt_info.string != NULL) {
@@ -2180,8 +2233,9 @@ main(int argc, char **argv)
 		/* help=filepath (compatibility with Windows)
 		 * equivalent to +help >filepath
 		 */
-		if (opt_help.string[0] != '-' && opt_help.string[0] != '+')
+		if (opt_help.string[0] != '-' && opt_help.string[0] != '+') {
 			(void) freopen(opt_help.string, "w", stdout);
+		}
 		optionUsageL(opt_table, NULL);
 		exit(EX_USAGE);
 	}
@@ -2241,9 +2295,9 @@ main(int argc, char **argv)
 		int fi, pi;
 
 		uw.max_hits = 1;
-		if (0 <= (i = cgiMapFind(uw.cgi._GET, "x")))
+		if (0 <= (i = cgiMapFind(uw.cgi._GET, "x"))) {
 			uw.max_hits = strtol(uw.cgi._GET[i].value, NULL, 10);
-
+		}
 		uw.headers_and_body = (0 <= (i = cgiMapFind(uw.cgi._GET, "a")) && uw.cgi._GET[i].value[0] != '0');
 
 		if (0 <= (fi = cgiMapFind(uw.cgi._GET, "f"))) {
@@ -2261,9 +2315,9 @@ main(int argc, char **argv)
 		&& 0 <= (pi = cgiMapFind(uw.cgi._GET, "p")) && uw.cgi._GET[pi].value[0] != '0') {
 			cgiSendOk(&uw.cgi, empty);
 
-			if (0 <= (i = cgiMapFind(uw.cgi._GET, "v")) && uw.cgi._GET[i].value[0] != '0')
+			if (0 <= (i = cgiMapFind(uw.cgi._GET, "v")) && uw.cgi._GET[i].value[0] != '0') {
 				enableDebug();
-
+			}
 			/* Redo parse and dumping found URI. */
 			uw.cgi_mode = 0;
 			uw.print_uri_parse = 1;
@@ -2271,10 +2325,11 @@ main(int argc, char **argv)
 				VectorRemoveAll(uw.uri_names_seen);
 				VectorRemoveAll(uw.mail_names_seen);
 			}
-			if (0 <= fi)
+			if (0 <= fi) {
 				process_file(&uw);
-			else
+			} else {
 				process_string(&uw);
+			}
 			uw.cgi_mode = 1;
 		} else {
 			cgiSendNoContent(&uw.cgi);
@@ -2537,8 +2592,9 @@ verboseFill(const char *prefix, Buffer *buf)
 	Option **opt, *o;
 	long cols, length;
 
-	if (0 < buf->length)
+	if (0 < buf->length) {
 		buf->length += TextCopy(buf->data+buf->length, buf->size-buf->length, CRLF);
+	}
 	buf->length += TextCopy(buf->data+buf->length, buf->size-buf->length, prefix);
 
 	cols = 0;
@@ -2584,12 +2640,13 @@ stat_count_status(HttpCode code)
 {
 	PTHREAD_MUTEX_LOCK(&stat_mutex);
 	stat_requests++;
-	if (200 <= code && code < 300)
+	if (200 <= code && code < 300) {
 		stat_2++;
-	else if (400 <= code && code < 500)
+	} else if (400 <= code && code < 500) {
 		stat_4++;
-	else if (500 <= code && code < 600)
+	} else if (500 <= code && code < 600) {
 		stat_5++;
+	}
 	PTHREAD_MUTEX_UNLOCK(&stat_mutex);
 }
 
@@ -2610,12 +2667,13 @@ stat_count_method(const char *method)
 	 * TRACE  	T
 	 * CONNECT	C
 	 */
-	if (method[0] == 'G')
+	if (method[0] == 'G') {
 		stat_GET++;
-	else if (method[0] == 'H')
+	} else if (method[0] == 'H') {
 		stat_HEAD++;
-	else if (method[2] == 'S')
+	} else if (method[2] == 'S') {
 		stat_POST++;
+	}
 	PTHREAD_MUTEX_UNLOCK(&stat_mutex);
 #endif
 }
@@ -2679,18 +2737,20 @@ worker_create(ServerWorker *worker)
 {
 	UriWorker *uw;
 
-	if ((uw = malloc(sizeof (*uw))) == NULL)
+	if ((uw = malloc(sizeof (*uw))) == NULL) {
 		goto error0;
-
-	if ((uw->pdq = pdqOpen()) == NULL)
+	}
+	if ((uw->pdq = pdqOpen()) == NULL) {
 		goto error1;
-
-	if ((uw->uri_names_seen = VectorCreate(10)) == NULL)
+	}
+	if ((uw->uri_names_seen = VectorCreate(10)) == NULL) {
 		goto error2;
+	}
 	VectorSetDestroyEntry(uw->uri_names_seen, free);
 
-	if ((uw->mail_names_seen = VectorCreate(10)) == NULL)
+	if ((uw->mail_names_seen = VectorCreate(10)) == NULL) {
 		goto error3;
+	}
 	VectorSetDestroyEntry(uw->mail_names_seen, free);
 
 	uw->source.name = NULL;
@@ -2759,9 +2819,9 @@ session_process(ServerSession *session)
 	pdqQueryRemoveAll(uw->pdq);
 
 	uw->max_hits = 1;
-	if (0 <= (i = cgiMapFind(uw->cgi._GET, "x")))
+	if (0 <= (i = cgiMapFind(uw->cgi._GET, "x"))) {
 		uw->max_hits = strtol(uw->cgi._GET[i].value, NULL, 10);
-
+	}
 	i = cgiMapFind(uw->cgi._GET, "a");
 	uw->headers_and_body = (0 <= i && uw->cgi._GET[i].value[0] != '0');
 
@@ -2794,10 +2854,11 @@ session_process(ServerSession *session)
 			VectorRemoveAll(uw->uri_names_seen);
 			VectorRemoveAll(uw->mail_names_seen);
 		}
-		if (0 <= fi)
+		if (0 <= fi) {
 			process_file(uw);
-		else
+		} else {
 			process_string(uw);
+		}
 		uw->cgi_mode = 1;
 	} else {
 		cgiSendNoContent(&uw->cgi);
@@ -2842,13 +2903,15 @@ serverOptions(int argc, char **argv)
 	pdqMaxTimeout(optDnsMaxTimeout.value);
 	pdqSetRoundRobin(optDnsRoundRobin.value);
 
-	if (opt_server_min_threads.value < 1)
+	if (opt_server_min_threads.value < 1) {
 		opt_server_min_threads.value = 1;
-	if (opt_server_new_threads.value < 1)
+	}
+	if (opt_server_new_threads.value < 1) {
 		opt_server_new_threads.value = 1;
-	if (opt_server_max_threads.value < 1)
+	}
+	if (opt_server_max_threads.value < 1) {
 		opt_server_max_threads.value = opt_test_mode.value ? 1 : LONG_MAX;
-
+	}
 	optionString(opt_verbose.string, verb_table, NULL);
 }
 
@@ -2869,9 +2932,9 @@ server_init(void)
 
 		if (getrlimit(RLIMIT_NOFILE, &limit) == 0) {
 			limit.rlim_cur = (rlim_t) opt_run_open_file_limit.value;
-			if (limit.rlim_max < (rlim_t) opt_run_open_file_limit.value)
+			if (limit.rlim_max < (rlim_t) opt_run_open_file_limit.value) {
 				limit.rlim_max = limit.rlim_cur;
-
+			}
 			(void) setrlimit(RLIMIT_NOFILE, &limit);
 		}
 	}
@@ -2921,8 +2984,9 @@ server_init(void)
 
 	serverSetStackSize(&server, THREAD_STACK_SIZE);
 
-	if (processDropPrivilages(opt_run_user.string, opt_run_group.string, opt_run_work_dir.string, opt_run_jailed.value))
+	if (processDropPrivilages(opt_run_user.string, opt_run_group.string, opt_run_work_dir.string, opt_run_jailed.value)) {
 		return -1;
+	}
 	(void) processDumpCore(1);
 
 	if (verb_trace.value) {
@@ -2946,27 +3010,27 @@ serverMain(void)
 #ifdef LIBSNERT_BUILT
 	syslog(LOG_INFO, "Built on " LIBSNERT_BUILT);
 #endif
-	if (pthreadInit())
+	if (pthreadInit()) {
 		goto error0;
-
-	if (serverSignalsInit(&signals))
+	}
+	if (serverSignalsInit(&signals)) {
 		goto error1;
-
-	if (serverInit(&server, opt_interfaces.string, SERVER_PORT))
+	}
+	if (serverInit(&server, opt_interfaces.string, SERVER_PORT)) {
 		goto error2;
-
-	if (server_init())
+	}
+	if (server_init()) {
 		goto error3;
-
+	}
 #ifdef VERB_VALGRIND
 	if (1 < verb_valgrind.value) {
 		VALGRIND_PRINTF("serverMain before serverStart\n");
 		VALGRIND_DO_LEAK_CHECK;
 	}
 #endif
-	if (serverStart(&server))
+	if (serverStart(&server)) {
 		goto error3;
-
+	}
 	syslog(LOG_INFO, "ready");
 
 	signal = serverSignalsLoop(&signals);
@@ -2987,9 +3051,9 @@ main(int argc, char **argv)
 {
 	verboseInit();
 	serverOptions(argc, argv);
-	if (atexit(at_exit_cleanup))
+	if (atexit(at_exit_cleanup)) {
 		exit(EX_SOFTWARE);
-
+	}
 	if (opt_version.string != NULL) {
 		printVersion();
 		exit(EX_USAGE);
@@ -3002,17 +3066,20 @@ main(int argc, char **argv)
 		/* help=filepath (compatibility with Windows)
 		 * equivalent to +help >filepath
 		 */
-		if (opt_help.string[0] != '-' && opt_help.string[0] != '+')
+		if (opt_help.string[0] != '-' && opt_help.string[0] != '+') {
 			(void) freopen(opt_help.string, "w", stdout);
+		}
 		optionUsageL(opt_table, NULL);
 		exit(EX_USAGE);
 	}
 
-	if (opt_quit.string != NULL)
+	if (opt_quit.string != NULL) {
 		exit(pidKill(opt_run_pid_file.string, SIGTERM) != 0);
+	}
 #ifdef ENABLE_SLOW_QUIT
-	if (opt_slow_quit.string != NULL)
+	if (opt_slow_quit.string != NULL) {
 		exit(pidKill(opt_run_pid_file.string, SIGQUIT) != 0);
+	}
 #endif
 	if (opt_restart.string != NULL || opt_restart_if.string != NULL) {
 		if (pidKill(opt_run_pid_file.string, SIGTERM) && opt_restart_if.string != NULL) {
@@ -3039,11 +3106,12 @@ main(int argc, char **argv)
 			exit(EX_OSERR);
 		}
 
-		if (pathSetPermsByName(opt_run_pid_file.string, opt_run_user.string, opt_run_group.string, 0660))
+		if (pathSetPermsByName(opt_run_pid_file.string, opt_run_user.string, opt_run_group.string, 0660)) {
 			exit(EX_OSERR);
-
-		if (processDropPrivilages(opt_run_user.string, opt_run_group.string, opt_run_work_dir.string, opt_run_jailed.value))
+		}
+		if (processDropPrivilages(opt_run_user.string, opt_run_group.string, opt_run_work_dir.string, opt_run_jailed.value)) {
 			exit(EX_OSERR);
+		}
 	} else {
 		LogSetProgramName(_NAME);
 		LogOpen("(standard error)");
