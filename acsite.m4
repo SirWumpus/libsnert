@@ -500,7 +500,7 @@ AS_IF([test ${with_db:-yes} != 'no'],[
 	AC_LANG_PUSH(C)
 	bdb_best_major=-1
 	bdb_best_minor=-1
-	for h in `find $BDB_DIRS -name db.h 2>/dev/null`; do
+	for h in `find $BDB_DIRS -name db.h 2>/dev/null | xargs grep -l DBTYPE`; do
 		AC_MSG_CHECKING($h)
 		I_DIR=`dirname $h`
 
@@ -521,17 +521,17 @@ AS_IF([test ${with_db:-yes} != 'no'],[
 			L_DIR="$d/lib64/$v"
 		elif test -d $d/lib/$v ; then
 			L_DIR="$d/lib/$v"
-		elif test -d $d/lib64 ; then
-			L_DIR="$d/lib64"
-		else
-			L_DIR="$d/lib"
+# 		elif test -d $d/lib64 ; then
+# 			L_DIR="$d/lib64"
+# 		else
+# 			L_DIR="$d/lib"
 		fi
 
 		dnl Don't need to add system locations to options.
-		if test ${I_DIR} != '/usr/include' ; then
+		if test "${I_DIR}" != '/usr/include' ; then
 			CFLAGS="-I$I_DIR $CFLAGS"
 		fi
-		if test ${L_DIR} != '/usr/lib64' -a ${L_DIR} != '/usr/lib' ; then
+		if test "${L_DIR}" != '/usr/lib64' -a "${L_DIR}" != '/usr/lib' ; then
 			LDFLAGS="-L$L_DIR $LDFLAGS"
 		fi
 
@@ -594,16 +594,13 @@ main(int argc, char **argv)
 					bdb_best_major=$bdb_major
 					bdb_best_minor=$bdb_minor
 					if test -n "$l" ; then
-						BDB_I_DIR=$I_DIR
-						BDB_L_DIR=$L_DIR
-
 						AC_SUBST(HAVE_LIB_DB, "-l$l")
-						AC_SUBST(CFLAGS_DB, "-I$BDB_I_DIR")
-						AC_SUBST(LDFLAGS_DB, "-L$BDB_L_DIR")
+						AC_SUBST(CFLAGS_DB, "-I$I_DIR")
+						AC_SUBST(LDFLAGS_DB, "-L$L_DIR")
 
 						AC_DEFINE_UNQUOTED(HAVE_LIB_DB, "-l$l")
-						AC_DEFINE_UNQUOTED(CFLAGS_DB, "-I$BDB_I_DIR")
-						AC_DEFINE_UNQUOTED(LDFLAGS_DB, "-L$BDB_L_DIR")
+						AC_DEFINE_UNQUOTED(CFLAGS_DB, "-I$I_DIR")
+						AC_DEFINE_UNQUOTED(LDFLAGS_DB, "-L$L_DIR")
 					fi
 				fi
 			],[
@@ -1428,7 +1425,7 @@ AC_DEFUN(SNERT_EXTRA_STDIO,[
 	echo
 	SNERT_CHECK_PREDEFINE(__CYGWIN__)
 	AC_CHECK_HEADERS([io.h err.h])
-	AC_CHECK_FUNCS(getdelim getline getprogname setprogname err errx warn warnx verr verrx vwarn vwarnx)
+	AC_CHECK_FUNCS(fmemopen open_memstream getdelim getline getprogname setprogname err errx warn warnx verr verrx vwarn vwarnx)
 ])
 
 dnl

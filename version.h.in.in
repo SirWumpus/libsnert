@@ -546,6 +546,8 @@ union semun {
 #undef HAVE_GETDELIM
 #undef HAVE_GETLINE
 
+#undef HAVE_FMEMOPEN
+#undef HAVE_OPEN_MEMOPEN
 #undef HAVE_GETPROGNAME
 #undef HAVE_SETPROGNAME
 #undef HAVE_ERR_H
