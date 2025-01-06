@@ -70,14 +70,14 @@ LDFLAGS_SQLITE3	= @LDFLAGS_SQLITE3@
 
 #%$O : %.c
 .c$O :
-	${CC} ${CFLAGS} ${CPPFLAGS} -c $<
+	${CC} ${CFLAGS} -c $<
 
 #(%) : %
 #	$(ARCHIVE)$*
 
 #%$E : %.c
 .c$E :
-	$(CC) $(CFLAGS) ${CPPFLAGS} $(LDFLAGS) $(CC_E)$*$E $< $(LIBSNERT) $(LIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CC_E)$*$E $< $(LIBSNERT) $(LIBS)
 
 #%$E : %$O
 $O$E :

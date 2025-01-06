@@ -752,6 +752,9 @@ uriDecode(const char *s)
 	return decoded;
 }
 
+#ifdef ENABLE_HTTP_ORIGIN
+/* GH-8 Disable in uri.c until HTTPS support is added. */
+
 static const char *
 uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI **origin);
 
@@ -1010,8 +1013,12 @@ uri_http_origin(const char *url, Vector visited, char *buffer, size_t size, URI 
 					path[length] = '\0';
 					/* Include null byte in length. */
 					n++;
+/*** GH-7 TODO
+ *** ‘snprintf’ argument 7 may overlap destination object ‘buffer’ [-Wrestrict]
+ ***/
 					/* Build absolute path from relative one. */
 					length = snprintf(buffer+n, size-n, "http://%s:%d%s%s", uri->host, port, path, url);
+
 					/* Buffer overflow? */
 					if (size-n <= length) {
 						error = uriErrorOverflow;
@@ -1102,6 +1109,8 @@ error1:
 error0:
 	return error;
 }
+#endif /* ENABLE_HTTP_ORIGIN */
+
 /***********************************************************************
  *** Parsing URI in MIME parts
  ***********************************************************************/
@@ -1785,6 +1794,7 @@ process(URI *uri, UriWorker *uw)
 	if (uri->host != NULL) {
 		test_uri(uri, uw);
 	}
+#ifdef ENABLE_HTTP_ORIGIN
 	if (check_link && uri->host != NULL) {
 		error = uriHttpOrigin(uri->uriDecoded, &origin);
 		fprintf(uw->out, "%s %u: ", uw->source.name, uw->source.line);
@@ -1794,7 +1804,7 @@ process(URI *uri, UriWorker *uw)
 			exit_code = EXIT_FAILURE;
 		}
 	}
-
+#endif
 	if (origin != NULL && origin->host != NULL && strcmp(uri->host, origin->host) != 0) {
 		test_uri(origin, uw);
 		free(origin);
