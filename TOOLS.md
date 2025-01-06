@@ -27,9 +27,6 @@ Yet another tool to stream a message to a `clamd` anti-virus server.
 ### convertDate
 Converts textual date string into seconds; the reverse of `date(1)` and `strftime(3)`.  Supports RFC 2822, ctime, and ISO 8601 formats.
 
-### dnsd
-A simple UDP only DNS server intended for implementing black & white lists.  Supports A, AAAA, and TXT records. This is still pretty raw "work in progress".
-
 ### flip
 Yet another newline flipper for DOS, old Mac, and Unix.  Carry over from AtariST / DOS era before Cygwin existed.
 

@@ -762,6 +762,9 @@ append_answer(DNS_query *query, DNS_rr *answer)
 		break;
 
 	case DNS_TYPE_AAAA:
+/*** GH-7 TODO fix
+ *** warning: ‘parseIPv6’ accessing 16 bytes in a region of size 12 [-Wstringop-overflow=]
+ ***/
 		(void) parseIPv6((char *) answer->data, eom);
 		break;
 
