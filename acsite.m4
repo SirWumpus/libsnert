@@ -531,7 +531,7 @@ AS_IF([test ${with_db:-yes} != 'no'],[
 		if test "${I_DIR}" != '/usr/include' ; then
 			CFLAGS="-I$I_DIR $CFLAGS"
 		fi
-		if test "${L_DIR}" != '/usr/lib64' -a "${L_DIR}" != '/usr/lib' ; then
+		if test "${L_DIR}" != '' -a "${L_DIR}" != '/usr/lib64' -a "${L_DIR}" != '/usr/lib'; then
 			LDFLAGS="-L$L_DIR $LDFLAGS"
 		fi
 
@@ -595,12 +595,15 @@ main(int argc, char **argv)
 					bdb_best_minor=$bdb_minor
 					if test -n "$l" ; then
 						AC_SUBST(HAVE_LIB_DB, "-l$l")
-						AC_SUBST(CFLAGS_DB, "-I$I_DIR")
-						AC_SUBST(LDFLAGS_DB, "-L$L_DIR")
-
+						AS_IF([test "$I_DIR" != ''],[
+							AC_SUBST(CFLAGS_DB, "-I$I_DIR")
+							AC_DEFINE_UNQUOTED(CFLAGS_DB, "-I$I_DIR")
+						])
 						AC_DEFINE_UNQUOTED(HAVE_LIB_DB, "-l$l")
-						AC_DEFINE_UNQUOTED(CFLAGS_DB, "-I$I_DIR")
-						AC_DEFINE_UNQUOTED(LDFLAGS_DB, "-L$L_DIR")
+						AS_IF([test "$L_DIR" != ''],[
+							AC_SUBST(LDFLAGS_DB, "-L$L_DIR")
+							AC_DEFINE_UNQUOTED(LDFLAGS_DB, "-L$L_DIR")
+						])
 					fi
 				fi
 			],[
@@ -1493,14 +1496,13 @@ AC_DEFUN(SNERT_HASHES,[
 	echo
 	echo "Check for common hashes..."
 	echo
-	AC_CHECK_HEADERS([md4.h md5.h rmd160.h sha1.h sha2.h],[
-		AC_SEARCH_LIBS([SHA256Init],[md])
-		AS_IF([expr "$ac_cv_search_SHA256Init" : '-l' >/dev/null],[
-			LIBS_MD="$ac_cv_search_SHA256Init"
-			AC_DEFINE_UNQUOTED(LIBS_MD,"$LIBS_MD",[Message Digest Library])
-			AC_SUBST(LIBS_MD)
-		])
-	],[],[/* */])
+	AC_CHECK_HEADERS([md4.h md5.h rmd160.h sha1.h sha2.h])
+	AC_SEARCH_LIBS([SHA256Init],[md])
+	AS_IF([expr "$ac_cv_search_SHA256Init" : '-l' >/dev/null],[
+		LIBS_MD="$ac_cv_search_SHA256Init"
+		AC_DEFINE_UNQUOTED(LIBS_MD,"$LIBS_MD",[Message Digest Library])
+		AC_SUBST(LIBS_MD)
+	])
 ])
 
 dnl
