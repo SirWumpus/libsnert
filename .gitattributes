@@ -9,7 +9,9 @@
 *.ttf binary
 *.TTF binary
 *.wsa binary
-configure -diff -merge
+configure -merge linguist-generated
 config.guess -diff -merge
 config.sub -diff -merge
 erlang.mk -diff
+makefile linguist-generated
+Makefile linguist-generated

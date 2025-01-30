@@ -2,7 +2,7 @@
 # And so it begins...
 #######################################################################
 
-AC_INIT(LibSnert, 1.78.0, [Anthony Howe <achowe@snert.com>])
+AC_INIT(LibSnert, 1.78.1, [Anthony Howe <achowe@snert.com>])
 AC_PREREQ(2.69)
 
 dnl
@@ -18,7 +18,7 @@ AS_IF([test "$prefix" = 'NONE'],[
 ])
 AC_SUBST(prefix_copy)
 
-SNERT_INIT(LIBSNERT, [Copyright 1996, 2023 by Anthony Howe. All rights reserved.])
+SNERT_INIT(LIBSNERT, [Copyright 1996, 2025 by Anthony Howe. All rights reserved.])
 
 AC_DEFINE_UNQUOTED(LIBSNERT_UNAME, [["${platform}"]])
 AH_TEMPLATE(LIBSNERT_UNAME)
