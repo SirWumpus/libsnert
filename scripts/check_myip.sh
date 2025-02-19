@@ -9,30 +9,9 @@ export ENV=''
 export CDPATH=''
 export LANG=C
 
-usage()
-{
-	echo 'usage: check_myip [-v] $myip_url [$myname]'
-	exit 2
-}
-
-args=$(getopt 'v' "$@")
-if [ $? -ne 0 ]; then
-        usage
-fi
-eval set -- $args
-while [ $# -gt 0 ]; do
-        case "$1" in
-        (-v)
-                __verbose=1 
-                ;;
-        (--)
-                shift; break
-                ;;
-        esac
-        shift
-done
 if [ $# -lt 1 ]; then
-        usage
+	echo 'usage: check_myip $myip_url [$myname]'
+	exit 2
 fi
 
 __myip_url="$1"
@@ -45,8 +24,6 @@ myname=${__myname:-$(hostname | sed 's/\(.*\)\.$/\1/')}
 mydomain=$(expr $myname : '[^.]*\.\(.*\)')
 myns=$(dig +short soa $mydomain | cut -d' ' -f1)
 myns=$(dig +short a $myns)
-
-${__verbose:+echo myname=$myname mydomain=$mydomain myns=$myns}
 
 #
 # Find absolute path of managed-keys-directory.
@@ -71,14 +48,18 @@ fi
 # The URL, like http://mx.snert.org:8008/, must reply with a text/plain answer
 # containing just the IP address of the request.
 #
-ipnow=$(curl "$__myip_url" 2>/dev/null | tr -d '\r')
+ipnow=$(curl -f "$__myip_url" 2>/dev/null | tr -d '\r')
+ex=$?
+if [ $ex -ne 0 ]; then
+	echo "nsupdate failed: curl excode=$ex"
+	exit  1
+fi
 
 ipwas=$(cat /tmp/myip.current 2>/dev/null)
 
 ${__verbose:+echo ipwas=$ipwas ipnow=$ipnow}
-
-if [ "$ipwas" != "$ipnow" ]; then
-	nsupdate ${__verbose:+-d} -k $keyfile <<-EOF
+if [ -n "$ipnow" -a "$ipwas" != "$ipnow" ]; then
+	nsupdate -k $keyfile <<-EOF
 		server ${myns}
 		zone ${mydomain}.
 		update delete ${myname}.
@@ -87,6 +68,14 @@ if [ "$ipwas" != "$ipnow" ]; then
 	EOF
 	if [ $? -ne 0 ]; then
 		echo "nsupdate failed"
+cat <<EOF
+nsupdate -k $keyfile <<-EOF
+	server ${myns}
+	zone ${mydomain}.
+	update delete ${myname}.
+	update add ${myname}. 60 IN A $ipnow
+	send
+EOF
 		exit 1
 	fi
 
