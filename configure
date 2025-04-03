@@ -3655,7 +3655,7 @@ printf %s "checking sqlite3 build directory... " >&6; }
 
 				if $is_amalgamation
 then :
-  sqlite3_configure_options="${sqlite3_configure_options} --disable-dynamic-extensions"
+  sqlite3_configure_options="${sqlite3_configure_options}"
 else case e in #(
   e) sqlite3_configure_options="${sqlite3_configure_options} --disable-amalgamation --disable-tcl --without-tcl"
 					 if test ${enable_debug:-no} = 'yes'

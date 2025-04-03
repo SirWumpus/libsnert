@@ -2035,7 +2035,7 @@ AS_IF([test ${with_sqlite3:-default} = 'default'],[
 				sqlite3_configure_options="--prefix=$with_sqlite3 --enable-threadsafe"
 
 				AS_IF([$is_amalgamation],
-					[sqlite3_configure_options="${sqlite3_configure_options} --disable-dynamic-extensions"],
+					[sqlite3_configure_options="${sqlite3_configure_options}"],
 					[sqlite3_configure_options="${sqlite3_configure_options} --disable-amalgamation --disable-tcl --without-tcl"
 					 AS_IF([test ${enable_debug:-no} = 'yes'],[sqlite3_configure_options="${sqlite3_configure_options} --enable-debug"])
 					]
