@@ -33,10 +33,27 @@ LIB		:= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
 BAK		:= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
 TGZ		:= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
 
+# Override from the command-line, eg. make DBG='-O0 -g'
+DBG		:= -DNDEBUG
+LDDBG		:=
+
+# Common C compiler warnings to silence
+#
+# -Wno-char-subscripts			ctypes macros
+# -Wno-incompatible-pointer-types	atexit(endwin)
+# -Wno-unused-parameter			main(int argc, ...)
+# -Wno-format-security
+# -Wno-unused
+# -Wno-missing-field-initializers
+#
+# -Wno-strict-prototypes		clang functions no arguments
+#
+CSILENT		:= -Wno-unused -Wno-char-subscripts -Wno-missing-field-initializers
+
 CC		:= @CC@
 CC_E		:= @CC_E@
 CC_O		:= @CC_O@
-CFLAGS		 = ${CFLAGS_PREFIX} @CFLAGS@
+CFLAGS		 = @CFLAGS@ -Wall -Wextra ${CSILENT} ${DBG}
 CPPFLAGS	 = ${CPPFLAGS_PREFIX} @CPPFLAGS@
 LDFLAGS		 = ${LDFLAGS_PREFIX} @LDFLAGS@
 LIBS		 = ${LIBS_PREFIX} @LIBS@
@@ -158,7 +175,9 @@ distclean: clean
 install: build-cli
 	-cp -p ${CLI} ${bindir}
 
-debug : build
+debug : clean
+	make DBG='-O0 -g -fsanitize=address -fsanitize=pointer-subtract -fsanitize=pointer-compare -lasan' build-cli
+	paxctl +a b64$E convertDate$E jspr$E uri$E
 
 lint: title
 	-splint -D_REENTRANT -I${SNERT_INCDIR} +posixlib +boolint *.c

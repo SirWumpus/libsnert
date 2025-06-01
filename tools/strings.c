@@ -189,14 +189,15 @@ UsagePrintLine(const char *fmt)
 }
 
 /***********************************************************************
- *** 
+ ***
  ***********************************************************************/
 
 int
 strings(const char *filename)
 {
 	FILE *fp;
-	int err, ch, index, overflow;
+	unsigned index;
+	int err, ch, overflow;
 
 	errno = 0;
 
@@ -206,19 +207,19 @@ strings(const char *filename)
 	}
 
 	index = overflow = 0;
-	for (err = 0; (ch = fgetc(fp)) != EOF; ) {		
+	for (err = 0; (ch = fgetc(fp)) != EOF; ) {
 		if (isprint(ch)) {
 			if (sizeof(stringBuffer)-1 <= index) {
-				stringBuffer[index] = '\0';			
+				stringBuffer[index] = '\0';
 				(void) printf(stringBuffer);
 				overflow = 1;
 				index = 0;
-			}	
+			}
 			stringBuffer[index++] = (char) ch;
 		} else if (overflow || minStringLength <= index) {
-			stringBuffer[index] = '\0';			
+			stringBuffer[index] = '\0';
 			(void) printf("%s\n", stringBuffer);
-			overflow = 0;						
+			overflow = 0;
 			index = 0;
 		} else {
 			index = 0;
@@ -234,19 +235,19 @@ int
 main(int argc, char **argv)
 {
 	int ch, err;
-	
+
 	ErrorSetProgramName("strings");
 
 	while ((ch = getopt(argc, argv, "n:")) != -1) {
 		switch (ch) {
 		case 'n':
 			minStringLength = strtol(optarg, (char **) 0, 10);
-			break;			
+			break;
 		default:
 			UsagePrintLine("usage: strings [-n min.length] files...\n");
 		}
 	}
-	
+
 	argc -= optind;
 	argv += optind;
 

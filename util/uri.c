@@ -1125,7 +1125,7 @@ struct uri_mime {
 	/* Must be first in structure for MIME API */
 	MimeHooks hook;
 
-	int length;
+	size_t length;
 	int is_body;
 	int is_text_part;
 	int headers_and_body;

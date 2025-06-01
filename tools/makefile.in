@@ -33,10 +33,26 @@ LIB		:= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@$A
 BAK		:= $(SNERT_LIBDIR)/@PACKAGE_TARNAME@.bak
 TGZ		:= $(SNERT_TARDIR)/@PACKAGE_TARNAME@-@PACKAGE_VERSION@.tgz
 
+# Override from the command-line, eg. make DBG='-O0 -g'
+DBG		:= -DNDEBUG
+LDDBG		:=
+
+# Common C compiler warnings to silence
+#
+# -Wno-char-subscripts			ctypes macros
+# -Wno-incompatible-pointer-types	atexit(endwin)
+# -Wno-unused-parameter			main(int argc, ...)
+# -Wno-format-security
+# -Wno-unused
+#
+# -Wno-strict-prototypes		clang functions no arguments
+#
+CSILENT :=
+
 CC		:= @CC@
 CC_E		:= @CC_E@
 CC_O		:= @CC_O@
-CFLAGS		 = ${CFLAGS_PREFIX} @CFLAGS@ -Wno-format-security
+CFLAGS		 = @CFLAGS@ -Wall -Wextra ${CSILENT} ${DBG}
 CPPFLAGS	 = ${CPPFLAGS_PREFIX} @CPPFLAGS@
 LDFLAGS		 = ${LDFLAGS_PREFIX} @LDFLAGS@
 LIBS		 = ${LIBS_PREFIX} @LIBS@
@@ -88,9 +104,9 @@ $O$E :
 #######################################################################
 
 ORIGINAL	= ansi$E flip$E fmtjson$E pad$E popin$E uue$E show$E range$E \
-		  sqlargs$E counter$E clamstream$E secho$E sechod$E \
+		  sqlargs$E clamstream$E secho$E sechod$E \
 		  natsort$E nctee$E inplace$E bitdump$E
-MEH_TOOLS	= sendform$E nph-download.cgi ziplist$E rarlist$E taglengths$E rsleep$E
+MEH_TOOLS	= counter$E sendform$E nph-download.cgi ziplist$E rarlist$E taglengths$E rsleep$E
 MYVERSION 	= climits$E kat$E cksum$E cmp$E comm$E echo$E strings$E \
 		  echod$E
 UNIX 		= filed zoned mailgroup socketsink$E tee$E
@@ -119,7 +135,9 @@ clean : title
 distclean: clean
 	-rm -rf makefile autom4te.cache config.status config.log
 
-debug : build
+debug : clean
+	make DBG='-O0 -g -fsanitize=address -fsanitize=pointer-subtract -fsanitize=pointer-compare -lasan' build
+	paxctl +a ${PROGRAMS}
 
 ${top_builddir}/sys/lockpick$O : ${top_srcdir}/sys/lockpick.c
 	cd ${top_builddir}/sys ; ${MAKE} ${MFLAGS} lockpick$O

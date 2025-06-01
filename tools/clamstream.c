@@ -67,7 +67,7 @@ _NAME "/" _VERSION " Copyright 2005, 2006 by Anthony Howe. All rights reserved.\
 int
 main(int argc, char **argv)
 {
-	size_t length;
+	long length;
 	int rc = 2, ch;
 	unsigned sessionPort;
 	Socket2 *clam, *session;

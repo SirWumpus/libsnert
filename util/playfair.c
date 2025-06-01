@@ -77,8 +77,8 @@ playfair_dump(FILE *fp, Playfair *pf)
 int
 playfair_init(Playfair *pf, const char *alphabet, const char *key)
 {
-	int i, ch, map[2];
-	size_t set_length;
+	int ch, map[2];
+	size_t i, set_length;
 	char set[sizeof (ALPHABET64)], *member, *key_table;
 
 	if (key == NULL)

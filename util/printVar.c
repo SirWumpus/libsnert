@@ -23,7 +23,7 @@ printVar(int columns, const char *name, const char *value)
 		length = printf("%s=\"'%s'", name, *args);
 		for (args++; *args != NULL; args++) {
 			/* Line wrap. */
-			if (columns <= length + strlen(*args) + 4) {
+			if (columns <= length + (int) strlen(*args) + 4) {
 				(void) printf("\n\t");
 				length = 8;
 			}

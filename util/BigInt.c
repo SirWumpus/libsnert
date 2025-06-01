@@ -246,7 +246,7 @@ BigIntNegate(BigInt number)
 long
 BigIntToLong(BigInt number)
 {
-	int i;
+	unsigned i;
 	long value = 0;
 
 	for (i = 0; i < sizeof value && i < number->length; ++i) {

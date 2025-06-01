@@ -442,8 +442,8 @@ main(int argc, char **argv)
 {
 	FILE *fp;
 	int i, ch, match;
-	long offset, index;
-	size_t length, size;
+	long index;
+	size_t offset, length, size;
 
 	while ((ch = getopt(argc, argv, "it")) != -1) {
 		switch (ch) {

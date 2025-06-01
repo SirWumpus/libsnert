@@ -158,7 +158,7 @@ static tzEntry tzList[] = {
 	{ "FST",	sizeof ("FST")-1,	+100 }, 	/* French Summer Time */
 	{ "MET",	sizeof ("MET")-1,	+100 }, 	/* Middle European Time */
 	{ "MEWT",	sizeof ("MEWT")-1,	+100 }, 	/* Middle European Winter Time */
-	{ "MEZ",	sizeof ("MEZ")-1,	+100 }, 	/* Mitteleuropäische Zeit */
+	{ "MEZ",	sizeof ("MEZ")-1,	+100 }, 	/* Mitteleuropï¿½ische Zeit */
 	{ "NOR",	sizeof ("NOR")-1,	+100 }, 	/* Norway Standard Time */
 	{ "SET",	sizeof ("SET")-1,	+100 }, 	/* Seychelles Time */
 	{ "SWT",	sizeof ("SWT")-1,	+100 }, 	/* Swedish Winter Time */
@@ -352,7 +352,8 @@ convertMonth(const char *month_string, long *month_value, const char **stop)
 int
 convertWeekDay(const char *day_string, long *day_index, const char **stop)
 {
-	long abbrev, day;
+	long day;
+	unsigned long abbrev;
 
 	if (day_string == NULL || day_index == NULL)
 		return -1;

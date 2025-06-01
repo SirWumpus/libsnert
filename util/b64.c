@@ -60,7 +60,7 @@ void
 b64Init(void)
 {
 	if (decodeSet['/'] != 63) {
-		int i;
+		unsigned i;
 
 		for (i = 0; i < BASE64_DECODESET_LENGTH; i++)
 			decodeSet[i] = BASE64_NEXT;

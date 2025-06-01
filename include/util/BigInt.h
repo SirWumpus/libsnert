@@ -19,8 +19,8 @@
  */
 typedef struct bigint {
 	int sign;
-	int length;
-	int capacity;
+	size_t length;
+	size_t capacity;
 	unsigned char *value;
 } *BigInt;
 

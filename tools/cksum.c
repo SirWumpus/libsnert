@@ -57,10 +57,10 @@ stdopen(const char *file, const char *mode, int stdio)
 int
 crc_file(FILE *fin, unsigned long (*func)(unsigned long, unsigned))
 {
-	unsigned ch;
+	int ch;
 	unsigned long number;
 
-	while ((ch = (unsigned) fgetc(fin)) != EOF) {
+	while ((ch = fgetc(fin)) != EOF) {
 		crc = (*func)(crc, ch);
 		++count;
 	}
@@ -105,10 +105,10 @@ crc_ccitt(FILE *fin)
 int
 crc_bsd(FILE *fin)
 {
-	unsigned ch;
+	int ch;
 	unsigned bsd = 0;
 
-	while ((ch = (unsigned) fgetc(fin)) != EOF) {
+	while ((ch = fgetc(fin)) != EOF) {
 		if (bsd & 1)
 			bsd = 0x8000 | (bsd >> 1);
 		else
@@ -135,10 +135,10 @@ crc_bsd(FILE *fin)
 int
 crc_sysv(FILE *fin)
 {
-	unsigned ch;
+	int ch;
 	unsigned long r;
 
-	while ((ch = (unsigned) fgetc(fin)) != EOF) {
+	while ((ch = fgetc(fin)) != EOF) {
 		crc += ch;
 		++count;
 	}

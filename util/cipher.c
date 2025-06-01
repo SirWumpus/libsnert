@@ -320,8 +320,8 @@ cipher_index_order(const char *in, int out[256])
 #endif /* NDEBUG */
 }
 
-int
-cipher_seq_write(char *out, char *in, int i, int j)
+size_t
+cipher_seq_write(char *out, char *in, size_t i, size_t j)
 {
 	out[j++] = in[i];
 
@@ -337,8 +337,8 @@ cipher_seq_write(char *out, char *in, int i, int j)
 	return j;
 }
 
-int
-cipher_seq_read(char *out, char *in, int i, int j)
+size_t
+cipher_seq_read(char *out, char *in, size_t i, size_t j)
 {
 	out[i] = in[j];
 	in[j++] = '_';
@@ -346,10 +346,10 @@ cipher_seq_read(char *out, char *in, int i, int j)
 }
 
 void
-cipher_columnar_transposition(const char *key, const char *in, char *out, size_t out_len, int (*seq_fn)())
+cipher_columnar_transposition(const char *key, const char *in, char *out, size_t out_len, size_t (*seq_fn)())
 {
-	size_t key_len;
-	int i, j, x, indices[256];
+	int indices[256];
+	size_t i, j, x, key_len;
 
 	if (debug) {
 		cipher_dump_grouped(&dump_err, in);
@@ -373,10 +373,10 @@ cipher_columnar_transposition(const char *key, const char *in, char *out, size_t
 }
 
 void
-cipher_disrupted_transposition(const char *key, const char *in, char *out, size_t out_len, int (*seq_fn)())
+cipher_disrupted_transposition(const char *key, const char *in, char *out, size_t out_len, size_t (*seq_fn)())
 {
-	size_t key_len;
-	int i, j, k, r, x, indices[256];
+	int indices[256];
+	size_t i, j, k, r, x, key_len;
 
 	if (debug) {
 		MEMSET(out, '_', out_len);

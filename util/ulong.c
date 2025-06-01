@@ -2,7 +2,7 @@
  * ulong.c
  *
  * Functions to generate printf-like number strings.
- * 
+ *
  * Copyright 1991, 2015 by Anthony Howe.  All rights reserved.
  */
 
@@ -49,7 +49,7 @@
  *	This function is signal safe.
  */
 size_t
-ulong_format(unsigned long value, int base, int width, int prec, int pad, int sign, char *buffer, size_t size)
+ulong_format(unsigned long value, int base, int width, unsigned prec, int pad, int sign, char *buffer, size_t size)
 {
 	int digit;
 	size_t length;
@@ -86,7 +86,7 @@ ulong_format(unsigned long value, int base, int width, int prec, int pad, int si
 
 	/* Positive width to right justify. */
 	if (0 < width) {
-		while (length < width) {
+		while (length < (unsigned) width) {
 			if (length++ < size)
 				*x++ = pad;
 		}
@@ -102,7 +102,7 @@ ulong_format(unsigned long value, int base, int width, int prec, int pad, int si
 	/* Negative width to left justify. */
 	if (width < 0) {
 		width = -width;
-		for (x = buffer+length; length < width; length++) {
+		for (x = buffer+length; length < (unsigned) width; length++) {
 			if (length < size)
 				*x++ = pad;
 		}
@@ -154,7 +154,7 @@ size_t
 slong_format(long value, int base, int width, int prec, int pad, int sign, char *buffer, size_t size)
 {
 	unsigned long number;
-	
+
 	if (buffer == NULL)
 		size = 0;
 
@@ -175,8 +175,8 @@ slong_format(long value, int base, int width, int prec, int pad, int sign, char 
 		number = -number;
 		sign = sign == '+' || base == 10 ? '-' : 0;
 	}
-	
-	return ulong_format(number, base, width, prec, pad, sign, buffer, size);	
+
+	return ulong_format(number, base, width, prec, pad, sign, buffer, size);
 }
 
 /*
@@ -198,7 +198,7 @@ ulong_tostring(unsigned long value, int base)
 {
 	size_t size;
 	char *number;
-	
+
 	size = ulong_format(value, base, 0, 0, 0, 0, NULL, 0) + 1;
 	if ((number = malloc(size)) != NULL)
 		(void) ulong_format(value, base, 0, 0, 0, 0, number, size);
@@ -224,13 +224,13 @@ slong_tostring(unsigned long value, int base)
 {
 	size_t size;
 	char *number;
-	
+
 	size = slong_format(value, base, 0, 0, 0, 0, NULL, 0) + 1;
 	if ((number = malloc(size)) != NULL)
 		(void) slong_format(value, base, 0, 0, 0, 0, number, size);
 	return number;
 }
-		
+
 #ifdef TEST
 #include <stdio.h>
 #include <stdlib.h>
@@ -446,11 +446,11 @@ main(int argc, char **argv)
 		case 'u':
 			fmt_fn = ulong_format;
 			break;
-		case 't':			
+		case 't':
 			ex_code = EXIT_SUCCESS;
 			(void) setvbuf(stdout, NULL, _IOLBF, 0);
 			for (ptr = table; ptr->after != NULL; ++ptr) {
-				if (test(ptr)) 
+				if (test(ptr))
 					ex_code = EXIT_FAILURE;
 			}
 			return ex_code;
@@ -458,24 +458,24 @@ main(int argc, char **argv)
 			optind = argc;
 		}
 	}
-	
+
 	if (argc <= optind) {
 		(void) fprintf(stderr, usage, argv[0]);
 		return EXIT_FAILURE;
 	}
-	
+
 	for (argi = optind; argi < argc; argi++) {
 		/* strtoul() handles +/- signs too, negating the value
 		 * for a minus.  So -0xA == 0xFFFFFFFFFFFFFFF6 == -10.
 		 */
 		ulong = strtoul(argv[argi], NULL, ibase);
 		length = (*fmt_fn)(ulong, obase, width, prec, pad, 0, number, sizeof (number));
-		
-		if (show_length)		
+
+		if (show_length)
 			(void) printf("%zu:", length);
-		(void) printf("%s\n", number);				
+		(void) printf("%s\n", number);
 	}
-	
+
 	return EXIT_SUCCESS;
 }
 #endif

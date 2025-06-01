@@ -187,8 +187,8 @@ main(argc, argv)
 int argc;
 char **argv;
 {
+	int ch;
 	char *name;
-	unsigned ch;
 	FILE *fin, *fout;
 	int err, new_line;
 	unsigned long number;
@@ -248,7 +248,7 @@ char **argv;
 
 		clearerr(fin);
 
-		while ((ch = (unsigned) fgetc(fin)) != EOF) {
+		while ((ch = fgetc(fin)) != EOF) {
 			if (new_line) {
 				new_line = 0;
 				if (0 < number)
