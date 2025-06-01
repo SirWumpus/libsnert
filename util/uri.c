@@ -1616,7 +1616,9 @@ static Option opt_uri_bl_headers = { "uri-bl-headers",	"X-Originating-IP",	usage
 static int debug;
 static int check_soa;
 static int exit_code;
+#ifdef ENABLE_HTTP_ORIGIN
 static int check_link;
+#endif
 static int check_query;
 static int check_subdomains;
 
@@ -2044,7 +2046,9 @@ static char usage[] =
 "-d dbl,...\tcomma separate list of domain black lists\n"
 "-i ip-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
+#ifdef ENABLE_HTTP_ORIGIN
 "-l\t\tcheck HTTP links are valid & find origin server\n"
+#endif
 "-L\t\twait for all the replies from DNS list queries, need -v\n"
 "-m mail-bl,...\tDNS suffix[/mask] list to apply. Without the /mask\n"
 "\t\ta suffix would be equivalent to suffix/0x00fffffe\n"
@@ -2081,6 +2085,13 @@ QUOTE(EX_SOFTWARE) "\t\tinternal error\n"
 LIBSNERT_STRING " " LIBSNERT_COPYRIGHT "\n"
 ;
 
+static const char opts[] =
+	"fabA:d:m:M:i:n:N:u:ULmpP:qQ:RsT:t:v"
+#ifdef ENABLE_HTTP_ORIGIN
+	"l"
+#endif
+;
+
 void
 enableDebug(void)
 {
@@ -2112,7 +2123,7 @@ main(int argc, char **argv)
 		/* The opt_*.string values need to be strdup() from
 		 * optarg so that optFreeL() doesn't crash on exit.
 		 */
-		while ((ch = getopt(argc, argv, "fabA:d:m:M:i:n:N:u:UlLmpP:qQ:RsT:t:v")) != -1) {
+		while ((ch = getopt(argc, argv, opts)) != -1) {
 			switch (ch) {
 			case 'f':
 				/* Place holder for old -f option for AlexB. */
@@ -2153,7 +2164,9 @@ main(int argc, char **argv)
 				check_subdomains = 1;
 				break;
 			case 'l':
+#ifdef ENABLE_HTTP_ORIGIN
 				check_link = 1;
+#endif
 				break;
 			case 'L':
 				dnsListSetWaitAll(1);
