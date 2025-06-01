@@ -6,7 +6,6 @@
  * Copyright 2010 by Anthony Howe. All rights reserved.
  */
 
-#define NDEBUG
 #undef ALPHABET36_SIMPLE
 #undef ORDER8_ALTERNATE_CASE
 

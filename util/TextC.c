@@ -113,7 +113,7 @@ TextIsInteger(const char *s, int radix)
 Buf *
 TextExpand(Buf *s, long col)
 {
-	long i;
+	size_t i;
 	unsigned char byte;
 	Buf *t = BufCreate(100);
 
@@ -145,7 +145,7 @@ TextExpand(Buf *s, long col)
 char *
 TextHexEncode(Buf *b)
 {
-	long i;
+	size_t i;
 	Buf *s = BufCreate(BufLength(b) * 2 + 1);
 	static char xdigits[] = "0123456789ABCDEF";
 

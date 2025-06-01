@@ -70,7 +70,7 @@ int
 uriIsDomainBL(const char *host, const char *dnsbl_suffix, unsigned long mask, int lookup_subdomains)
 {
 	int offset;
-	long length;
+	size_t length;
 	Vector answer;
 	DnsEntry *entry;
 	char buffer[256];

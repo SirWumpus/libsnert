@@ -436,7 +436,7 @@ BufAddInputLine(Buf *a, FILE *fp, long max)
 	if (max < 0)
 		max = LONG_MAX;
 
-	while (a->length - start < max) {
+	while (a->length - start < (size_t) max) {
 		if ((byte = fgetc(fp)) == EOF) {
 			if (start == a->length)
 				/* EOF or error. */

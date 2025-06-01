@@ -410,7 +410,7 @@ Base64Create(void)
 	static struct base64 model;
 
 	if (decodeSet['/'] != 63) {
-		int i;
+		size_t i;
 
 		for (i = 0; i < DECODESET_LENGTH; i++)
 			decodeSet[i] = BASE64_NEXT;

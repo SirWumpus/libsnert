@@ -137,7 +137,8 @@ PropertiesLoad(Properties self, const char *file)
 	Base64 decoder;
 	Data key, value;
 	char *base, *buffer;
-	int rc, offset, n, voffset;
+	int rc, n, voffset;
+	size_t offset;
 
 	rc = -1;
 

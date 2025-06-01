@@ -35,7 +35,7 @@ TextTransliterate(char *string, const char *from_set, const char *to_set)
 				/* Empty to_set, delete character from string. */
 				(void) memmove(s, s+1, len-(s-string));
 				s--;
-			} else if (to_set_len <= f-from_set) {
+			} else if (to_set_len <= (size_t)(f-from_set)) {
 				/* Short to_set, use last character of to_set. */
 				*s = to_set[to_set_len-1];
 			} else {

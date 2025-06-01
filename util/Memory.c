@@ -9,7 +9,9 @@
  * after K&R2 page 185.
  */
 
+#ifndef NDEBUG
 #define NDEBUG
+#endif
 
 /***********************************************************************
  *** No configuration below this point.
@@ -54,8 +56,8 @@ struct memory_header {
 #endif
 
 /*
- * A 2's complement number has an interesting property: given the 
- * requested size of a chunk, negate the number, mask off the 
+ * A 2's complement number has an interesting property: given the
+ * requested size of a chunk, negate the number, mask off the
  * alignment size (assuming a power of two), then negative number
  * once more to get the requested size round to the next multiple
  * of the alignment size.
@@ -65,7 +67,7 @@ struct memory_header {
 /*
  * The sign bit of the memory chunk size is used to indiciate a free
  * or allocated chunk: a positive number for a free chunk that is a
- * multiple of the alignment size and a negative numebr for an 
+ * multiple of the alignment size and a negative numebr for an
  * allocated chunk with the requested size.
  */
 #define CHUNK_ALIGNED_SIZE(x)	((x)->size < 0 ? CHUNK_NEGATE((x)->size & ~CHUNK_ALIGN_MASK) : (x)->size)
@@ -100,7 +102,7 @@ void *
 MemoryCreate(void *block, long size)
 {
 	struct memory_header *head;
-	
+
 	if (size < MINIMUM_CHUNK_SIZE) {
 		errno = EINVAL;
 		return (void *) 0;
@@ -118,10 +120,10 @@ MemoryCreate(void *block, long size)
 			free(head);
 			return (void *) 0;
 		}
-		
+
 		head->freeFirst = 1;
 	}
-		
+
 	head->first = (struct memory *) block;
 	head->size = head->first->size = size;
 
@@ -200,12 +202,12 @@ MemoryVerifySize(void *header)
 	last = (struct memory *) ((char *) head->first + head->size);
 
 #if !defined(NDEBUG)
-printf("MemoryVerifySize last=%lx\n", last);		
+printf("MemoryVerifySize last=%lx\n", last);
 #endif
-	for (here = head->first; ; ) {		
+	for (here = head->first; ; ) {
 		size = CHUNK_REAL_SIZE(here);
 #if !defined(NDEBUG)
-printf("MemoryVerifySize here=%lx here->size=%ld align-size=%ld\n", here, here->size, CHUNK_ALIGNED_SIZE(here));		
+printf("MemoryVerifySize here=%lx here->size=%ld align-size=%ld\n", here, here->size, CHUNK_ALIGNED_SIZE(here));
 #endif
 		/* Test for an invalid size. */
 		if (size < MINIMUM_CHUNK_SIZE) {
@@ -221,8 +223,8 @@ printf("MemoryVerifySize here=%lx here->size=%ld align-size=%ld\n", here, here->
 
 		next = CHUNK_NEXT(here);
 #if !defined(NDEBUG)
-printf("MemoryVerifySize next=%lx\n", next);		
-#endif		
+printf("MemoryVerifySize next=%lx\n", next);
+#endif
 		/* Test if we're out of bounds or an uneven chunk size that
 		 * might cause segmentation fault later on the next iteration.
 		 */
@@ -275,8 +277,8 @@ MemoryAllocate(void *header, long size)
 	size += MINIMUM_CHUNK_SIZE;
 
 	/* Align memory to size of long units. */;
-	align_size = CHUNK_ALIGN(size);		
-	
+	align_size = CHUNK_ALIGN(size);
+
 	/* Look for smallest free chunk that best fits the request. */
 	for (best = here = head->first; here < last; here = CHUNK_NEXT(here)) {
 		if (align_size <= here->size && (best->size < 0 || here->size < best->size))
@@ -323,7 +325,7 @@ MemorySet(void *chunk, int byte)
 }
 
 /*
- * Release an allocated chunk of memory. Return 0 on success or -1 if 
+ * Release an allocated chunk of memory. Return 0 on success or -1 if
  * there is a consistency check error.
  */
 int
@@ -355,7 +357,7 @@ MemoryFree(void *header, void *chunk)
 		errno = EFAULT;
 		return -1;
 	}
-	
+
 	here->size = CHUNK_ALIGNED_SIZE(here);
 
 	/* Coalesce adjacent free chunks. */
@@ -437,8 +439,8 @@ void
 expectedChunkSize(void *block, void *chunk, long size, char *file, long line)
 {
 	long chunksize = ((struct memory *) chunk)[-1].size;
-	
-	printf("Chunk %lx size: %ld\n", (long) chunk, MemorySizeOf(chunk));	
+
+	printf("Chunk %lx size: %ld\n", (long) chunk, MemorySizeOf(chunk));
 	printf("Memory space available: %ld\n", MemoryAvailable(block));
 
 	if (chunksize != size) {
@@ -485,7 +487,7 @@ main(int argc, char **argv)
 	expectedChunkSize(header, first, CHUNK_ENCODE_SIZE(17), MARKER);
 
 	MemorySet(first, '#');
-	
+
 	MemoryFree(header, first);
 	expectedChunkSize(header, first, MEMORY_SIZE, MARKER);
 
@@ -583,7 +585,7 @@ main(int argc, char **argv)
 	c = MemoryAllocate(header, 16);
 	notNull(c, MARKER);
 	expectedChunkSize(header, c, CHUNK_ENCODE_SIZE(16), MARKER);
-	
+
 	/* Detect overflow in chunk that is a multiple of alignment bytes. */
 	printf("Corrupting chunk C...\n");
 	(void) memset(c, 'c', MemorySizeOf(c)+1);
@@ -592,7 +594,7 @@ main(int argc, char **argv)
 		printf("MemoryVerifySize() failed to detect overflow for chunk C.\n");
 		exit(1);
 	}
-		
+
 	/* Detect overflow in chunk of odd length, not a multple of alignment bytes. */
 	printf("Corrupting chunk B...\n");
 	(void) memset(b, 'b', MemorySizeOf(b)+1);

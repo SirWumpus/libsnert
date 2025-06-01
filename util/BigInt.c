@@ -20,7 +20,7 @@
 static void
 leftJustify(BigInt number)
 {
-	int i;
+	size_t i;
 
 	for (i = 0; i < number->length; ++i)
 		if (number->value[i] != 0)
@@ -120,7 +120,7 @@ changeRepresentation(BigInt number)
 BigInt
 BigIntFromBytes(char *value, int length)
 {
-	int i;
+	size_t i;
 	BigInt number = BigIntCreate(length);
 
 	if (number != (BigInt) 0) {
@@ -168,7 +168,7 @@ BigIntFromUnsignedLong(unsigned long value)
 	BigInt number = BigIntCreate(sizeof value);
 
 	if (number != (BigInt) 0) {
-		int i;
+		size_t i;
 
 		number->sign = (0 < value);
 		for (i = sizeof value; 0 < i; value >>= 8)

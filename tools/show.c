@@ -141,7 +141,7 @@ follow_stream(FILE *fp)
 	ino_t last_ino = 0;
 	dev_t last_dev = 0;
 	dev_t last_rdev = 0;
-	size_t last_size = 0;
+	off_t last_size = 0;
 	long pattern_offset = 0;
 
 	if (!follow_flag) {

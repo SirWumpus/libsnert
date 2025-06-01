@@ -176,7 +176,7 @@ htmlEntityDecode(const char *source, size_t length, char *buffer, size_t size)
 	if (size == 0)
 		return 0;
 
-	for (buflen = 0, s = source; s - source < length && *s != '\0' && buflen < size; buflen++) {
+	for (buflen = 0, s = source; (size_t)(s-source) < length && *s != '\0' && buflen < size; buflen++) {
 		if (*s == '&') {
 			if (s[1] == '#') {
 				if (s[2] == 'x')
@@ -249,7 +249,7 @@ htmlEntityEncode(const char *source, size_t length, char *buffer, size_t size)
 	if (1 < size) {
 		--size;
 
-		while (s - source < length && *s != '\0' && buflen < size) {
+		while ((size_t)(s-source) < length && *s != '\0' && buflen < size) {
 			if (*s < 0) {
 				if (size <= buflen + 6)
 					break;
