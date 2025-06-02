@@ -72,7 +72,7 @@
 #define RAND_MSG_COUNT		RANDOM_NUMBER(62.0*62.0)
 #endif
 
-unsigned int rand_seed;
+static unsigned int rand_seed;
 
 /***********************************************************************
  *** Session / Message ID
@@ -434,7 +434,7 @@ smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 	/* Try all MX of a lower preference until one answers. */
 	for (rr = list; rr != NULL; rr = rr->next) {
 		if (rr->section != PDQ_SECTION_ANSWER || rr->type != PDQ_TYPE_MX)
-			continue;			
+			continue;
 		if ((rc = smtp2Connect(smtp, ((PDQ_MX *) rr)->host.string.value)) == SMTP_OK) {
 			if ((smtp->domain = strdup(domain)) == NULL) {
 				socketClose(smtp->mx);
@@ -459,7 +459,7 @@ smtp2ConnectMx(SMTP2 *smtp, const char *domain)
 		syslog(LOG_ERR, LOG_FMT "connection timeout MX domain=%s", LOG_ARG(smtp), domain);
 		break;
 	default:
-		syslog(LOG_ERR, LOG_FMT "error (%d) MX domain=%s", LOG_ARG(smtp), rc, domain);		
+		syslog(LOG_ERR, LOG_FMT "error (%d) MX domain=%s", LOG_ARG(smtp), rc, domain);
 	}
 
 	pdqListFree(list);
@@ -489,7 +489,7 @@ smtp2Create(unsigned connect_ms, unsigned command_ms, int flags, const char *hel
 		smtp->id = (unsigned short) RAND_MSG_COUNT;
 
 		(void) snprintf(smtp->helo_host, sizeof (smtp->helo_host), "%s", TextEmpty(helo));
-		
+
 		/* The smtp-id is a message-id with cc=00, is composed of
 		 *
 		 *	ymd HMS ppppp sssss cc
@@ -545,7 +545,7 @@ smtp2OpenMx(const char *domain, unsigned connect_ms, unsigned command_ms, int fl
 {
 	SMTP2 *smtp;
 
-	if ((smtp = smtp2Create(connect_ms, command_ms, flags, helo)) != NULL) {		
+	if ((smtp = smtp2Create(connect_ms, command_ms, flags, helo)) != NULL) {
 		if (smtp2ConnectMx(smtp, domain) != SMTP_OK) {
 			smtp2Close(smtp);
 			smtp = NULL;
@@ -617,10 +617,10 @@ SMTP_Reply_Code
 smtp2Data(SMTP2 *smtp)
 {
 	SMTP_Reply_Code rc;
-	
+
 	if (smtp->flags & SMTP_FLAG_DATA)
 		return SMTP_WAITING;
-		
+
 	if ((rc = mxCommand(smtp, "DATA\r\n")) == SMTP_WAITING)
 		smtp->flags |= SMTP_FLAG_DATA;
 
@@ -1029,7 +1029,7 @@ sendMessage(void *context, CommandSet *cmd, const char *from, int argc, char **a
 
 	if (context == NULL)
 		exit(1);
-		
+
 	do {
 		offset = 0;
 		sender = NULL;
@@ -1067,7 +1067,7 @@ sendMessage(void *context, CommandSet *cmd, const char *from, int argc, char **a
 				}
 			} else if ((i = fgetc(stdin)) != EOF) {
 				ungetc(i, stdin);
-			} else { 
+			} else {
 				break;
 			}
 		}
@@ -1081,7 +1081,7 @@ sendMessage(void *context, CommandSet *cmd, const char *from, int argc, char **a
 			if ((*cmd->rcpt)(context, argv[i]) != SMTP_OK)
 				exit(1);
 		}
-		
+
 		if (envelope_test)
 			break;
 
