@@ -109,8 +109,9 @@ greyListCachePut(GreyList *grey, char *name, GreyListEntry *entry)
 int
 greyListCheck(GreyList *grey, GreyListEntry *out, long block_time, const char *client_addr, const char *helo, const char *mail, const char *rcpt)
 {
+	int i, n;
 	time_t now;
-	int i, length;
+	size_t length;
 	GreyListEntry entry;
 	char key_tuple[GREY_LIST_KEY_TUPLE_LENGTH];
 
@@ -135,20 +136,40 @@ greyListCheck(GreyList *grey, GreyListEntry *out, long block_time, const char *c
 	for (i = GREY_LIST_TUPLE_IP; i <= GREY_LIST_TUPLE_RCPT; i <<= 1) {
 		switch (grey->tuple & i) {
 		case GREY_LIST_TUPLE_IP:
-			if (client_addr != NULL)
-				length += snprintf(key_tuple + length, sizeof (key_tuple) - length, ",%s", client_addr);
+			if (client_addr != NULL) {
+				n = snprintf(key_tuple + length, sizeof (key_tuple) - length, ",%s", client_addr);
+				if (sizeof (key_tuple)-length <= n) {
+					break;
+				}
+				length += n;
+			}
 			break;
 		case GREY_LIST_TUPLE_HELO:
-			if (helo != NULL)
-				length += snprintf(key_tuple + length, sizeof (key_tuple) - length, ",%s", helo);
+			if (helo != NULL) {
+				n = snprintf(key_tuple + length, sizeof (key_tuple) - length, ",%s", helo);
+				if (sizeof (key_tuple)-length <= n) {
+					break;
+				}
+				length += n;
+			}
 			break;
 		case GREY_LIST_TUPLE_MAIL:
-			if (mail != NULL)
-				length += snprintf(key_tuple + length, sizeof (key_tuple) - length, ",%s", mail);
+			if (mail != NULL) {
+				n = snprintf(key_tuple + length, sizeof (key_tuple) - length, ",%s", mail);
+				if (sizeof (key_tuple)-length <= n) {
+					break;
+				}
+				length += n;
+			}
 			break;
 		case GREY_LIST_TUPLE_RCPT:
-			if (rcpt != NULL)
-				length += snprintf(key_tuple + length, sizeof (key_tuple) - length, ",%s", rcpt);
+			if (rcpt != NULL) {
+				n = snprintf(key_tuple + length, sizeof (key_tuple) - length, ",%s", rcpt);
+				if (sizeof (key_tuple)-length <= n) {
+					break;
+				}
+				length += n;
+			}
 			break;
 		}
 	}

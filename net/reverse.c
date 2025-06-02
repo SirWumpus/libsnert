@@ -12,8 +12,8 @@
 #include <com/snert/lib/net/network.h>
 #include <com/snert/lib/util/Text.h>
 
-long
-reverseSegmentOrder(const char *string, const char *delims, char *buffer, int size)
+size_t
+reverseSegmentOrder(const char *string, const char *delims, char *buffer, size_t size)
 {
 	char *x, *y, ch;
 	long length, span;
@@ -48,12 +48,13 @@ reverseSegmentOrder(const char *string, const char *delims, char *buffer, int si
 	return length;
 }
 
-long
-reverseByNibble(const char *group, char *buffer, int size)
+size_t
+reverseByNibble(const char *group, char *buffer, size_t size)
 {
 	char *stop;
+	int i, n, nibble;
+	size_t length = 0;
 	unsigned short word;
-	int i, nibble, length = 0;
 
 	word = (int) strtol(group, &stop, 16);
 	if (*stop == ':')
@@ -62,16 +63,20 @@ reverseByNibble(const char *group, char *buffer, int size)
 	for (i = 0; i < 4; i++) {
 		nibble = word & 0xf;
 		word >>= 4;
-		length += snprintf(buffer+length, size-length, "%x.", nibble);
+		n = snprintf(buffer+length, size-length, "%x.", nibble);
+		if (size-length <= n) {
+			break;
+		}
+		length += n;
 	}
 
 	return length;
 }
 
-long
-reverseSegments(const char *source, const char *delims, char *buffer, int size, int arpa)
+size_t
+reverseSegments(const char *source, const char *delims, char *buffer, size_t size, int arpa)
 {
-	long length;
+	size_t length;
 	char ip[IPV6_STRING_SIZE];
 	unsigned char ipv6[IPV6_BYTE_SIZE];
 
@@ -107,8 +112,8 @@ reverseSegments(const char *source, const char *delims, char *buffer, int size, 
 }
 
 
-long
-reverseIp(const char *source, char *buffer, int size, int arpa)
+size_t
+reverseIp(const char *source, char *buffer, size_t size, int arpa)
 {
 	return reverseSegments(source, ".", buffer, size, arpa);
 }

@@ -341,7 +341,7 @@ extern int parseIPv6(const char *ip, unsigned char ipv6[IPV6_BYTE_SIZE]);
  *	greater than or equal to the buffer size, then the contents
  *	of buffer are truncated.
  */
-extern long reverseSegmentOrder(const char *string, const char *delims, char *buffer, int size);
+extern size_t reverseSegmentOrder(const char *string, const char *delims, char *buffer, size_t size);
 
 /**
  * @param string
@@ -361,7 +361,7 @@ extern long reverseSegmentOrder(const char *string, const char *delims, char *bu
  *	greater than or equal to the buffer size, then the contents
  *	of buffer are truncated.
  */
-extern long reverseByNibble(const char *string, char *buffer, int size);
+extern size_t reverseByNibble(const char *string, char *buffer, size_t size);
 
 /**
  * @param string
@@ -388,7 +388,7 @@ extern long reverseByNibble(const char *string, char *buffer, int size);
  *	greater than or equal to the buffer size, then the contents
  *	of buffer are truncated.
  */
-extern long reverseSegments(const char *source, const char *delims, char *buffer, int size, int arpa);
+extern size_t reverseSegments(const char *source, const char *delims, char *buffer, size_t size, int arpa);
 
 /**
  * @param string
@@ -412,7 +412,7 @@ extern long reverseSegments(const char *source, const char *delims, char *buffer
  *	greater than or equal to the buffer size, then the contents
  *	of buffer are truncated.
  */
-extern long reverseIp(const char *source, char *buffer, int size, int arpa);
+extern size_t reverseIp(const char *source, char *buffer, size_t size, int arpa);
 
 /**
  * Find the first occurence of an IPv6 or IPv4 address in a string.

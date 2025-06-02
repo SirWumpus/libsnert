@@ -50,7 +50,7 @@
 long
 formatIP(unsigned char *ip, int ip_length, int compact, char *buffer, long size)
 {
-	int i, z;
+	int i, z, n;
 	long length;
 	unsigned word;
 	const char *word_fmt;
@@ -74,39 +74,48 @@ formatIP(unsigned char *ip, int ip_length, int compact, char *buffer, long size)
 		word = NET_GET_SHORT(&ip[i]);
 
 		/* Count leading zero words. */
-		if (word == 0 && (i >> 1) == z)
+		if (word == 0 && (i >> 1) == z) {
 			z++;
-
+		}
 		if (compact == 1 && word == 0) {
 			compact = 0;
-			length += snprintf(buffer+length, size-length, 0 < i ? ":" : "::");
-
-			/* 1:2:3:4:5:6:7:0 compacting trailing zeros 1:2:3:4:5:6:7:: */
-			if (i == IPV6_BYTE_SIZE-2)
+			n = snprintf(buffer+length, size-length, 0 < i ? ":" : "::");
+			if (size-length <= n) {
 				break;
-
+			}
+			length += n;
+			/* 1:2:3:4:5:6:7:0 compacting trailing zeros 1:2:3:4:5:6:7:: */
+			if (i == IPV6_BYTE_SIZE-2) {
+				break;
+			}
 			for (i += 2; i < IPV6_BYTE_SIZE; i += 2) {
 				word = NET_GET_SHORT(&ip[i]);
-				if (word != 0)
+				if (word != 0) {
 					break;
-
+				}
 				/* Continue countining leading zero words. */
-				if ((i >> 1) == z)
+				if ((i >> 1) == z) {
 					z++;
+				}
 			}
 		}
 
 		/* IPv4-compatibile-IPv6 == 0:0:0:0:0:0:123.45.67.89 */
-		if (z == 6 && i == 12)
+		if (z == 6 && i == 12) {
 			break;
-
-		length += snprintf(buffer+length, size-length, word_fmt, word);
-		if (i < IPV6_BYTE_SIZE-2 && length+1 < size)
+		}
+		n = snprintf(buffer+length, size-length, word_fmt, word);
+		if (size-length <= n) {
+			break;
+		}
+		length += n;
+		if (i < IPV6_BYTE_SIZE-2 && length+1 < size) {
 			buffer[length++] = ':';
-
+		}
 		/* IPv4-mapped-IPv6  == 0:0:0:0:0:ffff:123.45.67.89 */
-		if (z == 5 && i == 10 && word == 0xFFFF)
+		if (z == 5 && i == 10 && word == 0xFFFF) {
 			break;
+		}
 	}
 	if (length < size)
 		buffer[length] = '\0';

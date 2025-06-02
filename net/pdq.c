@@ -384,26 +384,44 @@ static size_t
 pdq_dump_packet(unsigned char *packet, size_t packet_length, size_t offset, char *buf, size_t size)
 {
 	size_t index;
-	int count, length, octet;
+	int count, length, octet, n;
 
-	length = snprintf(buf, size, "+%.3lu ", (unsigned long) offset);
-
-	for (index = offset, count = 0; count < 16 && index < packet_length; count++, index++)
-		length += snprintf(buf+length, size-length, "%.2X ", packet[index]);
-
-	for ( ; count < 16; count++)
-		length += snprintf(buf+length, size-length, "__ ");
-
+	length = snprintf(buf, size, "+%.3zu ", offset);
+	if (size <= length) {
+		return 0;
+	}
+	for (index = offset, count = 0; count < 16 && index < packet_length; count++, index++) {
+		n = snprintf(buf+length, size-length, "%.2X ", packet[index]);
+		if (size-length <= n) {
+			break;
+		}
+		length -= n;
+	}
+	for ( ; count < 16; count++) {
+		n = snprintf(buf+length, size-length, "__ ");
+		if (size-length <= n) {
+			break;
+		}
+		length -= n;
+	}
 	for (index = offset, count = 0; count < 16 && index < packet_length; count++, index++) {
 		octet = packet[index];
-		if (!isprint(octet))
+		if (!isprint(octet)) {
 			octet = '.';
-		length += snprintf(buf+length, size-length, "%c", octet);
+		}
+		n = snprintf(buf+length, size-length, "%c", octet);
+		if (size-length <= n) {
+			break;
+		}
+		length -= n;
 	}
-
-	for ( ; count < 16; count++)
-		length += snprintf(buf+length, size-length, ".");
-
+	for ( ; count < 16; count++) {
+		n = snprintf(buf+length, size-length, ".");
+		if (size-length <= n) {
+			break;
+		}
+		length -= n;
+	}
 	return index;
 }
 
@@ -1579,14 +1597,14 @@ pdqDump(FILE *fp, PDQ_rr *record)
 
 	if (record->section == PDQ_SECTION_QUERY) {
 		(void) fprintf(
-			fp, " %s %d %s %s %s %s rc=%s (%d)", 
+			fp, " %s %d %s %s %s %s rc=%s (%d)",
 			(((PDQ_QUERY *)record)->flags & PDQ_BITS_QR) ? "an" : "qr",
 			(((PDQ_QUERY *)record)->flags >> SHIFT_OP) & 0xF,
 			(((PDQ_QUERY *)record)->flags & PDQ_BITS_AA) ? "aa" : "--",
 			(((PDQ_QUERY *)record)->flags & PDQ_BITS_TC) ? "tc" : "--",
 			(((PDQ_QUERY *)record)->flags & PDQ_BITS_RD) ? "rd" : "--",
-			(((PDQ_QUERY *)record)->flags & PDQ_BITS_RA) ? "ra" : "--",									
-			pdqRcodeName(((PDQ_QUERY *)record)->rcode), 
+			(((PDQ_QUERY *)record)->flags & PDQ_BITS_RA) ? "ra" : "--",
+			pdqRcodeName(((PDQ_QUERY *)record)->rcode),
 			((PDQ_QUERY *)record)->rcode
 		);
 	}
@@ -1606,18 +1624,18 @@ void
 pdqLog(const char *prefix, PDQ_rr *record)
 {
 	if (prefix == NULL)
-		prefix = "";		
+		prefix = "";
 	if (record->section == PDQ_SECTION_QUERY) {
 		syslog(
-			LOG_DEBUG, "%s" PDQ_LOG_FMT PDQ_LOG_FMT_END " %s %d %s %s %s %s rc=%s (%d)", 
+			LOG_DEBUG, "%s" PDQ_LOG_FMT PDQ_LOG_FMT_END " %s %d %s %s %s %s rc=%s (%d)",
 			prefix, PDQ_LOG_ARG(record), PDQ_LOG_ARG_END(record),
 			(((PDQ_QUERY *)record)->flags & PDQ_BITS_QR) ? "an" : "qr",
 			(((PDQ_QUERY *)record)->flags >> SHIFT_OP) & 0xF,
 			(((PDQ_QUERY *)record)->flags & PDQ_BITS_AA) ? "aa" : "--",
 			(((PDQ_QUERY *)record)->flags & PDQ_BITS_TC) ? "tc" : "--",
 			(((PDQ_QUERY *)record)->flags & PDQ_BITS_RD) ? "rd" : "--",
-			(((PDQ_QUERY *)record)->flags & PDQ_BITS_RA) ? "ra" : "--",			
-			pdqRcodeName(((PDQ_QUERY *)record)->rcode), 
+			(((PDQ_QUERY *)record)->flags & PDQ_BITS_RA) ? "ra" : "--",
+			pdqRcodeName(((PDQ_QUERY *)record)->rcode),
 			((PDQ_QUERY *)record)->rcode
 		);
 		return;
@@ -2433,7 +2451,7 @@ pdq_reply_parse(PDQ *pdq, struct udp_packet *packet, PDQ_rr **list)
 	if (0 < debug) {
 		syslog(
 			LOG_DEBUG, "header id=%u %s %d %s %s %s %s an=%u ns=%u ar=%u rc=%s",
-			packet->header.id, 
+			packet->header.id,
 			(packet->header.bits & PDQ_BITS_QR) ? "an" : "qr",
 			(packet->header.bits >> SHIFT_OP) & 0xF,
 			(packet->header.bits & PDQ_BITS_AA) ? "aa" : "--",
@@ -2742,7 +2760,7 @@ pdq_query_tcp(PDQ *pdq, PDQ_query *query, SocketAddress *address, PDQ_rr **list)
 		UPDATE_ERRNO;
 		goto error2;
 	}
-	
+
 	/* Try for recursion, though not always allowed. */
 	query->packet.header.bits |= PDQ_BITS_RD;
 
@@ -3023,7 +3041,7 @@ pdqClose(PDQ *pdq)
  *	the timeout assigned by pdqMaxTimeout() when pdqOpen()
  *	created this PDQ instance.
  */
-unsigned 
+unsigned
 pdqSetTimeout(PDQ *pdq, unsigned seconds)
 {
 	unsigned old = pdq->timeout;
@@ -3510,7 +3528,7 @@ pdqGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const char *n
 		if (debug)
 			syslog(LOG_DEBUG, "pdqGet() related A/AAAA records...");
 		for (rr = answer->rr.next; (rr = pdqListFindName(rr, class, type, rr->name.string.value)) != NULL; rr = rr->next) {
-			if (rr == PDQ_CNAME_TOO_DEEP || rr == PDQ_CNAME_IS_CIRCULAR)	
+			if (rr == PDQ_CNAME_TOO_DEEP || rr == PDQ_CNAME_IS_CIRCULAR)
 				break;
 			if (rr->type == type) {
 				/* "domain IN MX ." is a short hand to indicate
@@ -3953,7 +3971,7 @@ pdqRootGetNS(PDQ *pdq, PDQ_class class, const char *name)
 	int offset, old_linear_query, old_basic_query, old_timeout;
 
 	/* Root servers shouldn't take long to answer and we have 13 of them. */
-	old_timeout = pdqSetTimeout(pdq, 3);	
+	old_timeout = pdqSetTimeout(pdq, 3);
 	old_basic_query = pdqSetBasicQuery(pdq, 1);
 	old_linear_query = pdqSetLinearQuery(pdq, 1);
 
@@ -3972,7 +3990,7 @@ pdqRootGetNS(PDQ *pdq, PDQ_class class, const char *name)
 			|| (ns_rr->type != PDQ_TYPE_NS && ns_rr->type != PDQ_TYPE_CNAME))
 				continue;
 
-			/* If the NS does not have a matching 5A, get now. 
+			/* If the NS does not have a matching 5A, get now.
 			 * See pdqInit() about root_hints being incomplete.
 			 */
 			a_rr = pdq_list_find_5A_by_name(pdq, class, ((PDQ_NS *) ns_rr)->host.string.value, &ns_rr->next);
@@ -3998,7 +4016,7 @@ pdqRootGetNS(PDQ *pdq, PDQ_class class, const char *name)
 		/* Follow next set of NS to get closer to target. */
 		ns_list = answer;
 	} while (0 < offset);
-	
+
 	if (answer != NULL && (((PDQ_QUERY *) answer)->flags & PDQ_BITS_AA)) {
 		/* Consider dig ns www.snert.com will return a CNAME and SOA,
 		 * which is the correct intermediate answer according to dig,
@@ -4009,7 +4027,7 @@ pdqRootGetNS(PDQ *pdq, PDQ_class class, const char *name)
 	} else if (prev_list != root_hints) {
 		pdqListFree(prev_list);
 	}
-		
+
 	(void) pdqSetLinearQuery(pdq, old_linear_query);
 	(void) pdqSetBasicQuery(pdq, old_basic_query);
 	(void) pdqSetTimeout(pdq, old_timeout);
@@ -4059,7 +4077,7 @@ pdqRootGet(PDQ *pdq, PDQ_class class, PDQ_type type, const char *name, const cha
  */
 	if (type == PDQ_TYPE_NS)
 		return ns_list;
-#endif		
+#endif
 
 	/* Sequential query of the NS servers. */
 	old_linear_query = pdqSetLinearQuery(pdq, 1);
@@ -4295,10 +4313,10 @@ pdqInit(void)
 		root_hints = pdqFetch(PDQ_CLASS_IN, PDQ_TYPE_NS, ".", NULL);
 
 		/* Careful when pruning the root_hints, since
-		 * some	NS hosts will not have matching 5A 
+		 * some	NS hosts will not have matching 5A
 		 * records yet, so avoid pdqListPrune() and
 		 * pdqListPruneMatch().
-		 */		 
+		 */
 		if (0 < debug)
 			syslog(LOG_DEBUG, "prune root_hints...");
 		root_hints = pdqListKeepType(root_hints, PDQ_KEEP_NS|PDQ_KEEP_5A);
