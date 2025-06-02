@@ -67,21 +67,18 @@ const char *fn;
 		fp = stdin;
 		tp = stdout;
 	} else {
-		if (stat(fn, &sb) == -1) {
-			warn(filemsg, fn);
-			return 1;
-		}
-
-		if (! (sb.st_mode & S_IWUSR)) {
-			warn(readonly, fn);
-			return 1;
-		}
-
 		if ((fp = fopen(fn, "rb")) == (FILE *) 0) {
 			warn(filemsg, fn);
 			return 1;
 		}
-
+		if (fstat(fileno(fp), &sb) == -1) {
+			warn(filemsg, fn);
+			return 1;
+		}
+		if (! (sb.st_mode & S_IWUSR)) {
+			warn(readonly, fn);
+			return 1;
+		}
 		if ((tp = fopen(tmp_name, "wb")) == (FILE *) 0) {
 			warn(filemsg, tmp_name);
 			(void) fclose(fp);

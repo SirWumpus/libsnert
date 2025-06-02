@@ -952,11 +952,7 @@ kvm_open_file(kvm *self, const char *location, int mode)
 	if ((file->path = strdup(location)) == NULL)
 		goto error0;
 
-#ifdef HAVE_SYS_STAT_H
-	if (stat(location, &sb) == 0 && S_ISREG(sb.st_mode) && (fp = fopen(location, fmode)) != NULL) {
-#else
 	if ((fp = fopen(location, fmode)) != NULL) {
-#endif
 		int (*get_key)(FILE *, unsigned char **, unsigned long *);
 		int (*get_value)(FILE *, unsigned char **, unsigned long *);
 

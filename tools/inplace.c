@@ -17,7 +17,7 @@
 static char usage[] = "usage: inplace 'shell command' file ...\n";
 
 int
-process(const char *cmd, const char *file) 
+process(const char *cmd, const char *file)
 {
 	char *tname;
 	size_t length;
@@ -26,14 +26,7 @@ process(const char *cmd, const char *file)
 	int ex, fd, tfd, tsize;
 	char buffer[_POSIX_PIPE_BUF];
 
-	ex = -1;	
-	
-	/* Does the file exist and is writable? */
-	if (stat(file, &sb) < 0 || !S_ISREG(sb.st_mode) 
-	|| (sb.st_mode & (S_IRUSR|S_IWUSR)) != (S_IRUSR|S_IWUSR)) {
-		warnx("%s not R/W file", file);
-		goto error0;
-	}
+	ex = -1;
 
 	/* Make temporary file name template. */
 	tsize = snprintf(NULL, 0, "%s.XXXXXX", file)+1;
@@ -41,12 +34,18 @@ process(const char *cmd, const char *file)
 		warn(NULL);
 		goto error1;
 	}
-	(void) snprintf(tname, tsize, "%s.XXXXXX", file);	
-				
+	(void) snprintf(tname, tsize, "%s.XXXXXX", file);
+
 	/* Open the file and redirect to our stdin. */
 	if ((fd = open(file, O_RDONLY)) < 0) {
 		warn("%s", file);
 		goto error1;
+	}
+	/* Does the file exist and is writable? */
+	if (fstat(fd, &sb) < 0 || !S_ISREG(sb.st_mode)
+	|| (sb.st_mode & (S_IRUSR|S_IWUSR)) != (S_IRUSR|S_IWUSR)) {
+		warnx("%s not R/W file", file);
+		goto error2;
 	}
 	if (dup2(fd, STDIN_FILENO) != STDIN_FILENO) {
 		warn("%s", file);
@@ -63,7 +62,7 @@ process(const char *cmd, const char *file)
 		warn("%s", file);
 		goto error2;
 	}
-	
+
 	/* Create half-duplex pipe, child will inherit our redirected stdin. */
 	(void) fprintf(stderr, "%s < %s\n", cmd, file);
 	if ((read_pipe = popen(cmd, "r")) == NULL) {
@@ -71,7 +70,7 @@ process(const char *cmd, const char *file)
 		goto error3;
 	}
 
-	/* Read command result into temporary file. */		
+	/* Read command result into temporary file. */
 	while (0 < (length = fread(buffer, 1, sizeof (buffer), read_pipe)))  {
 		if (fwrite(buffer, 1, length, tfp) != length) {
 			warn("%s", file);
@@ -79,7 +78,7 @@ process(const char *cmd, const char *file)
 		}
 	}
 
-	/* Replace the original source file by the modified copy. */			
+	/* Replace the original source file by the modified copy. */
 	if (rename(tname, file) < 0) {
 		warn("rename(%s, %s)", tname, file);
 		goto error4;
@@ -113,6 +112,6 @@ main(int argc, char **argv)
 			ex = EXIT_FAILURE;
 		}
 	}
-		
+
 	return ex;
 }
