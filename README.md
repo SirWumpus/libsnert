@@ -1,3 +1,5 @@
+Primary Repository https://codeberg.org/SirWumpus/libsnert
+
 LibSnert
 ========
 
