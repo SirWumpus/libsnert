@@ -21,6 +21,7 @@
    3. This notice may not be removed or altered from any source distribution.
 
   Originally from http://sourcefrog.net/projects/natsort/
+                  https://github.com/sourcefrog/natsort
 */
 
 /* Partial change history:
@@ -122,7 +123,7 @@ main(int argc, char **argv)
 
      /* read lines into an array */
      while (1) {
-	  char **replace; 
+	  char **replace;
 	  line = NULL;
 	  bufsize = 0;
 	  if ((linelen = getline(&line, &bufsize, stdin)) <= 0)
