@@ -1,5 +1,5 @@
 /*
- * myip.c 
+ * myip.c
  *
  * Simple inetd service reports IPv4 or IPv6 address and port number.
  * If the server port is 80 or any port between 8000..8999, then treat
@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <syslog.h>
 
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -28,6 +29,8 @@
 # include <netinet6/in6.h>
 #endif
 
+#define _NAME	"myip"
+
 union socket_address {
 	struct sockaddr sa;
 	struct sockaddr_in in;
@@ -37,7 +40,7 @@ union socket_address {
 };
 
 int
-get_socket_info(union socket_address *addr, char *buf, size_t size, int *port)
+get_socket_info(union socket_address *addr, char *buf, size_t size, unsigned *port)
 {
 	switch (addr->sa.sa_family) {
 	case AF_INET:
@@ -47,7 +50,7 @@ get_socket_info(union socket_address *addr, char *buf, size_t size, int *port)
 			return -1;
 		}
 		break;
-		
+
 #ifdef AF_INET6
 	case AF_INET6:
 		*port = (unsigned) ntohs(addr->in6.sin6_port);
@@ -61,9 +64,9 @@ get_socket_info(union socket_address *addr, char *buf, size_t size, int *port)
 		warnx("unknown socket family");
 		return -1;
 	}
-	
+
 	return 0;
-}	
+}
 
 int
 main(int argc, char **argv)
@@ -87,11 +90,14 @@ main(int argc, char **argv)
 		}
 	}
 
+	openlog(_NAME, LOG_PID, LOG_AUTH);
+	(void) atexit(closelog);
+
 	len = sizeof (addr);
-	
-	if (getsockname(STDIN_FILENO, (struct sockaddr *)&addr, &len) != 0) 
+
+	if (getsockname(STDIN_FILENO, (struct sockaddr *)&addr, &len) != 0)
 		err(EXIT_FAILURE, "getsockname");
-	
+
 	if (get_socket_info(&addr, ip, sizeof (ip), &port) != 0)
 		return EXIT_FAILURE;
 
@@ -100,8 +106,8 @@ main(int argc, char **argv)
 	 * occupied.
 	 */
 	is_http = port == 80 || (8000 <= port && port < 9000);
-			
-	if (getpeername(STDIN_FILENO, (struct sockaddr *)&addr, &len) != 0) 
+
+	if (getpeername(STDIN_FILENO, (struct sockaddr *)&addr, &len) != 0)
 		err(EXIT_FAILURE, "getpeername");
 
 	if (setsockopt(STDIN_FILENO, SOL_SOCKET, SO_LINGER, (char *) &setlinger, sizeof (setlinger)) != 0)
@@ -115,13 +121,15 @@ main(int argc, char **argv)
 		if (show_port)
 			outlen = snprintf(NULL, 0, "%s %u\r\n", ip, port);
 		else
-			outlen = snprintf(NULL, 0, "%s\r\n", ip);		
+			outlen = snprintf(NULL, 0, "%s\r\n", ip);
 		(void) printf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n", outlen);
 	}
+
+	syslog(LOG_INFO, "%s %u\r\n", ip, port);
 	if (show_port)
 		(void) printf("%s %u\r\n", ip, port);
 	else
 		(void) printf("%s\r\n", ip);
-	
+
 	return EXIT_SUCCESS;
 }
